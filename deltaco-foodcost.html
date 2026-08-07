@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Del Taco Operations Dashboard</title>
+<style>
+/* ── Foundation: palette & tokens ── */
+:root {
+  color-scheme: light;
+  --surface-page:   #f5f5f3;
+  --surface-card:   #ffffff;
+  --surface-chart:  #fcfcfb;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --gridline:       #e1e0d9;
+  --baseline:       #c3c2b7;
+  --border:         rgba(11,11,11,0.08);
+  --brand-red:      #d03b3b;
+  --brand-red-light:#fef2f2;
+  --brand-green:    #1d7b3a;
+
+  /* categorical (store colors for sparklines/trends) */
+  --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100;
+  --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #4a3aa7; --cat-8: #e34948;
+
+  /* status */
+  --status-good:     #0ca30c;
+  --status-good-bg:  #edfaed;
+  --status-warn:     #b37a00;
+  --status-warn-bg:  #fff8e6;
+  --status-serious:  #ec835a;
+  --status-serious-bg:#fff3ed;
+  --status-critical: #d03b3b;
+  --status-critical-bg:#fef2f2;
+
+  /* delta */
+  --delta-up-good:   #006300;
+  --delta-down-bad:  #d03b3b;
+  --delta-up-bad:    #d03b3b;
+  --delta-down-good: #006300;
+
+  /* sequential blue */
+  --seq-100:#cde2fb; --seq-200:#9ec5f4; --seq-300:#6da7ec;
+  --seq-400:#3987e5; --seq-500:#256abf; --seq-600:#184f95;
+
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+  --transition: 150ms ease;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-page:   #111110;
+  --surface-card:   #1e1e1c;
+  --surface-chart:  #1a1a19;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #898781;
+  --gridline:       #2c2c2a;
+  --baseline:       #383835;
+  --border:         rgba(255,255,255,0.08);
+  --brand-red:      #e66767;
+  --brand-red-light:#2a1a1a;
+  --brand-green:    #4caf50;
+  --status-good:    #0ca30c; --status-good-bg:#1a2e1a;
+  --status-warn:    #fab219; --status-warn-bg:#2e2a1a;
+  --status-serious: #ec835a; --status-serious-bg:#2e221a;
+  --status-critical:#e66767; --status-critical-bg:#2e1a1a;
+  --delta-up-good:  #0ca30c; --delta-down-bad: #e66767;
+  --delta-up-bad:   #e66767; --delta-down-good:#0ca30c;
+  --cat-1:#3987e5; --cat-2:#d95926; --cat-3:#199e70; --cat-4:#c98500;
+  --cat-5:#d55181; --cat-6:#008300; --cat-7:#9085e9; --cat-8:#e66767;
+  --seq-100:#0d366b; --seq-200:#184f95; --seq-300:#256abf;
+  --seq-400:#3987e5; --seq-500:#9ec5f4; --seq-600:#cde2fb;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Layout ── */
+.app-header {
+  background: var(--brand-red);
+  color: #fff;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.app-header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.3px; }
+.app-header .header-right { display: flex; align-items: center; gap: 16px; }
+.last-updated { font-size: 12px; opacity: 0.85; }
+.theme-toggle {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+}
+.theme-toggle:hover { background: rgba(255,255,255,0.25); }
+
+/* tabs */
+.tab-bar {
+  display: flex;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  gap: 0;
+}
+.tab-btn {
+  background: none; border: none; padding: 12px 20px;
+  font-size: 14px; font-weight: 500; color: var(--text-muted);
+  cursor: pointer; border-bottom: 2px solid transparent;
+  transition: color var(--transition), border-color var(--transition);
+}
+.tab-btn:hover { color: var(--text-secondary); }
+.tab-btn.active { color: var(--brand-red); border-bottom-color: var(--brand-red); }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+.container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+
+/* ── Controls row ── */
+.controls {
+  display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 20px;
+}
+.control-group { display: flex; align-items: center; gap: 6px; }
+.control-group label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.control-select, .control-input {
+  padding: 6px 10px; border: 1px solid var(--gridline);
+  border-radius: var(--radius-sm); background: var(--surface-card);
+  color: var(--text-primary); font-size: 13px;
+  font-family: inherit;
+}
+.control-select:focus, .control-input:focus {
+  outline: 2px solid var(--cat-1); outline-offset: 1px;
+}
+.view-toggle { display: flex; border: 1px solid var(--gridline); border-radius: var(--radius-sm); overflow: hidden; }
+.view-toggle button {
+  background: var(--surface-card); border: none;
+  padding: 6px 16px; font-size: 13px; font-weight: 500;
+  color: var(--text-secondary); cursor: pointer;
+  transition: all var(--transition);
+}
+.view-toggle button + button { border-left: 1px solid var(--gridline); }
+.view-toggle button.active {
+  background: var(--brand-red); color: #fff;
+}
+
+/* ── KPI summary row ── */
+.kpi-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.kpi-tile {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.kpi-tile .kpi-label {
+  font-size: 12px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.kpi-tile .kpi-value {
+  font-size: 28px; font-weight: 600; line-height: 1.2;
+}
+.kpi-tile .kpi-delta {
+  font-size: 13px; font-weight: 500; margin-top: 2px;
+  display: flex; align-items: center; gap: 4px;
+}
+.kpi-delta.good { color: var(--delta-up-good); }
+.kpi-delta.bad { color: var(--delta-down-bad); }
+.kpi-delta .arrow { font-size: 11px; }
+
+/* ── Store table ── */
+.store-table-wrap {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+  margin-bottom: 24px;
+}
+.store-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.store-table thead th {
+  background: var(--surface-card);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 11px;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--gridline);
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
+}
+.store-table thead th:first-child { padding-left: 20px; }
+.store-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.store-table tbody td:first-child {
+  padding-left: 20px;
+  font-weight: 600;
+}
+.store-table tbody tr:last-child td { border-bottom: none; }
+.store-table tbody tr:hover td { background: var(--surface-page); }
+
+.store-table .cell-good { color: var(--status-good); }
+.store-table .cell-warn { color: var(--status-warn); }
+.store-table .cell-critical { color: var(--status-critical); }
+
+/* status pill */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500;
+}
+.status-pill.good { background: var(--status-good-bg); color: var(--status-good); }
+.status-pill.warn { background: var(--status-warn-bg); color: var(--status-warn); }
+.status-pill.critical { background: var(--status-critical-bg); color: var(--status-critical); }
+
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%; display: inline-block;
+}
+.status-dot.good { background: var(--status-good); }
+.status-dot.warn { background: var(--status-warn); }
+.status-dot.critical { background: var(--status-critical); }
+
+/* ── Charts section ── */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.chart-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.chart-card h3 {
+  font-size: 14px; font-weight: 600; margin-bottom: 4px;
+}
+.chart-card .chart-subtitle {
+  font-size: 12px; color: var(--text-muted); margin-bottom: 16px;
+}
+.chart-area { position: relative; }
+.chart-area svg { display: block; }
+
+/* ── Food Cost section ── */
+.variance-table { font-variant-numeric: tabular-nums; }
+.variance-table .neg { color: var(--status-critical); }
+.variance-table .pos { color: var(--status-good); }
+.variance-bar {
+  height: 6px; border-radius: 3px; display: inline-block;
+  vertical-align: middle;
+}
+
+/* ── Heatmap ── */
+.heatmap-grid {
+  display: grid;
+  gap: 2px;
+  margin-top: 8px;
+}
+.heatmap-cell {
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 4px;
+  cursor: default;
+  position: relative;
+}
+.heatmap-cell .tooltip-content {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text-primary);
+  color: var(--surface-card);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+}
+.heatmap-cell:hover .tooltip-content { display: block; }
+
+/* ── Footer ── */
+.app-footer {
+  text-align: center;
+  padding: 20px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: 32px;
+}
+
+/* ── Data connection banner ── */
+.connection-banner {
+  background: var(--status-warn-bg);
+  border: 1px solid rgba(179,122,0,0.2);
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--status-warn);
+}
+.connection-banner .banner-icon { font-size: 16px; }
+.connection-banner.connected {
+  background: var(--status-good-bg);
+  border-color: rgba(12,163,12,0.2);
+  color: var(--status-good);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .container { padding: 12px 16px; }
+  .kpi-summary { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
+  .app-header h1 { font-size: 15px; }
+  .controls { gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ HEADER ═══════════════════════ -->
+<header class="app-header">
+  <h1>Del Taco Operations Dashboard</h1>
+  <div class="header-right">
+    <span class="last-updated" id="lastUpdated">Last updated: —</span>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">Dark</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════ TABS ═══════════════════════ -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="ops">Daily Operations</button>
+  <button class="tab-btn" data-tab="food">Food Cost Analysis</button>
+</nav>
+
+<!-- ═══════════════════════ TAB 1: DAILY OPERATIONS ═══════════════════════ -->
+<div class="tab-content active" id="tab-ops">
+  <div class="container">
+
+    <!-- Connection status -->
+    <div class="connection-banner" id="opsBanner">
+      <span class="banner-icon">&#9888;</span>
+      <span>Sample data shown. Once data sources are connected (PowerBI, Dayforce, Google, ServiceCheck, Jolt), this dashboard will update daily at 10:00 AM.</span>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <div class="view-toggle" id="opsViewToggle">
+        <button class="active" data-view="daily">Daily</button>
+        <button data-view="weekly">Weekly</button>
+      </div>
+
+      <div class="control-group" id="datePicker">
+        <label for="opsDate">Date</label>
+        <input type="date" id="opsDate" class="control-input">
+      </div>
+
+      <div class="control-group" id="weekPicker" style="display:none;">
+        <label for="opsWeek">Week ending</label>
+        <select id="opsWeek" class="control-select"></select>
+      </div>
+    </div>
+
+    <!-- KPI Summary tiles -->
+    <div class="kpi-summary" id="opsKpiRow"></div>
+
+    <!-- Store table -->
+    <div class="store-table-wrap">
+      <table class="store-table" id="opsTable">
+        <thead id="opsTableHead"></thead>
+        <tbody id="opsTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-grid" id="opsCharts">
+      <div class="chart-card">
+        <h3>Guest Check Average by Store</h3>
+        <p class="chart-subtitle">Prior business date</p>
+        <div class="chart-area" id="chartGCA"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Labor % by Store</h3>
+        <p class="chart-subtitle">Target varies by store volume</p>
+        <div class="chart-area" id="chartLabor"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Sales vs Prior Year</h3>
+        <p class="chart-subtitle">Dollar variance by store</p>
+        <div class="chart-area" id="chartSales"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Jolt Checklist Completion</h3>
+        <p class="chart-subtitle">Daily completion percentage</p>
+        <div class="chart-area" id="chartJolt"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════ TAB 2: FOOD COST ═══════════════════════ -->
+<div class="tab-content" id="tab-food">
+  <div class="container">
+
+    <div class="connection-banner" id="foodBanner">
+      <span class="banner-icon">&#9888;</span>
+      <span>Sample data shown. Food cost data will be populated from PLV Product Inventory Reports and QBO P&Ls once files are uploaded to the PLV Reports folder.</span>
+    </div>
+
+    <div class="controls">
+      <div class="view-toggle" id="foodViewToggle">
+        <button class="active" data-view="weekly">Weekly</button>
+        <button data-view="period">Period</button>
+      </div>
+
+      <div class="control-group" id="foodWeekPicker">
+        <label for="foodWeek">Week ending</label>
+        <select id="foodWeek" class="control-select"></select>
+      </div>
+
+      <div class="control-group" id="foodPeriodPicker" style="display:none;">
+        <label for="foodPeriod">Period</label>
+        <select id="foodPeriod" class="control-select"></select>
+      </div>
+
+      <div class="control-group">
+        <label for="foodStore">Store</label>
+        <select id="foodStore" class="control-select">
+          <option value="all">All Stores</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Food Cost KPI tiles -->
+    <div class="kpi-summary" id="foodKpiRow"></div>
+
+    <!-- Food Cost Variance table -->
+    <div class="store-table-wrap">
+      <table class="store-table variance-table" id="foodTable">
+        <thead id="foodTableHead"></thead>
+        <tbody id="foodTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- High variance items detail -->
+    <div class="chart-card" style="margin-bottom:24px;">
+      <h3>High Variance Items</h3>
+      <p class="chart-subtitle">Items with &gt;1% variance from theory — sorted by dollar impact</p>
+      <div class="store-table-wrap" style="border:none;box-shadow:none;">
+        <table class="store-table variance-table" id="varianceItemsTable">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Store</th>
+              <th>Theory Cost</th>
+              <th>Actual Cost</th>
+              <th>$ Variance</th>
+              <th>% Variance</th>
+              <th>Impact</th>
+            </tr>
+          </thead>
+          <tbody id="varianceItemsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Food cost heatmap -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Food Cost % Variance Heatmap</h3>
+        <p class="chart-subtitle">Theory vs Actual by store — darker = higher variance</p>
+        <div class="chart-area" id="foodHeatmap"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Food Cost Trend</h3>
+        <p class="chart-subtitle">Weekly food cost % — all stores</p>
+        <div class="chart-area" id="chartFoodTrend"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer class="app-footer">
+  Del Taco Operations Dashboard &mdash; Patel DT LLC &mdash; Data refreshes daily at 10:00 AM MT
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   DATA MODEL & SAMPLE DATA
+   ═══════════════════════════════════════════════════════════ */
+
+const STORES = [
+  { id: '726',  name: 'Montgomery',  short: '726' },
+  { id: '898',  name: 'Coors',       short: '898' },
+  { id: '1029', name: 'Central',     short: '1029' },
+  { id: '1056', name: 'Los Lunas',   short: '1056' },
+  { id: '1153', name: 'Rio Rancho',  short: '1153' },
+  { id: '1187', name: 'Alamogordo',  short: '1187' },
+  { id: '1205', name: 'Gallup',      short: '1205' },
+  { id: '1357', name: 'T or C',      short: '1357' },
+  { id: '1364', name: 'Bernalillo',  short: '1364' },
+  { id: '1391', name: 'Gibson',      short: '1391' },
+];
+
+const LABOR_TARGETS = {
+  '726': 22.30, '898': 24.00, '1029': 24.40, '1056': 24.00, '1153': 24.00,
+  '1187': 24.00, '1205': 24.00, '1357': 26.00, '1364': 24.00, '1391': 24.00,
+};
+
+// Generate sample daily ops data
+function genSampleOps(dateStr) {
+  const seed = dateStr.split('-').reduce((a,b) => a + parseInt(b), 0);
+  const rng = (min, max, i) => {
+    const x = Math.sin(seed * 13 + i * 7) * 10000;
+    return min + (x - Math.floor(x)) * (max - min);
+  };
+  return STORES.map((s, i) => ({
+    storeId:    s.id,
+    storeName:  s.name,
+    date:       dateStr,
+    gca:        +(rng(6.50, 9.80, i*10+1)).toFixed(2),
+    salesDelta: +(rng(-3500, 2000, i*10+2)).toFixed(0),
+    salesPct:   +(rng(-18, 5, i*10+3)).toFixed(1),
+    laborPct:   +(rng(20, 30, i*10+4)).toFixed(1),
+    laborTarget: LABOR_TARGETS[s.id],
+    reviews5:   Math.max(0, Math.round(rng(-1, 4, i*10+5))),
+    serviceChecks: Math.max(0, Math.round(rng(0, 5, i*10+6))),
+    joltPct:    +(rng(70, 100, i*10+7)).toFixed(0),
+  }));
+}
+
+// Generate sample food cost data
+function genSampleFood(weekEnd) {
+  const seed = weekEnd.split('-').reduce((a,b) => a + parseInt(b), 0);
+  const rng = (min, max, i) => {
+    const x = Math.sin(seed * 17 + i * 11) * 10000;
+    return min + (x - Math.floor(x)) * (max - min);
+  };
+  return STORES.map((s, i) => {
+    const theoryCost = +(rng(4800, 9200, i*8+1)).toFixed(0);
+    const variancePct = +(rng(-4, 8, i*8+2)).toFixed(1);
+    const actualCost = +(theoryCost * (1 + variancePct/100)).toFixed(0);
+    const dollarVar = actualCost - theoryCost;
+    const theoryPct = +(rng(26, 32, i*8+3)).toFixed(1);
+    const actualPct = +(theoryPct + variancePct).toFixed(1);
+    return {
+      storeId: s.id, storeName: s.name, weekEnd,
+      theoryCost, actualCost, dollarVar, variancePct,
+      theoryPct, actualPct,
+    };
+  });
+}
+
+// High variance items sample
+function genVarianceItems(weekEnd) {
+  const items = [
+    'Taco Meat','Steak/Asada','Chicken','Beef Patties','Cheese (shredded)',
+    'Tortillas (flour)','Tortillas (corn)','Drinks/Syrup','Lettuce','Tomatoes',
+    'Sour Cream','Avocado/Guac','Bacon','French Fries','Beans',
+  ];
+  const seed = weekEnd.split('-').reduce((a,b) => a + parseInt(b), 0);
+  const results = [];
+  items.forEach((item, ii) => {
+    STORES.forEach((s, si) => {
+      const x = Math.sin(seed * 23 + ii * 31 + si * 13) * 10000;
+      const v = (x - Math.floor(x));
+      if (v > 0.6) {
+        const theory = +(200 + v * 800).toFixed(0);
+        const pctVar = +((v - 0.5) * 10).toFixed(1);
+        const actual = +(theory * (1 + pctVar/100)).toFixed(0);
+        results.push({
+          item, storeId: s.id, storeName: s.name,
+          theoryCost: theory, actualCost: actual,
+          dollarVar: actual - theory,
+          pctVar,
+        });
+      }
+    });
+  });
+  return results.sort((a,b) => Math.abs(b.dollarVar) - Math.abs(a.dollarVar)).slice(0, 20);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════ */
+const state = {
+  opsView: 'daily',
+  opsDate: getYesterday(),
+  opsWeek: null,
+  foodView: 'weekly',
+  foodWeek: null,
+  foodPeriod: null,
+  foodStore: 'all',
+};
+
+function getYesterday() {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Week ending = next Tuesday from a given date
+function getWeekEnding(d) {
+  const dt = new Date(d + 'T12:00:00');
+  const day = dt.getDay();
+  const diff = (2 - day + 7) % 7 || 7;
+  const tue = new Date(dt); tue.setDate(tue.getDate() + (day <= 2 ? (2 - day) : diff));
+  return tue.toISOString().slice(0, 10);
+}
+
+function generateWeekOptions() {
+  const weeks = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now); d.setDate(d.getDate() - i * 7);
+    const we = getWeekEnding(d.toISOString().slice(0, 10));
+    if (!weeks.includes(we)) weeks.push(we);
+  }
+  return weeks.sort().reverse();
+}
+
+function generatePeriodOptions() {
+  // 4-week periods, starting from a fiscal year start (assume Jan 1 for now)
+  const periods = [];
+  for (let p = 1; p <= 13; p++) {
+    periods.push(`P${p} 2026`);
+  }
+  return periods;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER: OPERATIONS
+   ═══════════════════════════════════════════════════════════ */
+function renderOps() {
+  const data = genSampleOps(state.opsDate);
+
+  // KPI summary
+  const avgGCA = (data.reduce((s,d) => s + d.gca, 0) / data.length).toFixed(2);
+  const totalSalesDelta = data.reduce((s,d) => s + +d.salesDelta, 0);
+  const avgLabor = (data.reduce((s,d) => s + +d.laborPct, 0) / data.length).toFixed(1);
+  const totalReviews = data.reduce((s,d) => s + d.reviews5, 0);
+  const totalSC = data.reduce((s,d) => s + d.serviceChecks, 0);
+  const avgJolt = (data.reduce((s,d) => s + +d.joltPct, 0) / data.length).toFixed(0);
+
+  document.getElementById('opsKpiRow').innerHTML = `
+    ${kpiTile('Avg GCA', '$' + avgGCA, null)}
+    ${kpiTile('Total Sales +/-', fmtDollar(totalSalesDelta), totalSalesDelta >= 0 ? 'good' : 'bad', (totalSalesDelta >= 0 ? '+' : '') + fmtDollar(totalSalesDelta))}
+    ${kpiTile('Avg Labor %', avgLabor + '%', +avgLabor > 25 ? 'bad' : 'good')}
+    ${kpiTile('5-Star Reviews', totalReviews, 'good', '+' + totalReviews + ' today')}
+    ${kpiTile('Problem SCs', totalSC, totalSC > 10 ? 'bad' : 'good')}
+    ${kpiTile('Avg Jolt %', avgJolt + '%', +avgJolt >= 90 ? 'good' : (+avgJolt >= 80 ? null : 'bad'))}
+  `;
+
+  // Table
+  document.getElementById('opsTableHead').innerHTML = `<tr>
+    <th>Store</th><th>GCA</th><th>Sales +/-</th><th>Sales %</th>
+    <th>Labor %</th><th>Labor Target</th><th>5-Star Reviews</th>
+    <th>Problem SCs</th><th>Jolt %</th><th>Status</th>
+  </tr>`;
+
+  document.getElementById('opsTableBody').innerHTML = data.map(d => {
+    const laborDelta = (+d.laborPct - d.laborTarget).toFixed(1);
+    const laborClass = +laborDelta <= 0 ? 'cell-good' : (+laborDelta <= 2 ? 'cell-warn' : 'cell-critical');
+    const joltClass = +d.joltPct >= 95 ? 'cell-good' : (+d.joltPct >= 85 ? 'cell-warn' : 'cell-critical');
+    const salesClass = +d.salesDelta >= 0 ? 'cell-good' : (+d.salesPct > -10 ? 'cell-warn' : 'cell-critical');
+    const overallStatus = getOverallStatus(d);
+    return `<tr>
+      <td>${d.storeName} (${d.storeId})</td>
+      <td>$${d.gca}</td>
+      <td class="${salesClass}">${(+d.salesDelta >= 0 ? '+' : '') + fmtDollar(d.salesDelta)}</td>
+      <td class="${salesClass}">${(+d.salesPct >= 0 ? '+' : '') + d.salesPct}%</td>
+      <td class="${laborClass}">${d.laborPct}%</td>
+      <td>${d.laborTarget}%</td>
+      <td>${d.reviews5}</td>
+      <td>${d.serviceChecks}</td>
+      <td class="${joltClass}">${d.joltPct}%</td>
+      <td><span class="status-pill ${overallStatus}"><span class="status-dot ${overallStatus}"></span>${overallStatus === 'good' ? 'On Track' : (overallStatus === 'warn' ? 'Watch' : 'Attention')}</span></td>
+    </tr>`;
+  }).join('');
+
+  renderBarChart('chartGCA', data.map(d => ({ label: d.storeId, value: d.gca })), '$', 'GCA');
+  renderBarChart('chartLabor', data.map(d => ({ label: d.storeId, value: +d.laborPct, target: d.laborTarget })), '%', 'Labor', true);
+  renderDivergingBar('chartSales', data.map(d => ({ label: d.storeId, value: +d.salesDelta })), '$');
+  renderBarChart('chartJolt', data.map(d => ({ label: d.storeId, value: +d.joltPct })), '%', 'Jolt', false, 100);
+}
+
+function getOverallStatus(d) {
+  let score = 0;
+  if (+d.laborPct > d.laborTarget + 3) score += 2;
+  else if (+d.laborPct > d.laborTarget + 1) score += 1;
+  if (+d.salesPct < -15) score += 2;
+  else if (+d.salesPct < -5) score += 1;
+  if (+d.joltPct < 80) score += 2;
+  else if (+d.joltPct < 90) score += 1;
+  if (d.serviceChecks > 3) score += 1;
+  return score >= 4 ? 'critical' : (score >= 2 ? 'warn' : 'good');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER: FOOD COST
+   ═══════════════════════════════════════════════════════════ */
+function renderFood() {
+  const weeks = generateWeekOptions();
+  const weekEnd = state.foodWeek || weeks[0];
+  const data = genSampleFood(weekEnd);
+  const items = genVarianceItems(weekEnd);
+
+  // KPI tiles
+  const avgTheoryPct = (data.reduce((s,d) => s + d.theoryPct, 0) / data.length).toFixed(1);
+  const avgActualPct = (data.reduce((s,d) => s + d.actualPct, 0) / data.length).toFixed(1);
+  const totalDollarVar = data.reduce((s,d) => s + d.dollarVar, 0);
+  const avgVariancePct = (data.reduce((s,d) => s + d.variancePct, 0) / data.length).toFixed(1);
+
+  document.getElementById('foodKpiRow').innerHTML = `
+    ${kpiTile('Avg Theory Food %', avgTheoryPct + '%', null)}
+    ${kpiTile('Avg Actual Food %', avgActualPct + '%', +avgActualPct > +avgTheoryPct + 2 ? 'bad' : 'good')}
+    ${kpiTile('Total $ Variance', fmtDollar(totalDollarVar), totalDollarVar > 0 ? 'bad' : 'good', (totalDollarVar > 0 ? '+' : '') + fmtDollar(totalDollarVar))}
+    ${kpiTile('Avg Variance %', avgVariancePct + '%', +avgVariancePct > 2 ? 'bad' : 'good')}
+  `;
+
+  // Food cost table
+  document.getElementById('foodTableHead').innerHTML = `<tr>
+    <th>Store</th><th>Theory Cost</th><th>Actual Cost</th>
+    <th>$ Variance</th><th>% Variance</th><th>Theory %</th><th>Actual %</th><th>Status</th>
+  </tr>`;
+
+  const filtered = state.foodStore === 'all' ? data : data.filter(d => d.storeId === state.foodStore);
+  document.getElementById('foodTableBody').innerHTML = filtered.map(d => {
+    const varClass = d.variancePct > 3 ? 'cell-critical' : (d.variancePct > 1 ? 'cell-warn' : 'cell-good');
+    const status = d.variancePct > 3 ? 'critical' : (d.variancePct > 1 ? 'warn' : 'good');
+    const statusLabel = status === 'critical' ? 'High' : (status === 'warn' ? 'Watch' : 'Normal');
+    return `<tr>
+      <td>${d.storeName} (${d.storeId})</td>
+      <td>${fmtDollar(d.theoryCost)}</td>
+      <td>${fmtDollar(d.actualCost)}</td>
+      <td class="${d.dollarVar > 0 ? 'neg' : 'pos'}">${(d.dollarVar > 0 ? '+' : '') + fmtDollar(d.dollarVar)}</td>
+      <td class="${varClass}">${(d.variancePct > 0 ? '+' : '') + d.variancePct}%</td>
+      <td>${d.theoryPct}%</td>
+      <td>${d.actualPct}%</td>
+      <td><span class="status-pill ${status}"><span class="status-dot ${status}"></span>${statusLabel}</span></td>
+    </tr>`;
+  }).join('');
+
+  // Variance items
+  document.getElementById('varianceItemsBody').innerHTML = items.map(it => {
+    const impact = Math.abs(it.dollarVar) > 100 ? 'critical' : (Math.abs(it.dollarVar) > 50 ? 'warn' : 'good');
+    return `<tr>
+      <td>${it.item}</td>
+      <td>${it.storeName} (${it.storeId})</td>
+      <td>${fmtDollar(it.theoryCost)}</td>
+      <td>${fmtDollar(it.actualCost)}</td>
+      <td class="${it.dollarVar > 0 ? 'neg' : 'pos'}">${(it.dollarVar > 0 ? '+' : '') + fmtDollar(it.dollarVar)}</td>
+      <td class="${it.pctVar > 0 ? 'neg' : 'pos'}">${(it.pctVar > 0 ? '+' : '') + it.pctVar}%</td>
+      <td><span class="status-pill ${impact}"><span class="status-dot ${impact}"></span>${impact === 'critical' ? 'High' : (impact === 'warn' ? 'Med' : 'Low')}</span></td>
+    </tr>`;
+  }).join('');
+
+  renderFoodHeatmap();
+  renderFoodTrendChart();
+}
+
+function renderFoodHeatmap() {
+  const weeks = generateWeekOptions().slice(0, 6);
+  const container = document.getElementById('foodHeatmap');
+  const cols = STORES.length;
+
+  let html = `<div style="display:grid; grid-template-columns: 80px repeat(${cols}, 1fr); gap:2px; font-size:11px;">`;
+  // header
+  html += `<div style="padding:4px;color:var(--text-muted)"></div>`;
+  STORES.forEach(s => { html += `<div style="padding:4px;text-align:center;color:var(--text-muted);font-weight:500">${s.short}</div>`; });
+
+  weeks.forEach(w => {
+    const data = genSampleFood(w);
+    const label = new Date(w + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    html += `<div style="padding:6px 4px;color:var(--text-secondary);font-weight:500;white-space:nowrap">${label}</div>`;
+    data.forEach(d => {
+      const v = Math.abs(d.variancePct);
+      const hue = d.variancePct > 0 ? getSeqColor(v, 0, 8) : 'var(--status-good-bg)';
+      const textColor = v > 4 ? '#fff' : 'var(--text-primary)';
+      html += `<div class="heatmap-cell" style="background:${hue};color:${textColor};">
+        ${d.variancePct > 0 ? '+' : ''}${d.variancePct}%
+        <span class="tooltip-content">${d.storeName}: Theory ${d.theoryPct}% / Actual ${d.actualPct}%</span>
+      </div>`;
+    });
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function getSeqColor(value, min, max) {
+  const t = Math.min(1, Math.max(0, (value - min) / (max - min)));
+  const colors = ['#cde2fb','#9ec5f4','#6da7ec','#3987e5','#256abf','#184f95','#0d366b'];
+  const idx = t * (colors.length - 1);
+  return colors[Math.min(colors.length - 1, Math.round(idx))];
+}
+
+function renderFoodTrendChart() {
+  const weeks = generateWeekOptions().slice(0, 8).reverse();
+  const datasets = STORES.slice(0, 3).map((s, si) => ({
+    label: s.name,
+    color: `var(--cat-${si + 1})`,
+    points: weeks.map(w => {
+      const d = genSampleFood(w).find(fd => fd.storeId === s.id);
+      return d ? d.variancePct : 0;
+    }),
+  }));
+
+  const container = document.getElementById('chartFoodTrend');
+  const W = 380, H = 200, pad = { t: 20, r: 80, b: 40, l: 40 };
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+
+  const allVals = datasets.flatMap(ds => ds.points);
+  const yMin = Math.floor(Math.min(...allVals) - 1);
+  const yMax = Math.ceil(Math.max(...allVals) + 1);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+  // grid
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (plotH / 4) * i;
+    const val = (yMax - (yMax - yMin) * i / 4).toFixed(1);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${val}%</text>`;
+  }
+  // x labels
+  weeks.forEach((w, i) => {
+    const x = pad.l + (plotW / (weeks.length - 1)) * i;
+    const label = new Date(w + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    svg += `<text x="${x}" y="${H - 8}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${label}</text>`;
+  });
+
+  // lines
+  datasets.forEach(ds => {
+    const pts = ds.points.map((v, i) => {
+      const x = pad.l + (plotW / (weeks.length - 1)) * i;
+      const y = pad.t + plotH * (1 - (v - yMin) / (yMax - yMin));
+      return `${x},${y}`;
+    });
+    svg += `<polyline points="${pts.join(' ')}" fill="none" stroke="${ds.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    // end dot + label
+    const lastPt = pts[pts.length - 1].split(',');
+    svg += `<circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="4" fill="${ds.color}" stroke="var(--surface-chart)" stroke-width="2"/>`;
+    svg += `<text x="${+lastPt[0] + 8}" y="${+lastPt[1] + 4}" fill="var(--text-secondary)" font-size="11" font-weight="500">${ds.label}</text>`;
+  });
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CHART RENDERERS (SVG)
+   ═══════════════════════════════════════════════════════════ */
+function renderBarChart(containerId, data, unit, metric, hasTarget, maxOverride) {
+  const container = document.getElementById(containerId);
+  const W = 380, H = 220, pad = { t: 16, r: 50, b: 32, l: 40 };
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  const barW = Math.min(24, (plotW / data.length) * 0.6);
+  const gap = (plotW - barW * data.length) / (data.length + 1);
+
+  const vals = data.map(d => d.value);
+  const yMax = maxOverride || Math.ceil(Math.max(...vals) * 1.15);
+  const yMin = 0;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+
+  // gridlines
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (plotH / 4) * i;
+    const val = (yMax - (yMax - yMin) * i / 4).toFixed(unit === '$' ? 2 : 0);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${unit === '$' ? '$' : ''}${val}${unit === '%' ? '%' : ''}</text>`;
+  }
+
+  // bars
+  data.forEach((d, i) => {
+    const x = pad.l + gap + i * (barW + gap);
+    const h = (d.value / yMax) * plotH;
+    const y = pad.t + plotH - h;
+    const color = 'var(--cat-1)';
+
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="4" ry="4" fill="${color}" style="clip-path:inset(0 0 -4px 0 round 0 0 0 0);">
+      <title>${d.label}: ${unit === '$' ? '$' : ''}${d.value}${unit === '%' ? '%' : ''}</title>
+    </rect>`;
+
+    // target line
+    if (hasTarget && d.target) {
+      const ty = pad.t + plotH - (d.target / yMax) * plotH;
+      svg += `<line x1="${x - 3}" y1="${ty}" x2="${x + barW + 3}" y2="${ty}" stroke="var(--status-critical)" stroke-width="1.5"/>`;
+    }
+
+    // value label
+    svg += `<text x="${x + barW/2}" y="${y - 4}" text-anchor="middle" fill="var(--text-secondary)" font-size="10" font-weight="500">${unit === '$' ? '$' : ''}${d.value}${unit === '%' ? '%' : ''}</text>`;
+
+    // x label
+    svg += `<text x="${x + barW/2}" y="${H - 8}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${d.label}</text>`;
+  });
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+function renderDivergingBar(containerId, data, unit) {
+  const container = document.getElementById(containerId);
+  const W = 380, H = 220, pad = { t: 16, r: 50, b: 32, l: 40 };
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  const barW = Math.min(24, (plotW / data.length) * 0.6);
+  const gap = (plotW - barW * data.length) / (data.length + 1);
+
+  const absMax = Math.max(...data.map(d => Math.abs(d.value)));
+  const yMax = absMax * 1.15;
+  const midY = pad.t + plotH / 2;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+
+  // baseline
+  svg += `<line x1="${pad.l}" y1="${midY}" x2="${W - pad.r}" y2="${midY}" stroke="var(--baseline)" stroke-width="1"/>`;
+
+  // gridlines
+  for (let i = -2; i <= 2; i++) {
+    if (i === 0) continue;
+    const y = midY - (i / 2) * (plotH / 2);
+    const val = ((yMax * i / 2)).toFixed(0);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${fmtCompact(val)}</text>`;
+  }
+
+  data.forEach((d, i) => {
+    const x = pad.l + gap + i * (barW + gap);
+    const h = Math.abs(d.value / yMax) * (plotH / 2);
+    const y = d.value >= 0 ? midY - h : midY;
+    const color = d.value >= 0 ? 'var(--status-good)' : 'var(--status-critical)';
+    const ry = d.value >= 0 ? '4' : '0';
+
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="${d.value >= 0 ? 4 : 0}" fill="${color}" style="clip-path:inset(${d.value >= 0 ? '0 0 -4px 0' : '-4px 0 0 0'})">
+      <title>${d.label}: ${fmtDollar(d.value)}</title>
+    </rect>`;
+
+    // value
+    const labelY = d.value >= 0 ? y - 4 : y + h + 12;
+    svg += `<text x="${x + barW/2}" y="${labelY}" text-anchor="middle" fill="var(--text-secondary)" font-size="9" font-weight="500">${fmtCompact(d.value)}</text>`;
+    svg += `<text x="${x + barW/2}" y="${H - 8}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${d.label}</text>`;
+  });
+
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function fmtDollar(v) {
+  const n = +v;
+  return (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('en-US');
+}
+function fmtCompact(v) {
+  const n = +v;
+  if (Math.abs(n) >= 1000) return (n > 0 ? '+' : '') + '$' + (n/1000).toFixed(1) + 'K';
+  return (n > 0 ? '+' : '') + '$' + n;
+}
+
+function kpiTile(label, value, sentiment, deltaText) {
+  const deltaHtml = deltaText
+    ? `<div class="kpi-delta ${sentiment || ''}">${deltaText}</div>`
+    : (sentiment ? `<div class="kpi-delta ${sentiment}"><span class="status-dot ${sentiment}"></span></div>` : '');
+  return `<div class="kpi-tile">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value">${value}</div>
+    ${deltaHtml}
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INIT & EVENTS
+   ═══════════════════════════════════════════════════════════ */
+function init() {
+  // Set date
+  document.getElementById('opsDate').value = state.opsDate;
+  document.getElementById('lastUpdated').textContent = 'Sample data — ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+
+  // Populate week selects
+  const weeks = generateWeekOptions();
+  state.opsWeek = weeks[0];
+  state.foodWeek = weeks[0];
+  ['opsWeek', 'foodWeek'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = weeks.map(w => {
+      const d = new Date(w + 'T12:00:00');
+      const wedDate = new Date(d); wedDate.setDate(wedDate.getDate() - 6);
+      const label = wedDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' – ' +
+                    d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      return `<option value="${w}">${label}</option>`;
+    }).join('');
+  });
+
+  // Period select
+  const periods = generatePeriodOptions();
+  state.foodPeriod = periods[0];
+  document.getElementById('foodPeriod').innerHTML = periods.map(p =>
+    `<option value="${p}">${p}</option>`
+  ).join('');
+
+  // Store select for food tab
+  const foodStoreSelect = document.getElementById('foodStore');
+  STORES.forEach(s => {
+    foodStoreSelect.innerHTML += `<option value="${s.id}">${s.name} (${s.id})</option>`;
+  });
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Ops view toggle
+  document.querySelectorAll('#opsViewToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#opsViewToggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.opsView = btn.dataset.view;
+      document.getElementById('datePicker').style.display = state.opsView === 'daily' ? '' : 'none';
+      document.getElementById('weekPicker').style.display = state.opsView === 'weekly' ? '' : 'none';
+      renderOps();
+    });
+  });
+
+  // Food view toggle
+  document.querySelectorAll('#foodViewToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#foodViewToggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.foodView = btn.dataset.view;
+      document.getElementById('foodWeekPicker').style.display = state.foodView === 'weekly' ? '' : 'none';
+      document.getElementById('foodPeriodPicker').style.display = state.foodView === 'period' ? '' : 'none';
+      renderFood();
+    });
+  });
+
+  // Date change
+  document.getElementById('opsDate').addEventListener('change', e => {
+    state.opsDate = e.target.value;
+    renderOps();
+  });
+  document.getElementById('opsWeek').addEventListener('change', e => {
+    state.opsWeek = e.target.value;
+    renderOps();
+  });
+  document.getElementById('foodWeek').addEventListener('change', e => {
+    state.foodWeek = e.target.value;
+    renderFood();
+  });
+  document.getElementById('foodPeriod').addEventListener('change', e => {
+    state.foodPeriod = e.target.value;
+    renderFood();
+  });
+  document.getElementById('foodStore').addEventListener('change', e => {
+    state.foodStore = e.target.value;
+    renderFood();
+  });
+
+  renderOps();
+  renderFood();
+}
+
+function toggleTheme() {
+  const root = document.documentElement;
+  const current = root.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  document.querySelector('.theme-toggle').textContent = next === 'dark' ? 'Light' : 'Dark';
+  // Re-render charts for new theme
+  renderOps();
+  renderFood();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

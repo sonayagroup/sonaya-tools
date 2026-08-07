@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Great Clips Salon Dashboard — Sonaya Group</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface: #f5f6f8;
+  --card: #ffffff;
+  --primary: #1F3864;
+  --primary-light: #e3ecff;
+  --accent: #2E5496;
+  --text: #1c2430;
+  --text2: #52514e;
+  --muted: #8a929c;
+  --border: #e1e4ea;
+  --good: #0B6A0B;
+  --good-bg: #e6f5e6;
+  --warn: #b37a00;
+  --warn-bg: #fff8e6;
+  --bad: #C00000;
+  --bad-bg: #fef2f2;
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: var(--surface); color: var(--text); font-size: 14px; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 16px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+.topbar h1 { font-size: 20px; color: var(--primary); }
+.topbar .sub { font-size: 12px; color: var(--muted); }
+.controls { display: flex; gap: 8px; align-items: center; }
+select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; background: #fff; }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.kpi .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px; }
+.kpi .value { font-size: 26px; font-weight: 700; color: var(--text); }
+.kpi .delta { font-size: 12px; font-weight: 600; margin-top: 2px; }
+.up { color: var(--good); }
+.down { color: var(--bad); }
+.section { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.section h2 { font-size: 14px; color: var(--primary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eef1f4; font-size: 12.5px; }
+th { background: var(--primary); color: #fff; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; cursor: pointer; white-space: nowrap; }
+th:hover { background: var(--accent); }
+tr:hover td { background: #fafbfc; }
+td.r, th.r { text-align: right; }
+td.c, th.c { text-align: center; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.pill-good { background: var(--good-bg); color: var(--good); }
+.pill-warn { background: var(--warn-bg); color: var(--warn); }
+.pill-bad { background: var(--bad-bg); color: var(--bad); }
+.stars { color: #F8971D; font-size: 13px; }
+.bar-wrap { width: 80px; height: 8px; background: #eee; border-radius: 4px; display: inline-block; vertical-align: middle; }
+.bar-fill { height: 100%; border-radius: 4px; }
+.tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--primary-light); color: var(--primary); }
+.foot { color: var(--muted); font-size: 11px; margin-top: 14px; line-height: 1.5; }
+.tabs { display: flex; gap: 4px; margin-bottom: 14px; }
+.tab { padding: 8px 16px; border-radius: 8px 8px 0 0; background: #e7ebf0; color: #42505f; font-weight: 700; font-size: 13px; cursor: pointer; border: 1px solid var(--border); border-bottom: none; }
+.tab.active { background: var(--primary); color: #fff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar">
+  <div>
+    <h1>Great Clips Salon Dashboard</h1>
+    <div class="sub">Sonaya Group — 15 Locations · NM</div>
+  </div>
+  <div class="controls">
+    <select id="fRegion"><option value="">All Regions</option></select>
+    <select id="fPeriod">
+      <option value="week">This Week</option>
+      <option value="last">Last Week</option>
+      <option value="mtd">Month to Date</option>
+    </select>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="setTab('ops')">Operations</div>
+  <div class="tab" onclick="setTab('labor')">Labor & Overtime</div>
+  <div class="tab" onclick="setTab('reviews')">Reviews</div>
+</div>
+
+<div id="kpis" class="kpi-row"></div>
+<div id="tableSection" class="section">
+  <h2 id="tableTitle">Salon Performance</h2>
+  <div id="tableWrap"></div>
+</div>
+<div class="foot">
+  Data refreshed daily from POS system, Paychex payroll, and Google Business profiles. Sample data shown — connect live sources for actuals.
+</div>
+</div>
+
+<script>
+const SALONS = [
+  {id:1, name:"Las Estancias", entity:"Patel Group LLC", region:"Albuquerque", sales:12450, cuts:485, avgTicket:25.67, labor:28.2, ot:3.5, google:4.6, reviews:142, waitAvg:8, product:1840, lw_sales:11980},
+  {id:2, name:"North Towne Plaza", entity:"Patel Group 2 LLC", region:"Albuquerque", sales:11200, cuts:440, avgTicket:25.45, labor:30.1, ot:5.2, google:4.4, reviews:98, waitAvg:12, product:1520, lw_sales:11450},
+  {id:3, name:"Juan Tabo Plaza", entity:"Sonam Group LLC", region:"Albuquerque", sales:10850, cuts:425, avgTicket:25.53, labor:29.5, ot:2.8, google:4.7, reviews:167, waitAvg:7, product:1690, lw_sales:10600},
+  {id:4, name:"Nob Hill", entity:"Sonam Group 2 LLC", region:"Albuquerque", sales:13100, cuts:510, avgTicket:25.69, labor:27.8, ot:1.5, google:4.8, reviews:203, waitAvg:6, product:2100, lw_sales:12800},
+  {id:5, name:"Rio Rancho", entity:"Sonam Group 3 LLC", region:"Rio Rancho", sales:11750, cuts:460, avgTicket:25.54, labor:29.0, ot:4.0, google:4.5, reviews:121, waitAvg:10, product:1780, lw_sales:11500},
+  {id:6, name:"Towne Park Plaza", entity:"Sonam Group 4 LLC", region:"Albuquerque", sales:9800, cuts:385, avgTicket:25.45, labor:31.5, ot:6.8, google:4.3, reviews:87, waitAvg:14, product:1350, lw_sales:10100},
+  {id:7, name:"Four Hills", entity:"Sonam Group 5 LLC", region:"Albuquerque", sales:10200, cuts:400, avgTicket:25.50, labor:30.8, ot:4.5, google:4.5, reviews:110, waitAvg:11, product:1480, lw_sales:10400},
+  {id:8, name:"Golf Course", entity:"Sonam Group 6 LLC", region:"Rio Rancho", sales:11400, cuts:445, avgTicket:25.62, labor:28.9, ot:3.2, google:4.6, reviews:134, waitAvg:9, product:1720, lw_sales:11200},
+  {id:9, name:"DeVargas Center", entity:"Patel Clips LLC", region:"Santa Fe", sales:12800, cuts:498, avgTicket:25.70, labor:27.5, ot:1.0, google:4.7, reviews:189, waitAvg:7, product:2050, lw_sales:12500},
+  {id:10, name:"Coronado Center", entity:"Patel Clips 2 LLC", region:"Santa Fe", sales:10600, cuts:415, avgTicket:25.54, labor:29.8, ot:3.8, google:4.4, reviews:95, waitAvg:11, product:1560, lw_sales:10800},
+  {id:11, name:"San Isidro Plaza", entity:"Patel Clips 3 LLC", region:"Santa Fe", sales:11100, cuts:435, avgTicket:25.52, labor:29.2, ot:2.5, google:4.6, reviews:128, waitAvg:9, product:1680, lw_sales:10900},
+  {id:12, name:"Entrada Contenta", entity:"Patel Clips 4 LLC", region:"Santa Fe", sales:10400, cuts:408, avgTicket:25.49, labor:30.2, ot:4.2, google:4.5, reviews:105, waitAvg:10, product:1500, lw_sales:10600},
+  {id:13, name:"Espanola", entity:"Patel Clips 5 LLC", region:"Northern NM", sales:8900, cuts:350, avgTicket:25.43, labor:32.0, ot:7.5, google:4.2, reviews:72, waitAvg:15, product:1180, lw_sales:9200},
+  {id:14, name:"Farmington", entity:"Patel Clips 6 LLC", region:"Northern NM", sales:9500, cuts:375, avgTicket:25.33, labor:31.2, ot:6.0, google:4.3, reviews:83, waitAvg:13, product:1290, lw_sales:9700},
+  {id:15, name:"Carlsbad", entity:"Patel Clips 7 LLC", region:"Southern NM", sales:9200, cuts:362, avgTicket:25.41, labor:31.8, ot:5.5, google:4.4, reviews:91, waitAvg:12, product:1320, lw_sales:9400}
+];
+
+let tab = 'ops', sortK = 'name', sortAsc = true;
+
+function fmt(n) { return n.toLocaleString('en-US'); }
+function usd(n) { return '$' + n.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 0}); }
+function pct(n) { return n.toFixed(1) + '%'; }
+
+function setTab(t) {
+  tab = t; sortK = 'name'; sortAsc = true;
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', (i === 0 && t === 'ops') || (i === 1 && t === 'labor') || (i === 2 && t === 'reviews'));
+  });
+  render();
+}
+
+function filtered() {
+  const region = document.getElementById('fRegion').value;
+  return SALONS.filter(s => !region || s.region === region);
+}
+
+function renderKPIs(data) {
+  const el = document.getElementById('kpis');
+  const totSales = data.reduce((s, r) => s + r.sales, 0);
+  const totCuts = data.reduce((s, r) => s + r.cuts, 0);
+  const avgLabor = data.reduce((s, r) => s + r.labor, 0) / data.length;
+  const totOT = data.reduce((s, r) => s + r.ot, 0);
+  const avgGoogle = data.reduce((s, r) => s + r.google, 0) / data.length;
+  const totProduct = data.reduce((s, r) => s + r.product, 0);
+  const lwSales = data.reduce((s, r) => s + r.lw_sales, 0);
+  const salesDelta = ((totSales - lwSales) / lwSales * 100);
+
+  if (tab === 'ops') {
+    el.innerHTML = `
+      <div class="kpi"><div class="label">Total Sales</div><div class="value">${usd(totSales)}</div><div class="delta ${salesDelta >= 0 ? 'up' : 'down'}">${salesDelta >= 0 ? '+' : ''}${salesDelta.toFixed(1)}% vs last week</div></div>
+      <div class="kpi"><div class="label">Total Haircuts</div><div class="value">${fmt(totCuts)}</div></div>
+      <div class="kpi"><div class="label">Avg Ticket</div><div class="value">${'$' + (totSales / totCuts).toFixed(2)}</div></div>
+      <div class="kpi"><div class="label">Product Sales</div><div class="value">${usd(totProduct)}</div></div>
+      <div class="kpi"><div class="label">Avg Google Rating</div><div class="value">${avgGoogle.toFixed(1)} <span class="stars">&#9733;</span></div></div>
+    `;
+  } else if (tab === 'labor') {
+    el.innerHTML = `
+      <div class="kpi"><div class="label">Avg Labor %</div><div class="value">${pct(avgLabor)}</div><div class="delta ${avgLabor <= 30 ? 'up' : 'down'}">${avgLabor <= 30 ? 'On target' : 'Above 30% target'}</div></div>
+      <div class="kpi"><div class="label">Total OT Hours</div><div class="value">${totOT.toFixed(1)}</div><div class="delta ${totOT < 40 ? 'up' : 'down'}">${data.filter(s => s.ot > 5).length} salons over 5 hrs</div></div>
+      <div class="kpi"><div class="label">Salons Under 30%</div><div class="value">${data.filter(s => s.labor < 30).length} / ${data.length}</div></div>
+      <div class="kpi"><div class="label">Total Sales</div><div class="value">${usd(totSales)}</div></div>
+    `;
+  } else {
+    el.innerHTML = `
+      <div class="kpi"><div class="label">Avg Google Rating</div><div class="value">${avgGoogle.toFixed(1)} <span class="stars">&#9733;</span></div></div>
+      <div class="kpi"><div class="label">Total Reviews</div><div class="value">${fmt(data.reduce((s, r) => s + r.reviews, 0))}</div></div>
+      <div class="kpi"><div class="label">Best Rated</div><div class="value">${data.sort((a, b) => b.google - a.google)[0].name}</div></div>
+      <div class="kpi"><div class="label">Avg Wait Time</div><div class="value">${(data.reduce((s, r) => s + r.waitAvg, 0) / data.length).toFixed(0)} min</div></div>
+    `;
+  }
+}
+
+function statusPill(val, good, warn) {
+  if (val <= good) return `<span class="pill pill-good">${typeof val === 'number' && val % 1 ? pct(val) : val}</span>`;
+  if (val <= warn) return `<span class="pill pill-warn">${typeof val === 'number' && val % 1 ? pct(val) : val}</span>`;
+  return `<span class="pill pill-bad">${typeof val === 'number' && val % 1 ? pct(val) : val}</span>`;
+}
+
+function laborBar(val) {
+  const color = val <= 28 ? 'var(--good)' : val <= 30 ? 'var(--warn)' : 'var(--bad)';
+  const w = Math.min(val / 40 * 100, 100);
+  return `<div class="bar-wrap"><div class="bar-fill" style="width:${w}%;background:${color}"></div></div> ${pct(val)}`;
+}
+
+function render() {
+  const data = filtered();
+  renderKPIs([...data]);
+
+  let rows = [...data];
+  rows.sort((a, b) => {
+    let x = a[sortK], y = b[sortK];
+    if (typeof x === 'string') { x = x.toLowerCase(); y = y.toLowerCase(); }
+    if (x < y) return sortAsc ? -1 : 1;
+    if (x > y) return sortAsc ? 1 : -1;
+    return 0;
+  });
+
+  let head, body;
+  const title = document.getElementById('tableTitle');
+
+  if (tab === 'ops') {
+    title.textContent = 'Salon Performance — This Week';
+    head = '<th data-k="name">Salon</th><th data-k="sales" class="r">Sales</th><th data-k="cuts" class="r">Haircuts</th><th data-k="avgTicket" class="r">Avg Ticket</th><th data-k="product" class="r">Product $</th><th data-k="labor" class="r">Labor %</th><th data-k="google" class="c">Google</th><th data-k="waitAvg" class="r">Avg Wait</th>';
+    body = rows.map(r => {
+      const sd = ((r.sales - r.lw_sales) / r.lw_sales * 100);
+      return `<tr>
+        <td><b>${r.name}</b><br><span style="color:var(--muted);font-size:11px">${r.entity}</span></td>
+        <td class="r"><b>${usd(r.sales)}</b> <span style="font-size:11px" class="${sd >= 0 ? 'up' : 'down'}">${sd >= 0 ? '+' : ''}${sd.toFixed(1)}%</span></td>
+        <td class="r">${fmt(r.cuts)}</td>
+        <td class="r">$${r.avgTicket.toFixed(2)}</td>
+        <td class="r">${usd(r.product)}</td>
+        <td class="r">${laborBar(r.labor)}</td>
+        <td class="c">${r.google} <span class="stars">&#9733;</span></td>
+        <td class="r">${r.waitAvg} min</td>
+      </tr>`;
+    }).join('');
+  } else if (tab === 'labor') {
+    title.textContent = 'Labor & Overtime Detail';
+    head = '<th data-k="name">Salon</th><th data-k="sales" class="r">Sales</th><th data-k="labor" class="r">Labor %</th><th class="r">Status</th><th data-k="ot" class="r">OT Hours</th><th class="r">OT Status</th><th data-k="cuts" class="r">Haircuts</th><th class="r">Sales/Cut</th>';
+    body = rows.map(r => {
+      return `<tr>
+        <td><b>${r.name}</b><br><span style="color:var(--muted);font-size:11px">${r.region}</span></td>
+        <td class="r">${usd(r.sales)}</td>
+        <td class="r">${laborBar(r.labor)}</td>
+        <td class="r">${statusPill(r.labor, 28, 30)}</td>
+        <td class="r"><b>${r.ot.toFixed(1)}</b></td>
+        <td class="r">${r.ot <= 2 ? '<span class="pill pill-good">Low</span>' : r.ot <= 5 ? '<span class="pill pill-warn">Monitor</span>' : '<span class="pill pill-bad">High</span>'}</td>
+        <td class="r">${fmt(r.cuts)}</td>
+        <td class="r">$${(r.sales / r.cuts).toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    title.textContent = 'Google Reviews & Customer Experience';
+    head = '<th data-k="name">Salon</th><th data-k="google" class="c">Rating</th><th data-k="reviews" class="r">Reviews</th><th data-k="waitAvg" class="r">Avg Wait</th><th class="r">Wait Status</th><th data-k="cuts" class="r">Haircuts</th><th data-k="sales" class="r">Sales</th>';
+    body = rows.map(r => {
+      return `<tr>
+        <td><b>${r.name}</b><br><span style="color:var(--muted);font-size:11px">${r.region}</span></td>
+        <td class="c"><b>${r.google}</b> <span class="stars">${'&#9733;'.repeat(Math.round(r.google))}</span></td>
+        <td class="r">${fmt(r.reviews)}</td>
+        <td class="r">${r.waitAvg} min</td>
+        <td class="r">${r.waitAvg <= 8 ? '<span class="pill pill-good">Good</span>' : r.waitAvg <= 12 ? '<span class="pill pill-warn">Moderate</span>' : '<span class="pill pill-bad">Long</span>'}</td>
+        <td class="r">${fmt(r.cuts)}</td>
+        <td class="r">${usd(r.sales)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  const tw = document.getElementById('tableWrap');
+  tw.innerHTML = '<table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>';
+  tw.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+    const k = th.dataset.k;
+    if (sortK === k) sortAsc = !sortAsc; else { sortK = k; sortAsc = true; }
+    render();
+  });
+}
+
+// Populate region filter
+const regions = [...new Set(SALONS.map(s => s.region))].sort();
+const fRegion = document.getElementById('fRegion');
+regions.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; fRegion.appendChild(o); });
+document.getElementById('fRegion').addEventListener('change', render);
+document.getElementById('fPeriod').addEventListener('change', render);
+
+render();
+</script>
+</body>
+</html>

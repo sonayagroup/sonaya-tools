@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Koala Insulation — In-Home Estimator</title>
+<style>
+:root {
+  --navy: #043968;
+  --navy-dark: #022a4e;
+  --green: #95C93D;
+  --green-bright: #97D700;
+  --green-light: #f0f7e1;
+  --green-dark: #6a9a1e;
+  --sage: #7EB4A3;
+  --sage-light: #e8f2ef;
+  --surface: #fcfcfb;
+  --surface-2: #f5f5f4;
+  --surface-3: #ebebea;
+  --text-primary: #1a1a1a;
+  --text-secondary: #555;
+  --text-muted: #888;
+  --border: #ddd;
+  --accent: #043968;
+  --red: #c62828;
+  --orange: #ef6c00;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-lg: 0 4px 12px rgba(4,57,104,.15);
+}
+@import url('https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700;800&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: 'Alegreya Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+/* ── Header ──────────────────────────── */
+header {
+  background: var(--navy);
+  color: #fff;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-lg);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+header .logo { height: 44px; flex-shrink: 0; }
+header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; flex: 1; color: var(--green); }
+header .subtitle { font-size: .8rem; opacity: .85; font-weight: 400; color: #fff; }
+
+/* ── Customer-mode toggle ────────────── */
+.mode-toggle {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 8px; padding: 6px 14px;
+  cursor: pointer; user-select: none;
+  font-size: .82rem; font-weight: 600; color: #fff;
+  transition: background .2s; white-space: nowrap;
+}
+.mode-toggle:hover { background: rgba(151,215,0,.25); }
+.mode-toggle .toggle-track {
+  width: 36px; height: 20px;
+  background: rgba(255,255,255,.3);
+  border-radius: 10px; position: relative;
+  transition: background .2s;
+}
+.mode-toggle .toggle-thumb {
+  width: 16px; height: 16px; background: #fff;
+  border-radius: 50%; position: absolute;
+  top: 2px; left: 2px; transition: left .2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.mode-toggle.active .toggle-track { background: rgba(255,255,255,.6); }
+.mode-toggle.active .toggle-thumb { left: 18px; }
+
+/* ── Customer mode hides internal ─────── */
+body.customer-mode .internal-only { display: none !important; }
+body.customer-mode .line-items .cost-col { display: none !important; }
+body.customer-mode .btn-add,
+body.customer-mode .btn-remove { display: none !important; }
+body.customer-mode .line-items input,
+body.customer-mode .line-items select {
+  pointer-events: none; background: transparent; border-color: transparent;
+}
+
+/* ── Layout ──────────────────────────── */
+.app { display: flex; gap: 0; min-height: calc(100vh - 56px); }
+.main { flex: 1; padding: 20px 24px; overflow-y: auto; max-width: 900px; }
+.sidebar {
+  width: 340px; background: var(--surface);
+  border-left: 1px solid var(--border); padding: 20px;
+  position: sticky; top: 56px; height: calc(100vh - 56px);
+  overflow-y: auto; display: flex; flex-direction: column;
+}
+
+/* ── Cards ────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+  margin-bottom: 16px; box-shadow: var(--shadow);
+}
+.card h2 {
+  font-size: .95rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--navy); margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.card h2 .icon { font-size: 1.1rem; }
+
+/* ── Forms ────────────────────────────── */
+.field { margin-bottom: 12px; }
+.field label {
+  display: block; font-size: .8rem; font-weight: 600;
+  color: var(--text-secondary); margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: .03em;
+}
+input[type="text"], input[type="number"], select, textarea {
+  width: 100%; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-size: .95rem; font-family: inherit; transition: border-color .15s;
+}
+textarea { resize: vertical; min-height: 80px; }
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--navy);
+  box-shadow: 0 0 0 2px rgba(4,57,104,.15);
+}
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+.row { display: flex; gap: 10px; }
+.row > .field { flex: 1; }
+
+/* ── Line items table ────────────────── */
+.line-items { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .88rem; }
+.line-items th {
+  text-align: left; font-size: .72rem; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-muted);
+  padding: 4px 6px 6px; border-bottom: 2px solid var(--surface-3);
+}
+.line-items td { padding: 6px; vertical-align: middle; border-bottom: 1px solid var(--surface-3); }
+.line-items .num { text-align: right; font-variant-numeric: tabular-nums; }
+.line-items input[type="number"] { width: 70px; padding: 5px 6px; font-size: .88rem; text-align: right; }
+.line-items select { width: 100%; padding: 5px 6px; font-size: .85rem; }
+.line-items .cost { font-weight: 600; color: var(--navy); }
+.btn-add {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 8px; padding: 6px 12px;
+  background: var(--green-light); color: var(--navy);
+  border: 1px solid var(--green); border-radius: 6px;
+  font-size: .82rem; font-weight: 600; cursor: pointer;
+  transition: background .15s;
+}
+.btn-add:hover { background: #e0f0c0; }
+.btn-remove {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 1.1rem; padding: 2px 4px;
+  border-radius: 4px; transition: color .15s;
+}
+.btn-remove:hover { color: var(--red); }
+
+/* ── Option Tabs ─────────────────────── */
+.option-tabs {
+  display: flex; gap: 0; margin-bottom: 0;
+  border-bottom: 2px solid var(--border);
+}
+.option-tab {
+  padding: 10px 20px; font-size: .88rem; font-weight: 600;
+  color: var(--text-muted); background: transparent;
+  border: none; border-bottom: 2px solid transparent;
+  margin-bottom: -2px; cursor: pointer;
+  transition: color .15s, border-color .15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.option-tab:hover { color: var(--text-primary); }
+.option-tab.active { color: var(--navy); border-bottom-color: var(--green-bright); }
+.option-tab .tab-close {
+  font-size: .75rem; color: var(--text-muted);
+  cursor: pointer; border-radius: 50%; width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s;
+}
+.option-tab .tab-close:hover { background: #fce4ec; color: var(--red); }
+.tab-add {
+  padding: 10px 14px; font-size: .95rem; font-weight: 700;
+  color: var(--navy); background: transparent;
+  border: none; cursor: pointer; margin-bottom: -2px;
+}
+.tab-add:hover { color: var(--green-dark); }
+.option-container { display: none; padding-top: 16px; }
+.option-container.active { display: block; }
+
+/* ── Margin control ──────────────────── */
+.margin-control {
+  background: var(--green-light); border: 1px solid var(--green);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 16px;
+}
+.margin-control h3 {
+  font-size: .85rem; font-weight: 700;
+  color: var(--navy); margin-bottom: 10px;
+}
+.margin-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.margin-row input[type="number"] {
+  width: 70px; text-align: center; font-size: 1.1rem;
+  font-weight: 700; padding: 6px;
+}
+.margin-row .unit { font-size: 1.1rem; font-weight: 700; color: var(--navy); }
+
+/* ── Summary sidebar ─────────────────── */
+.summary-section { margin-bottom: 16px; }
+.summary-section h3 {
+  font-size: .78rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-muted);
+  margin-bottom: 8px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--surface-3);
+}
+.summary-row {
+  display: flex; justify-content: space-between;
+  padding: 3px 0; font-size: .88rem;
+}
+.summary-row .label { color: var(--text-secondary); }
+.summary-row .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+
+.total-box {
+  background: var(--navy); color: #fff;
+  border-radius: var(--radius); padding: 16px;
+  text-align: center; margin-top: auto;
+}
+.total-box .total-label {
+  font-size: .78rem; text-transform: uppercase;
+  letter-spacing: .06em; opacity: .85; margin-bottom: 2px;
+}
+.total-box .total-price {
+  font-size: 2.2rem; font-weight: 800;
+  font-variant-numeric: tabular-nums; letter-spacing: -.03em;
+}
+.total-box .total-sub { font-size: .82rem; opacity: .8; margin-top: 4px; }
+.profit-indicator {
+  display: flex; justify-content: space-between;
+  margin-top: 10px; padding: 8px 12px;
+  background: rgba(255,255,255,.15); border-radius: 6px; font-size: .82rem;
+}
+.profit-indicator .val { font-weight: 700; }
+
+/* ── Customer-mode total box ─────────── */
+.customer-total-box {
+  display: none; background: var(--navy); color: #fff;
+  border-radius: var(--radius); padding: 24px;
+  text-align: center; margin-top: auto;
+}
+body.customer-mode .customer-total-box { display: block; }
+.customer-total-box .total-label {
+  font-size: .85rem; text-transform: uppercase;
+  letter-spacing: .06em; opacity: .85; margin-bottom: 4px;
+}
+.customer-total-box .total-price {
+  font-size: 2.6rem; font-weight: 800;
+  font-variant-numeric: tabular-nums; letter-spacing: -.03em;
+}
+.customer-total-box .cust-name { font-size: .9rem; opacity: .8; margin-top: 8px; }
+.customer-total-box .cust-address { font-size: .8rem; opacity: .65; margin-top: 2px; }
+.option-price-row {
+  display: flex; justify-content: space-between;
+  padding: 6px 0; font-size: 1rem; border-bottom: 1px solid rgba(255,255,255,.15);
+}
+.option-price-row:last-child { border-bottom: none; }
+.option-price-row .opt-label { opacity: .85; }
+.option-price-row .opt-price { font-weight: 800; font-size: 1.15rem; }
+
+/* ── Auto-fill badge ─────────────────── */
+.auto-badge {
+  display: inline-block; font-size: .65rem; font-weight: 700;
+  background: var(--green-light); color: var(--navy);
+  padding: 1px 5px; border-radius: 3px; margin-left: 4px;
+  text-transform: uppercase; letter-spacing: .03em;
+}
+
+/* ── Auto-calc info ─────────────────── */
+.calc-info {
+  background: var(--green-light); border: 1px solid var(--green);
+  border-radius: 6px; padding: 10px 14px; margin-top: 10px;
+  font-size: .82rem; color: var(--navy);
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.calc-info .calc-icon { font-size: 1.1rem; flex-shrink: 0; }
+.calc-info strong { font-weight: 700; }
+.calc-info.warn { background: #fff3e0; border-color: #ffcc80; color: #e65100; }
+
+/* ── Batt Suggestions ──────────────── */
+.batt-suggestions {
+  margin-top: 10px; padding: 12px 14px;
+  background: var(--sage-light); border: 1px solid var(--sage);
+  border-radius: 6px;
+}
+.batt-suggestions h4 {
+  font-size: .78rem; font-weight: 700; color: var(--navy);
+  text-transform: uppercase; letter-spacing: .03em;
+  margin-bottom: 8px;
+}
+.batt-sug-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 0; font-size: .82rem; border-bottom: 1px solid rgba(126,180,163,.4);
+}
+.batt-sug-item:last-child { border-bottom: none; }
+.batt-sug-item .sug-name { flex: 1; color: var(--navy-dark); }
+.batt-sug-item .sug-detail { color: var(--navy); font-size: .78rem; margin-left: 8px; }
+.batt-sug-item .sug-add {
+  margin-left: 10px; padding: 3px 10px;
+  background: var(--navy); color: #fff; border: none;
+  border-radius: 4px; font-size: .75rem; font-weight: 600;
+  cursor: pointer; transition: background .15s;
+}
+.batt-sug-item .sug-add:hover { background: var(--navy-dark); }
+
+/* ── SPF auto-calc ──────────────────── */
+.spf-calc-info {
+  background: #e8f2ef; border: 1px solid var(--sage);
+  border-radius: 6px; padding: 10px 14px; margin-top: 10px;
+  font-size: .82rem; color: var(--navy);
+}
+
+/* ── Responsive ──────────────────────── */
+@media (max-width: 900px) {
+  .app { flex-direction: column; }
+  .sidebar {
+    width: 100%; position: static; height: auto;
+    border-left: none; border-top: 1px solid var(--border);
+  }
+  .main { max-width: 100%; }
+}
+
+/* ── Print ───────────────────────────── */
+@media print {
+  header { position: static; }
+  .sidebar { position: static; height: auto; }
+  .btn-add, .btn-remove, .mode-toggle, .tab-add, .tab-close { display: none; }
+  .internal-only { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <img class="logo" src="https://imagedelivery.net/uX8LTtWSHgeVJ6eG75QgxQ/koalainsulation.com/2024/06/Logo.png/w=200,h=140" alt="Koala Insulation" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+  <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style="display:none;flex-shrink:0">
+    <circle cx="22" cy="22" r="20" fill="#95C93D" fill-opacity=".2" stroke="#95C93D" stroke-width="1.5"/>
+    <text x="22" y="28" text-anchor="middle" fill="#95C93D" font-size="20" font-weight="800" font-family="'Alegreya Sans',sans-serif">K</text>
+  </svg>
+  <h1>In-Home Estimator <span class="subtitle">Koala Insulation of New Mexico</span></h1>
+  <div class="mode-toggle" id="modeToggle" onclick="toggleCustomerMode()" title="Ctrl+Shift+H">
+    <span id="modeLabel">Customer View</span>
+    <div class="toggle-track"><div class="toggle-thumb"></div></div>
+  </div>
+</header>
+
+<div class="app">
+  <div class="main">
+
+    <!-- Customer Info -->
+    <div class="card">
+      <h2><span class="icon">&#128100;</span> Customer Info</h2>
+      <div class="row">
+        <div class="field"><label>Customer Name</label><input type="text" id="custName" placeholder="Full name"></div>
+        <div class="field"><label>Estimator</label><input type="text" id="estimator" placeholder="Your name"></div>
+      </div>
+      <div class="field"><label>Service Address</label><input type="text" id="address" placeholder="Street address, City, State"></div>
+      <div class="row">
+        <div class="field"><label>Total Sq Ft of House</label><input type="number" id="totalSqft" placeholder="e.g. 2000" oninput="recalc()"></div>
+        <div class="field"><label>Sq Ft to be Insulated</label><input type="number" id="insulSqft" placeholder="e.g. 1200" oninput="recalc()"></div>
+      </div>
+    </div>
+
+    <!-- Job Details -->
+    <div class="card">
+      <h2><span class="icon">&#128736;</span> Job Details</h2>
+      <div class="row">
+        <div class="field" style="flex:2">
+          <label>Job Type</label>
+          <select id="jobType" onchange="onJobTypeChange()">
+            <option value="">-- Select --</option>
+            <option value="attic">Attic Retrofit</option>
+            <option value="densepack">Dense Pack</option>
+            <option value="netblow">Net &amp; Blow</option>
+            <option value="removal">Removal</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Target R-Value</label>
+          <select id="targetR" onchange="recalc()">
+            <option value="">--</option>
+            <option>R-10</option><option>R-11</option><option>R-13</option><option>R-14</option><option>R-15</option>
+            <option>R-19</option><option>R-21</option><option>R-22</option><option>R-23</option><option>R-24</option>
+            <option>R-25</option><option>R-26</option><option>R-30</option><option>R-31</option>
+            <option>R-34</option><option>R-38</option><option>R-39</option><option>R-40</option>
+            <option>R-42</option><option>R-44</option><option>R-48</option><option>R-49</option><option>R-60</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Framing Depth</label>
+          <select id="framingDepth" onchange="recalc()">
+            <option value="">--</option>
+            <option value="2x4">2×4</option>
+            <option value="2x6">2×6</option>
+            <option value="2x8">2×8</option>
+            <option value="2x10">2×10</option>
+            <option value="2x12">2×12</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Stud Spacing</label>
+          <select id="studSpacing" onchange="recalc()">
+            <option value="">--</option>
+            <option value="16">16" OC</option>
+            <option value="24">24" OC</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>Ceiling Area (sq ft)</label><input type="number" id="ceilingSqft" placeholder="e.g. 1200" oninput="recalc()"></div>
+        <div class="field"><label>Wall Area (sq ft)</label><input type="number" id="wallSqft" placeholder="e.g. 800" oninput="recalc()"></div>
+      </div>
+    </div>
+
+    <!-- Option Tabs -->
+    <div class="option-tabs" id="optionTabBar">
+      <!-- tabs rendered by JS -->
+    </div>
+
+    <!-- Option Containers -->
+    <div id="optionContainers">
+      <!-- built by JS -->
+    </div>
+
+    <!-- Notes -->
+    <div class="card">
+      <h2><span class="icon">&#128221;</span> Notes</h2>
+      <textarea id="notes" placeholder="Job notes, special instructions, access info..."></textarea>
+    </div>
+
+  </div><!-- .main -->
+
+  <div class="sidebar">
+
+    <!-- Margin & Royalty (internal only) -->
+    <div class="margin-control internal-only">
+      <h3>Gross Margin</h3>
+      <div class="margin-row">
+        <input type="number" id="marginInput" value="50" min="0" max="90" step="1" oninput="recalc()">
+        <span class="unit">%</span>
+      </div>
+      <div style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(4,57,104,.15)">
+        <label style="font-size:.75rem; font-weight:600; color:var(--navy); text-transform:uppercase; letter-spacing:.03em; display:block; margin-bottom:4px">Royalty / Franchise Fee</label>
+        <div class="margin-row">
+          <input type="number" id="royaltyInput" value="5" min="0" max="20" step="0.5" oninput="recalc()">
+          <span class="unit">%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cost Breakdown (internal only) -->
+    <div class="summary-section internal-only" id="costBreakdown">
+      <h3>Cost Breakdown — <span id="breakdownLabel">Option 1</span></h3>
+      <div class="summary-row"><span class="label">Blow-In Material</span><span class="value" id="sumBlowIn">$0.00</span></div>
+      <div class="summary-row"><span class="label">Batt / Rigid</span><span class="value" id="sumBatt">$0.00</span></div>
+      <div class="summary-row"><span class="label">Spray Foam</span><span class="value" id="sumSpf">$0.00</span></div>
+      <div class="summary-row"><span class="label">Total Materials</span><span class="value" id="sumMaterials" style="font-weight:700">$0.00</span></div>
+      <hr class="divider">
+      <div class="summary-row"><span class="label">Labor</span><span class="value" id="sumLabor">$0.00</span></div>
+      <div class="summary-row"><span class="label">Payroll Tax (10%)</span><span class="value" id="sumTax">$0.00</span></div>
+      <div class="summary-row"><span class="label">Total Labor</span><span class="value" id="sumLaborTotal" style="font-weight:700">$0.00</span></div>
+      <hr class="divider">
+      <div class="summary-row"><span class="label">Misc Supplies</span><span class="value" id="sumMisc">$0.00</span></div>
+      <div class="summary-row"><span class="label">Trip / Fuel</span><span class="value" id="sumTrip">$0.00</span></div>
+      <hr class="divider">
+      <div class="summary-row" style="font-size:.95rem"><span class="label" style="font-weight:700">Total Job Cost</span><span class="value" id="sumTotal" style="color:var(--navy)">$0.00</span></div>
+      <hr class="divider">
+      <div class="summary-row"><span class="label">Royalty (<span id="royaltyPctLabel">5</span>%)</span><span class="value" id="sumRoyalty">$0.00</span></div>
+      <div class="summary-row"><span class="label">Gross Profit (<span id="marginPctLabel">50</span>%)</span><span class="value" id="sumGrossProfit" style="color:var(--green-dark)">$0.00</span></div>
+    </div>
+
+    <!-- Per Sq Ft (internal only) -->
+    <div class="summary-section internal-only">
+      <h3>Per Sq Ft</h3>
+      <div class="summary-row"><span class="label">Cost / Sq Ft</span><span class="value" id="costPerSqft">—</span></div>
+      <div class="summary-row"><span class="label">Sell Price / Sq Ft</span><span class="value" id="sellPerSqft">—</span></div>
+    </div>
+
+    <!-- Total (internal view) -->
+    <div class="total-box internal-only">
+      <div class="total-label">Customer Price — <span id="priceLabel">Option 1</span></div>
+      <div class="total-price" id="customerPrice">$0.00</div>
+      <div class="total-sub">at <span id="marginNote">50%</span> margin + <span id="royaltyNote">5%</span> royalty</div>
+      <div class="profit-indicator">
+        <span>Gross Profit</span>
+        <span class="val" id="grossProfit">$0.00</span>
+      </div>
+    </div>
+
+    <!-- Customer view totals -->
+    <div class="customer-total-box">
+      <div class="total-label">Your Estimate</div>
+      <div id="custOptionPrices"></div>
+      <div class="cust-name" id="custSummaryName" style="margin-top:12px"></div>
+      <div class="cust-address" id="custSummaryAddr"></div>
+    </div>
+
+  </div><!-- .sidebar -->
+</div><!-- .app -->
+
+<script>
+// ─── PRICING DATA ───────────────────────────────────────────────────────────
+
+const BLOW_IN = [
+  { name: 'Cellulose (Clean Fiber)', price: 13.00 },
+  { name: 'Fiberglass L77', price: 39.00 },
+  { name: 'Havelock Wool', price: 0.00 },
+  { name: 'JM Climate Pro B-7700', price: 0.00 }
+];
+
+// ─── COVERAGE CHARTS (sq ft per bag) ──────────────────────────────────────
+// Cellulose (CleanFiber, 25 lb bag)
+const CELLULOSE_COVERAGE = {
+  attic: { 13: 64.8, 19: 43.2, 22: 37.0, 30: 26.6, 38: 20.8, 49: 16.0, 60: 12.9 },
+  wall: {
+    '2x4':  { 16: 27.0, 24: 26.1 },   // R-13
+    '2x6':  { 16: 17.2, 24: 16.6 },   // R-21
+    '2x8':  { 16: 13.0, 24: 12.6 },   // R-27
+    '2x10': { 16: 10.2, 24: 9.9 },    // R-34
+    '2x12': { 16: 8.4, 24: 8.1 }      // R-42
+  },
+  wallR: { '2x4': 13, '2x6': 21, '2x8': 27, '2x10': 34, '2x12': 42 }
+};
+
+// ProPink L77 Fiberglass (32 lb bag)
+const L77_COVERAGE = {
+  attic: { 13: 184.6, 19: 125.0, 22: 106.3, 26: 89.6, 30: 77.0, 38: 59.9, 44: 50.7, 49: 45.0, 60: 35.8 },
+  wall: {
+    '2x4-14':  84.4, '2x4-15':  56.3,
+    '2x6-22':  53.7, '2x6-23':  46.5, '2x6-24': 31.0,
+    '2x8-30':  37.8,
+    '2x10-38': 29.7
+  }
+};
+
+// Havelock Wool (priced per sq ft — bag count is informational)
+const HAVELOCK_COVERAGE = {
+  attic: { 10: 136, 15: 91, 20: 68, 25: 54, 30: 45, 38: 36, 49: 28, 60: 23 },
+  wall: {
+    '2x4-15':  91, '2x6-24': 58, '2x8-31': 44, '2x10-40': 35, '2x12-48': 29
+  }
+};
+
+// JM Climate Pro B-7700
+const CLIMATEPRO_COVERAGE = {
+  attic: { 11: 215.9, 13: 181.3, 19: 125.4, 22: 108.0, 26: 88.9, 30: 77.1, 38: 59.0, 44: 50.9, 49: 44.6, 60: 35.8 },
+  wall: {
+    '2x4-14':  90.0, '2x4-15': 74.5,
+    '2x6-22':  57.3, '2x6-23': 50.9, '2x6-24': 39.3,
+    '2x8-31':  32.6,
+    '2x10-39': 27.2
+  }
+};
+
+// Spray foam R-value per inch
+const SPF_R_PER_INCH = { cc: 7.5, oc: 3.7 };
+
+const INSULATION = [
+  { name: 'R-11 Kraft 15"', price: 51.36, coverage: 155 },
+  { name: 'R-11 Kraft 23"', price: 76.08, coverage: 237.66 },
+  { name: 'R-11 Unfaced 16"', price: 51.83, coverage: 170.66 },
+  { name: 'R-11 Unfaced 24"', price: 75.24, coverage: 256 },
+  { name: 'R-13 Kraft 15"', price: 45.57, coverage: 106.56 },
+  { name: 'R-13 Kraft 23"', price: 67.38, coverage: 163.4 },
+  { name: 'R-13 Unfaced 16"', price: 45.98, coverage: 117.33 },
+  { name: 'R-13 Unfaced 24"', price: 66.48, coverage: 176 },
+  { name: 'R-15 Rockwool 15.25"', price: 52.00, coverage: 59.7 },
+  { name: 'R-15 Rockwool 23"', price: 78.77, coverage: 60.1 },
+  { name: 'R-19 Kraft 15"', price: 44.56, coverage: 87.18 },
+  { name: 'R-19 Kraft 23"', price: 65.67, coverage: 133.68 },
+  { name: 'R-19 Unfaced 15"', price: 41.94, coverage: 87.18 },
+  { name: 'R-19 Unfaced 16"', price: 45.68, coverage: 96 },
+  { name: 'R-19 Unfaced 24"', price: 66.02, coverage: 144 },
+  { name: 'R-21 Kraft 15"', price: 51.81, coverage: 67.81 },
+  { name: 'R-21 Kraft 23"', price: 76.78, coverage: 103.98 },
+  { name: 'R-21 Unfaced 15"', price: 49.81, coverage: 67.81 },
+  { name: 'R-21 Unfaced 23"', price: 73.71, coverage: 103.98 },
+  { name: 'R-25 Unfaced 16"', price: 50.14, coverage: 85.33 },
+  { name: 'R-25 Unfaced 24"', price: 75.22, coverage: 128 },
+  { name: 'R-23 Rockwool 15.25"', price: 63.84, coverage: 39.8 },
+  { name: 'R-23 Rockwool 23"', price: 95.98, coverage: 37.5 },
+  { name: 'R-30 Kraft 16"', price: 47.56, coverage: 58.66 },
+  { name: 'R-30 Kraft 24"', price: 68.85, coverage: 88 },
+  { name: 'R-30 Rockwool 15.25"', price: 80.98, coverage: 29.9 },
+  { name: 'R-30 Rockwool 23"', price: 67.90, coverage: 30 },
+  { name: 'R-30 Unfaced 16"', price: 45.22, coverage: 58.66 },
+  { name: 'R-30 Unfaced 24"', price: 65.33, coverage: 88 },
+  { name: 'R-38 Kraft 16"', price: 44.67, coverage: 42.66 },
+  { name: 'R-38 Kraft 24"', price: 64.49, coverage: 64 },
+  { name: 'R-38 Unfaced 16"', price: 52.99, coverage: 58.67 },
+  { name: 'R-38 Unfaced 24"', price: 63.40, coverage: 64 },
+  { name: 'R-49 Unfaced 24"', price: 64.02, coverage: 48 },
+  { name: 'R-49 Kraft 16"', price: 43.64, coverage: 48 },
+  { name: 'R-49 Kraft 24"', price: 65.45, coverage: 48 },
+  { name: 'Safe & Sound Rockwool 15.25"', price: 60.99, coverage: 59.7 },
+  { name: 'Safe & Sound Rockwool 23"', price: 89.20, coverage: 60.1 },
+  { name: '2" Foam Board', price: 35.37, coverage: 32 },
+];
+
+const SPF_TYPES = [
+  { name: 'Closed Cell (CC)', pricePerBdFt: 0.65 },
+  { name: 'Open Cell (OC)', pricePerBdFt: 0.16 }
+];
+
+const MISC_CATALOG = [
+  { name: '30 Watt Gable Fan', price: 370 },
+  { name: '30 Watt Solar Fan', price: 340 },
+  { name: 'Attic Fresh', price: 20 },
+  { name: 'Attic Hatch Cover', price: 65 },
+  { name: 'Attic Stairs Insulation Cover', price: 20.99 },
+  { name: 'Baffles', price: 1 },
+  { name: 'Caulking', price: 4.50 },
+  { name: 'Dumpster', price: 400 },
+  { name: 'Fan Fold', price: 1.25 },
+  { name: 'Foam Sealant', price: 6 },
+  { name: 'Insulweb (cellulose)', price: 0.04 },
+  { name: 'Insulweb (fiberglass)', price: 0.04 },
+  { name: 'N95 Mask', price: 1.44 },
+  { name: 'Poly Sheeting', price: 19.90 },
+  { name: 'Recessed Light Cover', price: 8.80 },
+  { name: 'Removal Bags', price: 11.13 },
+  { name: 'Roflex', price: 1.86 },
+  { name: 'Sill Plate Gasket', price: 4.48 },
+  { name: 'SPF Supplies/PPE', price: 255.43 },
+  { name: 'Staples', price: 5.50 },
+  { name: 'Tape', price: 4.44 },
+  { name: 'Vapor Barrier 14 Mil', price: 0.33 },
+  { name: 'WMP-10 (Black)', price: 0.24 },
+  { name: 'WMP-10 (White)', price: 0.18 },
+];
+
+const JOB_AUTO_SUPPLIES = {
+  attic:     [{ idx: 9, qty: 2 }, { idx: 13, qty: 1 }, { idx: 5, qty: 20 }],
+  densepack: [{ idx: 10, qty: 1 }],
+  netblow:   [{ idx: 10, qty: 1 }],
+  removal:   [{ idx: 7, qty: 1 }, { idx: 15, qty: 10 }, { idx: 12, qty: 4 }],
+};
+
+const TRIP_RATE_PER_MILE = 1.75;
+const PAYROLL_TAX_RATE = 0.10;
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+
+let nextId = 1;
+let customerMode = false;
+
+// Each option: { id, name, rows: { blowIn:[], batt:[], spf:[], labor:[], misc:[] } }
+let options = [];
+let activeOptionIdx = 0;
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+
+const $ = id => document.getElementById(id);
+const fmt = n => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function optionsHtml(items, labelKey) {
+  return '<option value="">-- Select --</option>' +
+    items.map((it, i) => `<option value="${i}">${it[labelKey]}</option>`).join('');
+}
+
+function getOpt() { return options[activeOptionIdx]; }
+function optPrefix() { return 'o' + getOpt().id + '-'; }
+
+// ─── CUSTOMER MODE ──────────────────────────────────────────────────────────
+
+function toggleCustomerMode() {
+  customerMode = !customerMode;
+  document.body.classList.toggle('customer-mode', customerMode);
+  $('modeToggle').classList.toggle('active', customerMode);
+  $('modeLabel').textContent = customerMode ? 'Estimator View' : 'Customer View';
+  recalc();
+}
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.shiftKey && e.key === 'H') { e.preventDefault(); toggleCustomerMode(); }
+});
+
+// ─── OPTION MANAGEMENT ─────────────────────────────────────────────────────
+
+function createOption(name) {
+  const id = nextId++;
+  const opt = { id, name: name || ('Option ' + options.length + 1), rows: { blowIn: [], batt: [], spf: [], labor: [], misc: [] } };
+  options.push(opt);
+  buildOptionContainer(opt);
+  renderTabs();
+  switchToOption(options.length - 1);
+  return opt;
+}
+
+function removeOption(idx) {
+  if (options.length <= 1) return;
+  const opt = options[idx];
+  const container = $('opt-' + opt.id);
+  if (container) container.remove();
+  options.splice(idx, 1);
+  if (activeOptionIdx >= options.length) activeOptionIdx = options.length - 1;
+  renderTabs();
+  switchToOption(activeOptionIdx);
+}
+
+function renderTabs() {
+  const bar = $('optionTabBar');
+  bar.innerHTML = '';
+  options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'option-tab' + (i === activeOptionIdx ? ' active' : '');
+    btn.innerHTML = opt.name;
+    if (options.length > 1) {
+      btn.innerHTML += ` <span class="tab-close" onclick="event.stopPropagation(); removeOption(${i})">&#10005;</span>`;
+    }
+    btn.onclick = () => switchToOption(i);
+    bar.appendChild(btn);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'tab-add';
+  addBtn.textContent = '+';
+  addBtn.title = 'Add estimate option';
+  addBtn.onclick = () => createOption('Option ' + (options.length + 1));
+  bar.appendChild(addBtn);
+}
+
+function switchToOption(idx) {
+  activeOptionIdx = idx;
+  document.querySelectorAll('.option-container').forEach(el => el.classList.remove('active'));
+  const opt = options[idx];
+  const container = $('opt-' + opt.id);
+  if (container) container.classList.add('active');
+  renderTabs();
+  recalc();
+}
+
+function buildOptionContainer(opt) {
+  const div = document.createElement('div');
+  div.className = 'option-container';
+  div.id = 'opt-' + opt.id;
+  const p = optPrefixFor(opt);
+  div.innerHTML = `
+    <!-- Trip Charge -->
+    <div class="card">
+      <h2><span class="icon">&#128663;</span> Trip Charge</h2>
+      <div class="row">
+        <div class="field" style="flex:2">
+          <label>Distance Tier</label>
+          <select id="${p}tripTier" onchange="onTripTierChange('${p}'); recalc()">
+            <option value="0">No Trip Charge</option>
+            <option value="150">1–50 mi — ABQ Metro &amp; Los Lunas ($150)</option>
+            <option value="200">51–75 mi — Santa Fe &amp; Belen ($200)</option>
+            <option value="250">76–100 mi — Espanola &amp; Los Alamos ($250)</option>
+            <option value="custom">101+ mi — $1.75/mile round trip</option>
+          </select>
+        </div>
+        <div class="field" id="${p}tripMilesField" style="flex:1; display:none">
+          <label>Round-Trip Miles</label>
+          <input type="number" id="${p}tripMiles" value="0" min="0" step="1" oninput="recalc()" style="text-align:right">
+        </div>
+      </div>
+      <div class="row" style="margin-top:4px">
+        <div class="field" style="flex:1; max-width:200px">
+          <label>Generator &amp; Fuel Cost</label>
+          <input type="number" id="${p}fuelCost" value="0" min="0" step="5" oninput="recalc()" style="text-align:right">
+        </div>
+        <div class="field internal-only" style="flex:1; max-width:200px; display:flex; align-items:flex-end">
+          <span style="font-size:.85rem; color:var(--green-dark); font-weight:600; padding-bottom:8px" id="${p}tripTotal">Trip: $0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blow-In -->
+    <div class="card">
+      <h2><span class="icon">&#127968;</span> Blow-In Material</h2>
+      <div id="${p}blowCalcInfo"></div>
+      <table class="line-items">
+        <thead><tr><th style="width:40%">Material</th><th>Bags</th><th class="cost-col">$/Bag</th><th class="num cost-col">Cost</th><th></th></tr></thead>
+        <tbody id="${p}blowInBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addBlowIn()">+ Add Blow-In</button>
+    </div>
+
+    <!-- Batt / Rigid -->
+    <div class="card">
+      <h2><span class="icon">&#129521;</span> Batt &amp; Rigid Insulation</h2>
+      <div id="${p}battSuggestions"></div>
+      <table class="line-items">
+        <thead><tr><th style="width:35%">Product</th><th>Qty</th><th class="cost-col">$/Unit</th><th>Sq Ft</th><th class="num cost-col">Cost</th><th></th></tr></thead>
+        <tbody id="${p}battBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addBatt()">+ Add Insulation</button>
+    </div>
+
+    <!-- Spray Foam -->
+    <div class="card">
+      <h2><span class="icon">&#128167;</span> Spray Foam</h2>
+      <div id="${p}spfCalcInfo"></div>
+      <table class="line-items">
+        <thead><tr><th style="width:40%">Type</th><th>Board Ft</th><th class="cost-col">$/Bd Ft</th><th class="num cost-col">Cost</th><th></th></tr></thead>
+        <tbody id="${p}spfBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addSpf()">+ Add Spray Foam</button>
+    </div>
+
+    <!-- Labor -->
+    <div class="card internal-only">
+      <h2><span class="icon">&#128119;</span> Labor</h2>
+      <table class="line-items">
+        <thead><tr><th>Hours</th><th>Rate</th><th>OT Hrs</th><th>OT Rate</th><th class="num">Cost</th><th></th></tr></thead>
+        <tbody id="${p}laborBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addLabor()">+ Add Crew</button>
+    </div>
+
+    <!-- Misc Supplies -->
+    <div class="card">
+      <h2><span class="icon">&#128230;</span> Misc Supplies</h2>
+      <table class="line-items">
+        <thead><tr><th style="width:40%">Item</th><th>Qty</th><th class="cost-col">$/Item</th><th class="num cost-col">Cost</th><th></th></tr></thead>
+        <tbody id="${p}miscBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addMisc()">+ Add Supply</button>
+    </div>
+  `;
+  $('optionContainers').appendChild(div);
+}
+
+function optPrefixFor(opt) { return 'o' + opt.id + '-'; }
+
+// ─── TRIP CHARGE ────────────────────────────────────────────────────────────
+
+function onTripTierChange(prefix) {
+  const tier = $(prefix + 'tripTier').value;
+  $(prefix + 'tripMilesField').style.display = tier === 'custom' ? '' : 'none';
+}
+
+// ─── ADD ROW FUNCTIONS ──────────────────────────────────────────────────────
+
+function addBlowIn() {
+  const opt = getOpt(); const p = optPrefixFor(opt); const id = nextId++;
+  opt.rows.blowIn.push(id);
+  const tr = document.createElement('tr'); tr.id = p + 'bi-' + id;
+  tr.innerHTML = `
+    <td><select onchange="recalc()" data-id="${id}" class="${p}bi-sel">${optionsHtml(BLOW_IN, 'name')}</select></td>
+    <td><input type="number" value="0" min="0" class="${p}bi-qty" data-id="${id}" oninput="recalc()"></td>
+    <td class="num ${p}bi-price cost-col" data-id="${id}">--</td>
+    <td class="num cost ${p}bi-cost cost-col" data-id="${id}">$0.00</td>
+    <td><button class="btn-remove" onclick="removeRow('blowIn','${p}bi-${id}',${id})">&#10005;</button></td>`;
+  $(p + 'blowInBody').appendChild(tr);
+  recalc();
+}
+
+function addBatt() {
+  const opt = getOpt(); const p = optPrefixFor(opt); const id = nextId++;
+  opt.rows.batt.push(id);
+  const tr = document.createElement('tr'); tr.id = p + 'bt-' + id;
+  tr.innerHTML = `
+    <td><select onchange="onBattSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}bt-sel">${optionsHtml(INSULATION, 'name')}</select></td>
+    <td><input type="number" value="0" min="0" class="${p}bt-qty" data-id="${id}" oninput="recalc()"></td>
+    <td class="num ${p}bt-price cost-col" data-id="${id}">--</td>
+    <td class="num ${p}bt-sqft" data-id="${id}">--</td>
+    <td class="num cost ${p}bt-cost cost-col" data-id="${id}">$0.00</td>
+    <td><button class="btn-remove" onclick="removeRow('batt','${p}bt-${id}',${id})">&#10005;</button></td>`;
+  $(p + 'battBody').appendChild(tr);
+  recalc();
+}
+
+function addSpf() {
+  const opt = getOpt(); const p = optPrefixFor(opt); const id = nextId++;
+  opt.rows.spf.push(id);
+  const tr = document.createElement('tr'); tr.id = p + 'sf-' + id;
+  tr.innerHTML = `
+    <td><select onchange="recalc()" data-id="${id}" class="${p}sf-sel">${optionsHtml(SPF_TYPES, 'name')}</select></td>
+    <td><input type="number" value="0" min="0" class="${p}sf-qty" data-id="${id}" oninput="recalc()"></td>
+    <td class="num ${p}sf-price cost-col" data-id="${id}">--</td>
+    <td class="num cost ${p}sf-cost cost-col" data-id="${id}">$0.00</td>
+    <td><button class="btn-remove" onclick="removeRow('spf','${p}sf-${id}',${id})">&#10005;</button></td>`;
+  $(p + 'spfBody').appendChild(tr);
+  recalc();
+}
+
+function addLabor() {
+  const opt = getOpt(); const p = optPrefixFor(opt); const id = nextId++;
+  opt.rows.labor.push(id);
+  const tr = document.createElement('tr'); tr.id = p + 'lb-' + id;
+  tr.innerHTML = `
+    <td><input type="number" value="0" min="0" step="0.5" class="${p}lb-hrs" data-id="${id}" oninput="recalc()" style="width:60px"></td>
+    <td><input type="number" value="25" min="0" step="0.5" class="${p}lb-rate" data-id="${id}" oninput="recalc()" style="width:60px"></td>
+    <td><input type="number" value="0" min="0" step="0.5" class="${p}lb-ot" data-id="${id}" oninput="recalc()" style="width:60px"></td>
+    <td><input type="number" value="37.50" min="0" step="0.5" class="${p}lb-otrate" data-id="${id}" oninput="recalc()" style="width:60px"></td>
+    <td class="num cost ${p}lb-cost" data-id="${id}">$0.00</td>
+    <td><button class="btn-remove" onclick="removeRow('labor','${p}lb-${id}',${id})">&#10005;</button></td>`;
+  $(p + 'laborBody').appendChild(tr);
+  recalc();
+}
+
+function addMisc(presetIdx, presetQty, autoTag) {
+  const opt = getOpt(); const p = optPrefixFor(opt); const id = nextId++;
+  opt.rows.misc.push({ id, auto: !!autoTag });
+  const tr = document.createElement('tr'); tr.id = p + 'ms-' + id;
+  if (autoTag) tr.dataset.auto = '1';
+  const selHtml = optionsHtml(MISC_CATALOG, 'name');
+  tr.innerHTML = `
+    <td><select onchange="onMiscSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}ms-sel">${selHtml}</select>${autoTag ? '<span class="auto-badge">Auto</span>' : ''}</td>
+    <td><input type="number" value="${presetQty || 1}" min="0" class="${p}ms-qty" data-id="${id}" oninput="recalc()"></td>
+    <td class="num ${p}ms-price cost-col" data-id="${id}">--</td>
+    <td class="num cost ${p}ms-cost cost-col" data-id="${id}">$0.00</td>
+    <td><button class="btn-remove" onclick="removeRow('misc','${p}ms-${id}',${id})">&#10005;</button></td>`;
+  $(p + 'miscBody').appendChild(tr);
+
+  // Pre-select if preset
+  if (presetIdx !== undefined && presetIdx !== null) {
+    const sel = tr.querySelector('select');
+    sel.value = presetIdx;
+    onMiscSelect(p, id);
+  }
+  recalc();
+}
+
+function removeRow(section, trId, id) {
+  const opt = getOpt();
+  document.getElementById(trId).remove();
+  if (section === 'misc') {
+    opt.rows[section] = opt.rows[section].filter(x => x.id !== id);
+  } else {
+    opt.rows[section] = opt.rows[section].filter(x => x !== id);
+  }
+  recalc();
+}
+
+// ─── JOB TYPE AUTO-FILL ─────────────────────────────────────────────────────
+
+function onJobTypeChange() {
+  const jobType = $('jobType').value;
+  // Auto-fill misc supplies for every option
+  options.forEach((opt, idx) => {
+    const p = optPrefixFor(opt);
+    // Remove existing auto-filled rows
+    opt.rows.misc = opt.rows.misc.filter(m => {
+      if (m.auto) {
+        const tr = document.getElementById(p + 'ms-' + m.id);
+        if (tr) tr.remove();
+        return false;
+      }
+      return true;
+    });
+  });
+
+  // Add new auto supplies to active option
+  if (jobType && JOB_AUTO_SUPPLIES[jobType]) {
+    JOB_AUTO_SUPPLIES[jobType].forEach(s => {
+      addMisc(s.idx, s.qty, true);
+    });
+  }
+  recalc();
+}
+
+// ─── SELECT CALLBACKS ───────────────────────────────────────────────────────
+
+function onBattSelect(p, id) {
+  const sel = document.querySelector(`.${CSS.escape(p)}bt-sel[data-id="${id}"]`);
+  const priceEl = document.querySelector(`.${CSS.escape(p)}bt-price[data-id="${id}"]`);
+  if (sel && sel.value !== '') {
+    priceEl.textContent = fmt(INSULATION[parseInt(sel.value)].price);
+  } else if (priceEl) {
+    priceEl.textContent = '--';
+  }
+}
+
+function onMiscSelect(p, id) {
+  const sel = document.querySelector(`.${CSS.escape(p)}ms-sel[data-id="${id}"]`);
+  const priceEl = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${id}"]`);
+  if (sel && sel.value !== '') {
+    priceEl.textContent = fmt(MISC_CATALOG[parseInt(sel.value)].price);
+  } else if (priceEl) {
+    priceEl.textContent = '--';
+  }
+}
+
+// ─── AUTO-CALCULATION ENGINE ────────────────────────────────────────────────
+
+function getJobContext() {
+  const jobType = $('jobType').value;
+  const targetRRaw = $('targetR').value;
+  const rVal = targetRRaw ? parseInt(targetRRaw.replace('R-', '')) : 0;
+  const depth = $('framingDepth').value;
+  const spacing = $('studSpacing').value;
+  const ceilingArea = parseFloat($('ceilingSqft').value) || 0;
+  const wallArea = parseFloat($('wallSqft').value) || 0;
+  const isAttic = jobType === 'attic';
+  const isWall = jobType === 'densepack' || jobType === 'netblow';
+  const area = isAttic ? ceilingArea : (isWall ? wallArea : 0);
+  return { jobType, rVal, depth, spacing, ceilingArea, wallArea, isAttic, isWall, area };
+}
+
+// Find nearest R-value in a coverage chart (attic object with R-value keys)
+// Returns { rUsed, sqftPerBag, isExact } or null
+function findNearestAtticCoverage(atticChart, targetR) {
+  // Try exact match first
+  if (atticChart[targetR]) {
+    return { rUsed: targetR, sqftPerBag: atticChart[targetR], isExact: true };
+  }
+  // Find nearest R-values (next higher is conservative — more bags)
+  const rVals = Object.keys(atticChart).map(Number).sort((a, b) => a - b);
+  // Find next higher R-value (conservative: thicker = fewer sf/bag = more bags)
+  const nextHigher = rVals.find(r => r > targetR);
+  // Also find next lower for reference
+  const nextLower = rVals.filter(r => r < targetR).pop();
+  if (nextHigher) {
+    return { rUsed: nextHigher, sqftPerBag: atticChart[nextHigher], isExact: false, nextLower };
+  }
+  if (nextLower) {
+    return { rUsed: nextLower, sqftPerBag: atticChart[nextLower], isExact: false, nextLower: null };
+  }
+  return null;
+}
+
+// Look up coverage (sq ft per bag) for a given blow-in material index
+function getBlowInCoverage(materialIdx) {
+  const ctx = getJobContext();
+  if (!ctx.rVal || !ctx.area) return null;
+
+  let sqftPerBag = null;
+  let note = '';
+  let rUsed = ctx.rVal;
+  let isExact = true;
+
+  if (materialIdx === 0) { // Cellulose
+    if (ctx.isAttic) {
+      const match = findNearestAtticCoverage(CELLULOSE_COVERAGE.attic, ctx.rVal);
+      if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; }
+    } else if (ctx.isWall && ctx.depth && ctx.spacing) {
+      const wallData = CELLULOSE_COVERAGE.wall[ctx.depth];
+      if (wallData) {
+        sqftPerBag = wallData[ctx.spacing] || null;
+        const wallR = CELLULOSE_COVERAGE.wallR[ctx.depth];
+        if (wallR) note = `Dense pack R-${wallR} in ${ctx.depth} cavity`;
+      }
+    }
+  } else if (materialIdx === 1) { // L77
+    if (ctx.isAttic) {
+      const match = findNearestAtticCoverage(L77_COVERAGE.attic, ctx.rVal);
+      if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; }
+    } else if (ctx.isWall && ctx.depth) {
+      const key = ctx.depth + '-' + ctx.rVal;
+      sqftPerBag = L77_COVERAGE.wall[key] || null;
+    }
+  } else if (materialIdx === 2) { // Havelock Wool
+    if (ctx.isAttic) {
+      const match = findNearestAtticCoverage(HAVELOCK_COVERAGE.attic, ctx.rVal);
+      if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; }
+    } else if (ctx.isWall && ctx.depth) {
+      const key = ctx.depth + '-' + ctx.rVal;
+      sqftPerBag = HAVELOCK_COVERAGE.wall[key] || null;
+    }
+  } else if (materialIdx === 3) { // JM Climate Pro
+    if (ctx.isAttic) {
+      const match = findNearestAtticCoverage(CLIMATEPRO_COVERAGE.attic, ctx.rVal);
+      if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; }
+    } else if (ctx.isWall && ctx.depth) {
+      const key = ctx.depth + '-' + ctx.rVal;
+      sqftPerBag = CLIMATEPRO_COVERAGE.wall[key] || null;
+    }
+  }
+
+  if (sqftPerBag) {
+    const bags = Math.ceil(ctx.area / sqftPerBag);
+    if (!isExact) {
+      note = (note ? note + '; ' : '') + `Using R-${rUsed} coverage (nearest to R-${ctx.rVal})`;
+    }
+    return { sqftPerBag, bags, area: ctx.area, note, rUsed, isExact };
+  }
+  return null;
+}
+
+// Update blow-in auto-calc info for the active option
+function updateBlowInCalc() {
+  const opt = getOpt(); const p = optPrefixFor(opt);
+  const infoEl = $(p + 'blowCalcInfo');
+  if (!infoEl) return;
+
+  const ctx = getJobContext();
+  if (!ctx.area || !ctx.rVal || (!ctx.isAttic && !ctx.isWall)) {
+    infoEl.innerHTML = '';
+    return;
+  }
+
+  // Check each blow-in row for auto-calc
+  let msgs = [];
+  opt.rows.blowIn.forEach(id => {
+    const sel = document.querySelector(`.${CSS.escape(p)}bi-sel[data-id="${id}"]`);
+    if (!sel || sel.value === '') return;
+    const matIdx = parseInt(sel.value);
+    const calc = getBlowInCoverage(matIdx);
+    if (calc) {
+      const qtyInput = document.querySelector(`.${CSS.escape(p)}bi-qty[data-id="${id}"]`);
+      const currentQty = parseInt(qtyInput?.value) || 0;
+      const matName = BLOW_IN[matIdx].name;
+      msgs.push(`<strong>${matName}:</strong> ${calc.sqftPerBag} sf/bag × ${calc.area.toLocaleString()} sf = <strong>${calc.bags} bags</strong>${calc.note ? ' <span style="opacity:.7">(' + calc.note + ')</span>' : ''}${currentQty !== calc.bags ? ` <button onclick="setBlowInQty('${p}',${id},${calc.bags})" style="margin-left:6px;padding:2px 8px;background:var(--navy);color:#fff;border:none;border-radius:3px;font-size:.75rem;cursor:pointer">Apply ${calc.bags}</button>` : ' ✓'}`);
+    }
+  });
+
+  if (msgs.length) {
+    infoEl.innerHTML = `<div class="calc-info"><span class="calc-icon">🧮</span><div>${msgs.join('<br>')}</div></div>`;
+  } else if (ctx.isAttic || ctx.isWall) {
+    // Show what info is needed
+    let missing = [];
+    if (!ctx.rVal) missing.push('R-value');
+    if (ctx.isWall && !ctx.depth) missing.push('framing depth');
+    if (ctx.isWall && !ctx.spacing) missing.push('stud spacing');
+    if (missing.length && opt.rows.blowIn.length) {
+      infoEl.innerHTML = `<div class="calc-info warn"><span class="calc-icon">⚠️</span>Set ${missing.join(', ')} for auto-calculation</div>`;
+    } else {
+      infoEl.innerHTML = '';
+    }
+  } else {
+    infoEl.innerHTML = '';
+  }
+}
+
+function setBlowInQty(prefix, rowId, qty) {
+  const input = document.querySelector(`.${CSS.escape(prefix)}bi-qty[data-id="${rowId}"]`);
+  if (input) { input.value = qty; recalc(); }
+}
+
+// Batt suggestions based on R-value + framing
+function updateBattSuggestions() {
+  const opt = getOpt(); const p = optPrefixFor(opt);
+  const sugEl = $(p + 'battSuggestions');
+  if (!sugEl) return;
+
+  const ctx = getJobContext();
+  if (!ctx.rVal) { sugEl.innerHTML = ''; return; }
+
+  const spacing = ctx.spacing;
+  // Map stud spacing to batt widths
+  const widthMap16 = ['15"', '15.25"', '16"'];
+  const widthMap24 = ['23"', '24"'];
+
+  // Filter INSULATION array for matching R-value
+  const rStr = 'R-' + ctx.rVal;
+  const matches = [];
+  INSULATION.forEach((prod, idx) => {
+    if (!prod.name.startsWith(rStr + ' ')) return;
+    // If spacing is set, filter by width
+    if (spacing) {
+      const nameWidths = spacing === '16' ? widthMap16 : widthMap24;
+      const matchesWidth = nameWidths.some(w => prod.name.includes(w));
+      if (!matchesWidth) return;
+    }
+    const qtyNeeded = ctx.area > 0 ? Math.ceil(ctx.area / prod.coverage) : null;
+    matches.push({ idx, prod, qtyNeeded });
+  });
+
+  if (matches.length === 0) { sugEl.innerHTML = ''; return; }
+
+  let html = '<div class="batt-suggestions"><h4>🎯 Matching Batt Products for ' + rStr + '</h4>';
+  matches.forEach(m => {
+    const qtyText = m.qtyNeeded ? `${m.qtyNeeded} packs (${m.prod.coverage} sf/pk)` : `${m.prod.coverage} sf/pk`;
+    html += `<div class="batt-sug-item">
+      <span class="sug-name">${m.prod.name}</span>
+      <span class="sug-detail">${fmt(m.prod.price)} — ${qtyText}</span>
+      <button class="sug-add" onclick="addBattFromSuggestion(${m.idx}, ${m.qtyNeeded || 0})">+ Add</button>
+    </div>`;
+  });
+  html += '</div>';
+  sugEl.innerHTML = html;
+}
+
+function addBattFromSuggestion(prodIdx, qty) {
+  const opt = getOpt(); const p = optPrefixFor(opt); const id = nextId++;
+  opt.rows.batt.push(id);
+  const tr = document.createElement('tr'); tr.id = p + 'bt-' + id;
+  tr.innerHTML = `
+    <td><select onchange="onBattSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}bt-sel">${optionsHtml(INSULATION, 'name')}</select></td>
+    <td><input type="number" value="${qty || 0}" min="0" class="${p}bt-qty" data-id="${id}" oninput="recalc()"></td>
+    <td class="num ${p}bt-price cost-col" data-id="${id}">--</td>
+    <td class="num ${p}bt-sqft" data-id="${id}">--</td>
+    <td class="num cost ${p}bt-cost cost-col" data-id="${id}">$0.00</td>
+    <td><button class="btn-remove" onclick="removeRow('batt','${p}bt-${id}',${id})">&#10005;</button></td>`;
+  $(p + 'battBody').appendChild(tr);
+  // Select the product
+  const sel = tr.querySelector('select');
+  sel.value = prodIdx;
+  onBattSelect(p, id);
+  recalc();
+}
+
+// SPF auto-calc info
+function updateSpfCalc() {
+  const opt = getOpt(); const p = optPrefixFor(opt);
+  const infoEl = $(p + 'spfCalcInfo');
+  if (!infoEl) return;
+
+  const ctx = getJobContext();
+  if (!ctx.rVal || !ctx.area) { infoEl.innerHTML = ''; return; }
+
+  let msgs = [];
+  opt.rows.spf.forEach(id => {
+    const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${id}"]`);
+    if (!sel || sel.value === '') return;
+    const typeIdx = parseInt(sel.value);
+    const rPerInch = typeIdx === 0 ? SPF_R_PER_INCH.cc : SPF_R_PER_INCH.oc;
+    const thickness = (ctx.rVal / rPerInch).toFixed(2);
+    const boardFt = Math.ceil(ctx.area * parseFloat(thickness));
+    const typeName = SPF_TYPES[typeIdx].name;
+    const currentQty = parseInt(document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${id}"]`)?.value) || 0;
+
+    let liftNote = '';
+    if (typeIdx === 0 && parseFloat(thickness) > 3.5) {
+      const lifts = Math.ceil(parseFloat(thickness) / 3.5);
+      liftNote = ` (${lifts} lifts, max 3.5"/pass)`;
+    }
+
+    msgs.push(`<strong>${typeName}:</strong> R-${ctx.rVal} ÷ ${rPerInch}/in = ${thickness}" thick × ${ctx.area.toLocaleString()} sf = <strong>${boardFt.toLocaleString()} bd ft</strong>${liftNote}${currentQty !== boardFt ? ` <button onclick="setSpfQty('${p}',${id},${boardFt})" style="margin-left:6px;padding:2px 8px;background:var(--navy);color:#fff;border:none;border-radius:3px;font-size:.75rem;cursor:pointer">Apply ${boardFt.toLocaleString()}</button>` : ' ✓'}`);
+  });
+
+  if (msgs.length) {
+    infoEl.innerHTML = `<div class="spf-calc-info">🧮 ${msgs.join('<br>')}</div>`;
+  } else {
+    infoEl.innerHTML = '';
+  }
+}
+
+function setSpfQty(prefix, rowId, qty) {
+  const input = document.querySelector(`.${CSS.escape(prefix)}sf-qty[data-id="${rowId}"]`);
+  if (input) { input.value = qty; recalc(); }
+}
+
+// ─── RECALC ─────────────────────────────────────────────────────────────────
+
+function calcOption(opt) {
+  const p = optPrefixFor(opt);
+  let totalBlowIn = 0, totalBatt = 0, totalSpf = 0, totalLabor = 0, totalMisc = 0;
+
+  // Blow-in
+  opt.rows.blowIn.forEach(id => {
+    const sel = document.querySelector(`.${CSS.escape(p)}bi-sel[data-id="${id}"]`);
+    const qty = parseFloat(document.querySelector(`.${CSS.escape(p)}bi-qty[data-id="${id}"]`)?.value) || 0;
+    const priceEl = document.querySelector(`.${CSS.escape(p)}bi-price[data-id="${id}"]`);
+    const costEl = document.querySelector(`.${CSS.escape(p)}bi-cost[data-id="${id}"]`);
+    if (sel && sel.value !== '') {
+      const item = BLOW_IN[parseInt(sel.value)];
+      if (priceEl) priceEl.textContent = fmt(item.price);
+      const cost = qty * item.price;
+      if (costEl) costEl.textContent = fmt(cost);
+      totalBlowIn += cost;
+    } else {
+      if (priceEl) priceEl.textContent = '--';
+      if (costEl) costEl.textContent = '$0.00';
+    }
+  });
+
+  // Batt
+  opt.rows.batt.forEach(id => {
+    const sel = document.querySelector(`.${CSS.escape(p)}bt-sel[data-id="${id}"]`);
+    const qty = parseFloat(document.querySelector(`.${CSS.escape(p)}bt-qty[data-id="${id}"]`)?.value) || 0;
+    const sqftEl = document.querySelector(`.${CSS.escape(p)}bt-sqft[data-id="${id}"]`);
+    const costEl = document.querySelector(`.${CSS.escape(p)}bt-cost[data-id="${id}"]`);
+    if (sel && sel.value !== '') {
+      const item = INSULATION[parseInt(sel.value)];
+      const sqft = qty * item.coverage;
+      if (sqftEl) sqftEl.textContent = sqft.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' sf';
+      const cost = qty * item.price;
+      if (costEl) costEl.textContent = fmt(cost);
+      totalBatt += cost;
+    } else {
+      if (sqftEl) sqftEl.textContent = '--';
+      if (costEl) costEl.textContent = '$0.00';
+    }
+  });
+
+  // Spray foam
+  opt.rows.spf.forEach(id => {
+    const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${id}"]`);
+    const qty = parseFloat(document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${id}"]`)?.value) || 0;
+    const priceEl = document.querySelector(`.${CSS.escape(p)}sf-price[data-id="${id}"]`);
+    const costEl = document.querySelector(`.${CSS.escape(p)}sf-cost[data-id="${id}"]`);
+    if (sel && sel.value !== '') {
+      const item = SPF_TYPES[parseInt(sel.value)];
+      if (priceEl) priceEl.textContent = '$' + item.pricePerBdFt.toFixed(2);
+      const cost = qty * item.pricePerBdFt;
+      if (costEl) costEl.textContent = fmt(cost);
+      totalSpf += cost;
+    } else {
+      if (priceEl) priceEl.textContent = '--';
+      if (costEl) costEl.textContent = '$0.00';
+    }
+  });
+
+  // Labor
+  opt.rows.labor.forEach(id => {
+    const hrs = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${id}"]`)?.value) || 0;
+    const rate = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-rate[data-id="${id}"]`)?.value) || 0;
+    const ot = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${id}"]`)?.value) || 0;
+    const otRate = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-otrate[data-id="${id}"]`)?.value) || 0;
+    const cost = (hrs * rate) + (ot * otRate);
+    const costEl = document.querySelector(`.${CSS.escape(p)}lb-cost[data-id="${id}"]`);
+    if (costEl) costEl.textContent = fmt(cost);
+    totalLabor += cost;
+  });
+
+  // Misc
+  const miscIds = opt.rows.misc.map(m => m.id);
+  miscIds.forEach(id => {
+    const sel = document.querySelector(`.${CSS.escape(p)}ms-sel[data-id="${id}"]`);
+    const qty = parseFloat(document.querySelector(`.${CSS.escape(p)}ms-qty[data-id="${id}"]`)?.value) || 0;
+    const costEl = document.querySelector(`.${CSS.escape(p)}ms-cost[data-id="${id}"]`);
+    if (sel && sel.value !== '') {
+      const item = MISC_CATALOG[parseInt(sel.value)];
+      const cost = qty * item.price;
+      if (costEl) costEl.textContent = fmt(cost);
+      totalMisc += cost;
+    } else {
+      if (costEl) costEl.textContent = '$0.00';
+    }
+  });
+
+  // Trip
+  const tierEl = $(p + 'tripTier');
+  let tripCharge = 0;
+  if (tierEl) {
+    const tier = tierEl.value;
+    if (tier === 'custom') {
+      tripCharge = (parseFloat($(p + 'tripMiles')?.value) || 0) * TRIP_RATE_PER_MILE;
+    } else {
+      tripCharge = parseFloat(tier) || 0;
+    }
+  }
+  const fuelCost = parseFloat($(p + 'fuelCost')?.value) || 0;
+  tripCharge += fuelCost;
+  const tripTotalEl = $(p + 'tripTotal');
+  if (tripTotalEl) tripTotalEl.textContent = 'Trip: ' + fmt(tripCharge);
+
+  const totalMaterials = totalBlowIn + totalBatt + totalSpf;
+  const payrollTax = totalLabor * PAYROLL_TAX_RATE;
+  const totalLaborWithTax = totalLabor + payrollTax;
+  const totalJobCost = totalMaterials + totalLaborWithTax + totalMisc + tripCharge;
+
+  return { totalBlowIn, totalBatt, totalSpf, totalMaterials, totalLabor, payrollTax, totalLaborWithTax, totalMisc, tripCharge, totalJobCost };
+}
+
+function recalc() {
+  const opt = getOpt();
+  const c = calcOption(opt);
+  const margin = parseFloat($('marginInput').value) || 50;
+  const royalty = parseFloat($('royaltyInput').value) || 0;
+  const divisor = 1 - (margin / 100) - (royalty / 100);
+
+  // Update sidebar
+  $('breakdownLabel').textContent = opt.name;
+  $('priceLabel').textContent = opt.name;
+  $('sumBlowIn').textContent = fmt(c.totalBlowIn);
+  $('sumBatt').textContent = fmt(c.totalBatt);
+  $('sumSpf').textContent = fmt(c.totalSpf);
+  $('sumMaterials').textContent = fmt(c.totalMaterials);
+  $('sumLabor').textContent = fmt(c.totalLabor);
+  $('sumTax').textContent = fmt(c.payrollTax);
+  $('sumLaborTotal').textContent = fmt(c.totalLaborWithTax);
+  $('sumMisc').textContent = fmt(c.totalMisc);
+  $('sumTrip').textContent = fmt(c.tripCharge);
+  $('sumTotal').textContent = fmt(c.totalJobCost);
+  $('marginNote').textContent = margin + '%';
+  $('royaltyNote').textContent = royalty + '%';
+  $('royaltyPctLabel').textContent = royalty;
+  $('marginPctLabel').textContent = margin;
+
+  // Formula: Customer Price = Total Cost / (1 - margin% - royalty%)
+  const customerPrice = divisor > 0 ? c.totalJobCost / divisor : 0;
+  const royaltyAmt = customerPrice * (royalty / 100);
+  const grossProfit = customerPrice - c.totalJobCost - royaltyAmt;
+  $('customerPrice').textContent = fmt(customerPrice);
+  $('grossProfit').textContent = fmt(grossProfit);
+  $('sumRoyalty').textContent = fmt(royaltyAmt);
+  $('sumGrossProfit').textContent = fmt(grossProfit);
+
+  // Per sq ft
+  const sqft = parseFloat($('insulSqft').value) || 0;
+  $('costPerSqft').textContent = sqft > 0 ? '$' + (c.totalJobCost / sqft).toFixed(2) : '—';
+  $('sellPerSqft').textContent = sqft > 0 ? '$' + (customerPrice / sqft).toFixed(2) : '—';
+
+  // Customer view — all options
+  const custPrices = $('custOptionPrices');
+  custPrices.innerHTML = '';
+  options.forEach(o => {
+    const oc = calcOption(o);
+    const cp = divisor > 0 ? oc.totalJobCost / divisor : 0;
+    const row = document.createElement('div');
+    row.className = 'option-price-row';
+    row.innerHTML = `<span class="opt-label">${o.name}</span><span class="opt-price">${fmt(cp)}</span>`;
+    custPrices.appendChild(row);
+  });
+
+  $('custSummaryName').textContent = $('custName').value || '';
+  $('custSummaryAddr').textContent = $('address').value || '';
+
+  // Auto-calculation updates
+  updateBlowInCalc();
+  updateBattSuggestions();
+  updateSpfCalc();
+}
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+
+createOption('Option 1');
+addLabor();
+recalc();
+</script>
+</body>
+</html>

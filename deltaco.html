@@ -1,4 +1,13 @@
 <!DOCTYPE html>
+<script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Del Taco Operations Dashboard",
+  "schemaVersion": 1,
+  "description": "Del Taco franchise operations dashboard for Patel DT LLC (Group 373, 10 stores). Live data from PowerBI, Dayforce, ServiceCheck, Google Reviews, QBO, Jolt, and PLV reports.",
+  "mcpTools": [],
+  "mcpServerNames": []
+}
+</script>
 <html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
@@ -944,6 +953,7 @@ const dataStore = {
       '1391': { rating: 4.7, totalReviews: 1156 },
     },
   },
+  storeReviews: {},  // Per-store individual reviews: { '726': [{ rating: 5, author: 'Name', date: 'ISO', text: '...' }, ...] }
   googleMapsSearchUrls: {
     '726':  'Del Taco 4720 Montgomery Blvd NE Albuquerque NM',
     '898':  'Del Taco 1525 Coors Blvd NW Albuquerque NM',
@@ -1123,6 +1133,7 @@ async function loadExternalData() {
       if (ext.varianceItems) Object.assign(dataStore.realVarianceItems, ext.varianceItems);
       if (ext.serviceCheck) Object.assign(dataStore.realServiceCheck, ext.serviceCheck);
       if (ext.googleReviews) Object.assign(dataStore.realGoogleReviews, ext.googleReviews);
+      if (ext.storeReviews) Object.assign(dataStore.storeReviews, ext.storeReviews);
       if (ext.jolt) { if (ext.jolt.daily) Object.assign(dataStore.joltData.daily, ext.jolt.daily); if (ext.jolt.mtd) Object.assign(dataStore.joltData.mtd, ext.jolt.mtd); }
       return true;
     }
@@ -1146,6 +1157,7 @@ function getOpsData(dateStr) {
         grossSales: sale.grossSales || 0,
         netSales: netS,
         changePct: sale.changePct || 0,
+        transChangePct: sale.transChangePct !== undefined ? sale.transChangePct : null,
         gca: sale.gca || (tr > 0 ? +(netS / tr).toFixed(2) : 0),
         gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
         trans: tr,
@@ -1170,6 +1182,7 @@ function getOpsData(dateStr) {
         grossSales: sampleGross,
         netSales: sampleNet,
         changePct: +sampleVal(-15, 15, dateStr, i, 3).toFixed(2),
+        transChangePct: null,
         gca: sampleTrans > 0 ? +(sampleNet / sampleTrans).toFixed(2) : 0,
         gcaPrior: 0,
         trans: sampleTrans,
@@ -1388,6 +1401,7 @@ function getWeeklyOpsData(weekEndStr) {
       return {
         storeId: s.id, storeName: s.name, date: weekEndStr,
         grossSales: totalGross, netSales: totalNet, changePct: avgChangePct,
+        transChangePct: null,
         gca: gcaVal, gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
         trans: totalTrans,
         laborPct: labor ? +labor.laborPct.toFixed(1) : +sampleVal(20, 28, weekEndStr, i, 4).toFixed(1),
@@ -1455,11 +1469,11 @@ function renderStoreDetail(data, storeId) {
       </div>
       <div class="detail-kpi ${laborRating.cls}-border">
         <div class="detail-label">Labor %</div>
-        <div class="detail-value">${Math.round(d.laborPct)}%</div>
-        <div class="detail-sub">Target: ${Math.round(d.laborTarget)}% | Var: ${Math.round(laborVar)}% <span class="status-pill ${laborRating.cls}" style="font-size:11px">${laborRating.label}</span></div>
+        <div class="detail-value">${(+d.laborPct).toFixed(2)}%</div>
+        <div class="detail-sub">Target: ${d.laborTarget.toFixed(2)}% | Var: ${(laborVar > 0 ? '+' : '') + laborVar.toFixed(2)}% <span class="status-pill ${laborRating.cls}" style="font-size:11px">${laborRating.label}</span></div>
       </div>
       <div class="detail-kpi ${sosRating.cls}-border">
-        <div class="detail-label">Speed of Service</div>
+        <div class="detail-label">Window Speed</div>
         <div class="detail-value">${d.sos}s</div>
         <div class="detail-sub"><span class="status-pill ${sosRating.cls}" style="font-size:11px">${sosRating.label}</span></div>
       </div>
@@ -1476,7 +1490,12 @@ function renderStoreDetail(data, storeId) {
       <div class="detail-kpi">
         <div class="detail-label">Google Rating</div>
         <div class="detail-value">${renderStars(+(d.googleRating||0))} ${d.googleRating||'--'}</div>
-        <div class="detail-sub">${d.totalReviews ? d.totalReviews.toLocaleString() + ' reviews' : '--'}</div>
+        <div class="detail-sub">${d.totalReviews ? d.totalReviews.toLocaleString() + ' reviews' : '--'}${(() => { const nr = getNewReviews(d.storeId); return nr !== null ? ' | <span style="color:#0ca30c">+' + nr + ' new</span>' : ''; })()}</div>
+      </div>
+      <div class="detail-kpi">
+        <div class="detail-label">Jolt Checklist</div>
+        <div class="detail-value">${d.checklistPct !== null ? Math.round(d.checklistPct) + '%' : '--'}</div>
+        <div class="detail-sub">${d.checklistPct !== null ? (d.checklistPct >= 95 ? '<span style="color:#0ca30c">Complete</span>' : '<span style="color:#d03b3b">Incomplete</span>') : 'No data'}</div>
       </div>
       <div class="detail-kpi">
         <div class="detail-label">Problem SCs</div>
@@ -1484,6 +1503,34 @@ function renderStoreDetail(data, storeId) {
         <div class="detail-sub">${d.serviceChecks === 0 ? '<span style="color:#0ca30c">Clean</span>' : '<span style="color:#d03b3b">Attention</span>'}</div>
       </div>
     </div>
+    ${renderStoreReviews(d.storeId)}
+  </div>`;
+}
+
+/* ===== HELPER: STORE GOOGLE REVIEWS ===== */
+function renderStoreReviews(storeId) {
+  const reviews = dataStore.storeReviews && dataStore.storeReviews[storeId];
+  if (!reviews || reviews.length === 0) {
+    return `<div style="margin-top:16px;padding:16px;background:var(--surface-chart);border-radius:var(--radius);border:1px solid var(--border)">
+      <h3 style="font-size:14px;margin-bottom:8px;color:var(--text-secondary)">Recent Google Reviews</h3>
+      <p style="color:var(--text-muted);font-size:13px">Review data will appear here once individual reviews are captured via Google Maps.</p>
+    </div>`;
+  }
+  const rows = reviews.slice(0, 10).map(r => {
+    const stars = renderStars(r.rating);
+    const date = r.date ? new Date(r.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+    const text = r.text ? (r.text.length > 200 ? r.text.substring(0, 200) + '...' : r.text) : '<em style="color:var(--text-muted)">No comment</em>';
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span>${stars} <strong style="font-size:12px">${r.author || 'Anonymous'}</strong></span>
+        <span style="color:var(--text-muted);font-size:11px">${date}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.4">${text}</div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:16px;padding:16px;background:var(--surface-chart);border-radius:var(--radius);border:1px solid var(--border)">
+    <h3 style="font-size:14px;margin-bottom:8px;color:var(--text-secondary)">Last 10 Google Reviews</h3>
+    ${rows}
   </div>`;
 }
 
@@ -1537,7 +1584,7 @@ function renderOps() {
   const totalTrans = data.reduce((s,d) => s + (+d.trans || 0), 0);
   const avgGCA = totalTrans > 0 ? (totalNet / totalTrans).toFixed(2) : '0.00';
   const avgChangePct = (data.reduce((s,d) => s + (+d.changePct || 0), 0) / data.length).toFixed(2);
-  const avgLabor = Math.round(data.reduce((s,d) => s + +d.laborPct, 0) / data.length);
+  const avgLabor = (data.reduce((s,d) => s + +d.laborPct, 0) / data.length).toFixed(2);
 
   const totalSC = data.reduce((s,d) => s + d.serviceChecks, 0);
   const avgSOS = Math.round(data.reduce((s,d) => s + d.sos, 0) / data.length);
@@ -1554,9 +1601,9 @@ function renderOps() {
     ${kpiTile('Total Net Sales', fmtDollar(totalNet), null)}
     ${kpiTile('Avg Change %', (+avgChangePct >= 0 ? '+' : '') + avgChangePct + '%', +avgChangePct >= 0 ? 'good' : 'bad')}
     ${kpiTile('Avg Labor %', avgLabor + '%', +avgLabor > 25 ? 'bad' : 'good')}
-    ${avgChecklist !== null ? kpiTile('Checklist %', avgChecklist + '%', avgChecklist >= 95 ? 'good' : (avgChecklist >= 85 ? null : 'bad')) : ''}
+    ${avgChecklist !== null ? kpiTile('Jolt %', avgChecklist + '%', avgChecklist >= 95 ? 'good' : (avgChecklist >= 85 ? null : 'bad')) : ''}
     ${kpiTile('Problem SCs', totalSC, totalSC > 10 ? 'bad' : 'good')}
-    ${kpiTile('Avg Speed', avgSOS + 's', sosR.cls === 'great' || sosR.cls === 'good' ? 'good' : 'bad')}
+    ${kpiTile('Avg Window', avgSOS + 's', sosR.cls === 'great' || sosR.cls === 'good' ? 'good' : 'bad')}
     ${kpiTile('Avg Voids', avgVoids + '%', voidsR.cls === 'great' || voidsR.cls === 'good' ? 'good' : 'bad')}
   `;
 
@@ -1566,17 +1613,16 @@ function renderOps() {
   // Table columns
   const cols = [
     { key: 'storeId', label: 'Store' },
-    { key: 'grossSales', label: 'Gross Sales' },
     { key: 'netSales', label: 'Net Sales' },
+    { key: 'changePct', label: 'Change %' },
     { key: 'trans', label: 'Trans' },
     { key: 'gca', label: 'Check' },
-    { key: 'changePct', label: 'Change %' },
-    { key: 'laborPct', label: 'Labor %' },
-    { key: 'laborTarget', label: 'Target' },
-    { key: 'checklistPct', label: 'Checklist' },
-    { key: 'sos', label: 'Speed (s)' },
+    { key: 'laborVar', label: 'Labor Var' },
+    { key: 'checklistPct', label: 'Jolt' },
+    { key: 'sos', label: 'Window (s)' },
     { key: 'voidsPct', label: 'Voids %' },
     { key: 'refunds', label: 'Refunds $' },
+    { key: 'newReviews', label: 'New Reviews' },
     { key: 'googleRating', label: 'Google' },
     { key: 'serviceChecks', label: 'Prob SCs' },
     { key: 'compositeScore', label: 'Score' },
@@ -1589,15 +1635,20 @@ function renderOps() {
   }).join('')}</tr>`;
 
   document.getElementById('opsTableBody').innerHTML = data.map(d => {
-    const laborVar = Math.abs(+d.laborPct - d.laborTarget);
-    const laborR = rateKPI('laborVariance', laborVar);
+    const laborVar = +d.laborPct - d.laborTarget;
+    const laborVarAbs = Math.abs(laborVar);
+    const laborR = rateKPI('laborVariance', laborVarAbs);
     const sosR2 = rateKPI('speedAtWindow', d.sos);
     const voidsR2 = rateKPI('voids', d.voidsPct);
     const changeClass = +d.changePct >= 0 ? 'cell-good' : (+d.changePct > -10 ? 'cell-warn' : 'cell-critical');
     const ratingClass = +d.googleRating >= 4.0 ? 'cell-good' : (+d.googleRating >= 3.5 ? 'cell-warn' : 'cell-critical');
     const refundClass = d.refunds > 10 ? 'cell-critical' : 'cell-good';
     const gcaDelta = d.gcaPrior ? (d.gca > d.gcaPrior ? '<span style="color:#0ca30c;font-size:11px"> ▲</span>' : d.gca < d.gcaPrior ? '<span style="color:#d03b3b;font-size:11px"> ▼</span>' : '') : '';
+    const transArrow = d.transChangePct !== undefined && d.transChangePct !== null ? (d.transChangePct >= 0 ? '<span style="color:#0ca30c;font-size:11px"> ▲</span>' : '<span style="color:#d03b3b;font-size:11px"> ▼</span>') : '';
     const checklistClass = d.checklistPct !== null ? (d.checklistPct >= 95 ? 'cell-good' : (d.checklistPct >= 80 ? 'cell-warn' : 'cell-critical')) : '';
+    const laborVarStr = (laborVar >= 0 ? '+' : '') + laborVar.toFixed(2) + '%';
+    const laborVarClass = laborVarAbs <= 0.25 ? 'cell-great' : laborVarAbs <= 0.50 ? 'cell-good' : laborVarAbs <= 1.00 ? 'cell-warn' : 'cell-critical';
+    const newRevs = getNewReviews(d.storeId);
     const overallStatus = getOverallStatus(d);
     const cs = computeCompositeScore(d);
     d.compositeScore = cs.total;
@@ -1605,17 +1656,16 @@ function renderOps() {
     const scoreTitle = Object.entries(cs.scores).map(([k,v]) => `${k}: ${v.score} (${v.label})`).join(', ');
     return `<tr>
       <td>${d.storeName} (${d.storeId})</td>
-      <td>${fmtDollar(d.grossSales)}</td>
       <td>${fmtDollar(d.netSales)}</td>
-      <td>${d.trans}</td>
-      <td>$${(+d.gca).toFixed(2)}${gcaDelta}</td>
       <td class="${changeClass}">${(+d.changePct >= 0 ? '+' : '') + (+d.changePct).toFixed(2)}%</td>
-      <td class="cell-${laborR.cls}">${Math.round(d.laborPct)}%</td>
-      <td>${Math.round(d.laborTarget)}%</td>
+      <td>${d.trans}${transArrow}</td>
+      <td>$${(+d.gca).toFixed(2)}${gcaDelta}</td>
+      <td class="${laborVarClass}" title="Actual: ${(+d.laborPct).toFixed(2)}% | Target: ${d.laborTarget.toFixed(2)}%">${laborVarStr}</td>
       <td class="${checklistClass}">${d.checklistPct !== null ? Math.round(d.checklistPct) + '%' : '--'}</td>
       <td class="cell-${sosR2.cls}">${d.sos}</td>
       <td class="cell-${voidsR2.cls}">${(+d.voidsPct).toFixed(2)}%</td>
       <td class="${refundClass}">$${d.refunds.toFixed(2)}</td>
+      <td>${newRevs !== null ? (newRevs > 0 ? '<span style="color:#0ca30c">+' + newRevs + '</span>' : '0') : '--'}</td>
       <td class="${ratingClass}">${renderStars(+d.googleRating)} ${d.googleRating} <span style="color:var(--text-muted);font-size:11px">(${d.totalReviews ? d.totalReviews.toLocaleString() : '--'})</span></td>
       <td>${d.serviceChecks}</td>
       <td title="${scoreTitle}"><span class="score-badge ${scoreCls}">${cs.total}/${cs.maxScore}</span></td>

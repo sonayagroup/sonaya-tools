@@ -244,14 +244,49 @@ let current=null,curDate=null,curWeek=null,charts={},detMode="day";
 // WeeklySalon row (WeeklySalon schema minus weekEnding+salonId) metric -> column index
 const WS={salonName:0,serviceSales:1,productSales:2,totalSales:3,cust:4,newCust:5,floorHours:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,payrollPct:12,avgMinBtwn:13,voidsPct:14,svcDiscPct:15,overShort:16,newRetPct:17,repRetPct:18,floorHoursGrowth:19,custGrowthPct:20,salesGrowthPct:21};
 
-// ===== DATA LAYER (static GitHub build: dashboard-data.json + Supabase for recaps) =====
-// Fill these two in from Supabase → Project Settings → API. The anon key is safe to expose
-// here (row-level security limits it to reading/saving recaps only).
+// ===== DATA LAYER (Supabase live backend) =====
 const SUPA_URL="https://vcukhvjwsuaqxgqzotwb.supabase.co";
-const SUPA_KEY="sb_publishable_-hprPPqnVl6bA4hh2Aozdg_ks95GRvF";  // publishable (safe in browser; RLS-limited to recaps)
-const supaReady=()=>SUPA_URL&&SUPA_URL.indexOf("__SUPABASE")<0&&SUPA_KEY&&SUPA_KEY.indexOf("__SUPABASE")<0;
+const SUPA_KEY=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9","eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30","Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE"].join(".");
+const supaReady=()=>true;
+const SALON_AM={'0200':'Liza','0933':'Liza','3781':'Liza','6110':'Liza',
+  '2092':'Samantha','2850':'Samantha','5809':'Samantha','7741':'Samantha','3999':'Samantha',
+  '0646':'Tanya','6101':'Tanya','6116':'Tanya','6117':'Tanya','7700':'Tanya','8914':'Tanya'};
 let DATA={dates:[],weeks:[],salons:{},salonAm:{},days:{},weeklies:{}};
-function loadData(){return fetch("greatclips-data.json",{cache:"no-store"}).then(r=>r.ok?r.json():{}).then(j=>{DATA=Object.assign(DATA,j||{});return DATA;});}
+async function supaFetchAll(table,orderCol){
+  const PAGE=1000;let all=[],off=0;
+  while(true){
+    const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?select=*&order="+orderCol+"&offset="+off+"&limit="+PAGE,
+      {headers:{apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY}});
+    if(!r.ok)throw new Error(table+": "+r.status);
+    const rows=await r.json();all=all.concat(rows);
+    if(rows.length<PAGE)break;off+=PAGE;
+  }return all;
+}
+async function loadData(){
+  const[dSal,dSty,dWait,wSal,wEpp]=await Promise.all([
+    supaFetchAll("daily_salon","date"),supaFetchAll("daily_stylist","date"),
+    supaFetchAll("daily_wait","date"),supaFetchAll("weekly_salon","week_ending"),
+    supaFetchAll("weekly_epp","week_ending")]);
+  const salons={},salonAm={},datesSet=new Set(),weeksSet=new Set(),days={},weeklies={};
+  dSal.forEach(r=>{const d=r.date,sid=String(r.salon_id);datesSet.add(d);
+    salons[sid]=r.salon_name;salonAm[sid]=SALON_AM[sid]||"";
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{}};
+    days[d].SAL.push([sid,r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.payroll_pct,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.cust_growth_pct,r.sales_growth_pct,r.cash_over_short]);});
+  dSty.forEach(r=>{const d=r.date,sid=String(r.salon_id);
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{}};if(!days[d].STY[sid])days[d].STY[sid]=[];
+    days[d].STY[sid].push([r.stylist_name,r.floor_hrs,r.payroll_pct,r.cph,r.service_sales,r.svc_disc,r.disc_pct,r.std_prod_pct,r.cust,r.avg_hc,r.prodvity,r.avg_min_btwn]);});
+  dWait.forEach(r=>{const d=r.date,sid=String(r.salon_id);
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{}};
+    days[d].WAIT[sid]=[r.b1_lte10,r.b2_10_15,r.b3_15_20,r.b4_20_25,r.b5_25_30,r.b6_30_40,r.b7_40plus];});
+  wSal.forEach(r=>{const wk=r.week_ending,sid=String(r.salon_id);weeksSet.add(wk);
+    if(!weeklies[wk])weeklies[wk]={EPP:{},REDF:{},WSAL:{}};
+    weeklies[wk].WSAL[sid]=[r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.new_cust,r.floor_hours,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.payroll_pct,r.avg_min_btwn,r.voids_pct,r.svc_disc_pct,r.over_short,r.new_ret_pct,r.rep_ret_pct,r.floor_hours_growth,r.cust_growth_pct,r.sales_growth_pct];});
+  wEpp.forEach(r=>{const wk=r.week_ending,sid=String(r.salon_id);
+    if(!weeklies[wk])weeklies[wk]={EPP:{},REDF:{},WSAL:{}};
+    if(!weeklies[wk].EPP[sid])weeklies[wk].EPP[sid]=[];
+    weeklies[wk].EPP[sid].push([r.stylist_name,r.floor_hrs,r.cust,r.avg_hc,r.cph,r.std_prod_pct,r.svc_disc_pct,r.prodvity,r.payroll_pct,r.new_ret_pct,r.rep_ret_pct,r.avg_min_btwn]);});
+  DATA={dates:[...datesSet],weeks:[...weeksSet],salons,salonAm,days,weeklies};return DATA;
+}
 // SAL row (DailySalon minus 'date') metric -> column index, for client-side trends
 const SALIDX={serviceSales:2,productSales:3,totalSales:4,cust:5,payrollPct:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,custGrowthPct:12,salesGrowthPct:13};
 function dTrend(salon,metric){const idx=SALIDX[metric];if(idx==null)return [];const out=[];
@@ -279,7 +314,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
 
 function opt(sel,val,txt){const o=document.createElement("option");o.value=val;o.textContent=txt;sel.appendChild(o);}
 
-window.onload=()=>{ loadData().then(onBoot).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load dashboard-data.json: '+e.message+'</div>'); loadRecaps(); };
+window.onload=()=>{ loadData().then(onBoot).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase:'+e.message+'</div>'); loadRecaps(); };
 
 function onBoot(b){
   SALONS=b.salons||{};SALONAM=b.salonAm||{};

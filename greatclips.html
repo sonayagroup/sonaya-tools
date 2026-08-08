@@ -77,6 +77,11 @@ tbody tr.clickrow{cursor:pointer}
 .banner{padding:10px 13px;border-radius:8px;font-size:12.7px;border:1px solid;margin-bottom:14px}
 .banner.warn{background:#fff6e6;border-color:#f0dca8;color:#7a5300}
 .loading{padding:40px;text-align:center;color:var(--muted)}
+.modebar{display:flex;align-items:center;gap:10px;margin:2px 0 14px}
+.det-mode{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.det-mode button{background:#fff;color:var(--muted);border:none;padding:6px 18px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.det-mode button+button{border-left:1px solid var(--line)}
+.det-mode button.active{background:var(--blue);color:#fff}
 </style></head>
 <body>
 <header><div class="hdr-inner">
@@ -99,7 +104,9 @@ tbody tr.clickrow{cursor:pointer}
   <div class="tab" data-t="recap">Weekly Recap</div>
 </div></nav>
 <div class="wrap">
+
 <div id="emptyBanner"></div>
+
 <section class="panel active" id="portfolio">
   <div class="kpis" id="portKpis"></div>
   <div class="sec-title" id="portTitle"></div>
@@ -115,28 +122,53 @@ tbody tr.clickrow{cursor:pointer}
     <div class="card"><h3>Payroll % vs 40% Target</h3><div class="hint">Red = over target</div><div class="chart-box tall"><canvas id="cPay"></canvas></div></div>
   </div>
 </section>
+
 <section class="panel" id="reps">
   <div class="sec-title" id="repsTitle"></div>
   <div class="legend-note" style="margin-bottom:8px">Auto-built from the selected day with ✅ on-target / 🤔 watch / 🚩 below flags and top-stylist shout-outs. Edit anything, then copy into WhatsApp.</div>
   <div style="margin-bottom:10px"><button class="btn" id="repsCopy">📋 Copy message</button> <span class="savemsg" id="repsMsg"></span></div>
   <textarea id="repsText" style="width:100%;min-height:340px;border:1px solid var(--line);border-radius:8px;padding:14px;font:inherit;font-size:14px;line-height:1.55;background:#fff;white-space:pre-wrap"></textarea>
 </section>
+
 <section class="panel" id="detail">
+  <div class="modebar">
+    <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
+    <span class="det-mode" id="detModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="week">Week</button></span>
+    <span id="detModeHint" style="font-size:12px;color:var(--muted)"></span>
+  </div>
   <div class="kpis" id="detKpis"></div>
   <div class="sec-title" id="detTitle"></div>
-  <div class="card tbl-scroll" style="margin-bottom:16px">
-    <table id="styTable"><thead><tr>
-      <th>Stylist</th><th>Floor Hrs</th><th>Payroll %</th><th>CPH</th><th>Service $</th><th>Svc Disc $</th><th>Disc %</th>
-      <th>Stnd Prod %</th><th>Cust</th><th>Avg HC</th><th>Productivity</th><th>Avg Min Btwn</th>
-    </tr></thead><tbody></tbody><tfoot></tfoot></table>
-    <div class="legend-note">Cells colored by KPI thresholds — <span class="kg">&nbsp;green&nbsp;</span> on target, <span class="ky">&nbsp;yellow&nbsp;</span> watch, <span class="kr">&nbsp;red&nbsp;</span> below (payroll, CPH, std prod %, avg HC).</div>
+
+  <div id="detDay">
+    <div class="card tbl-scroll" style="margin-bottom:16px">
+      <table id="styTable"><thead><tr>
+        <th>Stylist</th><th>Floor Hrs</th><th>Payroll %</th><th>CPH</th><th>Service $</th><th>Svc Disc $</th><th>Disc %</th>
+        <th>Stnd Prod %</th><th>Cust</th><th>Avg HC</th><th>Productivity</th><th>Avg Min Btwn</th>
+      </tr></thead><tbody></tbody><tfoot></tfoot></table>
+      <div class="legend-note">Cells colored by KPI thresholds — <span class="kg">&nbsp;green&nbsp;</span> on target, <span class="ky">&nbsp;yellow&nbsp;</span> watch, <span class="kr">&nbsp;red&nbsp;</span> below (payroll, CPH, std prod %, avg HC).</div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>Wait-Time Distribution</h3><div class="hint">All customers, selected day</div><div class="chart-box"><canvas id="cDetWait"></canvas></div></div>
+      <div class="card"><h3>At a glance</h3><div class="hint">Salon totals</div><ul class="mini-list" id="detList"></ul></div>
+    </div>
   </div>
-  <div class="grid g2">
-    <div class="card"><h3>Wait-Time Distribution</h3><div class="hint">All customers, selected day</div><div class="chart-box"><canvas id="cDetWait"></canvas></div></div>
-    <div class="card"><h3>At a glance</h3><div class="hint">Salon totals</div><ul class="mini-list" id="detList"></ul></div>
+
+  <div id="detWeek" style="display:none">
+    <div class="card tbl-scroll" style="margin-bottom:16px">
+      <table id="styWeekTable"><thead><tr>
+        <th>Stylist</th><th>Floor Hrs</th><th>Cust</th><th>Avg HC</th><th>CPH</th><th>Std Prod %</th><th>Payroll %</th><th>New Ret %</th><th>Repeat Ret %</th><th>Prod'vity</th>
+      </tr></thead><tbody></tbody></table>
+      <div class="legend-note">Weekly per-stylist performance (Sat–Fri). Cells colored by KPI thresholds. <span class="na">n/a</span> = too few eligible customers for a return rate.</div>
+    </div>
+    <div class="grid g2">
+      <div class="card"><h3>Weekly wait &amp; pace</h3><div class="hint" id="detWeekWaitHint"></div><ul class="mini-list" id="detWeekWait"></ul></div>
+      <div class="card"><h3>At a glance</h3><div class="hint">Weekly totals</div><ul class="mini-list" id="detWeekList"></ul></div>
+    </div>
   </div>
+
   <div class="card" style="margin-top:16px"><h3>Recent Google Reviews</h3><div class="hint" id="revHint"></div><div id="revList"></div></div>
 </section>
+
 <section class="panel" id="team">
   <div class="sec-title" id="teamTitle"></div>
   <div id="teamSummary" class="legend-note" style="margin-bottom:10px"></div>
@@ -147,6 +179,7 @@ tbody tr.clickrow{cursor:pointer}
     <div class="legend-note">Cells colored by KPI thresholds. <span class="na">n/a</span> = too few eligible customers for a return rate.</div>
   </div>
 </section>
+
 <section class="panel" id="redflags">
   <div class="sec-title" id="redTitle"></div>
   <div id="redSummary" class="legend-note" style="margin-bottom:10px"></div>
@@ -157,6 +190,7 @@ tbody tr.clickrow{cursor:pointer}
     <div class="legend-note"><span class="flag">&nbsp;red&nbsp;</span> = discount % &ge; 10, or any changed invoice / redo / void / refund. <span class="warn">&nbsp;amber&nbsp;</span> = 5+ short or long service-time occurrences.</div>
   </div>
 </section>
+
 <section class="panel" id="trends">
   <div class="sec-title">Trends over time</div>
   <div class="recap-bar">
@@ -175,6 +209,7 @@ tbody tr.clickrow{cursor:pointer}
   <div class="card"><div class="chart-box tall"><canvas id="cTrend"></canvas></div>
     <div class="legend-note" id="trendNote"></div></div>
 </section>
+
 <section class="panel" id="recap">
   <div class="sec-title" id="recapTitle"></div>
   <div id="recapBanner"></div>
@@ -193,8 +228,10 @@ tbody tr.clickrow{cursor:pointer}
     <div class="recap-q"><label>Are schedules up to date and entered?</label><textarea id="q_schedules"></textarea></div>
   </div>
 </section>
+
 <div class="footer">Great Clips salon dashboard · live from your data store · history builds daily.</div>
 </div>
+
 <script>
 const $=s=>document.querySelector(s);
 const BLUE="#048667",RED="#e4002b",AMBER="#e9a049",GREEN="#089f45";
@@ -202,18 +239,25 @@ const money=n=>"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,max
 const money0=n=>"$"+Math.round(n).toLocaleString("en-US");
 const sign=n=>(n>0?"+":"")+Number(n).toFixed(1)+"%";
 const cls=n=>n>=0?"up":"down";
-let SALONS={},SALONAM={},DATES=[],WEEKS=[],DAY={SAL:[],STY:{},WAIT:{}},WEEK={EPP:{},REDF:{}},recaps=[];
-let current=null,curDate=null,curWeek=null,charts={};
-// ===== DATA LAYER (static GitHub build: greatclips-data.json + Supabase for recaps) =====
+let SALONS={},SALONAM={},DATES=[],WEEKS=[],DAY={SAL:[],STY:{},WAIT:{}},WEEK={EPP:{},REDF:{},WSAL:{}},recaps=[];
+let current=null,curDate=null,curWeek=null,charts={},detMode="day";
+// WeeklySalon row (WeeklySalon schema minus weekEnding+salonId) metric -> column index
+const WS={salonName:0,serviceSales:1,productSales:2,totalSales:3,cust:4,newCust:5,floorHours:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,payrollPct:12,avgMinBtwn:13,voidsPct:14,svcDiscPct:15,overShort:16,newRetPct:17,repRetPct:18,floorHoursGrowth:19,custGrowthPct:20,salesGrowthPct:21};
+
+// ===== DATA LAYER (static GitHub build: dashboard-data.json + Supabase for recaps) =====
+// Fill these two in from Supabase → Project Settings → API. The anon key is safe to expose
+// here (row-level security limits it to reading/saving recaps only).
 const SUPA_URL="https://vcukhvjwsuaqxgqzotwb.supabase.co";
 const SUPA_KEY="sb_publishable_-hprPPqnVl6bA4hh2Aozdg_ks95GRvF";  // publishable (safe in browser; RLS-limited to recaps)
 const supaReady=()=>SUPA_URL&&SUPA_URL.indexOf("__SUPABASE")<0&&SUPA_KEY&&SUPA_KEY.indexOf("__SUPABASE")<0;
 let DATA={dates:[],weeks:[],salons:{},salonAm:{},days:{},weeklies:{}};
 function loadData(){return fetch("greatclips-data.json",{cache:"no-store"}).then(r=>r.ok?r.json():{}).then(j=>{DATA=Object.assign(DATA,j||{});return DATA;});}
+// SAL row (DailySalon minus 'date') metric -> column index, for client-side trends
 const SALIDX={serviceSales:2,productSales:3,totalSales:4,cust:5,payrollPct:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,custGrowthPct:12,salesGrowthPct:13};
 function dTrend(salon,metric){const idx=SALIDX[metric];if(idx==null)return [];const out=[];
   Object.keys(DATA.days||{}).sort().forEach(d=>{const sal=((DATA.days[d]||{}).SAL||[]).find(r=>String(r[0])===String(salon));if(sal&&typeof sal[idx]==="number")out.push([d,sal[idx]]);});
   return out;}
+// --- Supabase recaps (read + upsert) ---
 function supaHeaders(extra){return Object.assign({apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},extra||{});}
 function mapRecapRow(x){return {salonId:x.salon_id,weekEnding:x.week_ending,areaManager:x.area_manager,
   actions:x.actions,floorhours:x.floorhours,schedules:x.schedules,cphdays:x.cphdays,stylistflags:x.stylistflags,
@@ -224,6 +268,7 @@ function upsertRecap(p){ if(!supaReady())return Promise.reject(new Error("Supaba
   const body={salon_id:p.salon,week_ending:p.week,area_manager:p.areaManager||"",actions:p.actions||"",floorhours:p.floorhours||"",schedules:p.schedules||"",cphdays:p.cphdays||"",stylistflags:p.stylistflags||"",quality:p.quality||"",reach:p.reach||"",updated_by:p.updatedBy||"",updated_at:new Date().toISOString()};
   return fetch(SUPA_URL+"/rest/v1/recaps",{method:"POST",headers:supaHeaders({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(body)})
     .then(r=>{if(!r.ok)throw new Error("save failed ("+r.status+")");return {ok:true};});}
+
 // tabs
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
@@ -231,8 +276,11 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   t.classList.add("active");$("#"+t.dataset.t).classList.add("active");window.scrollTo({top:0});
   if(t.dataset.t==="trends")loadTrend();
 });
+
 function opt(sel,val,txt){const o=document.createElement("option");o.value=val;o.textContent=txt;sel.appendChild(o);}
-window.onload=()=>{ loadData().then(onBoot).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load greatclips-data.json: '+e.message+'</div>'); loadRecaps(); };
+
+window.onload=()=>{ loadData().then(onBoot).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load dashboard-data.json: '+e.message+'</div>'); loadRecaps(); };
+
 function onBoot(b){
   SALONS=b.salons||{};SALONAM=b.salonAm||{};
   DATES=(b.dates||[]).slice().sort().reverse();
@@ -252,11 +300,14 @@ function onBoot(b){
 }
 function fmtDate(iso){if(!iso)return"";const p=String(iso).split("-");return p.length===3?(+p[1])+"/"+(+p[2])+"/"+p[0]:iso;}
 function updMeta(){$("#hdrMeta").innerHTML="Day <b>"+(curDate?fmtDate(curDate):"—")+"</b> · Week <b>"+(curWeek?fmtDate(curWeek):"—")+"</b><br>target payroll ≤ 40%";}
+
 function loadDay(){ DAY=(!curDate?null:(DATA.days&&DATA.days[curDate]))||{SAL:[],STY:{},WAIT:{}};renderAll();updMeta(); }
-function loadWeek(){ WEEK=(!curWeek?null:(DATA.weeklies&&DATA.weeklies[curWeek]))||{EPP:{},REDF:{}};renderTeam();renderRed();updMeta(); }
+function loadWeek(){ WEEK=(!curWeek?null:(DATA.weeklies&&DATA.weeklies[curWeek]))||{EPP:{},REDF:{},WSAL:{}};if(!WEEK.WSAL)WEEK.WSAL={};renderTeam();renderRed();if(detMode==="week")renderDetail();updMeta(); }
 function renderAll(){renderPort();renderDetail();renderReps();}
+
 function salById(id){return (DAY.SAL||[]).find(r=>String(r[0])===String(id));}
 function sName(id){return SALONS[id]||id;}
+
 // KPI thresholds
 function kpi(m,v){ if(v===null||v===undefined||v==="")return"";
   if(m==="payroll")return v<40?"kg":(v<41?"ky":"kr");
@@ -269,6 +320,7 @@ function kpi(m,v){ if(v===null||v===undefined||v==="")return"";
   if(m==="repret")return v>=78?"kg":(v>=72?"ky":"kr");
   return""; }
 function kcolor(m,v){const c=kpi(m,v);return c==="kg"?GREEN:c==="ky"?AMBER:c==="kr"?RED:BLUE;}
+
 // GOOGLE RATINGS (snapshot; re-pull to refresh)
 const GRATE_ASOF="Aug 6, 2026";
 const GRATE={
@@ -277,92 +329,93 @@ const GRATE={
   "6116":[3.7,264],"6117":[4.2,258],"7700":[4.1,382],"7741":[4.3,780],"8914":[3.8,286]};
 function grate(id){const g=GRATE[id];if(!g)return'<span class="sub">—</span>';
   const r=g[0],col=r>=4.3?GREEN:(r>=4.0?AMBER:RED);
-  return '<span style="color:'+col+';font-weight:600">★ '+r.toFixed(1)+'</span> <span class="sub">('+g[1].toLocaleString()+')</span>';}
+  return `<span style="color:${col};font-weight:600">★ ${r.toFixed(1)}</span> <span class="sub">(${g[1].toLocaleString()})</span>`;}
+
 // GOOGLE REVIEWS (snapshot; re-pull to refresh) — [name, stars, date, text]
 const GREVIEWS={
 "0200":[
-["Jake Botdorf",1,"4 weeks ago","Checked in on the app as many of the other great clips in the area close at 7, this place closes at 8 (or so they claim.) I check in at around 6:50, arrive at 7:05 (55 min before closing) and am told on the app it is a 17 min wait. No …"],
-["Briana Garcia",1,"2 months ago","Recently moved and this location is convenient as I have two boys with haircut needs every two to three weeks. Yes this salon is highly rated but is EVERY …"],
-["Jamilah Monique",2,"3 weeks ago","walked in for a haircut about 10:30/11 for my son who's a kid. right away, i knew the energy was off. the guy who cut my sons hair asked me how i comb my sons hair after showing him multiple pictures, and he told me \"oh that's a fade\" like …"],
-["Vanessa Romero",5,"11 months ago","Ending up trusting this location after the hair cut was not cut correctly in another great clips. This location on San Mateo fixed my hair cut with the male stylist and we …"]],
+["Jake Botdorf",1,"4 weeks ago",`Checked in on the app as many of the other great clips in the area close at 7, this place closes at 8 (or so they claim.) I check in at around 6:50, arrive at 7:05 (55 min before closing) and am told on the app it is a 17 min wait. No …`],
+["Briana Garcia",1,"2 months ago",`Recently moved and this location is convenient as I have two boys with haircut needs every two to three weeks. Yes this salon is highly rated but is EVERY …`],
+["Jamilah Monique",2,"3 weeks ago",`walked in for a haircut about 10:30/11 for my son who's a kid. right away, i knew the energy was off. the guy who cut my sons hair asked me how i comb my sons hair after showing him multiple pictures, and he told me "oh that's a fade" like …`],
+["Vanessa Romero",5,"11 months ago",`Ending up trusting this location after the hair cut was not cut correctly in another great clips. This location on San Mateo fixed my hair cut with the male stylist and we …`]],
 "0646":[
-["kyrie salazar",5,"a month ago","Estrella is now my go to person for anything hair. She is very talented and never rushes anyone out of the chair. She also gives honest feedback and always asks for advice when needed. She has never done my hair wrong and people have in the …"],
-["Celina McNamara",5,"a month ago","Estrella C did an amazing job on my cut, she made me feel so comfortable and welcome. I definitely recommend seeing her for your next cut"],
-["Christopher Archuleta",5,"a month ago","Great place to get your haircut done..the whole team is professional and friendly..but Bridget 😎 only cuts my hair great leader and hard worker 💪 …"],
-["Vanessa Diaz",5,"8 months ago","I had an excellent experience at Great Clips with Christina Rico. Her professionalism and attention to detail made all the difference. From the moment I sat down, she takes the time to listen to what I wanted and delivered a precise, …"]],
+["kyrie salazar",5,"a month ago",`Estrella is now my go to person for anything hair. She is very talented and never rushes anyone out of the chair. She also gives honest feedback and always asks for advice when needed. She has never done my hair wrong and people have in the …`],
+["Celina McNamara",5,"a month ago",`Estrella C did an amazing job on my cut, she made me feel so comfortable and welcome. I definitely recommend seeing her for your next cut`],
+["Christopher Archuleta",5,"a month ago",`Great place to get your haircut done..the whole team is professional and friendly..but Bridget 😎 only cuts my hair great leader and hard worker 💪 …`],
+["Vanessa Diaz",5,"8 months ago",`I had an excellent experience at Great Clips with Christina Rico. Her professionalism and attention to detail made all the difference. From the moment I sat down, she takes the time to listen to what I wanted and delivered a precise, …`]],
 "0933":[
-["Dylan Brummell",2,"3 weeks ago","I've been going here for an almost 2 years now. I've been growing my hair out, dyeing and styling with a slick back look that I've really come to enjoy. …"],
-["anaiya bieri",1,"2 months ago","Yesterday Jenneta completely botched my hair. She's been doing my hair for a couple years now, has always done great. I'm not sure if she was having a bad day but her mistake is something i have to live with now. Went back today to get it …"],
-["Khristen Maestas",1,"5 months ago","Went to salon at 630 they close at 7 they told me they weren't doing anymore haircuts cuz there were only 2 of them. If the website says closes at 7 and the …"],
-["Joe Ray Archuleta",5,"4 months ago","I had my haircut done by Jeanetta today at the Tramway and Central location and I just wanted to leave a quick review because she really did a great job. …"],
-["Kim Round",5,"a month ago","I have been going to the Great Clips at Four Hills Shopping center for 9 years. Jenetta Victoria (sp?) has been my favorite stylist for a while now. She is excellent and has good instincts on the best ways to cut difficult hair."]],
+["Dylan Brummell",2,"3 weeks ago",`I've been going here for an almost 2 years now. I've been growing my hair out, dyeing and styling with a slick back look that I've really come to enjoy. …`],
+["anaiya bieri",1,"2 months ago",`Yesterday Jenneta completely botched my hair. She's been doing my hair for a couple years now, has always done great. I'm not sure if she was having a bad day but her mistake is something i have to live with now. Went back today to get it …`],
+["Khristen Maestas",1,"5 months ago",`Went to salon at 630 they close at 7 they told me they weren't doing anymore haircuts cuz there were only 2 of them. If the website says closes at 7 and the …`],
+["Joe Ray Archuleta",5,"4 months ago",`I had my haircut done by Jeanetta today at the Tramway and Central location and I just wanted to leave a quick review because she really did a great job. …`],
+["Kim Round",5,"a month ago",`I have been going to the Great Clips at Four Hills Shopping center for 9 years. Jenetta Victoria (sp?) has been my favorite stylist for a while now. She is excellent and has good instincts on the best ways to cut difficult hair.`]],
 "2092":[
-["Seven Mellie",5,"a month ago","Emily gave me an amazing cut today!! I am so happy! She listened to my ideas and communicated very well with me about what I was looking for! I've spent the last 15 years cutting my own hair and have been very weary of going to the salon …"],
-["Marios Th.",5,"a month ago","Great clips is usually a bit of a gamble, but this time I was lucky because I had Samantha who did a great job cutting my hair at North Towne. She took her time and checked the length twice to make sure things were even. She's very talented with a great personality. Thank you."],
-["Eugene",1,"a month ago","I had an absolutely horrible experience at this salon. The stylist completely ignored the reference photo I showed her and cut my hair however she wanted. My haircut is a total mess. It's uneven, looks terrible, and …"],
-["Sasha Veytsman",1,"5 months ago","Bad location. I walked in and asked to get a trim on my sides. She said, \"Well the notes say a 2.\" I reply with, \"I don't know what that is,\" and I asked to see what it might look like before proceeding with the entire haircut. …"]],
+["Seven Mellie",5,"a month ago",`Emily gave me an amazing cut today!! I am so happy! She listened to my ideas and communicated very well with me about what I was looking for! I've spent the last 15 years cutting my own hair and have been very weary of going to the salon …`],
+["Marios Th.",5,"a month ago",`Great clips is usually a bit of a gamble, but this time I was lucky because I had Samantha who did a great job cutting my hair at North Towne. She took her time and checked the length twice to make sure things were even. She's very talented with a great personality. Thank you.`],
+["Eugene",1,"a month ago",`I had an absolutely horrible experience at this salon. The stylist completely ignored the reference photo I showed her and cut my hair however she wanted. My haircut is a total mess. It's uneven, looks terrible, and …`],
+["Sasha Veytsman",1,"5 months ago",`Bad location. I walked in and asked to get a trim on my sides. She said, "Well the notes say a 2." I reply with, "I don't know what that is," and I asked to see what it might look like before proceeding with the entire haircut. …`]],
 "2850":[
-["Scottie 5 alive",5,"3 months ago","Melissa is an incredibly kind and talented stylist! I have been asking for her specifically the last couple months because she is bar none the most talented hair stylist I've ever received a haircut from. …"],
-["freddie maestas",5,"3 months ago","Absolutely fantastic. iv seen Melissa twice now and the first was a great visit. After spending forever trying to find a salon to cut and braid to no avail. Great clips was the one to answer my call in a sense. She is a fantastic woman …"],
-["Josh Hutchings",1,"a month ago","This place is hit and miss. They have a few great stylists. Others just cut your hair however they want. I've had a couple of good cuts here, but the past several visits have been horrible. The last cut will be my final at this location. …"],
-["Maya Apodaca",5,"a month ago","They are always so kind, caring and listen to what I request. They make suggestions that actually make sense and will help the health of my hair. Ive been coming for 3 years, I dont go anywhere else. And it was quick!"],
-["Andrea Correa",5,"3 months ago","Great service! I Always get a great haircut when I go. Everyone is always so friendly. Waomi cut my hair today. She did a great job and was so friendly and gave some very helpful ideas for my hair! Thank you, Waomi!"]],
+["Scottie 5 alive",5,"3 months ago",`Melissa is an incredibly kind and talented stylist! I have been asking for her specifically the last couple months because she is bar none the most talented hair stylist I've ever received a haircut from. …`],
+["freddie maestas",5,"3 months ago",`Absolutely fantastic. iv seen Melissa twice now and the first was a great visit. After spending forever trying to find a salon to cut and braid to no avail. Great clips was the one to answer my call in a sense. She is a fantastic woman …`],
+["Josh Hutchings",1,"a month ago",`This place is hit and miss. They have a few great stylists. Others just cut your hair however they want. I've had a couple of good cuts here, but the past several visits have been horrible. The last cut will be my final at this location. …`],
+["Maya Apodaca",5,"a month ago",`They are always so kind, caring and listen to what I request. They make suggestions that actually make sense and will help the health of my hair. Ive been coming for 3 years, I dont go anywhere else. And it was quick!`],
+["Andrea Correa",5,"3 months ago",`Great service! I Always get a great haircut when I go. Everyone is always so friendly. Waomi cut my hair today. She did a great job and was so friendly and gave some very helpful ideas for my hair! Thank you, Waomi!`]],
 "3781":[
-["Keenan J",1,"11 months ago","Came in for a quick cut. I had asked for collar bone length, layers and that I wanted my side bangs trimmed. My stylist seemed like he was bothered, like he didn't want to be there. I also …"],
-["Kevin Ferguson",5,"6 months ago","I've been going to this salon since I moved to the area a few years ago. This is hands down the best one I've ever been to (and I've even been to one in Canada!). Taylor and the crew are always so friendly and fun. And they give great …"],
-["Charles Cordova",1,"7 months ago","Worst haircut of my life! Stylist was not friendly and didn't want to correct the fiasco she created. I wound up leaving with a bad haircut. I spoke with customer service and the owner Lisa called and said to go back the next day …"],
-["Will N.",5,"a year ago","Rhonda was incredible! She made quick work of my haircut and as I sat there looking at it in the mirror, I realized something. This is the best haircut I've ever had. She's the best. I'd give more than 5 stars if I could."],
-["Kristin Leigh Acevedo",5,"a year ago","Every time we visit Taylor, it's an amazing experience! She's always so nice, welcoming, and makes us feel completely comfortable. No matter what haircut request we bring her, she absolutely nails it every single time. …"]],
+["Keenan J",1,"11 months ago",`Came in for a quick cut. I had asked for collar bone length, layers and that I wanted my side bangs trimmed. My stylist seemed like he was bothered, like he didn't want to be there. I also …`],
+["Kevin Ferguson",5,"6 months ago",`I've been going to this salon since I moved to the area a few years ago. This is hands down the best one I've ever been to (and I've even been to one in Canada!). Taylor and the crew are always so friendly and fun. And they give great …`],
+["Charles Cordova",1,"7 months ago",`Worst haircut of my life! Stylist was not friendly and didn't want to correct the fiasco she created. I wound up leaving with a bad haircut. I spoke with customer service and the owner Lisa called and said to go back the next day …`],
+["Will N.",5,"a year ago",`Rhonda was incredible! She made quick work of my haircut and as I sat there looking at it in the mirror, I realized something. This is the best haircut I've ever had. She's the best. I'd give more than 5 stars if I could.`],
+["Kristin Leigh Acevedo",5,"a year ago",`Every time we visit Taylor, it's an amazing experience! She's always so nice, welcoming, and makes us feel completely comfortable. No matter what haircut request we bring her, she absolutely nails it every single time. …`]],
 "3999":[
-["Jeremiah Hernandez",5,"a month ago","Janice is one of the best at great clips! She's quick, super nice and very good at what she does! I highly recommend her everytime when getting a haircut."],
-["Kristie Strieby",5,"7 months ago","Very fast service and great at what they do. There was only a little wait and we were in and out of there in 30 minutes. If you check in with the app ahead of time it is even faster! Very clean and affordable, highly recommend!"],
-["Jason Johnsen",5,"4 months ago","Great place to get hair cut. Wonderful stylists who cut mine and my sons hair. They go so far as to remember the heads my son uses on the clippers every time. I would give the carlsbad nm store 6 stars 🌟 if I could. …"],
-["Ronald LeBoeuf",5,"a month ago","Jessica is my go to stylist. She takes her time and triple checks for uniformity especially with my high fades. She communicates throughout the cut to ensure you're satisfied."],
-["Renee Vigil",5,"a month ago","I wanted a short and sassy haircut and she completed the mission! Janice is a talented hairstylist."]],
+["Jeremiah Hernandez",5,"a month ago",`Janice is one of the best at great clips! She's quick, super nice and very good at what she does! I highly recommend her everytime when getting a haircut.`],
+["Kristie Strieby",5,"7 months ago",`Very fast service and great at what they do. There was only a little wait and we were in and out of there in 30 minutes. If you check in with the app ahead of time it is even faster! Very clean and affordable, highly recommend!`],
+["Jason Johnsen",5,"4 months ago",`Great place to get hair cut. Wonderful stylists who cut mine and my sons hair. They go so far as to remember the heads my son uses on the clippers every time. I would give the carlsbad nm store 6 stars 🌟 if I could. …`],
+["Ronald LeBoeuf",5,"a month ago",`Jessica is my go to stylist. She takes her time and triple checks for uniformity especially with my high fades. She communicates throughout the cut to ensure you're satisfied.`],
+["Renee Vigil",5,"a month ago",`I wanted a short and sassy haircut and she completed the mission! Janice is a talented hairstylist.`]],
 "5809":[
-["Mickey Hagg",5,"Edited 2 months ago","Have gone to this location for the last 3 years. This was my 1st time getting my hair cut by Lanie and she did a phenomenal job deciphering my jumbled instructions to give me the best hair cut of my life! …"],
-["Mrs. Garcia",5,"2 months ago","Brought my 4 year old for a haircut and Mystica was amazing with him, she is very patient and kind with kids."],
-["Angel Dominguez",5,"3 months ago","Mystica did such an absolutely fantastic job cutting mine and my kids hair, she's such a sweet person with a great personality and I will most definitely go back! 10/10 would highly recommend her! 😄 …"],
-["Jeremy Brower",3,"5 months ago","Brought my two daughters in today for a haircut. One was perfectly happy with the outcome, had a stylist who was communicative, confirmed how much she wanted cut off before making her first cut, and the final cut looks great. The other is …"],
-["Ron Pino",5,"4 months ago","Samantha has been cutting my hair for 5 years. She is the BEST. I love setting up my appointments on line. I just walk in when it's my turn. I highly recommend Samantha and Great Clips."]],
+["Mickey Hagg",5,"Edited 2 months ago",`Have gone to this location for the last 3 years. This was my 1st time getting my hair cut by Lanie and she did a phenomenal job deciphering my jumbled instructions to give me the best hair cut of my life! …`],
+["Mrs. Garcia",5,"2 months ago",`Brought my 4 year old for a haircut and Mystica was amazing with him, she is very patient and kind with kids.`],
+["Angel Dominguez",5,"3 months ago",`Mystica did such an absolutely fantastic job cutting mine and my kids hair, she's such a sweet person with a great personality and I will most definitely go back! 10/10 would highly recommend her! 😄 …`],
+["Jeremy Brower",3,"5 months ago",`Brought my two daughters in today for a haircut. One was perfectly happy with the outcome, had a stylist who was communicative, confirmed how much she wanted cut off before making her first cut, and the final cut looks great. The other is …`],
+["Ron Pino",5,"4 months ago",`Samantha has been cutting my hair for 5 years. She is the BEST. I love setting up my appointments on line. I just walk in when it's my turn. I highly recommend Samantha and Great Clips.`]],
 "6101":[
-["Taco Peel",2,"3 weeks ago","The haircut itself was excellent, and I'm very happy with the result. Unfortunately, the customer service didn't match the quality of the haircut. …"],
-["Lakota Huddleston",5,"a month ago","Elena took 5 years off me! She is a gifted stylist who listens to what you'd like and does just that. I'm very pleased with the service I received and will definitely be going back. I highly recommend Elena as your stylist."],
-["Marcus Rubbo",5,"a month ago","Shandiin helped me figure out the best cut for my son! She did an amazing job cutting and styling to his needs! I highly recommend her services!"],
-["Mario Moreno",5,"a month ago","Jennifer is a professional hairstylist I had been going to see every week. She is the best. Happy to have her cut my hair every time I make an appointment."],
-["Judith Kinlicheenie",5,"2 months ago","Jennifer Cortez is the best hair stylist! She demonstrated the best customer service, her friendliness, and knowledgeable expertise about hair. Overall, I will ask for her and she made me feel beautiful and happy. …"]],
+["Taco Peel",2,"3 weeks ago",`The haircut itself was excellent, and I'm very happy with the result. Unfortunately, the customer service didn't match the quality of the haircut. …`],
+["Lakota Huddleston",5,"a month ago",`Elena took 5 years off me! She is a gifted stylist who listens to what you'd like and does just that. I'm very pleased with the service I received and will definitely be going back. I highly recommend Elena as your stylist.`],
+["Marcus Rubbo",5,"a month ago",`Shandiin helped me figure out the best cut for my son! She did an amazing job cutting and styling to his needs! I highly recommend her services!`],
+["Mario Moreno",5,"a month ago",`Jennifer is a professional hairstylist I had been going to see every week. She is the best. Happy to have her cut my hair every time I make an appointment.`],
+["Judith Kinlicheenie",5,"2 months ago",`Jennifer Cortez is the best hair stylist! She demonstrated the best customer service, her friendliness, and knowledgeable expertise about hair. Overall, I will ask for her and she made me feel beautiful and happy. …`]],
 "6110":[
-["Amanda Avalos",2,"2 months ago","Personally, I felt that the staff at this location wasn't very familiar with current hairstyle trends for preteens and young teens. As a parent, that was a little frustrating because my son ended up with a haircut he wasn't happy with. …"],
-["MilornJabri Cordova",5,"a month ago","Samantha was very fast and efficient, did both mine and my boyfriend's haircuts in under an hour. She was very helpful in finding a haircut for my boyfriend!"],
-["Robert H Smith",1,"8 months ago","I am a 75-year-old military veteran. I drove 40 miles to come into Albuquerque to run errands. My first stop was at the Eubank Great Clips. Since this was my regular, I timed my trip to get there at opening time, 9am. I got there at …"],
-["Eunice Solis",5,"a year ago","Jessie cut my fiances hair for our wedding and was so sweet and considerate to ask about every detail! She took her time and made sure he got exactly what he wanted. He was so relieved and we are so thankful. Thank you so much!!"],
-["Steven Smith",5,"6 months ago","Went over between 11:00 a.m. and noon just to get a haircut. Very polite lady, Anh, gave me a very good haircut and made sure it was exactly what I wanted. Myself and my dog were out of there in about 10 minutes. …"]],
+["Amanda Avalos",2,"2 months ago",`Personally, I felt that the staff at this location wasn't very familiar with current hairstyle trends for preteens and young teens. As a parent, that was a little frustrating because my son ended up with a haircut he wasn't happy with. …`],
+["MilornJabri Cordova",5,"a month ago",`Samantha was very fast and efficient, did both mine and my boyfriend's haircuts in under an hour. She was very helpful in finding a haircut for my boyfriend!`],
+["Robert H Smith",1,"8 months ago",`I am a 75-year-old military veteran. I drove 40 miles to come into Albuquerque to run errands. My first stop was at the Eubank Great Clips. Since this was my regular, I timed my trip to get there at opening time, 9am. I got there at …`],
+["Eunice Solis",5,"a year ago",`Jessie cut my fiances hair for our wedding and was so sweet and considerate to ask about every detail! She took her time and made sure he got exactly what he wanted. He was so relieved and we are so thankful. Thank you so much!!`],
+["Steven Smith",5,"6 months ago",`Went over between 11:00 a.m. and noon just to get a haircut. Very polite lady, Anh, gave me a very good haircut and made sure it was exactly what I wanted. Myself and my dog were out of there in about 10 minutes. …`]],
 "6116":[
-["Deanna Lopez",5,"4 months ago","I read about how great Monica is on Google, so I decided to go see her. It's great cause you can check in online and don't have to wait at the store for your appointment. Monica is fabulous...helpful, friendly, and does an amazing job. …"],
-["Sally Smith",5,"2 months ago","Victoria is wonderful. I don't always get her but when I do, she brightens my day. She's always pleasant, has a smile and a welcoming demeanor. She also is a great stylist and always does a nice job cutting my hair."],
-["Antonio Cantu",1,"3 months ago","Scheduled an appointment based on a 30-minute estimated wait with 3 stylists listed. I arrived shortly after check-in expecting a reasonable turnaround, but that's not what I experienced. …"],
-["J. Scott Strachan",1,"2 months ago","I am a little \"long in the tooth\" and have had a bad haircut or two along the way. But at this establishment, I received, unequivocally, the worst cut of my life. …"],
-["Bob Nelson",5,"a month ago","I love great clips. Awesome hair cut. Vanessa did an awesome job on my hair and has such an awesome personality. Great atmosphere."]],
+["Deanna Lopez",5,"4 months ago",`I read about how great Monica is on Google, so I decided to go see her. It's great cause you can check in online and don't have to wait at the store for your appointment. Monica is fabulous...helpful, friendly, and does an amazing job. …`],
+["Sally Smith",5,"2 months ago",`Victoria is wonderful. I don't always get her but when I do, she brightens my day. She's always pleasant, has a smile and a welcoming demeanor. She also is a great stylist and always does a nice job cutting my hair.`],
+["Antonio Cantu",1,"3 months ago",`Scheduled an appointment based on a 30-minute estimated wait with 3 stylists listed. I arrived shortly after check-in expecting a reasonable turnaround, but that's not what I experienced. …`],
+["J. Scott Strachan",1,"2 months ago",`I am a little "long in the tooth" and have had a bad haircut or two along the way. But at this establishment, I received, unequivocally, the worst cut of my life. …`],
+["Bob Nelson",5,"a month ago",`I love great clips. Awesome hair cut. Vanessa did an awesome job on my hair and has such an awesome personality. Great atmosphere.`]],
 "6117":[
-["Josh Carpenter",5,"Edited 5 months ago","Another spectacular cut by Monica! What can I say. I live in Vermont and as always get a haircut by Monica when in Santa Fe! See for yourself - you will be very glad you did!"],
-["Samantha Cordova",1,"7 months ago","Took my son for a fade, immediately got told they arent barbers. That should have been my first red flag. The woman zeroed him out on the sides, took 2 inches off the top when I wanted half an inch. Then got upset because I asked her to …"],
-["Elisa Sandoval",5,"9 months ago","I got a bad pixie cut about three months ago at a different salon, so I went in today hoping to start fresh and grow my hair out. Monica greeted me as soon as I walked in and made me feel welcome right away. …"]],
+["Josh Carpenter",5,"Edited 5 months ago",`Another spectacular cut by Monica! What can I say. I live in Vermont and as always get a haircut by Monica when in Santa Fe! See for yourself - you will be very glad you did!`],
+["Samantha Cordova",1,"7 months ago",`Took my son for a fade, immediately got told they arent barbers. That should have been my first red flag. The woman zeroed him out on the sides, took 2 inches off the top when I wanted half an inch. Then got upset because I asked her to …`],
+["Elisa Sandoval",5,"9 months ago",`I got a bad pixie cut about three months ago at a different salon, so I went in today hoping to start fresh and grow my hair out. Monica greeted me as soon as I walked in and made me feel welcome right away. …`]],
 "7700":[
-["Marielena Fernandez",5,"3 weeks ago","Beverlie never disappoints. She's incredibly talented, friendly, and takes pride in her work. The shop is always clean, and she creates such a welcoming and comfortable environment. It's obvious that she truly cares about her clients and …"],
-["Nicole Trujillo",5,"a month ago","My grandson has autism and I have been everywhere to find someone to cut his hair. There were times we left with half a haircut. I found Erica at Great Clips and she does a great job cutting his hair. She is patient with him and makes him feel comfortable."],
-["Brandon Zambrano",5,"3 weeks ago","Beverlie did an amazing job on my hair cut and is very nice and knows what she's doing and pays attention to what you want"]],
+["Marielena Fernandez",5,"3 weeks ago",`Beverlie never disappoints. She's incredibly talented, friendly, and takes pride in her work. The shop is always clean, and she creates such a welcoming and comfortable environment. It's obvious that she truly cares about her clients and …`],
+["Nicole Trujillo",5,"a month ago",`My grandson has autism and I have been everywhere to find someone to cut his hair. There were times we left with half a haircut. I found Erica at Great Clips and she does a great job cutting his hair. She is patient with him and makes him feel comfortable.`],
+["Brandon Zambrano",5,"3 weeks ago",`Beverlie did an amazing job on my hair cut and is very nice and knows what she's doing and pays attention to what you want`]],
 "7741":[
-["Irma Flores",5,"3 months ago","I love coming here. They're always so nice and helpful. Autumn is the one that cuts my hair and she's always so nice, courteous. I always enjoy talking to her. It's a good relaxing time for me. …"],
-["Lauren Chavez",5,"4 months ago","CJ was GREAT! She not only listened to what I wanted, but she asked additional questions to make sure she cut it exactly how I wanted it. She did a fabulous job, explained what she did, and added it to my notes for future visits. …"],
-["derek king",5,"3 months ago","Alicia has an incredible personality and made my visit feel like an afternoon with a friend. She was fast, but still didn't miss a single detail on my haircut. Will definitely try to see her again when I come back."],
-["Brianna Spinarski",5,"3 months ago","I got my hair cut last week at the las estancias location and Alicia was the one to cut my hair this time. It's been a while since I've had a hair cut and it just flows and feels so good. She added a little texture at the end and it helped give my hair some volume."],
-["Foodie NM",5,"6 months ago","Autumn did an absolutely amazing job on my wife's haircut! From the moment we walked in, she made her feel comfortable and truly listened to what she wanted. The attention to detail, skill, and care she put into her work really showed. …"]],
+["Irma Flores",5,"3 months ago",`I love coming here. They're always so nice and helpful. Autumn is the one that cuts my hair and she's always so nice, courteous. I always enjoy talking to her. It's a good relaxing time for me. …`],
+["Lauren Chavez",5,"4 months ago",`CJ was GREAT! She not only listened to what I wanted, but she asked additional questions to make sure she cut it exactly how I wanted it. She did a fabulous job, explained what she did, and added it to my notes for future visits. …`],
+["derek king",5,"3 months ago",`Alicia has an incredible personality and made my visit feel like an afternoon with a friend. She was fast, but still didn't miss a single detail on my haircut. Will definitely try to see her again when I come back.`],
+["Brianna Spinarski",5,"3 months ago",`I got my hair cut last week at the las estancias location and Alicia was the one to cut my hair this time. It's been a while since I've had a hair cut and it just flows and feels so good. She added a little texture at the end and it helped give my hair some volume.`],
+["Foodie NM",5,"6 months ago",`Autumn did an absolutely amazing job on my wife's haircut! From the moment we walked in, she made her feel comfortable and truly listened to what she wanted. The attention to detail, skill, and care she put into her work really showed. …`]],
 "8914":[
-["Alexander Clark",1,"5 months ago","I signed in and waited over an hour to get my haircut but by the time I was up, they said they were closed. I don't like being lied to and I don't like my time being wasted. They were also rude to me when they rejected my request to cut my …"],
-["Damini Patel",5,"6 months ago","Bring my one year old daughter here for her hair cuts and the staff is always so nice and patient. Appreciate their efforts!! Great stylists!"],
-["Eloy Cardenas",5,"2 months ago","The lady who cuts my hair, she is an expert in her job and gives you full attention. I appreciate her attention on cutting my hair."],
-["Tanya",5,"2 months ago","Micaela is an excellent hairdresser. Great Clips is an amazing place for a stylish trim at a great price. Highly recommended, good customer service."],
-["Mom Lucero",5,"Edited a month ago","Great Clips on Zafarano in Santa Fe is the greatest. Two Jennifers & Victoria are the BEST! Prices are good. It is awesome when we have a coupon!"]]
+["Alexander Clark",1,"5 months ago",`I signed in and waited over an hour to get my haircut but by the time I was up, they said they were closed. I don't like being lied to and I don't like my time being wasted. They were also rude to me when they rejected my request to cut my …`],
+["Damini Patel",5,"6 months ago",`Bring my one year old daughter here for her hair cuts and the staff is always so nice and patient. Appreciate their efforts!! Great stylists!`],
+["Eloy Cardenas",5,"2 months ago",`The lady who cuts my hair, she is an expert in her job and gives you full attention. I appreciate her attention on cutting my hair.`],
+["Tanya",5,"2 months ago",`Micaela is an excellent hairdresser. Great Clips is an amazing place for a stylish trim at a great price. Highly recommended, good customer service.`],
+["Mom Lucero",5,"Edited a month ago",`Great Clips on Zafarano in Santa Fe is the greatest. Two Jennifers & Victoria are the BEST! Prices are good. It is awesome when we have a coupon!`]]
 };
 function renderReviews(id){
   const host=$("#revList"); if(!host)return;
@@ -371,6 +424,7 @@ function renderReviews(id){
   host.innerHTML=list.map(r=>{const st="★".repeat(r[1])+"☆".repeat(5-r[1]);
     return '<div class="rev-item"><div class="rev-top"><span class="rev-name">'+esc(r[0])+'</span><span class="rev-stars">'+st+'</span><span class="rev-date">'+esc(r[2])+'</span></div><div class="rev-text">'+esc(r[3])+'</div></div>';}).join("");
 }
+
 // PORTFOLIO
 let sortK=4,sortDir=-1;
 function renderPort(){
@@ -381,17 +435,17 @@ function renderPort(){
   $("#portKpis").innerHTML=[["Salons",SAL.length,""],["Total Sales",money0(t.sales),"selected day"],
     ["Customers",t.cust.toLocaleString(),""],["Avg Payroll %",(t.pay/t.n).toFixed(1)+"%","target ≤ 40%"],
     ["Over payroll",over+" of "+SAL.length,"above 40%"],["Neg. cust growth",neg+" of "+SAL.length,"YoY"]]
-    .map(k=>'<div class="kpi"><div class="lbl">'+k[0]+'</div><div class="val">'+k[1]+'</div><div class="sub">'+k[2]+'</div></div>').join("");
+    .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
   const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
   const tb=$("#portTable tbody");tb.innerHTML="";
   rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
-    tr.innerHTML='<td>'+s[0]+' — '+s[1]+'</td><td>'+money(s[4])+'</td><td>'+s[5]+'</td>'
-      +'<td class="'+kpi('payroll',s[6])+'">'+s[6].toFixed(1)+'%</td><td class="'+kpi('avghc',s[7])+'">'+s[7].toFixed(1)+'</td><td class="'+kpi('cuts',s[8])+'">'+s[8].toFixed(1)+'</td>'
-      +'<td>'+money(s[9])+'</td><td>'+s[10]+'</td><td class="'+kpi('wait15',s[11])+'">'+s[11].toFixed(1)+'%</td>'
-      +'<td class="'+cls(s[12])+'">'+sign(s[12])+'</td><td class="'+cls(s[13])+'">'+sign(s[13])+'</td><td class="gcol">'+grate(s[0])+'</td>';
+    tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
+      <td class="${kpi('payroll',s[6])}">${s[6].toFixed(1)}%</td><td class="${kpi('avghc',s[7])}">${s[7].toFixed(1)}</td><td class="${kpi('cuts',s[8])}">${s[8].toFixed(1)}</td>
+      <td>${money(s[9])}</td><td>${s[10]}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
+      <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderRed();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
-  $("#portTable tfoot").innerHTML=SAL.length?'<tr><td>All salons</td><td>'+money(t.sales)+'</td><td>'+t.cust+'</td><td>'+(t.pay/t.n).toFixed(1)+'%</td><td colspan="8" class="sub">Google ratings as of '+GRATE_ASOF+'</td></tr>':"";
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${(t.pay/t.n).toFixed(1)}%</td><td colspan="8" class="sub">Google ratings as of ${GRATE_ASOF}</td></tr>`:"";
   $("#hSales").textContent=curDate?fmtDate(curDate):"";
   portCharts(SAL);
 }
@@ -407,34 +461,75 @@ function mk(id,type,labels,datasets,opt){opt=opt||{};if(charts[id])charts[id].de
   charts[id]=new Chart($("#"+id),{type,data:{labels,datasets},options:{indexAxis:opt.indexAxis||"x",responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:datasets.length>1,labels:{boxWidth:12,padding:8}}},
     scales:{x:{grid:{display:!horiz,color:"#eef1f5"},ticks:opt.x?{callback:opt.x}:{}},y:{grid:{display:horiz,color:"#eef1f5"},ticks:opt.y?{callback:opt.y}:{}}}}});}
+
 // DETAIL
 Chart.defaults.font.family="Poppins,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";Chart.defaults.font.size=11.5;Chart.defaults.color="#66707a";
-function renderDetail(){
+const num=(v,d=1)=>typeof v==="number"?v.toFixed(d):"—";
+document.querySelectorAll("#detModeToggle button").forEach(b=>b.onclick=()=>{
+  detMode=b.dataset.mode;
+  document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  $("#detDay").style.display=detMode==="day"?"":"none";
+  $("#detWeek").style.display=detMode==="week"?"":"none";
+  renderDetail();
+});
+function renderDetail(){ renderReviews(current); if(detMode==="week")renderDetailWeek(); else renderDetailDay(); }
+function renderDetailDay(){
   const s=salById(current);
+  $("#detModeHint").textContent=curDate?fmtDate(curDate):"no day selected";
   $("#detTitle").textContent=(current||"")+" — "+sName(current)+" · stylist performance"+(curDate?" · "+fmtDate(curDate):"");
   const k=$("#detKpis");
-  if(s){k.innerHTML=[["Total Sales",money(s[4]),'<span class="'+cls(s[13])+'">'+sign(s[13])+'</span> YoY'],
-    ["Customers",s[5],'<span class="'+cls(s[12])+'">'+sign(s[12])+'</span> YoY'],
+  if(s){k.innerHTML=[["Total Sales",money(s[4]),`<span class="${cls(s[13])}">${sign(s[13])}</span> YoY`],
+    ["Customers",s[5],`<span class="${cls(s[12])}">${sign(s[12])}</span> YoY`],
     ["Payroll %",s[6].toFixed(1)+"%",(s[6]>40?'<span class="down">over</span>':'<span class="up">under</span>')+" 40%"],
     ["Avg HC Time",s[7].toFixed(1),"min"],["CPH",s[8].toFixed(1),(s[8]<2.4?'<span class="down">below</span>':'<span class="up">at/above</span>')+" 2.4"],
     ["Avg Wait",s[10]+" min",s[11].toFixed(1)+"% >15 min"],
-    ["Cash Over/Short",(typeof s[14]==="number"?'<span class="'+(s[14]<0?'down':'up')+'">'+(s[14]<0?'−':'+')+'$'+Math.abs(s[14]).toFixed(2)+'</span>':'—'),"vs expected drawer"]].map(x=>'<div class="kpi"><div class="lbl">'+x[0]+'</div><div class="val">'+x[1]+'</div><div class="sub">'+x[2]+'</div></div>').join("");}
+    ["Cash Over/Short",(typeof s[14]==="number"?'<span class="'+(s[14]<0?'down':'up')+'">'+(s[14]<0?'−':'+')+'$'+Math.abs(s[14]).toFixed(2)+'</span>':'—'),"vs expected drawer"]].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");}
   else k.innerHTML="";
   const rows=(DAY.STY&&DAY.STY[current])||[];const tb=$("#styTable tbody");tb.innerHTML="";let svc=0,disc=0,cust=0;
-  rows.forEach(r=>{tb.innerHTML+='<tr><td>'+r[0]+'</td><td>'+r[1].toFixed(2)+'</td><td class="'+kpi('payroll',r[2])+'">'+r[2].toFixed(1)+'%</td>'
-    +'<td class="'+kpi('cuts',r[3])+'">'+r[3].toFixed(1)+'</td><td>'+money(r[4])+'</td><td>'+money(r[5])+'</td><td>'+r[6].toFixed(1)+'%</td>'
-    +'<td class="'+kpi('stdprod',r[7])+'">'+r[7].toFixed(1)+'%</td><td>'+r[8]+'</td><td class="'+kpi('avghc',r[9])+'">'+r[9].toFixed(1)+'</td><td>'+money(r[10])+'</td><td>'+r[11].toFixed(1)+'</td></tr>';
+  rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td class="${kpi('payroll',r[2])}">${r[2].toFixed(1)}%</td>
+    <td class="${kpi('cuts',r[3])}">${r[3].toFixed(1)}</td><td>${money(r[4])}</td><td>${money(r[5])}</td><td>${r[6].toFixed(1)}%</td>
+    <td class="${kpi('stdprod',r[7])}">${r[7].toFixed(1)}%</td><td>${r[8]}</td><td class="${kpi('avghc',r[9])}">${r[9].toFixed(1)}</td><td>${money(r[10])}</td><td>${r[11].toFixed(1)}</td></tr>`;
     svc+=r[4];disc+=r[5];cust+=r[8];});
-  $("#styTable tfoot").innerHTML=s?'<tr><td>Totals / Avg</td><td></td><td>'+s[6].toFixed(1)+'%</td><td>'+s[8].toFixed(1)+'</td><td>'+money(svc)+'</td><td>'+money(disc)+'</td><td></td><td></td><td>'+cust+'</td><td>'+s[7].toFixed(1)+'</td><td>'+money(s[9])+'</td><td></td></tr>':"";
+  $("#styTable tfoot").innerHTML=s?`<tr><td>Totals / Avg</td><td></td><td>${s[6].toFixed(1)}%</td><td>${s[8].toFixed(1)}</td><td>${money(svc)}</td><td>${money(disc)}</td><td></td><td></td><td>${cust}</td><td>${s[7].toFixed(1)}</td><td>${money(s[9])}</td><td></td></tr>`:"";
   const w=(DAY.WAIT&&DAY.WAIT[current])||[0,0,0,0,0,0,0];const tot=w.reduce((a,b)=>a+b,0)||1;
   mkWait(w,tot);
-  $("#detList").innerHTML=s?[["Service Sales",money(s[2])],["Product Sales",money(s[3])],["Total Sales",money(s[4])],["Customers",s[5]],["Productivity ($/floor hr)",money(s[9])],["Payroll %",s[6].toFixed(1)+"%"],["Avg wait",s[10]+" min"],["Wait > 15 min",s[11].toFixed(1)+"%"]].map(x=>'<li><span class="k">'+x[0]+'</span><span class="v">'+x[1]+'</span></li>').join(""):"";
-  renderReviews(current);
+  $("#detList").innerHTML=s?[["Service Sales",money(s[2])],["Product Sales",money(s[3])],["Total Sales",money(s[4])],["Customers",s[5]],["Productivity ($/floor hr)",money(s[9])],["Payroll %",s[6].toFixed(1)+"%"],["Avg wait",s[10]+" min"],["Wait > 15 min",s[11].toFixed(1)+"%"]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):"";
+}
+function renderDetailWeek(){
+  const w=(WEEK.WSAL&&WEEK.WSAL[current])||null;
+  $("#detModeHint").textContent=curWeek?("week ending "+fmtDate(curWeek)):"no week selected";
+  $("#detTitle").textContent=(current||"")+" — "+sName(current)+" · weekly performance"+(curWeek?" · week ending "+fmtDate(curWeek):"");
+  const k=$("#detKpis");
+  if(w){const g=m=>w[WS[m]];const growth=(v,lbl)=>typeof v==="number"?`<span class="${cls(v)}">${sign(v)}</span> ${lbl}`:lbl;
+    k.innerHTML=[
+      ["Total Sales",money(g("totalSales")),growth(g("salesGrowthPct"),"YoY")],
+      ["Customers",(typeof g("cust")==="number"?g("cust").toLocaleString():"—"),growth(g("custGrowthPct"),"YoY")],
+      ["Payroll %",num(g("payrollPct"))+"%",(g("payrollPct")>40?'<span class="down">over</span>':'<span class="up">under</span>')+" 40%"],
+      ["Avg HC Time",num(g("avgHC")),"min"],
+      ["CPH",num(g("cutsHr")),(g("cutsHr")<2.4?'<span class="down">below</span>':'<span class="up">at/above</span>')+" 2.4"],
+      ["Avg Wait",num(g("avgWait"),0)+" min",num(g("waitOver15Pct"))+"% >15 min"],
+      ["Avg Min Btwn",num(g("avgMinBtwn")),"between waiting cust"],
+      ["Cash Over/Short",(typeof g("overShort")==="number"?'<span class="'+(g("overShort")<0?'down':'up')+'">'+(g("overShort")<0?'−':'+')+'$'+Math.abs(g("overShort")).toFixed(2)+'</span>':'—'),"vs expected drawer"]
+    ].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");}
+  else k.innerHTML='<div class="banner warn" style="grid-column:1/-1">No Weekly Salon Summary stored for '+sName(current)+(curWeek?(" for the week ending "+fmtDate(curWeek)):"")+" yet. It fills in after Saturday's pull.</div>";
+  // weekly stylist table (from weekly EPP)
+  const cell=(m,v,suf="")=>v===null||v===undefined?`<td class="na">n/a</td>`:`<td class="${kpi(m,v)}">${(typeof v==="number"?v.toFixed(1):v)}${suf}</td>`;
+  const rows=(WEEK.EPP&&WEEK.EPP[current])||[];const tb=$("#styWeekTable tbody");tb.innerHTML="";
+  rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${(typeof r[1]==="number"?r[1].toFixed(2):r[1])}</td><td>${r[2]}</td>
+    ${cell("avghc",r[3])}${cell("cuts",r[4])}${cell("stdprod",r[5],"%")}${cell("payroll",r[8],"%")}
+    ${cell("newret",r[9],"%")}${cell("repret",r[10],"%")}<td>${money(r[7])}</td></tr>`;});
+  if(!rows.length)tb.innerHTML=`<tr><td colspan="10" class="sub" style="text-align:center;padding:16px">No weekly stylist data for this salon/week.</td></tr>`;
+  // weekly wait & pace + at-a-glance
+  const g=w?(m=>w[WS[m]]):(()=>undefined);const mo=v=>typeof v==="number"?money(v):"—";
+  $("#detWeekWaitHint").textContent=curWeek?("week ending "+fmtDate(curWeek)):"";
+  $("#detWeekWait").innerHTML=w?[["Avg wait",num(g("avgWait"),0)+" min"],["Wait > 15 min",num(g("waitOver15Pct"))+"%"],["Avg min between waiting cust",num(g("avgMinBtwn"))],["Floor hours",num(g("floorHours"),2)],["Floor hours growth",(typeof g("floorHoursGrowth")==="number"?g("floorHoursGrowth").toFixed(2):"—")]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):'<li><span class="k">—</span></li>';
+  $("#detWeekList").innerHTML=w?[["Service Sales",mo(g("serviceSales"))],["Product Sales",mo(g("productSales"))],["Total Sales",mo(g("totalSales"))],["Customers",(typeof g("cust")==="number"?g("cust").toLocaleString():"—")],["New Customers",(g("newCust")!=null?g("newCust"):"—")],["Productivity ($/floor hr)",mo(g("prodvity"))],["Payroll %",num(g("payrollPct"))+"%"],["New Cust Return %",num(g("newRetPct"))+"%"],["Repeat Cust Return %",num(g("repRetPct"))+"%"]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):'<li><span class="k">—</span></li>';
 }
 function mkWait(w,tot){const labels=["≤10","10-15","15-20","20-25","25-30","30-40","40+"];const colors=w.map((v,i)=>i<2?GREEN:i<3?AMBER:RED);
   if(charts.cDetWait)charts.cDetWait.destroy();
   charts.cDetWait=new Chart($("#cDetWait"),{type:"bar",data:{labels,datasets:[{label:"# customers",data:w,backgroundColor:colors}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+" cust · "+(c.parsed.y/tot*100).toFixed(1)+"%"}}},scales:{x:{grid:{display:false}},y:{grid:{color:"#eef1f5"}}}}});}
+
 // REPS
 function repsE(m,v){const c=kpi(m,v);return c==="kg"?"✅":c==="ky"?"🤔":c==="kr"?"🚩":"";}
 function firstName(n){const p=n.split(",");return p.length>1?p[1].trim().split(" ")[0]:p[0];}
@@ -462,17 +557,19 @@ function renderReps(){
   $("#repsText").value=L.join("\n");
 }
 $("#repsCopy").onclick=()=>{const t=$("#repsText");t.focus();t.select();const done=()=>{$("#repsMsg").textContent="✓ Copied";$("#repsMsg").style.color=GREEN;setTimeout(()=>$("#repsMsg").textContent="",2000);};try{navigator.clipboard.writeText(t.value).then(done,()=>{document.execCommand("copy");done();});}catch(e){document.execCommand("copy");done();}};
+
 // TEAM (weekly EPP)
 function renderTeam(){
   const s=salById(current);
   $("#teamTitle").textContent=(current||"")+" — "+sName(current)+" · Employee Performance"+(curWeek?" (week ending "+fmtDate(curWeek)+")":"");
-  const cell=(m,v,suf="")=>v===null?'<td class="na">n/a</td>':'<td class="'+kpi(m,v)+'">'+v.toFixed(1)+suf+'</td>';
+  const cell=(m,v,suf="")=>v===null?`<td class="na">n/a</td>`:`<td class="${kpi(m,v)}">${v.toFixed(1)}${suf}</td>`;
   const rows=(WEEK.EPP&&WEEK.EPP[current])||[];const tb=$("#teamTable tbody");tb.innerHTML="";
-  rows.forEach(r=>{tb.innerHTML+='<tr><td>'+r[0]+'</td><td>'+r[1].toFixed(2)+'</td><td>'+r[2]+'</td>'
-    +cell("avghc",r[3])+cell("cuts",r[4])+cell("stdprod",r[5],"%")+cell("payroll",r[8],"%")
-    +cell("newret",r[9],"%")+cell("repret",r[10],"%")+'<td>'+money(r[7])+'</td></tr>';});
+  rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td>${r[2]}</td>
+    ${cell("avghc",r[3])}${cell("cuts",r[4])}${cell("stdprod",r[5],"%")}${cell("payroll",r[8],"%")}
+    ${cell("newret",r[9],"%")}${cell("repret",r[10],"%")}<td>${money(r[7])}</td></tr>`;});
   $("#teamSummary").innerHTML=rows.length?rows.length+" stylists · colored vs Brand Measures thresholds":(curWeek?"No weekly data for this salon/week.":"No week selected.");
 }
+
 // RED FLAGS (weekly)
 function renderRed(){
   $("#redTitle").textContent=(current||"")+" — "+sName(current)+" · Red Flags by employee"+(curWeek?" (week ending "+fmtDate(curWeek)+")":"");
@@ -480,12 +577,13 @@ function renderRed(){
   let chg=0,rd=0,vd=0,rf=0;
   rows.forEach(r=>{const dC=r[1]>=10?"flag":"",cn=r[3]>0?"flag":"",rdc=r[5]>0?"flag":"",vc=r[6]>0?"flag":"",rfc=r[7]>0?"flag":"",sh=r[8]>=5?"warn":"",lg=r[9]>=5?"warn":"";
     chg+=r[3];rd+=r[5];vd+=r[6];rf+=r[7];
-    tb.innerHTML+='<tr><td>'+r[0]+'</td><td class="'+dC+'">'+r[1].toFixed(1)+'%</td><td>'+money(r[2])+'</td>'
-      +'<td class="'+cn+'">'+(r[3]||"—")+'</td><td>'+(r[4]?money(r[4]):"—")+'</td><td class="'+rdc+'">'+(r[5]?money(r[5]):"—")+'</td>'
-      +'<td class="'+vc+'">'+(r[6]?money(r[6]):"—")+'</td><td class="'+rfc+'">'+(r[7]?money(r[7]):"—")+'</td>'
-      +'<td class="'+sh+'">'+(r[8]||"—")+'</td><td class="'+lg+'">'+(r[9]||"—")+'</td></tr>';});
-  $("#redSummary").innerHTML=rows.length?rows.length+' stylists · changed invoices '+chg+' · redos '+money(rd)+' · voids '+money(vd)+' · refunds '+money(rf):(curWeek?"No red-flag data for this salon/week.":"No week selected.");
+    tb.innerHTML+=`<tr><td>${r[0]}</td><td class="${dC}">${r[1].toFixed(1)}%</td><td>${money(r[2])}</td>
+      <td class="${cn}">${r[3]||"—"}</td><td>${r[4]?money(r[4]):"—"}</td><td class="${rdc}">${r[5]?money(r[5]):"—"}</td>
+      <td class="${vc}">${r[6]?money(r[6]):"—"}</td><td class="${rfc}">${r[7]?money(r[7]):"—"}</td>
+      <td class="${sh}">${r[8]||"—"}</td><td class="${lg}">${r[9]||"—"}</td></tr>`;});
+  $("#redSummary").innerHTML=rows.length?`${rows.length} stylists · changed invoices ${chg} · redos ${money(rd)} · voids ${money(vd)} · refunds ${money(rf)}`:(curWeek?"No red-flag data for this salon/week.":"No week selected.");
 }
+
 // TRENDS
 function loadTrend(){const m=$("#trendMetric").value;renderTrend(dTrend(current,m),m);}
 function renderTrend(series,m){
@@ -496,6 +594,7 @@ function renderTrend(series,m){
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:"#eef1f5"},ticks:{callback:v=>isPct?v+"%":v}}}}});
   $("#trendNote").textContent=series&&series.length?series.length+" day(s) of history for "+sName(current):"No history yet for "+sName(current)+" — trends fill as days accumulate.";
 }
+
 // RECAP
 function lastFriday(){const d=new Date();const diff=(d.getDay()-5+7)%7;d.setDate(d.getDate()-diff);return d.toISOString().slice(0,10);}
 function loadRecaps(){fetchRecaps().then(r=>{recaps=r||[];renderRecap();});}
@@ -503,6 +602,7 @@ function loadRecaps(){fetchRecaps().then(r=>{recaps=r||[];renderRecap();});}
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function safeParse(s){try{const o=s?JSON.parse(s):{};return (o&&typeof o==="object")?o:{};}catch(e){return{};}}
 function weekDates(wk){const out=[];if(!wk)return out;const d=new Date(wk+"T00:00:00");for(let i=6;i>=0;i--){const x=new Date(d);x.setDate(d.getDate()-i);out.push(x.toISOString().slice(0,10));}return out;}
+// salon-level KPIs checked per day: [trendMetric, kpiKey, label, reasonFn]
 const DAYKPIS=[
   ["payrollPct","payroll","Payroll %",v=>v.toFixed(1)+"% (over 40% target)"],
   ["cutsHr","cuts","CPH",v=>v.toFixed(1)+" (below 2.0)"],
@@ -521,13 +621,15 @@ function buildOOS(id,wk){
   const jobs=[Promise.resolve(((DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].EPP))||{})];
   DAYKPIS.forEach(k=>jobs.push(Promise.resolve(dTrend(id,k[0]))));
   Promise.all(jobs).then(res=>{
-    if(token!==buildOOS._t)return;
+    if(token!==buildOOS._t)return; // a newer render superseded this one
     const epp=res[0], trends=res.slice(1), days=weekDates(wk);
+    // 1. salon KPIs out of standard, by day
     const dayFlags=[]; let anyDayData=false;
     DAYKPIS.forEach((k,i)=>{ (trends[i]||[]).forEach(row=>{const d=String(row[0]); if(!days.includes(d))return; anyDayData=true;
       const v=row[1]; if(typeof v!=="number")return;
       if(kpi(k[1],v)==="kr") dayFlags.push({date:d,metric:k[0],label:k[2],reason:k[3](v)});});});
     dayFlags.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.label.localeCompare(b.label));
+    // 2. stylists out of standard
     const styRows=(epp[id]||[]), flagged=[];
     styRows.forEach(r=>{const reasons=[];
       if(typeof r[3]==="number"&&r[3]>=19)reasons.push("Avg HC "+r[3].toFixed(1)+" min (≥19)");

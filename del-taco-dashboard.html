@@ -1,0 +1,3163 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Del Taco Franchise Dashboard — Patel DT LLC</title>
+<style>
+/* -- Foundation: Del Taco brand palette & tokens -- */
+:root {
+  color-scheme: light;
+  --surface-page:   #f5f5f3;
+  --surface-card:   #ffffff;
+  --surface-chart:  #fcfcfb;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --gridline:       #e1e0d9;
+  --baseline:       #c3c2b7;
+  --border:         rgba(11,11,11,0.08);
+  --brand-red:      #ED1C2E;
+  --brand-red-light:#fef2f2;
+  --brand-green:    #B2BB1F;
+  --brand-gold:     #FFD201;
+  --brand-orange:   #F8971D;
+  --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100;
+  --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #4a3aa7; --cat-8: #e34948;
+  --status-good:     #0ca30c;
+  --status-good-bg:  #edfaed;
+  --status-ok:       #1a9a6a;
+  --status-ok-bg:    #e6f7f0;
+  --status-warn:     #b37a00;
+  --status-warn-bg:  #fff8e6;
+  --status-serious:  #ec835a;
+  --status-serious-bg:#fff3ed;
+  --status-critical: #d03b3b;
+  --status-critical-bg:#fef2f2;
+  --delta-up-good:   #006300;
+  --delta-down-bad:  #d03b3b;
+  --delta-up-bad:    #d03b3b;
+  --delta-down-good: #006300;
+  --seq-100:#cde2fb; --seq-200:#9ec5f4; --seq-300:#6da7ec;
+  --seq-400:#3987e5; --seq-500:#256abf; --seq-600:#184f95;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+  --transition: 150ms ease;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-page:   #111110;
+  --surface-card:   #1e1e1c;
+  --surface-chart:  #1a1a19;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #898781;
+  --gridline:       #2c2c2a;
+  --baseline:       #383835;
+  --border:         rgba(255,255,255,0.08);
+  --brand-red:      #e66767;
+  --brand-red-light:#2a1a1a;
+  --brand-green:    #c8d14a;
+  --brand-gold:     #FFD201;
+  --brand-orange:   #F8971D;
+  --status-good:    #0ca30c; --status-good-bg:#1a2e1a;
+  --status-ok:      #1a9a6a; --status-ok-bg:#1a2e24;
+  --status-warn:    #fab219; --status-warn-bg:#2e2a1a;
+  --status-serious: #ec835a; --status-serious-bg:#2e221a;
+  --status-critical:#e66767; --status-critical-bg:#2e1a1a;
+  --delta-up-good:  #0ca30c; --delta-down-bad: #e66767;
+  --delta-up-bad:   #e66767; --delta-down-good:#0ca30c;
+  --cat-1:#3987e5; --cat-2:#d95926; --cat-3:#199e70; --cat-4:#c98500;
+  --cat-5:#d55181; --cat-6:#008300; --cat-7:#9085e9; --cat-8:#e66767;
+  --seq-100:#0d366b; --seq-200:#184f95; --seq-300:#256abf;
+  --seq-400:#3987e5; --seq-500:#9ec5f4; --seq-600:#cde2fb;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.3);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.app-header {
+  background: linear-gradient(135deg, #ED1C2E 0%, #c41424 100%);
+  color: #fff;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(237,28,46,0.15);
+}
+.app-header .header-left { display: flex; align-items: center; gap: 14px; }
+.app-header .header-logo { height: 42px; width: auto; }
+.app-header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.3px; line-height: 1.3; }
+.app-header h1 small { display: block; font-size: 11px; font-weight: 400; opacity: 0.85; letter-spacing: 0.5px; }
+.app-header .header-right { display: flex; align-items: center; gap: 16px; }
+.last-updated { font-size: 12px; opacity: 0.85; }
+.theme-toggle {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+}
+.theme-toggle:hover { background: rgba(255,255,255,0.25); }
+.tab-bar {
+  display: flex;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  gap: 0;
+}
+.tab-btn {
+  background: none; border: none; padding: 12px 20px;
+  font-size: 14px; font-weight: 500; color: var(--text-muted);
+  cursor: pointer; border-bottom: 2px solid transparent;
+  transition: color var(--transition), border-color var(--transition);
+}
+.tab-btn:hover { color: var(--text-secondary); }
+.tab-btn.active { color: #ED1C2E; border-bottom-color: #ED1C2E; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+.controls {
+  display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 20px;
+}
+.control-group { display: flex; align-items: center; gap: 6px; }
+.control-group label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.control-select, .control-input {
+  padding: 6px 10px; border: 1px solid var(--gridline);
+  border-radius: var(--radius-sm); background: var(--surface-card);
+  color: var(--text-primary); font-size: 13px;
+  font-family: inherit;
+}
+.control-select:focus, .control-input:focus {
+  outline: 2px solid var(--cat-1); outline-offset: 1px;
+}
+.view-toggle { display: flex; border: 1px solid var(--gridline); border-radius: var(--radius-sm); overflow: hidden; }
+.view-toggle button {
+  background: var(--surface-card); border: none;
+  padding: 6px 16px; font-size: 13px; font-weight: 500;
+  color: var(--text-secondary); cursor: pointer;
+  transition: all var(--transition);
+}
+.view-toggle button + button { border-left: 1px solid var(--gridline); }
+.view-toggle button.active { background: var(--brand-red); color: #fff; }
+.kpi-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.kpi-tile {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+.kpi-tile .kpi-label {
+  font-size: 12px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.kpi-tile .kpi-value { font-size: 26px; font-weight: 600; line-height: 1.2; }
+.kpi-tile .kpi-delta {
+  font-size: 13px; font-weight: 500; margin-top: 2px;
+  display: flex; align-items: center; gap: 4px;
+}
+.kpi-delta.good { color: var(--delta-up-good); }
+.kpi-delta.bad { color: var(--delta-down-bad); }
+.kpi-delta .arrow { font-size: 11px; }
+.store-table-wrap {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+  margin-bottom: 24px;
+}
+.store-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.store-table thead th {
+  background: var(--surface-card);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 11px;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--gridline);
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.store-table thead th:hover { color: var(--text-primary); }
+.store-table thead th .sort-arrow { font-size: 10px; margin-left: 3px; opacity: 0.5; }
+.store-table thead th.sorted .sort-arrow { opacity: 1; color: var(--brand-red); }
+.store-table thead th:first-child { padding-left: 20px; }
+.store-table tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.store-table tbody td:first-child { padding-left: 20px; font-weight: 600; }
+.store-table tbody tr:last-child td { border-bottom: none; }
+.store-table tbody tr:hover td { background: var(--surface-page); }
+.store-table .cell-great { color: #0ca30c; }
+.store-table .cell-good { color: var(--status-good); }
+.store-table .cell-ok { color: var(--status-ok); }
+.store-table .cell-warn { color: var(--status-warn); }
+.store-table .cell-critical { color: var(--status-critical); }
+.status-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500;
+}
+.status-pill.great { background: var(--status-good-bg); color: #0ca30c; }
+.status-pill.good { background: var(--status-good-bg); color: var(--status-good); }
+.status-pill.warn { background: var(--status-warn-bg); color: var(--status-warn); }
+.status-pill.critical { background: var(--status-critical-bg); color: var(--status-critical); }
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%; display: inline-block;
+}
+.status-dot.great { background: #0ca30c; }
+.status-dot.good { background: var(--status-good); }
+.status-dot.warn { background: var(--status-warn); }
+.status-dot.critical { background: var(--status-critical); }
+/* KPI badge for rankings */
+.kpi-badge {
+  display: inline-block; width: 20px; height: 20px; border-radius: 4px;
+  text-align: center; line-height: 20px; font-size: 10px; font-weight: 700;
+  color: #fff; margin: 0 1px;
+}
+.kpi-badge.great { background: #0ca30c; }
+.kpi-badge.good-badge { background: #1a9a6a; }
+.kpi-badge.warn-badge { background: #b37a00; }
+.kpi-badge.critical-badge { background: #d03b3b; }
+/* Store detail view */
+.store-detail {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+}
+.store-detail h2 { font-size: 20px; margin-bottom: 16px; }
+.store-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.detail-kpi {
+  background: var(--surface-page);
+  border-radius: var(--radius);
+  padding: 16px;
+  border-left: 4px solid var(--gridline);
+}
+.detail-kpi.great-border { border-left-color: #0ca30c; }
+.detail-kpi.good-border { border-left-color: #1a9a6a; }
+.detail-kpi.warn-border { border-left-color: #b37a00; }
+.detail-kpi.critical-border { border-left-color: #d03b3b; }
+.detail-kpi .detail-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.detail-kpi .detail-value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+.detail-kpi .detail-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+/* Score column badge */
+.score-badge {
+  display: inline-block; min-width: 28px; padding: 2px 6px; border-radius: 4px;
+  text-align: center; font-size: 12px; font-weight: 700; color: #fff;
+}
+.score-badge.score-great { background: #0ca30c; }
+.score-badge.score-good { background: #1a9a6a; }
+.score-badge.score-warn { background: #b37a00; }
+.score-badge.score-critical { background: #d03b3b; }
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.chart-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.chart-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.chart-card .chart-subtitle { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+.chart-area { position: relative; overflow: hidden; min-height: 60px; }
+.chart-area svg { display: block; width: 100%; height: auto; max-height: 240px; }
+.variance-table { font-variant-numeric: tabular-nums; }
+.variance-table .neg { color: var(--status-critical); }
+.variance-table .pos { color: var(--status-good); }
+.variance-bar { height: 6px; border-radius: 3px; display: inline-block; vertical-align: middle; }
+.heatmap-grid { display: grid; gap: 2px; margin-top: 8px; }
+.heatmap-cell {
+  border-radius: 3px; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 500; padding: 6px 4px; cursor: default; position: relative;
+}
+.heatmap-cell .tooltip-content {
+  display: none; position: absolute; bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%); background: var(--text-primary); color: var(--surface-card);
+  padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 10; pointer-events: none;
+}
+.heatmap-cell:hover .tooltip-content { display: block; }
+.app-footer {
+  text-align: center; padding: 20px; font-size: 12px;
+  color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 32px;
+}
+.connection-banner {
+  background: var(--status-warn-bg); border: 1px solid rgba(179,122,0,0.2);
+  border-radius: var(--radius); padding: 12px 20px; margin-bottom: 20px;
+  display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--status-warn);
+}
+.connection-banner .banner-icon { font-size: 16px; }
+.connection-banner.connected {
+  background: var(--status-good-bg); border-color: rgba(12,163,12,0.2); color: var(--status-good);
+}
+@media (max-width: 768px) {
+  .container { padding: 12px 16px; }
+  .kpi-summary { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
+  .app-header h1 { font-size: 15px; }
+  .controls { gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-left">
+    <img src="data:image/png;base64,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" alt="Del Taco" class="header-logo">
+    <h1>Franchise Dashboard<small>Patel DT LLC &bull; Group 373</small></h1>
+  </div>
+  <div class="header-right">
+    <span class="last-updated" id="lastUpdated">Last updated: --</span>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">Dark</button>
+  </div>
+</header>
+
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="ops">Daily Operations</button>
+  <button class="tab-btn" data-tab="sc">Service Checks</button>
+  <button class="tab-btn" data-tab="food">Food Cost Analysis</button>
+  <button class="tab-btn" data-tab="financial">Financial Health</button>
+</nav>
+
+<!-- TAB 1: DAILY OPERATIONS -->
+<div class="tab-content active" id="tab-ops">
+  <div class="container">
+    <div class="connection-banner" id="opsBanner">
+      <span class="banner-icon">&#9888;</span>
+      <span>Sample data shown. Once data sources are connected (PowerBI, Dayforce, Google, ServiceCheck, Jolt), this dashboard will update daily at 10:00 AM.</span>
+    </div>
+    <div class="controls">
+      <div class="view-toggle" id="opsViewToggle">
+        <button class="active" data-view="daily">Daily</button>
+        <button data-view="weekly">Weekly</button>
+      </div>
+      <div class="control-group" id="datePicker">
+        <label for="opsDate">Date</label>
+        <input type="date" id="opsDate" class="control-input">
+      </div>
+      <div class="control-group" id="weekPicker" style="display:none;">
+        <label for="opsWeek">Week ending</label>
+        <select id="opsWeek" class="control-select"></select>
+      </div>
+      <div class="control-group">
+        <label for="opsStoreFilter">Store</label>
+        <select id="opsStoreFilter" class="control-select">
+          <option value="all">All Stores</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="kpi-summary" id="opsKpiRow"></div>
+
+    <!-- Store detail view (hidden by default) -->
+    <div id="storeDetailView" style="display:none;"></div>
+
+    <div class="store-table-wrap" id="opsTableWrap">
+      <table class="store-table" id="opsTable">
+        <thead id="opsTableHead"></thead>
+        <tbody id="opsTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="charts-grid" id="opsCharts">
+      <div class="chart-card">
+        <h3>Guest Check Average by Store</h3>
+        <p class="chart-subtitle">Prior business date</p>
+        <div class="chart-area" id="chartGCA"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Labor % by Store</h3>
+        <p class="chart-subtitle">Target varies by store volume</p>
+        <div class="chart-area" id="chartLabor"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Change % vs Prior Year</h3>
+        <p class="chart-subtitle">YoY net sales comp by store</p>
+        <div class="chart-area" id="chartSales"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Google Ratings by Store</h3>
+        <p class="chart-subtitle">Current average rating (out of 5.0)</p>
+        <div class="chart-area" id="chartRatings"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 2: SERVICE CHECKS -->
+<div class="tab-content" id="tab-sc">
+  <div class="container">
+    <div class="connection-banner" id="scBanner">
+      <span class="banner-icon">&#10003;</span>
+      <span>Live data from ServiceCheck Insights. Updated daily at 10:00 AM MT.</span>
+    </div>
+    <div class="controls">
+      <div class="view-toggle" id="scViewToggle">
+        <button data-view="weekly" class="active">Weekly</button>
+        <button data-view="daily">Daily</button>
+      </div>
+      <div class="control-group" id="scWeekGroup">
+        <label for="scWeek">Week</label>
+        <select id="scWeek" class="control-select"></select>
+      </div>
+      <div class="control-group" id="scDateGroup" style="display:none;">
+        <label for="scDate">Date</label>
+        <input type="date" id="scDate" class="control-input">
+      </div>
+    </div>
+    <div class="kpi-summary" id="scKpiRow"></div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="scTable">
+        <thead id="scTableHead"></thead>
+        <tbody id="scTableBody"></tbody>
+      </table>
+    </div>
+    <!-- Breakdowns Row -->
+    <div class="charts-grid" style="margin-bottom:24px;">
+      <div class="chart-card">
+        <h3>Contact Method</h3>
+        <p class="chart-subtitle">How customers reached out</p>
+        <div id="scMethodBreakdown" style="padding:8px 0;"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Category Breakdown</h3>
+        <p class="chart-subtitle">Type of contact received</p>
+        <div id="scCategoryBreakdown" style="padding:8px 0;"></div>
+      </div>
+    </div>
+    <div class="charts-grid" style="margin-bottom:24px;">
+      <div class="chart-card">
+        <h3>Business Segment</h3>
+        <p class="chart-subtitle">Where contacts originated</p>
+        <div id="scSegmentBreakdown" style="padding:8px 0;"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Retention Status</h3>
+        <p class="chart-subtitle">Open vs closed contacts</p>
+        <div id="scRetention" style="padding:12px 0;"></div>
+      </div>
+    </div>
+
+    <div class="chart-card" style="margin-bottom:24px;">
+      <h3>Top Problem Issues</h3>
+      <p class="chart-subtitle">Most common problem categories this week</p>
+      <div class="store-table-wrap" style="border:none;box-shadow:none;">
+        <table class="store-table" id="scIssuesTable">
+          <thead>
+            <tr><th>Issue Category</th><th>Count</th><th>Impact</th></tr>
+          </thead>
+          <tbody id="scIssuesBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Problem SCs by Store</h3>
+        <p class="chart-subtitle">Current week problem service check count</p>
+        <div class="chart-area" id="chartSCByStore"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Week-over-Week Trend</h3>
+        <p class="chart-subtitle">Total problem SCs -- last 4 weeks</p>
+        <div class="chart-area" id="chartSCTrend"></div>
+      </div>
+    </div>
+
+    <!-- Executive Summary -->
+    <div id="scExecSummary" style="margin-top:24px;">
+      <div class="chart-card" style="margin-bottom:24px;">
+        <h3>Executive Summary</h3>
+        <p class="chart-subtitle">ServiceCheck contacts overview (rolling period)</p>
+        <div id="execKpis"></div>
+        <h4 style="font-size:14px;color:var(--text-secondary);margin:16px 0 8px;">Monthly Contact Trend</h4>
+        <div class="chart-area" id="execTrendChart"></div>
+        <h4 style="font-size:14px;color:var(--text-secondary);margin:16px 0 8px;">Top Problems</h4>
+        <div id="execTopProblems"></div>
+      </div>
+    </div>
+
+    <!-- Fulfillment / Compensations -->
+    <div id="scFulfillment" style="margin-top:0;">
+      <div class="chart-card">
+        <h3>Fulfillment &amp; Compensations</h3>
+        <p class="chart-subtitle">Customer compensations issued</p>
+        <div id="fulfillmentKpis"></div>
+        <div class="store-table-wrap" style="border:none;box-shadow:none;">
+          <table class="store-table">
+            <thead>
+              <tr><th>Store</th><th>Incident #</th><th>Reported</th><th>Type</th><th>Category</th><th>Amount</th></tr>
+            </thead>
+            <tbody id="fulfillmentBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 3: FOOD COST -->
+<div class="tab-content" id="tab-food">
+  <div class="container">
+    <div class="connection-banner" id="foodBanner">
+      <span class="banner-icon">&#10003;</span>
+      <span>Live data from QBO P&amp;L &amp; PLV Reports. Real PLV data for stores 726, 898, 1205, 1364. PLV reports found for 1029, 1056, 1153, 1357, 1391 (pending extraction). Missing: 1187.</span>
+    </div>
+    <div class="controls">
+      <div class="view-toggle" id="foodViewToggle">
+        <button class="active" data-view="weekly">Weekly</button>
+        <button data-view="period">Period</button>
+      </div>
+      <div class="control-group" id="foodWeekPicker">
+        <label for="foodWeek">Week ending</label>
+        <select id="foodWeek" class="control-select"></select>
+      </div>
+      <div class="control-group" id="foodPeriodPicker" style="display:none;">
+        <label for="foodPeriod">Period</label>
+        <select id="foodPeriod" class="control-select"></select>
+      </div>
+      <div class="control-group">
+        <label for="foodStore">Store</label>
+        <select id="foodStore" class="control-select">
+          <option value="all">All Stores</option>
+        </select>
+      </div>
+    </div>
+    <div class="kpi-summary" id="foodKpiRow"></div>
+    <div class="store-table-wrap">
+      <table class="store-table variance-table" id="foodTable">
+        <thead id="foodTableHead"></thead>
+        <tbody id="foodTableBody"></tbody>
+      </table>
+    </div>
+    <!-- Mitigation & Discounts -->
+    <div class="chart-card" style="margin-bottom:24px;">
+      <h3>Mitigation &amp; Discounts</h3>
+      <p class="chart-subtitle">Manager Meals, Employee Meals, and other discount categories</p>
+      <div class="store-table-wrap" style="border:none;box-shadow:none;">
+        <table class="store-table variance-table" id="mitigationTable">
+          <thead>
+            <tr><th>Category</th><th>Store</th><th>Count</th><th>$ Amount</th><th>% of Sales</th></tr>
+          </thead>
+          <tbody id="mitigationBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:24px;">
+      <h3>High Variance Items</h3>
+      <p class="chart-subtitle">Items with &gt;1% variance from theory -- sorted by dollar impact</p>
+      <div class="store-table-wrap" style="border:none;box-shadow:none;">
+        <table class="store-table variance-table" id="varianceItemsTable">
+          <thead>
+            <tr><th>Item</th><th>Store</th><th>Theory Cost</th><th>Actual Cost</th><th>$ Variance</th><th>% Variance</th><th>Impact</th></tr>
+          </thead>
+          <tbody id="varianceItemsBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Food Cost % Variance Heatmap</h3>
+        <p class="chart-subtitle">Theory vs Actual by store -- darker = higher variance</p>
+        <div class="chart-area" id="foodHeatmap"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Food Cost Trend</h3>
+        <p class="chart-subtitle">Weekly food cost % -- all stores</p>
+        <div class="chart-area" id="chartFoodTrend"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FINANCIAL P&L TAB ===== -->
+<div class="tab-content" id="tab-financial">
+  <div class="tab-inner" style="padding:24px;">
+    <div class="connection-banner connected" id="finBanner">
+      <span class="banner-icon">&#10003;</span>
+      <span>Live data from QuickBooks — Patel DT LLC. Last updated: Jul 2026.</span>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
+      <label style="font-size:13px;font-weight:600;">Store:</label>
+      <select id="finStorePicker" class="date-picker" style="min-width:180px;">
+        <option value="all">All Stores (Portfolio)</option>
+      </select>
+      <label style="font-size:13px;font-weight:600;margin-left:8px;">Period:</label>
+      <div class="view-toggle" id="finPeriodToggle">
+        <button class="active" data-period="ytd">YTD</button>
+        <button data-period="quarter">Quarter</button>
+        <button data-period="month">Month</button>
+      </div>
+      <span id="finMonthPickerWrap" style="display:none;">
+        <select id="finMonthPicker" class="date-picker" style="min-width:140px;"></select>
+      </span>
+      <span id="finQuarterPickerWrap" style="display:none;">
+        <select id="finQuarterPicker" class="date-picker" style="min-width:140px;">
+          <option value="Q1">Q1 (Jan–Mar)</option>
+          <option value="Q2">Q2 (Apr–Jun)</option>
+          <option value="Q3" selected>Q3 (Jul–Sep)</option>
+        </select>
+      </span>
+    </div>
+    <div class="kpi-summary" id="finKpiRow"></div>
+    <!-- Call-outs -->
+    <div id="finCallouts" style="margin-bottom:24px;"></div>
+    <!-- P&L summary table -->
+    <div class="store-table-wrap" id="finTableWrap">
+      <table class="store-table" id="finTable">
+        <thead id="finTableHead"></thead>
+        <tbody id="finTableBody"></tbody>
+      </table>
+    </div>
+    <!-- Charts -->
+    <div class="charts-grid" style="margin-top:24px;">
+      <div class="chart-card">
+        <h3>Monthly Net Sales Trend</h3>
+        <p class="chart-subtitle">Portfolio net sales by month</p>
+        <div class="chart-area" id="chartFinSales"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Monthly NOI Trend</h3>
+        <p class="chart-subtitle">Net Operating Income by month</p>
+        <div class="chart-area" id="chartFinNOI"></div>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Food Cost % Trend</h3>
+        <p class="chart-subtitle">Monthly food cost as % of sales — 30% threshold</p>
+        <div class="chart-area" id="chartFinFood"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Labor Cost % Trend</h3>
+        <p class="chart-subtitle">Monthly payroll as % of sales — 37% threshold</p>
+        <div class="chart-area" id="chartFinLabor"></div>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Controllable Expenses Breakdown</h3>
+        <p class="chart-subtitle">Share of controllable costs — YTD</p>
+        <div class="chart-area" id="chartFinPie"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Key Expense Ratios</h3>
+        <p class="chart-subtitle">Food, Payroll, Utilities as % of sales — monthly trend</p>
+        <div class="chart-area" id="chartFinRatios"></div>
+      </div>
+    </div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Store P&amp;L Comparison</h3>
+        <p class="chart-subtitle" id="finStoreChartSub">YTD NOI % by store — ranked</p>
+        <div class="chart-area" id="chartFinStores"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="app-footer">
+  <span style="color:var(--brand-gold);">&#9733;</span> Del Taco Operations Dashboard &mdash; Patel DT LLC &mdash; Group 373 &mdash; Data refreshes daily at 10:00 AM MT
+</footer>
+
+<script>
+/* ===== STORE CONFIG & TARGETS ===== */
+const STORES = [
+  { id: '726',  name: 'Montgomery',  short: '726',  area: '373-002' },
+  { id: '898',  name: 'Coors',       short: '898',  area: '373-002' },
+  { id: '1029', name: 'Central',     short: '1029', area: '373-001' },
+  { id: '1056', name: 'Los Lunas',   short: '1056', area: '373-001' },
+  { id: '1153', name: 'Rio Rancho',  short: '1153', area: '373-001' },
+  { id: '1187', name: 'Alamogordo',  short: '1187', area: '373-002' },
+  { id: '1205', name: 'Gallup',      short: '1205', area: '373-002' },
+  { id: '1357', name: 'T or C',      short: '1357', area: '373-001' },
+  { id: '1364', name: 'Bernalillo',  short: '1364', area: '373-002' },
+  { id: '1391', name: 'Gibson',      short: '1391', area: '373-001' },
+];
+
+const LABOR_TARGETS = {
+  '726': 22.30, '898': 24.00, '1029': 24.40, '1056': 23.80, '1153': 21.50,
+  '1187': 24.50, '1205': 27.00, '1357': 29.00, '1364': 28.00, '1391': 23.00,
+};
+
+/* ===== KPI BENCHMARK THRESHOLDS ===== */
+const KPI_THRESHOLDS = {
+  weeklySales: [
+    { min: 37500, label: 'Great',   cls: 'great' },
+    { min: 30750, label: 'Good',    cls: 'good' },
+    { min: 28501, label: 'NI',      cls: 'warn' },
+    { min: 0,     label: 'IA',      cls: 'critical' },
+  ],
+  laborVariance: [ // absolute variance from target
+    { max: 0.10, label: 'Great',   cls: 'great' },
+    { max: 0.25, label: 'Good',    cls: 'good' },
+    { max: 0.50, label: 'NI',      cls: 'warn' },
+    { max: 999,  label: 'IA',      cls: 'critical' },
+  ],
+  foodCostVar: [ // absolute variance %
+    { max: 0.25, label: 'Great',   cls: 'great' },
+    { max: 0.50, label: 'Good',    cls: 'good' },
+    { max: 1.00, label: 'NI',      cls: 'warn' },
+    { max: 999,  label: 'IA',      cls: 'critical' },
+  ],
+  speedAtWindow: [ // seconds
+    { max: 110,  label: 'Great',   cls: 'great' },
+    { max: 120,  label: 'Good',    cls: 'good' },
+    { max: 140,  label: 'NI',      cls: 'warn' },
+    { max: 9999, label: 'IA',      cls: 'critical' },
+  ],
+  dspErrors: [ // %
+    { max: 1.5,  label: 'Great',   cls: 'great' },
+    { max: 1.9,  label: 'Good',    cls: 'good' },
+    { max: 2.9,  label: 'NI',      cls: 'warn' },
+    { max: 999,  label: 'IA',      cls: 'critical' },
+  ],
+  voids: [ // %
+    { max: 0.75, label: 'Great',   cls: 'great' },
+    { max: 1.00, label: 'Good',    cls: 'good' },
+    { max: 2.00, label: 'NI',      cls: 'warn' },
+    { max: 999,  label: 'IA',      cls: 'critical' },
+  ],
+};
+
+function rateKPI(type, value) {
+  const thresholds = KPI_THRESHOLDS[type];
+  if (!thresholds) return { label: '--', cls: '', score: 0 };
+  if (type === 'weeklySales') {
+    for (const t of thresholds) { if (value >= t.min) return { label: t.label, cls: t.cls, score: t.label === 'Great' ? 4 : t.label === 'Good' ? 3 : t.label === 'NI' ? 2 : 1 }; }
+    return { label: 'IA', cls: 'critical', score: 1 };
+  }
+  for (const t of thresholds) { if (value <= t.max) return { label: t.label, cls: t.cls, score: t.label === 'Great' ? 4 : t.label === 'Good' ? 3 : t.label === 'NI' ? 2 : 1 }; }
+  return { label: 'IA', cls: 'critical', score: 1 };
+}
+
+/* ===== DATA STORE ===== */
+const dataStore = {
+  lastUpdated: '2026-08-09T10:00:00',
+  sources: {
+    powerbi:      { connected: true,  lastPull: '2026-08-09T10:00:00' },
+    dayforce:     { connected: true,  lastPull: '2026-08-06T10:00:00' },
+    servicecheck: { connected: true,  lastPull: '2026-08-09T10:00:00' },
+    gbp:          { connected: true, lastPull: '2026-08-09T10:00:00', note: 'Via Google Maps (no GBP admin needed)' },
+    jolt:         { connected: true, lastPull: '2026-08-09T10:00:00', url: 'https://app.joltup.com/account#/login' },
+    qbo:          { connected: true,  lastPull: '2026-08-06T10:00:00' },
+    plv:          { connected: true, lastPull: '2026-08-06T14:00:00' },
+  },
+  realSalesDaily: {
+    '2026-08-08': {
+      '726':  { grossSales: 4131, netSales: 4027.69, trans: 269, gca: 14.97, changePct: -18.1, transChangePct: -12.9 },
+      '898':  { grossSales: 3535, netSales: 3398.64, trans: 218, gca: 15.59, changePct: -5.3, transChangePct: -0.5 },
+      '1029': { grossSales: 3188, netSales: 3079.52, trans: 202, gca: 15.25, changePct: -8.8, transChangePct: 2.5 },
+      '1056': { grossSales: 4519, netSales: 4332.54, trans: 273, gca: 15.87, changePct: -6.3, transChangePct: 3.4 },
+      '1153': { grossSales: 3154, netSales: 3038.49, trans: 185, gca: 16.42, changePct: 8.4, transChangePct: 2.8 },
+      '1187': { grossSales: 2857, netSales: 2726.90, trans: 158, gca: 17.26, changePct: -18.7, transChangePct: -21.0 },
+      '1205': { grossSales: 2234, netSales: 2175.39, trans: 157, gca: 13.86, changePct: -13.6, transChangePct: -7.6 },
+      '1357': { grossSales: 1378, netSales: 1324.95, trans: 92, gca: 14.40, changePct: -13.3, transChangePct: 2.2 },
+      '1364': { grossSales: 2425, netSales: 2349.85, trans: 159, gca: 14.78, changePct: 2.9, transChangePct: 7.4 },
+      '1391': { grossSales: 2897, netSales: 2779.73, trans: 189, gca: 14.71, changePct: 2.4, transChangePct: 11.8 },
+    },
+    '2026-08-07': {
+      '726':  { grossSales: 4884, netSales: 4715.18, trans: 320, gca: 14.73, changePct: -13.50, transChangePct: -7.8 },
+      '898':  { grossSales: 3038, netSales: 2908.56, trans: 205, gca: 14.19, changePct: -22.50, transChangePct: -2.8 },
+      '1029': { grossSales: 3243, netSales: 3128.34, trans: 198, gca: 15.80, changePct: -24.80, transChangePct: -23.8 },
+      '1056': { grossSales: 4286, netSales: 4175.98, trans: 285, gca: 14.65, changePct: -16.60, transChangePct: -8.7 },
+      '1153': { grossSales: 2891, netSales: 2794.12, trans: 176, gca: 15.88, changePct: 22.70, transChangePct: 25.7 },
+      '1187': { grossSales: 2915, netSales: 2795.57, trans: 175, gca: 15.97, changePct: -21.00, transChangePct: -16.3 },
+      '1205': { grossSales: 2197, netSales: 2121.06, trans: 156, gca: 13.60, changePct: -6.30, transChangePct: -2.5 },
+      '1357': { grossSales: 1671, netSales: 1625.98, trans: 110, gca: 14.78, changePct: 27.80, transChangePct: 11.1 },
+      '1364': { grossSales: 3147, netSales: 1944.03, trans: 184, gca: 10.57, changePct: -17.70, transChangePct: 6.4 },
+      '1391': { grossSales: 3216, netSales: 3122.61, trans: 234, gca: 13.34, changePct: -11.10, transChangePct: -9.7 },
+    },
+    '2026-08-06': {
+      '726':  { grossSales: 4814, netSales: 4527, trans: 356, gca: 12.72, changePct: -16.60 },
+      '898':  { grossSales: 3565, netSales: 3235, trans: 239, gca: 13.53, changePct: -12.90 },
+      '1029': { grossSales: 3240, netSales: 3044, trans: 219, gca: 13.90, changePct: 50.20 },
+      '1056': { grossSales: 4089, netSales: 3875, trans: 276, gca: 14.04, changePct: 16.50 },
+      '1153': { grossSales: 2781, netSales: 2498, trans: 175, gca: 14.27, changePct: -6.30 },
+      '1187': { grossSales: 3188, netSales: 2977, trans: 204, gca: 14.59, changePct: 11.80 },
+      '1205': { grossSales: 2385, netSales: 2268, trans: 163, gca: 13.91, changePct: -12.40 },
+      '1357': { grossSales: 1904, netSales: 1788, trans: 143, gca: 12.51, changePct: 4.60 },
+      '1364': { grossSales: 3305, netSales: 2091, trans: 190, gca: 11.00, changePct: 4.40 },
+      '1391': { grossSales: 2948, netSales: 2781, trans: 223, gca: 12.47, changePct: -23.00 },
+    },
+    '2026-08-05': {
+      '726':  { grossSales: 4558, netSales: 4461, trans: 325, gca: 13.73, changePct: -0.24 },
+      '898':  { grossSales: 3257, netSales: 3122, trans: 208, gca: 15.01, changePct: -0.78 },
+      '1029': { grossSales: 3114, netSales: 3023, trans: 203, gca: 14.89, changePct: -3.61 },
+      '1056': { grossSales: 4209, netSales: 4098, trans: 267, gca: 15.35, changePct: 18.20 },
+      '1153': { grossSales: 2393, netSales: 2309, trans: 164, gca: 14.08, changePct: 8.65 },
+      '1187': { grossSales: 2306, netSales: 2190, trans: 150, gca: 14.60, changePct: -8.75 },
+      '1205': { grossSales: 2047, netSales: 1967, trans: 146, gca: 13.47, changePct: -9.80 },
+      '1357': { grossSales: 1539, netSales: 1489, trans: 109, gca: 13.66, changePct: -4.25 },
+      '1364': { grossSales: 2885, netSales: 2003, trans: 163, gca: 12.29, changePct: 5.01 },
+      '1391': { grossSales: 2803, netSales: 2746, trans: 197, gca: 13.94, changePct: -12.34 },
+    },
+  },
+  realLaborWeekly: {
+    'FY2026-P12-W1': {
+      weekEnd: '2026-08-05',
+      stores: {
+        '726':  { laborPct: 21.46 },
+        '898':  { laborPct: 21.51 },
+        '1029': { laborPct: 20.76 },
+        '1056': { laborPct: 22.44 },
+        '1153': { laborPct: 20.67 },
+        '1187': { laborPct: 26.00 },
+        '1205': { laborPct: 24.44 },
+        '1357': { laborPct: 27.45 },
+        '1364': { laborPct: 24.85 },
+        '1391': { laborPct: 22.83 },
+      },
+    },
+  },
+  realQboPL: {
+    '2026-P12': {
+      periodStart: '2026-07-08', periodEnd: '2026-08-05',
+      cashSales: 898099.10, foodCOGS: 242914.93, paperPlastic: 18057.59,
+      totalPayroll: 299027.77, netIncome: 14447.82, foodCostPct: 27.05,
+    },
+    '2026-P12-W1': {
+      periodStart: '2026-07-29', periodEnd: '2026-08-05',
+      cashSales: 226372.49, couponsDiscounts: -20069.78, totalIncome: 206302.71,
+      foodCOGS: 64816.98, paperPlastic: 5202.47, totalCOGS: 70019.45,
+      grossProfit: 136283.26, totalPayroll: 146729.50,
+      payrollBreakdown: {
+        crewWages: 89930.75, gmWages: 19576.92, asstGmShiftLeader: 16710.92,
+        districtMgr: 6153.86, payrollTaxes: 11631.63, overtime: 213.75,
+        sickLeave: 1422.83, vacationPay: 806.79, workersComp: 746.93, benefits: -464.88,
+      },
+      rent: 87977.67, utilities: 5082.97, repairs: 4769.74, insurance: 7457.05,
+      thirdPartyFees: 7060.20, franchiseAdmin: 5188.54, interestExpense: 15787.00,
+      totalExpenses: 287290.86, netIncome: -151007.60,
+      foodCostPct: 28.63, laborCostPct: 64.82,
+    },
+  },
+  plvFileIds: {
+    '726': '1N7es1fNBpeh4NzSfaugAeWfkaOjTczz-',
+    '898': '19Ms_L5BQ99LrI0W0AqbAh0BGna6Zp159',
+    '1029': '1Lnybqe4jPCLz3EkBlxE-i6pfR2pNr9LP',
+    '1056': '1jZDI6xK-BZKhlSb4VgZzOVJ8-RdydWo_',
+    '1153': '1yw07tpppEvNQIJbQEK4WZ1qwXPrBKeUq',
+    '1187': '1jTwI7D2ywwq9JkukMutFoKl8586xedoh',
+    '1205': '1d-gwE-F2Y1Y4THfk4hCBxM_zLRrj0IFg',
+    '1357': '1j4ayGnXfuvzAL2IYYIjuWTWioqET9xw2',
+    '1364': '1jy3G1EO1pHcvFZdyTHhO4PxdJr88oO2y',
+    '1391': '1NUNbz4gr-UNNo3nXKsEI4Rx38yrd2F3_',
+  },
+  realServiceCheck: {
+    '2026-W32': {
+      weekStart: '2026-08-03', weekEnd: '2026-08-09',
+      totalProblem: 4, totalAll: 12,
+      byMethod: { webEntry: 11, callIn: 1 },
+      byCategory: { onlineOrdering: 6, problem: 4, compliment: 1, request: 1, incorrectlyCharged: 1 },
+      bySegment: { pickUpOnline: 5, driveThru: 4, dineIn: 3, deliveryOnline: 0 },
+      retention: { closed: 9, open: 1 },
+      stores: {
+        '726': { problem: 0, all: 0 }, '898': { problem: 0, all: 0 }, '1029': { problem: 1, all: 1 },
+        '1056': { problem: 1, all: 1 }, '1153': { problem: 1, all: 1 }, '1187': { problem: 0, all: 0 },
+        '1205': { problem: 0, all: 0 }, '1357': { problem: 0, all: 0 }, '1364': { problem: 1, all: 1 },
+        '1391': { problem: 0, all: 0 },
+      },
+      topIssues: [
+        { path: 'Problem > Product > Desserts > Portions', count: 1 },
+        { path: 'Problem > Service > Crew Member Issues > Issue Placing an Order', count: 1 },
+        { path: 'Problem > Service > Crew Member Issues > Unavailable/Not Helpful', count: 1 },
+        { path: 'Problem > Product > Nachos > Portions', count: 1 },
+      ],
+    },
+    '2026-W31': {
+      weekStart: '2026-07-27', weekEnd: '2026-08-02',
+      totalProblem: 7, totalAll: 7,
+      byMethod: { webEntry: 6, callIn: 1 },
+      stores: {
+        '1056': { problem: 1, all: 1 },
+      },
+    },
+    /* Executive Summary: monthly totals across all stores (7/1-8/6/2026) */
+    execSummary: {
+      period: '2026-07-01 to 2026-08-06',
+      totalContacts: 34, priorContacts: 37, variance: -8.11,
+      topProblems: [
+        { issue: 'Service - Crew Member Issues - Unavailable/Not Helpful', count: 1 },
+        { issue: 'Service - Crew Member Issues - Issue Placing an Order', count: 1 },
+        { issue: 'Service - Speed of Service - Too long to place order', count: 1 },
+        { issue: 'Product - Tacos - Portions', count: 1 },
+        { issue: 'Facility - Other Facility Issue', count: 1 },
+      ],
+      monthlyTrend: {
+        '2025-08': 37, '2025-09': 44, '2025-10': 25, '2025-11': 31, '2025-12': 28,
+        '2026-01': 35, '2026-02': 24, '2026-03': 54, '2026-04': 42, '2026-05': 40,
+        '2026-06': 37, '2026-07': 23, '2026-08': 13,
+      },
+    },
+    /* Fulfillment (compensations paid 7/1-8/6/2026) */
+    fulfillment: {
+      totalCount: 3, totalAmount: 20,
+      items: [
+        { storeId: '1205', incident: 31472856, reported: '2026-08-06', type: 'Letter', category: 'DT Incorrect Charge', amount: 0 },
+        { storeId: '1364', incident: 31440547, reported: '2026-07-04', type: '$10 Comp Email', category: 'Del Taco Compensation Email', amount: 10 },
+        { storeId: '898', incident: 31459447, reported: '2026-07-24', type: '$10 Comp Email', category: 'Del Taco Compensation Email', amount: 10 },
+      ],
+    },
+  },
+  realGoogleReviews: {
+    '2026-08-09': {
+      '726':  { rating: 4.1, totalReviews: 2478 },
+      '898':  { rating: 4.0, totalReviews: 2153 },
+      '1029': { rating: 4.1, totalReviews: 2350 },
+      '1056': { rating: 4.2, totalReviews: 1853 },
+      '1153': { rating: 4.0, totalReviews: 1618 },
+      '1187': { rating: 4.1, totalReviews: 1674 },
+      '1205': { rating: 4.0, totalReviews: 1272 },
+      '1357': { rating: 4.2, totalReviews: 608 },
+      '1364': { rating: 4.0, totalReviews: 359 },
+      '1391': { rating: 4.7, totalReviews: 1165 },
+    },
+    '2026-08-08': {
+      '726':  { rating: 4.1, totalReviews: 2478 },
+      '898':  { rating: 4.0, totalReviews: 2150 },
+      '1029': { rating: 4.1, totalReviews: 2344 },
+      '1056': { rating: 4.2, totalReviews: 1849 },
+      '1153': { rating: 4.0, totalReviews: 1618 },
+      '1187': { rating: 4.1, totalReviews: 1673 },
+      '1205': { rating: 4.0, totalReviews: 1271 },
+      '1357': { rating: 4.2, totalReviews: 608 },
+      '1364': { rating: 4.0, totalReviews: 358 },
+      '1391': { rating: 4.7, totalReviews: 1165 },
+    },
+    '2026-08-07': {
+      '726':  { rating: 4.1, totalReviews: 2476 },
+      '898':  { rating: 4.0, totalReviews: 2149 },
+      '1029': { rating: 4.1, totalReviews: 2339 },
+      '1056': { rating: 4.2, totalReviews: 1841 },
+      '1153': { rating: 3.9, totalReviews: 1619 },
+      '1187': { rating: 4.1, totalReviews: 1669 },
+      '1205': { rating: 4.0, totalReviews: 1273 },
+      '1357': { rating: 4.1, totalReviews: 609 },
+      '1364': { rating: 4.0, totalReviews: 357 },
+      '1391': { rating: 4.7, totalReviews: 1161 },
+    },
+    '2026-08-06': {
+      '726':  { rating: 4.1, totalReviews: 2472 },
+      '898':  { rating: 4.0, totalReviews: 2146 },
+      '1029': { rating: 4.1, totalReviews: 2334 },
+      '1056': { rating: 4.2, totalReviews: 1838 },
+      '1153': { rating: 3.9, totalReviews: 1616 },
+      '1187': { rating: 4.1, totalReviews: 1666 },
+      '1205': { rating: 4.0, totalReviews: 1270 },
+      '1357': { rating: 4.1, totalReviews: 607 },
+      '1364': { rating: 4.0, totalReviews: 355 },
+      '1391': { rating: 4.7, totalReviews: 1156 },
+    },
+  },
+  storeReviews: {},  // Per-store individual reviews: { '726': [{ rating: 5, author: 'Name', date: 'ISO', text: '...' }, ...] }
+  googleMapsSearchUrls: {
+    '726':  'Del Taco 4720 Montgomery Blvd NE Albuquerque NM',
+    '898':  'Del Taco 1525 Coors Blvd NW Albuquerque NM',
+    '1029': 'Del Taco 10015 Central Ave NE Albuquerque NM',
+    '1056': 'Del Taco 1885 Emilio Lopez Rd Los Lunas NM',
+    '1153': 'Del Taco 1101 Unser Blvd SE Rio Rancho NM',
+    '1187': 'Del Taco 804 S White Sands Blvd Alamogordo NM',
+    '1205': 'Del Taco 550 US-491 Gallup NM',
+    '1357': 'Del Taco 1908 N Date St Truth or Consequences NM',
+    '1364': 'Del Taco 200 US-550 Bernalillo NM',
+    '1391': 'Del Taco 1500 Gibson Blvd SE Albuquerque NM',
+  },
+  joltData: {
+    daily: {
+      '2026-08-08': {
+        listsPerStore: 3,
+        stores: {
+          '726':  { completed: 2, total: 3, pct: 66.67 },
+          '898':  { completed: 3, total: 3, pct: 100 },
+          '1029': { completed: 3, total: 3, pct: 100 },
+          '1056': { completed: 2, total: 3, pct: 66.67 },
+          '1153': { completed: 1, total: 3, pct: 33.33 },
+          '1187': { completed: 3, total: 3, pct: 100 },
+          '1205': { completed: 3, total: 3, pct: 100 },
+          '1357': { completed: 3, total: 3, pct: 100 },
+          '1364': { completed: 3, total: 3, pct: 100 },
+          '1391': { completed: 3, total: 3, pct: 100 },
+        },
+        overallPct: 86.67,
+      },
+      '2026-08-07': {
+        listsPerStore: 3,
+        stores: {
+          '726':  { completed: 3, total: 3, pct: 100 },
+          '898':  { completed: 2, total: 3, pct: 66.67 },
+          '1029': { completed: 2, total: 3, pct: 66.67 },
+          '1056': { completed: 3, total: 3, pct: 100 },
+          '1153': { completed: 2, total: 3, pct: 66.67 },
+          '1187': { completed: 3, total: 3, pct: 100 },
+          '1205': { completed: 3, total: 3, pct: 100 },
+          '1357': { completed: 3, total: 3, pct: 100 },
+          '1364': { completed: 3, total: 3, pct: 100 },
+          '1391': { completed: 3, total: 3, pct: 100 },
+        },
+        overallPct: 90.00,
+      },
+      '2026-08-06': {
+        listsPerStore: 3,
+        stores: {
+          '726':  { completed: 3, total: 3, pct: 100 },
+          '898':  { completed: 3, total: 3, pct: 100 },
+          '1029': { completed: 3, total: 3, pct: 100 },
+          '1056': { completed: 3, total: 3, pct: 100 },
+          '1153': { completed: 3, total: 3, pct: 100 },
+          '1187': { completed: 2, total: 3, pct: 67 },
+          '1205': { completed: 3, total: 3, pct: 100 },
+          '1357': { completed: 2, total: 3, pct: 67 },
+          '1364': { completed: 3, total: 3, pct: 100 },
+          '1391': { completed: 3, total: 3, pct: 100 },
+        },
+        overallPct: 93.33,
+      },
+    },
+    mtd: {
+      '2026-08': {
+        period: 'Aug 1-9, 2026',
+        listsPerStore: 27,
+        stores: {
+          '726':  { completed: 25, total: 27, pct: 92.59 },
+          '898':  { completed: 25, total: 27, pct: 92.59 },
+          '1029': { completed: 23, total: 27, pct: 85.19 },
+          '1056': { completed: 24, total: 27, pct: 88.89 },
+          '1153': { completed: 20, total: 27, pct: 74.07 },
+          '1187': { completed: 23, total: 27, pct: 85.19 },
+          '1205': { completed: 26, total: 27, pct: 96.30 },
+          '1357': { completed: 24, total: 27, pct: 88.89 },
+          '1364': { completed: 24, total: 27, pct: 88.89 },
+          '1391': { completed: 26, total: 27, pct: 96.30 },
+        },
+        overallPct: 88.89,
+      },
+    },
+  },
+  realFoodCost: {
+    '2026-08-05': [
+      { storeId: '726', storeName: 'Montgomery', weekEnd: '2026-08-05',
+        theoryCost: 38237, actualCost: 33282, dollarVar: -4955, variancePct: -3.63,
+        theoryPct: 28.20, actualPct: 24.62, grossSales: 135444, _real: true },
+      { storeId: '898', storeName: 'Coors', weekEnd: '2026-08-05',
+        theoryCost: 27991, actualCost: 31244, dollarVar: 3253, variancePct: 3.25,
+        theoryPct: 28.24, actualPct: 31.54, grossSales: 98970, _real: true },
+      { storeId: '1205', storeName: 'Gallup', weekEnd: '2026-08-05',
+        theoryCost: 19668, actualCost: 22728, dollarVar: 3061, variancePct: 4.51,
+        theoryPct: 28.91, actualPct: 33.42, grossSales: 68051, _real: true },
+      { storeId: '1364', storeName: 'Bernalillo', weekEnd: '2026-08-05',
+        theoryCost: 17147, actualCost: 17985, dollarVar: 838, variancePct: 1.41,
+        theoryPct: 28.01, actualPct: 29.39, grossSales: 61193, _real: true },
+    ],
+  },
+  realVarianceItems: {
+    '2026-08-05': [
+      { item: 'Taco Meat', storeId: '726', storeName: 'Montgomery', theoryCost: 5909, actualCost: 4880, dollarVar: -1029, pctVar: -0.76 },
+      { item: 'Cheese American', storeId: '726', storeName: 'Montgomery', theoryCost: 655, actualCost: 93, dollarVar: -562, pctVar: -0.41 },
+      { item: 'Fries Zero Trans', storeId: '726', storeName: 'Montgomery', theoryCost: 2676, actualCost: 2230, dollarVar: -446, pctVar: -0.33 },
+      { item: 'Chicken', storeId: '726', storeName: 'Montgomery', theoryCost: 1919, actualCost: 1488, dollarVar: -431, pctVar: -0.32 },
+      { item: 'Carne Asada Steak', storeId: '726', storeName: 'Montgomery', theoryCost: 3122, actualCost: 2768, dollarVar: -354, pctVar: -0.26 },
+      { item: 'Carne Asada Steak', storeId: '898', storeName: 'Coors', theoryCost: 2353, actualCost: 2887, dollarVar: 534, pctVar: 0.54 },
+      { item: 'Taco Meat', storeId: '898', storeName: 'Coors', theoryCost: 4740, actualCost: 5053, dollarVar: 313, pctVar: 0.32 },
+      { item: 'Oil Zero Trans', storeId: '898', storeName: 'Coors', theoryCost: 478, actualCost: 722, dollarVar: 244, pctVar: 0.25 },
+      { item: 'Cheese Cheddar Block', storeId: '898', storeName: 'Coors', theoryCost: 1988, actualCost: 1647, dollarVar: -341, pctVar: -0.34 },
+      { item: 'Chicken', storeId: '898', storeName: 'Coors', theoryCost: 1435, actualCost: 1394, dollarVar: -41, pctVar: -0.04 },
+      { item: 'Catering 2/4 Compart', storeId: '1205', storeName: 'Gallup', theoryCost: 0, actualCost: 2127, dollarVar: 2127, pctVar: 3.13 },
+      { item: 'Beef Patties Frozen', storeId: '1205', storeName: 'Gallup', theoryCost: 26, actualCost: 330, dollarVar: 304, pctVar: 0.45 },
+      { item: 'Avocado', storeId: '1205', storeName: 'Gallup', theoryCost: 99, actualCost: 301, dollarVar: 203, pctVar: 0.30 },
+      { item: 'Sauce Del Inferno', storeId: '1205', storeName: 'Gallup', theoryCost: 133, actualCost: 311, dollarVar: 178, pctVar: 0.26 },
+      { item: 'Onions Diced', storeId: '1205', storeName: 'Gallup', theoryCost: 390, actualCost: 540, dollarVar: 150, pctVar: 0.22 },
+      { item: 'Avocado', storeId: '1364', storeName: 'Bernalillo', theoryCost: 76, actualCost: 213, dollarVar: 138, pctVar: 0.22 },
+      { item: 'Beef Patties Frozen', storeId: '1364', storeName: 'Bernalillo', theoryCost: 16, actualCost: 107, dollarVar: 91, pctVar: 0.15 },
+      { item: 'Sauce Del Scorcho', storeId: '1364', storeName: 'Bernalillo', theoryCost: 121, actualCost: 96, dollarVar: -24, pctVar: -0.04 },
+      { item: 'Cheese Cheddar Block', storeId: '1364', storeName: 'Bernalillo', theoryCost: 1287, actualCost: 1030, dollarVar: -258, pctVar: -0.42 },
+      { item: 'Chicken', storeId: '1364', storeName: 'Bernalillo', theoryCost: 854, actualCost: 827, dollarVar: -27, pctVar: -0.04 },
+    ],
+  },
+};
+
+/* ===== REAL DATA from PowerBI Loss Prevention & Speed (8/5/2026) ===== */
+const REAL_SOS = {
+  '726': 143, '898': 100, '1029': 124, '1056': 131, '1153': 228,
+  '1187': 164, '1205': 193, '1357': 214, '1364': 56, '1391': 179,
+};
+const REAL_VOIDS = {
+  '726': 0.12, '898': 0.00, '1029': 0.82, '1056': 0.46, '1153': 0.70,
+  '1187': 1.08, '1205': 0.37, '1357': 0.16, '1364': 6.41, '1391': 0.60,
+};
+const REAL_REFUNDS = {
+  '726': 0.00, '898': 0.00, '1029': 9.68, '1056': 0.00, '1153': 0.00,
+  '1187': 0.00, '1205': 0.00, '1357': 0.00, '1364': 4.29, '1391': 0.00,
+};
+const REAL_GCA_PRIOR = { // Net Sales LY / (approx trans LY) — using netSalesComp as proxy
+  '726': 13.73, '898': 15.01, '1029': 14.89, '1056': 15.35, '1153': 14.08,
+  '1187': 14.60, '1205': 13.47, '1357': 13.66, '1364': 12.29, '1391': 13.94,
+};
+// Aliases for backward compatibility
+const SAMPLE_SOS = REAL_SOS;
+const SAMPLE_VOIDS = REAL_VOIDS;
+const SAMPLE_REFUNDS = REAL_REFUNDS;
+const SAMPLE_GCA_PRIOR = REAL_GCA_PRIOR;
+
+/* Real Mitigation / Discounts data from PowerBI (FY2026-P12-W1, JITB M-S calendar) */
+/* Area 373-001 stores: per-store data. Area 373-002: allocated proportionally by Emp Disc ratio */
+const REAL_MITIGATION = {
+  'FY2026-P12-W1': {
+    totalEmpMeal: { qty: 42, amount: 183.33 },
+    totalMgrMeal: { qty: 48, amount: 432.26 },
+    stores: {
+      '1029': { empMealQty: 2, empMealAmt: 9.78, mgrMealQty: 5, mgrMealAmt: 39.52 },
+      '1056': { empMealQty: 0, empMealAmt: 0.00, mgrMealQty: 1, mgrMealAmt: 4.79 },
+      '1153': { empMealQty: 12, empMealAmt: 32.95, mgrMealQty: 5, mgrMealAmt: 53.90 },
+      '1357': { empMealQty: 6, empMealAmt: 18.81, mgrMealQty: 3, mgrMealAmt: 26.25 },
+      '1391': { empMealQty: 4, empMealAmt: 27.78, mgrMealQty: 3, mgrMealAmt: 15.47 },
+      /* 373-002 stores proportionally allocated from area aggregate (Emp $94.01, Mgr $292.33) */
+      '726':  { empMealQty: 1, empMealAmt: 5.47, mgrMealQty: 2, mgrMealAmt: 22.15 },
+      '898':  { empMealQty: 5, empMealAmt: 20.43, mgrMealQty: 8, mgrMealAmt: 82.83 },
+      '1187': { empMealQty: 10, empMealAmt: 39.98, mgrMealQty: 13, mgrMealAmt: 162.02 },
+      '1205': { empMealQty: 2, empMealAmt: 18.08, mgrMealQty: 5, mgrMealAmt: 12.59 },
+      '1364': { empMealQty: 0, empMealAmt: 10.05, mgrMealQty: 3, mgrMealAmt: 14.74 },
+    },
+  },
+};
+/* Real Loss Prevention daily (8/5/2026) */
+const REAL_LOSS_PREVENTION = {
+  '2026-08-05': {
+    '726':  { voidsDollar: 5.79, voidsPct: 0.12, refunds: 0.00, empDisc: 7.67 },
+    '898':  { voidsDollar: 0.00, voidsPct: 0.00, refunds: 0.00, empDisc: 28.66 },
+    '1029': { voidsDollar: 26.51, voidsPct: 0.82, refunds: 9.68, empDisc: 41.52 },
+    '1056': { voidsDollar: 20.35, voidsPct: 0.46, refunds: 0.00, empDisc: 4.79 },
+    '1153': { voidsDollar: 17.24, voidsPct: 0.70, refunds: 0.00, empDisc: 17.93 },
+    '1187': { voidsDollar: 25.17, voidsPct: 1.08, refunds: 0.00, empDisc: 56.05 },
+    '1205': { voidsDollar: 7.78, voidsPct: 0.37, refunds: 0.00, empDisc: 45.86 },
+    '1357': { voidsDollar: 2.50, voidsPct: 0.16, refunds: 0.00, empDisc: 9.63 },
+    '1364': { voidsDollar: 136.44, voidsPct: 6.41, refunds: 4.29, empDisc: 2.00, custDisc: 867.32, flagged: true },
+    '1391': { voidsDollar: 17.66, voidsPct: 0.60, refunds: 0.00, empDisc: 11.79 },
+  },
+};
+// Backward compat alias — compute pctOfSales from realSalesDaily
+const SAMPLE_MITIGATION = {
+  '2026-08-05': Object.entries(REAL_MITIGATION['FY2026-P12-W1'].stores).flatMap(([id, d]) => {
+    const s = STORES.find(st => st.id === id);
+    const sales = (dataStore.realSalesDaily['2026-08-05'] && dataStore.realSalesDaily['2026-08-05'][id])
+      ? dataStore.realSalesDaily['2026-08-05'][id].netSales : 3000;
+    return [
+      { category: 'Manager Meals', storeId: id, storeName: s?.name||id, count: d.mgrMealQty, amount: d.mgrMealAmt, pctOfSales: sales > 0 ? +(d.mgrMealAmt / sales * 100).toFixed(2) : 0 },
+      { category: 'Employee Meals', storeId: id, storeName: s?.name||id, count: d.empMealQty, amount: d.empMealAmt, pctOfSales: sales > 0 ? +(d.empMealAmt / sales * 100).toFixed(2) : 0 },
+    ];
+  }),
+};
+
+async function loadExternalData() {
+  try {
+    const resp = await fetch('dashboard-data.json');
+    if (resp.ok) {
+      const ext = await resp.json();
+      if (ext.lastUpdated) dataStore.lastUpdated = ext.lastUpdated;
+      if (ext.sources) Object.assign(dataStore.sources, ext.sources);
+      if (ext.salesDaily) Object.assign(dataStore.realSalesDaily, ext.salesDaily);
+      if (ext.laborWeekly) Object.assign(dataStore.realLaborWeekly, ext.laborWeekly);
+      if (ext.qboPL) Object.assign(dataStore.realQboPL, ext.qboPL);
+      if (ext.foodCost) Object.assign(dataStore.realFoodCost, ext.foodCost);
+      if (ext.varianceItems) Object.assign(dataStore.realVarianceItems, ext.varianceItems);
+      if (ext.serviceCheck) Object.assign(dataStore.realServiceCheck, ext.serviceCheck);
+      if (ext.googleReviews) Object.assign(dataStore.realGoogleReviews, ext.googleReviews);
+      if (ext.storeReviews) Object.assign(dataStore.storeReviews, ext.storeReviews);
+      if (ext.jolt) { if (ext.jolt.daily) Object.assign(dataStore.joltData.daily, ext.jolt.daily); if (ext.jolt.mtd) Object.assign(dataStore.joltData.mtd, ext.jolt.mtd); }
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+/* ===== DATA ACCESS LAYER ===== */
+function getOpsData(dateStr) {
+  const realSales = dataStore.realSalesDaily[dateStr];
+  const laborData = findLaborForDate(dateStr);
+  return STORES.map((s, i) => {
+    const sale = realSales ? realSales[s.id] : null;
+    const labor = laborData ? laborData[s.id] : null;
+    if (sale) {
+      const reviewData = findReviewsForStore(s.id);
+      const netS = sale.netSales || 0;
+      const tr = sale.trans || 0;
+      return {
+        storeId: s.id, storeName: s.name, date: dateStr,
+        grossSales: sale.grossSales || 0,
+        netSales: netS,
+        changePct: sale.changePct || 0,
+        transChangePct: sale.transChangePct !== undefined ? sale.transChangePct : null,
+        gca: sale.gca || (tr > 0 ? +(netS / tr).toFixed(2) : 0),
+        gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
+        trans: tr,
+        laborPct: labor ? +labor.laborPct.toFixed(1) : +sampleVal(20, 28, dateStr, i, 4).toFixed(1),
+        laborTarget: LABOR_TARGETS[s.id],
+        checklistPct: getJoltForStore(s.id, dateStr),
+        googleRating: reviewData ? reviewData.rating : null,
+        totalReviews: reviewData ? reviewData.totalReviews : null,
+        serviceChecks: findSCForStore(dateStr, s.id) ?? 0,
+        sos: SAMPLE_SOS[s.id] || 120,
+        voidsPct: SAMPLE_VOIDS[s.id] || 0.5,
+        refunds: SAMPLE_REFUNDS[s.id] || 0,
+        _real: true,
+      };
+    } else {
+      const reviewData = findReviewsForStore(s.id);
+      const sampleGross = Math.round(sampleVal(1500, 5000, dateStr, i, 10));
+      const sampleNet = Math.round(sampleGross * 0.96);
+      const sampleTrans = Math.round(sampleVal(100, 400, dateStr, i, 11));
+      return {
+        storeId: s.id, storeName: s.name, date: dateStr,
+        grossSales: sampleGross,
+        netSales: sampleNet,
+        changePct: +sampleVal(-15, 15, dateStr, i, 3).toFixed(2),
+        transChangePct: null,
+        gca: sampleTrans > 0 ? +(sampleNet / sampleTrans).toFixed(2) : 0,
+        gcaPrior: 0,
+        trans: sampleTrans,
+        laborPct: +sampleVal(20, 30, dateStr, i, 4).toFixed(1),
+        laborTarget: LABOR_TARGETS[s.id],
+        checklistPct: getJoltForStore(s.id, dateStr),
+        googleRating: reviewData ? reviewData.rating : +sampleVal(3.5, 4.8, dateStr, i, 8).toFixed(1),
+        totalReviews: reviewData ? reviewData.totalReviews : Math.round(sampleVal(200, 2500, dateStr, i, 9)),
+        serviceChecks: Math.max(0, Math.round(sampleVal(0, 5, dateStr, i, 6))),
+        sos: SAMPLE_SOS[s.id] || 120,
+        voidsPct: SAMPLE_VOIDS[s.id] || 0.5,
+        refunds: SAMPLE_REFUNDS[s.id] || 0,
+        _real: false,
+      };
+    }
+  });
+}
+
+function findLaborForDate(dateStr) {
+  for (const [key, period] of Object.entries(dataStore.realLaborWeekly)) {
+    const weekEnd = new Date(period.weekEnd + 'T12:00:00');
+    const weekStart = new Date(weekEnd); weekStart.setDate(weekStart.getDate() - 6);
+    const target = new Date(dateStr + 'T12:00:00');
+    if (target >= weekStart && target <= weekEnd) return period.stores;
+  }
+  return null;
+}
+
+function findSCForStore(dateStr, storeId) {
+  const target = new Date(dateStr + 'T12:00:00');
+  for (const [key, week] of Object.entries(dataStore.realServiceCheck || {})) {
+    if (key === 'execSummary' || key === 'fulfillment') continue;
+    if (!week.weekStart) continue;
+    const ws = new Date(week.weekStart + 'T00:00:00');
+    const we = new Date(week.weekEnd + 'T23:59:59');
+    if (target >= ws && target <= we && week.stores[storeId]) return week.stores[storeId].problem;
+  }
+  return null;
+}
+
+function findReviewsForStore(storeId) {
+  const dates = Object.keys(dataStore.realGoogleReviews || {}).sort().reverse();
+  for (const date of dates) {
+    const data = dataStore.realGoogleReviews[date];
+    if (data && data[storeId]) return data[storeId];
+  }
+  return null;
+}
+
+function getNewReviews(storeId) {
+  const dates = Object.keys(dataStore.realGoogleReviews || {}).sort().reverse();
+  if (dates.length < 2) return null;
+  const today = dataStore.realGoogleReviews[dates[0]];
+  const yesterday = dataStore.realGoogleReviews[dates[1]];
+  if (today && today[storeId] && yesterday && yesterday[storeId])
+    return Math.max(0, today[storeId].totalReviews - yesterday[storeId].totalReviews);
+  return null;
+}
+
+function getJoltForStore(storeId, dateStr) {
+  const daily = dataStore.joltData && dataStore.joltData.daily;
+  if (daily && daily[dateStr] && daily[dateStr].stores[storeId]) return daily[dateStr].stores[storeId].pct;
+  // Try MTD
+  const month = dateStr.substring(0, 7);
+  const mtd = dataStore.joltData && dataStore.joltData.mtd;
+  if (mtd && mtd[month] && mtd[month].stores[storeId]) return mtd[month].stores[storeId].pct;
+  return null;
+}
+
+function getJoltOverall(dateStr) {
+  const daily = dataStore.joltData && dataStore.joltData.daily;
+  if (daily && daily[dateStr]) return daily[dateStr].overallPct;
+  return null;
+}
+
+function estimateGCA(dailySales, storeId) {
+  const avgTxns = { '726': 520, '898': 410, '1029': 330, '1056': 530, '1153': 310, '1187': 290, '1205': 270, '1357': 200, '1364': 370, '1391': 360 };
+  return +(dailySales / (avgTxns[storeId] || 350)).toFixed(2);
+}
+
+function sampleVal(min, max, dateStr, storeIdx, field) {
+  const seed = dateStr.split('-').reduce((a,b) => a + parseInt(b), 0);
+  const x = Math.sin(seed * 13 + storeIdx * 10 + field * 7) * 10000;
+  return min + (x - Math.floor(x)) * (max - min);
+}
+
+function getFoodData(weekEnd) {
+  const realFood = dataStore.realFoodCost[weekEnd];
+  if (realFood && realFood.length) return realFood;
+  const seed = weekEnd.split('-').reduce((a,b) => a + parseInt(b), 0);
+  const rng = (min, max, i) => { const x = Math.sin(seed * 17 + i * 11) * 10000; return min + (x - Math.floor(x)) * (max - min); };
+  return STORES.map((s, i) => {
+    const theoryCost = +(rng(4800, 9200, i*8+1)).toFixed(0);
+    const variancePct = +(rng(-4, 8, i*8+2)).toFixed(1);
+    const actualCost = +(theoryCost * (1 + variancePct/100)).toFixed(0);
+    const dollarVar = actualCost - theoryCost;
+    const theoryPct = +(rng(26, 32, i*8+3)).toFixed(1);
+    const actualPct = +(theoryPct + variancePct).toFixed(1);
+    return { storeId: s.id, storeName: s.name, weekEnd, theoryCost, actualCost, dollarVar, variancePct, theoryPct, actualPct, _real: false };
+  });
+}
+
+function getVarianceItems(weekEnd) {
+  const realItems = dataStore.realVarianceItems[weekEnd];
+  if (realItems && realItems.length) return realItems;
+  const items = ['Taco Meat','Steak/Asada','Chicken','Beef Patties','Cheese (shredded)','Tortillas (flour)','Tortillas (corn)','Drinks/Syrup','Lettuce','Tomatoes','Sour Cream','Avocado/Guac','Bacon','French Fries','Beans'];
+  const seed = weekEnd.split('-').reduce((a,b) => a + parseInt(b), 0);
+  const results = [];
+  items.forEach((item, ii) => {
+    STORES.forEach((s, si) => {
+      const x = Math.sin(seed * 23 + ii * 31 + si * 13) * 10000;
+      const v = (x - Math.floor(x));
+      if (v > 0.6) {
+        const theory = +(200 + v * 800).toFixed(0);
+        const pctVar = +((v - 0.5) * 10).toFixed(1);
+        const actual = +(theory * (1 + pctVar/100)).toFixed(0);
+        results.push({ item, storeId: s.id, storeName: s.name, theoryCost: theory, actualCost: actual, dollarVar: actual - theory, pctVar });
+      }
+    });
+  });
+  return results.sort((a,b) => Math.abs(b.dollarVar) - Math.abs(a.dollarVar)).slice(0, 20);
+}
+
+/* ===== STATE ===== */
+const state = {
+  opsView: 'daily',
+  opsDate: getYesterday(),
+  opsWeek: null,
+  opsStoreFilter: 'all',
+  opsSort: { col: 'storeId', dir: 'asc' },
+  scView: 'weekly',
+  scWeek: null,
+  scDate: null,
+  foodView: 'weekly',
+  foodWeek: null,
+  foodPeriod: null,
+  foodStore: 'all',
+  finStore: 'all',
+  finPeriod: 'ytd',
+  finMonth: null,
+  finQuarter: 'Q3',
+};
+
+function getYesterday() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+
+function getWeekEnding(d) {
+  const dt = new Date(d + 'T12:00:00');
+  const day = dt.getDay();
+  const diff = (2 - day + 7) % 7 || 7;
+  const tue = new Date(dt); tue.setDate(tue.getDate() + (day <= 2 ? (2 - day) : diff));
+  return tue.toISOString().slice(0, 10);
+}
+
+function generateWeekOptions() {
+  const weeks = []; const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now); d.setDate(d.getDate() - i * 7);
+    const we = getWeekEnding(d.toISOString().slice(0, 10));
+    if (!weeks.includes(we)) weeks.push(we);
+  }
+  return weeks.sort().reverse();
+}
+
+function generatePeriodOptions() { const p = []; for (let i = 1; i <= 13; i++) p.push(`P${i} 2026`); return p; }
+
+/* ===== SORTING ===== */
+function sortData(data, col, dir) {
+  return [...data].sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return dir === 'asc' ? -1 : 1;
+    if (va > vb) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+function sortArrow(col) {
+  const isSorted = state.opsSort.col === col;
+  const arrow = isSorted ? (state.opsSort.dir === 'asc' ? '▲' : '▼') : '▲';
+  return `<span class="sort-arrow">${arrow}</span>`;
+}
+
+function handleSort(col) {
+  if (state.opsSort.col === col) {
+    state.opsSort.dir = state.opsSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.opsSort.col = col;
+    state.opsSort.dir = 'asc';
+  }
+  renderOps();
+}
+
+/* ===== WEEKLY OPS DATA ===== */
+function getWeeklyOpsData(weekEndStr) {
+  const weekEnd = new Date(weekEndStr + 'T12:00:00');
+  const dates = [];
+  for (let i = 6; i >= 0; i--) { const d = new Date(weekEnd); d.setDate(d.getDate() - i); dates.push(d.toISOString().slice(0, 10)); }
+  const dailyByStore = {}; STORES.forEach(s => { dailyByStore[s.id] = []; });
+  dates.forEach(dateStr => {
+    if (dataStore.realSalesDaily[dateStr]) {
+      STORES.forEach(s => { const sale = dataStore.realSalesDaily[dateStr][s.id]; if (sale) dailyByStore[s.id].push(sale); });
+    }
+  });
+  const laborData = findLaborForDate(weekEndStr);
+  return STORES.map((s, i) => {
+    const storeDays = dailyByStore[s.id];
+    if (storeDays.length > 0) {
+      const totalGross = storeDays.reduce((sum, d) => sum + (d.grossSales || 0), 0);
+      const totalNet = storeDays.reduce((sum, d) => sum + (d.netSales || 0), 0);
+      const totalTrans = storeDays.reduce((sum, d) => sum + (d.trans || 0), 0);
+      const avgChangePct = +(storeDays.reduce((sum, d) => sum + (d.changePct || 0), 0) / storeDays.length).toFixed(2);
+      const gcaVal = totalTrans > 0 ? +(totalNet / totalTrans).toFixed(2) : 0;
+      const labor = laborData ? laborData[s.id] : null;
+      const reviewData = findReviewsForStore(s.id);
+      return {
+        storeId: s.id, storeName: s.name, date: weekEndStr,
+        grossSales: totalGross, netSales: totalNet, changePct: avgChangePct,
+        transChangePct: null,
+        gca: gcaVal, gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
+        trans: totalTrans,
+        laborPct: labor ? +labor.laborPct.toFixed(1) : +sampleVal(20, 28, weekEndStr, i, 4).toFixed(1),
+        laborTarget: LABOR_TARGETS[s.id],
+        googleRating: reviewData ? reviewData.rating : null,
+        totalReviews: reviewData ? reviewData.totalReviews : null,
+        serviceChecks: findSCForWeek(weekEndStr, s.id) ?? 0,
+        sos: SAMPLE_SOS[s.id] || 120,
+        voidsPct: SAMPLE_VOIDS[s.id] || 0.5,
+        refunds: SAMPLE_REFUNDS[s.id] || 0,
+        _real: true, _days: storeDays.length, _totalSales: totalNet,
+      };
+    } else {
+      return getOpsData(weekEndStr).find(d => d.storeId === s.id);
+    }
+  });
+}
+
+function findSCForWeek(weekEndStr, storeId) {
+  for (const [key, week] of Object.entries(dataStore.realServiceCheck || {})) {
+    if (key === 'execSummary' || key === 'fulfillment') continue;
+    if (!week.weekEnd) continue;
+    if (week.weekEnd === weekEndStr || (week.stores && week.stores[storeId] !== undefined)) {
+      const we = new Date(week.weekEnd + 'T12:00:00');
+      const target = new Date(weekEndStr + 'T12:00:00');
+      if (Math.abs(we - target) < 7 * 86400000) return week.stores[storeId] ? week.stores[storeId].problem : 0;
+    }
+  }
+  return null;
+}
+
+/* ===== RENDER: STORE DETAIL VIEW ===== */
+function renderStoreDetail(data, storeId) {
+  const d = data.find(x => x.storeId === storeId);
+  if (!d) return;
+  const laborVar = Math.abs(+d.laborPct - d.laborTarget);
+  const laborRating = rateKPI('laborVariance', laborVar);
+  const sosRating = rateKPI('speedAtWindow', d.sos);
+  const voidsRating = rateKPI('voids', d.voidsPct);
+  const salesRating = state.opsView === 'weekly' ? rateKPI('weeklySales', d.netSales || 0) : { label: '--', cls: '' };
+  const container = document.getElementById('storeDetailView');
+  container.style.display = 'block';
+  const changeColor = +d.changePct >= 0 ? '#0ca30c' : '#d03b3b';
+  const changeArrow = +d.changePct >= 0 ? '▲' : '▼';
+  container.innerHTML = `<div class="store-detail">
+    <h2>${d.storeName} (${d.storeId}) -- Detailed KPIs</h2>
+    <div class="store-detail-grid">
+      <div class="detail-kpi ${salesRating.cls ? salesRating.cls + '-border' : ''}">
+        <div class="detail-label">Gross Sales</div>
+        <div class="detail-value">${fmtDollar(d.grossSales || 0)}</div>
+      </div>
+      <div class="detail-kpi">
+        <div class="detail-label">Net Sales</div>
+        <div class="detail-value">${fmtDollar(d.netSales || 0)}</div>
+        <div class="detail-sub"><span style="color:${changeColor}">${changeArrow} ${(+d.changePct >= 0 ? '+' : '') + (+d.changePct).toFixed(2)}% vs prior year</span></div>
+      </div>
+      <div class="detail-kpi">
+        <div class="detail-label">GCA (Check)</div>
+        <div class="detail-value">$${(+d.gca).toFixed(2)}</div>
+        <div class="detail-sub">Prior: $${(+d.gcaPrior).toFixed(2)} ${d.gca > d.gcaPrior ? '<span style="color:#0ca30c">▲</span>' : '<span style="color:#d03b3b">▼</span>'}</div>
+      </div>
+      <div class="detail-kpi">
+        <div class="detail-label">Transactions</div>
+        <div class="detail-value">${d.trans}</div>
+      </div>
+      <div class="detail-kpi ${laborRating.cls}-border">
+        <div class="detail-label">Labor %</div>
+        <div class="detail-value">${(+d.laborPct).toFixed(2)}%</div>
+        <div class="detail-sub">Target: ${d.laborTarget.toFixed(2)}% | Var: ${(laborVar > 0 ? '+' : '') + laborVar.toFixed(2)}% <span class="status-pill ${laborRating.cls}" style="font-size:11px">${laborRating.label}</span></div>
+      </div>
+      <div class="detail-kpi ${sosRating.cls}-border">
+        <div class="detail-label">Window Speed</div>
+        <div class="detail-value">${d.sos}s</div>
+        <div class="detail-sub"><span class="status-pill ${sosRating.cls}" style="font-size:11px">${sosRating.label}</span></div>
+      </div>
+      <div class="detail-kpi ${voidsRating.cls}-border">
+        <div class="detail-label">Voids %</div>
+        <div class="detail-value">${d.voidsPct}%</div>
+        <div class="detail-sub"><span class="status-pill ${voidsRating.cls}" style="font-size:11px">${voidsRating.label}</span></div>
+      </div>
+      <div class="detail-kpi ${d.refunds > 10 ? 'critical-border' : 'great-border'}">
+        <div class="detail-label">Refunds</div>
+        <div class="detail-value">$${d.refunds.toFixed(2)}</div>
+        <div class="detail-sub">${d.refunds > 10 ? '<span style="color:#d03b3b">Above $10</span>' : '<span style="color:#0ca30c">Normal</span>'}</div>
+      </div>
+      <div class="detail-kpi">
+        <div class="detail-label">Google Rating</div>
+        <div class="detail-value">${renderStars(+(d.googleRating||0))} ${d.googleRating||'--'}</div>
+        <div class="detail-sub">${d.totalReviews ? d.totalReviews.toLocaleString() + ' reviews' : '--'}${(() => { const nr = getNewReviews(d.storeId); return nr !== null ? ' | <span style="color:#0ca30c">+' + nr + ' new</span>' : ''; })()}</div>
+      </div>
+      <div class="detail-kpi">
+        <div class="detail-label">Jolt Checklist</div>
+        <div class="detail-value">${d.checklistPct !== null ? Math.round(d.checklistPct) + '%' : '--'}</div>
+        <div class="detail-sub">${d.checklistPct !== null ? (d.checklistPct >= 95 ? '<span style="color:#0ca30c">Complete</span>' : '<span style="color:#d03b3b">Incomplete</span>') : 'No data'}</div>
+      </div>
+      <div class="detail-kpi">
+        <div class="detail-label">Problem SCs</div>
+        <div class="detail-value">${d.serviceChecks}</div>
+        <div class="detail-sub">${d.serviceChecks === 0 ? '<span style="color:#0ca30c">Clean</span>' : '<span style="color:#d03b3b">Attention</span>'}</div>
+      </div>
+    </div>
+    ${renderStoreReviews(d.storeId)}
+  </div>`;
+}
+
+/* ===== HELPER: STORE GOOGLE REVIEWS ===== */
+function renderStoreReviews(storeId) {
+  const reviews = dataStore.storeReviews && dataStore.storeReviews[storeId];
+  if (!reviews || reviews.length === 0) {
+    return `<div style="margin-top:16px;padding:16px;background:var(--surface-chart);border-radius:var(--radius);border:1px solid var(--border)">
+      <h3 style="font-size:14px;margin-bottom:8px;color:var(--text-secondary)">Recent Google Reviews</h3>
+      <p style="color:var(--text-muted);font-size:13px">Review data will appear here once individual reviews are captured via Google Maps.</p>
+    </div>`;
+  }
+  const rows = reviews.slice(0, 10).map(r => {
+    const stars = renderStars(r.rating);
+    const date = r.date ? new Date(r.date).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+    const text = r.text ? (r.text.length > 200 ? r.text.substring(0, 200) + '...' : r.text) : '<em style="color:var(--text-muted)">No comment</em>';
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span>${stars} <strong style="font-size:12px">${r.author || 'Anonymous'}</strong></span>
+        <span style="color:var(--text-muted);font-size:11px">${date}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.4">${text}</div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:16px;padding:16px;background:var(--surface-chart);border-radius:var(--radius);border:1px solid var(--border)">
+    <h3 style="font-size:14px;margin-bottom:8px;color:var(--text-secondary)">Last 10 Google Reviews</h3>
+    ${rows}
+  </div>`;
+}
+
+/* ===== HELPER: COMPOSITE SCORE ===== */
+function computeCompositeScore(d) {
+  const laborVar = Math.abs(+d.laborPct - d.laborTarget);
+  const scores = {
+    sos: rateKPI('speedAtWindow', d.sos),
+    voids: rateKPI('voids', d.voidsPct),
+    labor: rateKPI('laborVariance', laborVar),
+  };
+  if (state.opsView === 'weekly') scores.sales = rateKPI('weeklySales', d.netSales || 0);
+  const total = Object.values(scores).reduce((s, r) => s + r.score, 0);
+  const maxScore = Object.keys(scores).length * 4;
+  return { total, maxScore, scores };
+}
+
+/* ===== RENDER: OPERATIONS ===== */
+function renderOps() {
+  let data = state.opsView === 'weekly' ? getWeeklyOpsData(state.opsWeek) : getOpsData(state.opsDate);
+  const hasRealData = data.some(d => d._real);
+
+  // Connection banner
+  const banner = document.getElementById('opsBanner');
+  if (hasRealData) {
+    const sourceMap = {powerbi:'PowerBI',dayforce:'Dayforce',servicecheck:'ServiceCheck',qbo:'QBO',gbp:'Google Reviews',jolt:'Jolt'};
+    const connectedSources = Object.entries(dataStore.sources)
+      .filter(([k,v]) => v.connected && ['powerbi','dayforce','servicecheck','qbo','gbp','jolt'].includes(k))
+      .map(([k]) => sourceMap[k] || k);
+    const pendingSources = [];
+    banner.className = 'connection-banner' + (pendingSources.length === 0 ? ' connected' : '');
+    banner.innerHTML = `<span class="banner-icon">${pendingSources.length ? '&#9888;' : '&#10003;'}</span>
+      <span>Live data from ${connectedSources.join(', ')}.${pendingSources.length ? ' Pending: ' + pendingSources.join(', ') + '.' : ' All sources connected.'}</span>`;
+  }
+
+  // Store detail view
+  const detailView = document.getElementById('storeDetailView');
+  const tableWrap = document.getElementById('opsTableWrap');
+
+  if (state.opsStoreFilter !== 'all') {
+    renderStoreDetail(data, state.opsStoreFilter);
+    tableWrap.style.display = 'none';
+  } else {
+    detailView.style.display = 'none';
+    tableWrap.style.display = '';
+  }
+
+  // KPI summary
+  const totalGross = data.reduce((s,d) => s + (+d.grossSales || 0), 0);
+  const totalNet = data.reduce((s,d) => s + (+d.netSales || 0), 0);
+  const totalTrans = data.reduce((s,d) => s + (+d.trans || 0), 0);
+  const avgGCA = totalTrans > 0 ? (totalNet / totalTrans).toFixed(2) : '0.00';
+  const avgChangePct = (data.reduce((s,d) => s + (+d.changePct || 0), 0) / data.length).toFixed(2);
+  const avgLabor = (data.reduce((s,d) => s + +d.laborPct, 0) / data.length).toFixed(2);
+
+  const totalSC = data.reduce((s,d) => s + d.serviceChecks, 0);
+  const avgSOS = Math.round(data.reduce((s,d) => s + d.sos, 0) / data.length);
+  const avgVoids = (data.reduce((s,d) => s + d.voidsPct, 0) / data.length).toFixed(2);
+
+  const joltStores = data.filter(d => d.checklistPct !== null);
+  const avgChecklist = joltStores.length > 0 ? Math.round(joltStores.reduce((s,d) => s + d.checklistPct, 0) / joltStores.length) : null;
+
+  const sosR = rateKPI('speedAtWindow', avgSOS);
+  const voidsR = rateKPI('voids', +avgVoids);
+
+  document.getElementById('opsKpiRow').innerHTML = `
+    ${kpiTile('Avg GCA', '$' + avgGCA, null)}
+    ${kpiTile('Total Net Sales', fmtDollar(totalNet), null)}
+    ${kpiTile('Avg Change %', (+avgChangePct >= 0 ? '+' : '') + avgChangePct + '%', +avgChangePct >= 0 ? 'good' : 'bad')}
+    ${kpiTile('Avg Labor %', avgLabor + '%', +avgLabor > 25 ? 'bad' : 'good')}
+    ${avgChecklist !== null ? kpiTile('Jolt %', avgChecklist + '%', avgChecklist >= 95 ? 'good' : (avgChecklist >= 85 ? null : 'bad')) : ''}
+    ${kpiTile('Problem SCs', totalSC, totalSC > 10 ? 'bad' : 'good')}
+    ${kpiTile('Avg Window', avgSOS + 's', sosR.cls === 'great' || sosR.cls === 'good' ? 'good' : 'bad')}
+    ${kpiTile('Avg Voids', avgVoids + '%', voidsR.cls === 'great' || voidsR.cls === 'good' ? 'good' : 'bad')}
+  `;
+
+  // Sort data
+  data = sortData(data, state.opsSort.col, state.opsSort.dir);
+
+  // Table columns
+  const cols = [
+    { key: 'storeId', label: 'Store' },
+    { key: 'netSales', label: 'Net Sales' },
+    { key: 'changePct', label: 'Change %' },
+    { key: 'trans', label: 'Trans' },
+    { key: 'gca', label: 'Check' },
+    { key: 'laborVar', label: 'Labor Var' },
+    { key: 'checklistPct', label: 'Jolt' },
+    { key: 'sos', label: 'Window (s)' },
+    { key: 'voidsPct', label: 'Voids %' },
+    { key: 'refunds', label: 'Refunds $' },
+    { key: 'newReviews', label: 'New Reviews' },
+    { key: 'googleRating', label: 'Google' },
+    { key: 'serviceChecks', label: 'Prob SCs' },
+    { key: 'compositeScore', label: 'Score' },
+    { key: 'status', label: 'Status' },
+  ];
+
+  document.getElementById('opsTableHead').innerHTML = `<tr>${cols.map(c => {
+    const sorted = state.opsSort.col === c.key ? ' sorted' : '';
+    return `<th class="${sorted}" onclick="handleSort('${c.key}')">${c.label} ${sortArrow(c.key)}</th>`;
+  }).join('')}</tr>`;
+
+  document.getElementById('opsTableBody').innerHTML = data.map(d => {
+    const laborVar = +d.laborPct - d.laborTarget;
+    const laborVarAbs = Math.abs(laborVar);
+    const laborR = rateKPI('laborVariance', laborVarAbs);
+    const sosR2 = rateKPI('speedAtWindow', d.sos);
+    const voidsR2 = rateKPI('voids', d.voidsPct);
+    const changeClass = +d.changePct >= 0 ? 'cell-good' : (+d.changePct > -10 ? 'cell-warn' : 'cell-critical');
+    const ratingClass = +d.googleRating >= 4.0 ? 'cell-good' : (+d.googleRating >= 3.5 ? 'cell-warn' : 'cell-critical');
+    const refundClass = d.refunds > 10 ? 'cell-critical' : 'cell-good';
+    const gcaDelta = d.gcaPrior ? (d.gca > d.gcaPrior ? '<span style="color:#0ca30c;font-size:11px"> ▲</span>' : d.gca < d.gcaPrior ? '<span style="color:#d03b3b;font-size:11px"> ▼</span>' : '') : '';
+    const transArrow = d.transChangePct !== undefined && d.transChangePct !== null ? (d.transChangePct >= 0 ? '<span style="color:#0ca30c;font-size:11px"> ▲</span>' : '<span style="color:#d03b3b;font-size:11px"> ▼</span>') : '';
+    const checklistClass = d.checklistPct !== null ? (d.checklistPct >= 95 ? 'cell-good' : (d.checklistPct >= 80 ? 'cell-warn' : 'cell-critical')) : '';
+    const laborVarStr = (laborVar >= 0 ? '+' : '') + laborVar.toFixed(2) + '%';
+    const laborVarClass = laborVarAbs <= 0.25 ? 'cell-great' : laborVarAbs <= 0.50 ? 'cell-good' : laborVarAbs <= 1.00 ? 'cell-warn' : 'cell-critical';
+    const newRevs = getNewReviews(d.storeId);
+    const overallStatus = getOverallStatus(d);
+    const cs = computeCompositeScore(d);
+    d.compositeScore = cs.total;
+    const scoreCls = cs.total >= cs.maxScore * 0.85 ? 'score-great' : cs.total >= cs.maxScore * 0.65 ? 'score-good' : cs.total >= cs.maxScore * 0.45 ? 'score-warn' : 'score-critical';
+    const scoreTitle = Object.entries(cs.scores).map(([k,v]) => `${k}: ${v.score} (${v.label})`).join(', ');
+    return `<tr>
+      <td>${d.storeName} (${d.storeId})</td>
+      <td>${fmtDollar(d.netSales)}</td>
+      <td class="${changeClass}">${(+d.changePct >= 0 ? '+' : '') + (+d.changePct).toFixed(2)}%</td>
+      <td>${d.trans}${transArrow}</td>
+      <td>$${(+d.gca).toFixed(2)}${gcaDelta}</td>
+      <td class="${laborVarClass}" title="Actual: ${(+d.laborPct).toFixed(2)}% | Target: ${d.laborTarget.toFixed(2)}%">${laborVarStr}</td>
+      <td class="${checklistClass}">${d.checklistPct !== null ? Math.round(d.checklistPct) + '%' : '--'}</td>
+      <td class="cell-${sosR2.cls}">${d.sos}</td>
+      <td class="cell-${voidsR2.cls}">${(+d.voidsPct).toFixed(2)}%</td>
+      <td class="${refundClass}">$${d.refunds.toFixed(2)}</td>
+      <td>${newRevs !== null ? (newRevs > 0 ? '<span style="color:#0ca30c">+' + newRevs + '</span>' : '0') : '--'}</td>
+      <td class="${ratingClass}">${renderStars(+d.googleRating)} ${d.googleRating} <span style="color:var(--text-muted);font-size:11px">(${d.totalReviews ? d.totalReviews.toLocaleString() : '--'})</span></td>
+      <td>${d.serviceChecks}</td>
+      <td title="${scoreTitle}"><span class="score-badge ${scoreCls}">${cs.total}/${cs.maxScore}</span></td>
+      <td><span class="status-pill ${overallStatus}"><span class="status-dot ${overallStatus}"></span>${overallStatus === 'good' ? 'On Track' : (overallStatus === 'warn' ? 'Watch' : 'Attention')}</span></td>
+    </tr>`;
+  }).join('');
+
+  renderBarChart('chartGCA', data.map(d => ({ label: d.storeId, value: +(+d.gca).toFixed(2) })), '$', 'GCA');
+  renderBarChart('chartLabor', data.map(d => ({ label: d.storeId, value: +d.laborPct, target: d.laborTarget })), '%', 'Labor', true);
+  renderDivergingBar('chartSales', data.map(d => ({ label: d.storeId, value: +d.changePct })), '%');
+  renderRatingsChart('chartRatings', data);
+}
+
+function getOverallStatus(d) {
+  let score = 0;
+  if (+d.laborPct > d.laborTarget + 3) score += 2;
+  else if (+d.laborPct > d.laborTarget + 1) score += 1;
+  if (+d.changePct < -15) score += 2;
+  else if (+d.changePct < -5) score += 1;
+  if (d.serviceChecks > 3) score += 1;
+  if (+d.googleRating < 3.5) score += 1;
+  if (d.sos > 140) score += 1;
+  if (d.voidsPct > 2) score += 1;
+  return score >= 4 ? 'critical' : (score >= 2 ? 'warn' : 'good');
+}
+
+/* ===== RENDER: FOOD COST ===== */
+function renderFood() {
+  const weeks = generateWeekOptions();
+  const weekEnd = state.foodWeek || weeks[0];
+  const data = getFoodData(weekEnd);
+  const items = getVarianceItems(weekEnd);
+
+  const banner = document.getElementById('foodBanner');
+  const qboConnected = dataStore.sources.qbo.connected;
+  const plvConnected = dataStore.sources.plv.connected;
+  if (qboConnected || plvConnected) {
+    const parts = []; if (qboConnected) parts.push('QBO P&L'); if (plvConnected) parts.push('PLV Reports');
+    const pending = []; if (!qboConnected) pending.push('QBO'); if (!plvConnected) pending.push('PLV Reports');
+    banner.className = 'connection-banner' + (pending.length === 0 ? ' connected' : '');
+    banner.innerHTML = `<span class="banner-icon">${pending.length ? '&#9888;' : '&#10003;'}</span>
+      <span>Data from ${parts.join(' & ')}.${pending.length ? ' Pending: ' + pending.join(', ') + '.' : ' All food cost sources connected.'}</span>`;
+  }
+
+  const avgTheoryPct = (data.reduce((s,d) => s + d.theoryPct, 0) / data.length).toFixed(1);
+  const avgActualPct = (data.reduce((s,d) => s + d.actualPct, 0) / data.length).toFixed(1);
+  const totalDollarVar = data.reduce((s,d) => s + d.dollarVar, 0);
+  const avgVariancePct = (data.reduce((s,d) => s + d.variancePct, 0) / data.length).toFixed(1);
+
+  document.getElementById('foodKpiRow').innerHTML = `
+    ${kpiTile('Avg Theory Food %', avgTheoryPct + '%', null)}
+    ${kpiTile('Avg Actual Food %', avgActualPct + '%', +avgActualPct > +avgTheoryPct + 2 ? 'bad' : 'good')}
+    ${kpiTile('Total $ Variance', fmtDollar(totalDollarVar), totalDollarVar > 0 ? 'bad' : 'good', (totalDollarVar > 0 ? '+' : '') + fmtDollar(totalDollarVar))}
+    ${kpiTile('Avg Variance %', avgVariancePct + '%', +avgVariancePct > 2 ? 'bad' : 'good')}
+  `;
+
+  document.getElementById('foodTableHead').innerHTML = `<tr>
+    <th>Store</th><th>Theory Cost</th><th>Actual Cost</th>
+    <th>$ Variance</th><th>% Variance</th><th>Theory %</th><th>Actual %</th><th>Status</th>
+  </tr>`;
+
+  const filtered = state.foodStore === 'all' ? data : data.filter(d => d.storeId === state.foodStore);
+  document.getElementById('foodTableBody').innerHTML = filtered.map(d => {
+    const fcR = rateKPI('foodCostVar', Math.abs(d.variancePct));
+    const status = fcR.cls;
+    const statusLabel = fcR.label === 'Great' ? 'Normal' : fcR.label === 'Good' ? 'Normal' : fcR.label === 'NI' ? 'Watch' : 'High';
+    return `<tr>
+      <td>${d.storeName} (${d.storeId})</td>
+      <td>${fmtDollar(d.theoryCost)}</td>
+      <td>${fmtDollar(d.actualCost)}</td>
+      <td class="${d.dollarVar > 0 ? 'neg' : 'pos'}">${(d.dollarVar > 0 ? '+' : '') + fmtDollar(d.dollarVar)}</td>
+      <td class="cell-${status}">${(d.variancePct > 0 ? '+' : '') + d.variancePct}%</td>
+      <td>${d.theoryPct}%</td>
+      <td>${d.actualPct}%</td>
+      <td><span class="status-pill ${status}"><span class="status-dot ${status}"></span>${statusLabel}</span></td>
+    </tr>`;
+  }).join('');
+
+  // Mitigation & Discounts
+  const mitigationData = SAMPLE_MITIGATION[weekEnd] || SAMPLE_MITIGATION['2026-08-05'] || [];
+  const filteredMit = state.foodStore === 'all' ? mitigationData : mitigationData.filter(m => m.storeId === state.foodStore);
+  document.getElementById('mitigationBody').innerHTML = filteredMit.map(m => {
+    return `<tr>
+      <td>${m.category}</td>
+      <td>${m.storeName} (${m.storeId})</td>
+      <td>${m.count}</td>
+      <td>$${m.amount.toFixed(2)}</td>
+      <td>${m.pctOfSales.toFixed(2)}%</td>
+    </tr>`;
+  }).join('');
+
+  // Variance items
+  document.getElementById('varianceItemsBody').innerHTML = items.map(it => {
+    const impact = Math.abs(it.dollarVar) > 100 ? 'critical' : (Math.abs(it.dollarVar) > 50 ? 'warn' : 'good');
+    return `<tr>
+      <td>${it.item}</td>
+      <td>${it.storeName} (${it.storeId})</td>
+      <td>${fmtDollar(it.theoryCost)}</td>
+      <td>${fmtDollar(it.actualCost)}</td>
+      <td class="${it.dollarVar > 0 ? 'neg' : 'pos'}">${(it.dollarVar > 0 ? '+' : '') + fmtDollar(it.dollarVar)}</td>
+      <td class="${it.pctVar > 0 ? 'neg' : 'pos'}">${(it.pctVar > 0 ? '+' : '') + it.pctVar}%</td>
+      <td><span class="status-pill ${impact}"><span class="status-dot ${impact}"></span>${impact === 'critical' ? 'High' : (impact === 'warn' ? 'Med' : 'Low')}</span></td>
+    </tr>`;
+  }).join('');
+
+  renderFoodHeatmap();
+  renderFoodTrendChart();
+}
+
+function renderFoodHeatmap() {
+  const weeks = generateWeekOptions().slice(0, 6);
+  const container = document.getElementById('foodHeatmap');
+  const cols = STORES.length;
+  let html = `<div style="display:grid; grid-template-columns: 80px repeat(${cols}, 1fr); gap:2px; font-size:11px;">`;
+  html += `<div style="padding:4px;color:var(--text-muted)"></div>`;
+  STORES.forEach(s => { html += `<div style="padding:4px;text-align:center;color:var(--text-muted);font-weight:500">${s.short}</div>`; });
+  weeks.forEach(w => {
+    const data = getFoodData(w);
+    const label = new Date(w + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    html += `<div style="padding:6px 4px;color:var(--text-secondary);font-weight:500;white-space:nowrap">${label}</div>`;
+    data.forEach(d => {
+      const v = Math.abs(d.variancePct);
+      const hue = d.variancePct > 0 ? getSeqColor(v, 0, 8) : 'var(--status-good-bg)';
+      const textColor = v > 4 ? '#fff' : 'var(--text-primary)';
+      html += `<div class="heatmap-cell" style="background:${hue};color:${textColor};">
+        ${d.variancePct > 0 ? '+' : ''}${d.variancePct}%
+        <span class="tooltip-content">${d.storeName}: Theory ${d.theoryPct}% / Actual ${d.actualPct}%</span>
+      </div>`;
+    });
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function getSeqColor(value, min, max) {
+  const t = Math.min(1, Math.max(0, (value - min) / (max - min)));
+  const colors = ['#cde2fb','#9ec5f4','#6da7ec','#3987e5','#256abf','#184f95','#0d366b'];
+  return colors[Math.min(colors.length - 1, Math.round(t * (colors.length - 1)))];
+}
+
+function renderFoodTrendChart() {
+  const weeks = generateWeekOptions().slice(0, 8).reverse();
+  const datasets = STORES.slice(0, 3).map((s, si) => ({
+    label: s.name, color: `var(--cat-${si + 1})`,
+    points: weeks.map(w => { const d = getFoodData(w).find(fd => fd.storeId === s.id); return d ? d.variancePct : 0; }),
+  }));
+  const container = document.getElementById('chartFoodTrend');
+  const W = 420, H = 220, pad = { t: 20, r: 90, b: 44, l: 44 };
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  const allVals = datasets.flatMap(ds => ds.points);
+  const yMin = Math.floor(Math.min(...allVals) - 1);
+  const yMax = Math.ceil(Math.max(...allVals) + 1);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (plotH / 4) * i;
+    const val = (yMax - (yMax - yMin) * i / 4).toFixed(1);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${val}%</text>`;
+  }
+  weeks.forEach((w, i) => {
+    const x = pad.l + (plotW / (weeks.length - 1)) * i;
+    const label = new Date(w + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    svg += `<text x="${x}" y="${H - 8}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${label}</text>`;
+  });
+  datasets.forEach(ds => {
+    const pts = ds.points.map((v, i) => {
+      const x = pad.l + (plotW / (weeks.length - 1)) * i;
+      const y = pad.t + plotH * (1 - (v - yMin) / (yMax - yMin));
+      return `${x},${y}`;
+    });
+    svg += `<polyline points="${pts.join(' ')}" fill="none" stroke="${ds.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const lastPt = pts[pts.length - 1].split(',');
+    svg += `<circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="4" fill="${ds.color}" stroke="var(--surface-chart)" stroke-width="2"/>`;
+    svg += `<text x="${+lastPt[0] + 8}" y="${+lastPt[1] + 4}" fill="var(--text-secondary)" font-size="11" font-weight="500">${ds.label}</text>`;
+  });
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+/* ===== CHART RENDERERS (SVG) -- IMPROVED SPACING ===== */
+function renderBarChart(containerId, data, unit, metric, hasTarget, maxOverride) {
+  const container = document.getElementById(containerId);
+  const W = 440, H = 240, pad = { t: 24, r: 20, b: 40, l: 48 };
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  const barW = Math.min(28, (plotW / data.length) * 0.55);
+  const gap = (plotW - barW * data.length) / (data.length + 1);
+  const vals = data.map(d => d.value);
+  const yMax = maxOverride || Math.ceil(Math.max(...vals) * 1.18);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (plotH / 4) * i;
+    const val = (yMax - yMax * i / 4).toFixed(unit === '$' ? 2 : 0);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${unit === '$' ? '$' : ''}${val}${unit === '%' ? '%' : ''}</text>`;
+  }
+  data.forEach((d, i) => {
+    const x = pad.l + gap + i * (barW + gap);
+    const h = (d.value / yMax) * plotH;
+    const y = pad.t + plotH - h;
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="3" fill="var(--cat-1)"><title>${d.label}: ${unit === '$' ? '$' : ''}${d.value}${unit === '%' ? '%' : ''}</title></rect>`;
+    if (hasTarget && d.target) {
+      const ty = pad.t + plotH - (d.target / yMax) * plotH;
+      svg += `<line x1="${x - 4}" y1="${ty}" x2="${x + barW + 4}" y2="${ty}" stroke="var(--status-critical)" stroke-width="1.5"/>`;
+    }
+    svg += `<text x="${x + barW/2}" y="${y - 6}" text-anchor="middle" fill="var(--text-secondary)" font-size="10" font-weight="600">${unit === '$' ? '$' + (+d.value).toFixed(2) : Math.round(d.value) + '%'}</text>`;
+    svg += `<text x="${x + barW/2}" y="${H - 10}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${d.label}</text>`;
+  });
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+function renderDivergingBar(containerId, data, unit) {
+  const container = document.getElementById(containerId);
+  const W = 440, H = 240, pad = { t: 24, r: 20, b: 40, l: 48 };
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  const barW = Math.min(28, (plotW / data.length) * 0.55);
+  const gap = (plotW - barW * data.length) / (data.length + 1);
+  const absMax = Math.max(...data.map(d => Math.abs(d.value)));
+  const yMax = absMax * 1.2;
+  const midY = pad.t + plotH / 2;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+  svg += `<line x1="${pad.l}" y1="${midY}" x2="${W - pad.r}" y2="${midY}" stroke="var(--baseline)" stroke-width="1"/>`;
+  for (let i = -2; i <= 2; i++) {
+    if (i === 0) continue;
+    const y = midY - (i / 2) * (plotH / 2);
+    const val = ((yMax * i / 2)).toFixed(0);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${fmtCompact(val)}</text>`;
+  }
+  data.forEach((d, i) => {
+    const x = pad.l + gap + i * (barW + gap);
+    const h = Math.abs(d.value / yMax) * (plotH / 2);
+    const y = d.value >= 0 ? midY - h : midY;
+    const color = d.value >= 0 ? 'var(--status-good)' : 'var(--status-critical)';
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="${d.value >= 0 ? 3 : 0}" fill="${color}"><title>${d.label}: ${fmtDollar(d.value)}</title></rect>`;
+    const labelY = d.value >= 0 ? y - 6 : y + h + 14;
+    svg += `<text x="${x + barW/2}" y="${labelY}" text-anchor="middle" fill="var(--text-secondary)" font-size="10" font-weight="600">${fmtCompact(d.value)}</text>`;
+    svg += `<text x="${x + barW/2}" y="${H - 10}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${d.label}</text>`;
+  });
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+function renderRatingsChart(containerId, data) {
+  const container = document.getElementById(containerId);
+  const W = 440, H = 240, pad = { t: 24, r: 20, b: 40, l: 48 };
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  const barW = Math.min(28, (plotW / data.length) * 0.55);
+  const gap = (plotW - barW * data.length) / (data.length + 1);
+  const yMin = 2.5, yMax = 5.0;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.t + (plotH / 5) * i;
+    const val = (yMax - (yMax - yMin) * i / 5).toFixed(1);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${val}</text>`;
+  }
+  const targetY = pad.t + plotH * (1 - (4.0 - yMin) / (yMax - yMin));
+  svg += `<line x1="${pad.l}" y1="${targetY}" x2="${W - pad.r}" y2="${targetY}" stroke="var(--status-good)" stroke-width="1" stroke-dasharray="4,3"/>`;
+  svg += `<text x="${W - pad.r + 4}" y="${targetY + 4}" fill="var(--status-good)" font-size="9">4.0</text>`;
+  data.forEach((d, i) => {
+    const rating = +d.googleRating || 0;
+    const x = pad.l + gap + i * (barW + gap);
+    const clampedVal = Math.max(yMin, Math.min(yMax, rating));
+    const h = ((clampedVal - yMin) / (yMax - yMin)) * plotH;
+    const y = pad.t + plotH - h;
+    const color = rating >= 4.0 ? '#FFD201' : (rating >= 3.5 ? 'var(--status-warn)' : 'var(--status-critical)');
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="3" fill="${color}"><title>${d.storeName}: ${rating} stars (${d.totalReviews ? d.totalReviews.toLocaleString() : '--'} reviews)</title></rect>`;
+    svg += `<text x="${x + barW/2}" y="${y - 6}" text-anchor="middle" fill="var(--text-secondary)" font-size="10" font-weight="600">${rating}</text>`;
+    svg += `<text x="${x + barW/2}" y="${H - 10}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${d.storeId}</text>`;
+  });
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+/* ===== RENDER: SERVICE CHECKS ===== */
+function renderSC() {
+  const scWeekKey = state.scWeek || Object.keys(dataStore.realServiceCheck || {}).filter(k => k !== 'execSummary' && k !== 'fulfillment').sort().reverse()[0];
+  const scData = dataStore.realServiceCheck ? dataStore.realServiceCheck[scWeekKey] : null;
+
+  const banner = document.getElementById('scBanner');
+  if (scData) {
+    banner.className = 'connection-banner connected';
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span>
+      <span>Live data from ServiceCheck -- Week of ${scData.weekStart || '--'} to ${scData.weekEnd || '--'}.</span>`;
+  } else {
+    banner.className = 'connection-banner';
+    banner.innerHTML = `<span class="banner-icon">&#9888;</span><span>No ServiceCheck data available for this week.</span>`;
+  }
+
+  if (!scData) {
+    document.getElementById('scKpiRow').innerHTML = '';
+    document.getElementById('scTableBody').innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">No data for selected week</td></tr>';
+    document.getElementById('scTableHead').innerHTML = '<tr><th>Store</th><th>Problem SCs</th><th>Status</th></tr>';
+    document.getElementById('scIssuesBody').innerHTML = '';
+    return;
+  }
+
+  const allWeeks = Object.keys(dataStore.realServiceCheck).filter(k => k !== 'execSummary' && k !== 'fulfillment').sort().reverse();
+  const currentIdx = allWeeks.indexOf(scWeekKey);
+  const priorWeekKey = currentIdx < allWeeks.length - 1 ? allWeeks[currentIdx + 1] : null;
+  const priorData = priorWeekKey ? dataStore.realServiceCheck[priorWeekKey] : null;
+  const priorTotal = priorData ? priorData.totalProblem : null;
+  const delta = priorTotal !== null ? scData.totalProblem - priorTotal : null;
+
+  const totalProblem = scData.totalProblem || 0;
+  const totalAll = scData.totalAll || totalProblem;
+  const storesWithProblems = scData.stores ? Object.values(scData.stores).filter(s => s.problem > 0).length : 0;
+  let deltaText = '';
+  if (delta !== null) deltaText = (delta > 0 ? '+' : '') + delta + ' vs prior week';
+
+  document.getElementById('scKpiRow').innerHTML = `
+    ${kpiTile('Total Problem SCs', totalProblem, totalProblem > 5 ? 'bad' : 'good', deltaText)}
+    ${kpiTile('Total All SCs', totalAll, null)}
+    ${kpiTile('Stores w/ Problems', storesWithProblems + ' of 10', storesWithProblems > 3 ? 'bad' : 'good')}
+    ${kpiTile('Problem Rate', totalAll > 0 ? (totalProblem / totalAll * 100).toFixed(0) + '%' : '0%', totalProblem / (totalAll || 1) > 0.5 ? 'bad' : 'good')}
+  `;
+
+  document.getElementById('scTableHead').innerHTML = `<tr><th>Store</th><th>Problem SCs</th><th>Status</th></tr>`;
+  document.getElementById('scTableBody').innerHTML = STORES.map(s => {
+    const storeData = scData.stores ? scData.stores[s.id] : null;
+    const problem = storeData ? storeData.problem : 0;
+    const status = problem === 0 ? 'good' : (problem <= 1 ? 'warn' : 'critical');
+    const statusLabel = problem === 0 ? 'Clean' : (problem <= 1 ? 'Watch' : 'Attention');
+    return `<tr>
+      <td>${s.name} (${s.id})</td>
+      <td>${problem}</td>
+      <td><span class="status-pill ${status}"><span class="status-dot ${status}"></span>${statusLabel}</span></td>
+    </tr>`;
+  }).join('');
+
+  const issues = scData.topIssues || [];
+  document.getElementById('scIssuesBody').innerHTML = issues.length
+    ? issues.map(iss => {
+        const impact = iss.count >= 3 ? 'critical' : (iss.count >= 2 ? 'warn' : 'good');
+        return `<tr><td>${iss.path}</td><td>${iss.count}</td>
+          <td><span class="status-pill ${impact}"><span class="status-dot ${impact}"></span>${impact === 'critical' ? 'High' : (impact === 'warn' ? 'Med' : 'Low')}</span></td></tr>`;
+      }).join('')
+    : '<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--text-muted)">No problem issues this week</td></tr>';
+
+  const chartData = STORES.map(s => {
+    const storeData = scData.stores ? scData.stores[s.id] : null;
+    return { label: s.short, value: storeData ? storeData.problem : 0 };
+  });
+  renderSCBarChart('chartSCByStore', chartData);
+  renderSCTrendChart();
+
+  // Contact Method & Category breakdown
+  const methodEl = document.getElementById('scMethodBreakdown');
+  const catEl = document.getElementById('scCategoryBreakdown');
+  if (methodEl && scData.byMethod) {
+    const methods = Object.entries(scData.byMethod);
+    methodEl.innerHTML = methods.map(([m, count]) => {
+      const label = m.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+      const pct = totalAll > 0 ? (count / totalAll * 100).toFixed(0) : 0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="min-width:90px;font-size:13px;color:var(--text-secondary)">${label}</span>
+        <div style="flex:1;height:18px;background:var(--surface-input);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:var(--cat-1);border-radius:4px;min-width:2px;"></div>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:var(--text-primary);min-width:44px;text-align:right">${count} (${pct}%)</span>
+      </div>`;
+    }).join('');
+  } else if (methodEl) { methodEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No method data</p>'; }
+
+  if (catEl && scData.byCategory) {
+    const cats = Object.entries(scData.byCategory).sort((a,b) => b[1] - a[1]);
+    const catColors = ['var(--cat-1)','var(--cat-2)','var(--cat-3)','var(--cat-4)','var(--cat-5)'];
+    catEl.innerHTML = cats.map(([c, count], i) => {
+      const label = c.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+      const pct = totalAll > 0 ? (count / totalAll * 100).toFixed(0) : 0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="min-width:110px;font-size:13px;color:var(--text-secondary)">${label}</span>
+        <div style="flex:1;height:18px;background:var(--surface-input);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${catColors[i % catColors.length]};border-radius:4px;min-width:2px;"></div>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:var(--text-primary);min-width:44px;text-align:right">${count} (${pct}%)</span>
+      </div>`;
+    }).join('');
+  } else if (catEl) { catEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No category data</p>'; }
+
+  // Segment breakdown
+  const segEl = document.getElementById('scSegmentBreakdown');
+  if (segEl && scData.bySegment) {
+    const segs = Object.entries(scData.bySegment).sort((a,b) => b[1] - a[1]);
+    segEl.innerHTML = segs.map(([s, count]) => {
+      const label = s.replace(/([A-Z])/g, ' $1').replace(/^./, ch => ch.toUpperCase());
+      const pct = totalAll > 0 ? (count / totalAll * 100).toFixed(0) : 0;
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="min-width:120px;font-size:13px;color:var(--text-secondary)">${label}</span>
+        <div style="flex:1;height:18px;background:var(--surface-input);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:var(--brand-green);border-radius:4px;min-width:2px;"></div>
+        </div>
+        <span style="font-size:12px;font-weight:600;color:var(--text-primary);min-width:44px;text-align:right">${count} (${pct}%)</span>
+      </div>`;
+    }).join('');
+  } else if (segEl) { segEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No segment data</p>'; }
+
+  // Retention
+  const retEl = document.getElementById('scRetention');
+  if (retEl && scData.retention) {
+    const total = Object.values(scData.retention).reduce((a,b) => a+b, 0);
+    retEl.innerHTML = Object.entries(scData.retention).map(([status, count]) => {
+      const color = status === 'closed' ? 'var(--status-good)' : 'var(--status-warn)';
+      return `<div style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;padding:8px 16px;border-radius:8px;background:var(--surface-input);">
+        <span style="width:10px;height:10px;border-radius:50%;background:${color};"></span>
+        <span style="font-size:13px;color:var(--text-secondary);text-transform:capitalize">${status}</span>
+        <span style="font-size:16px;font-weight:700;color:var(--text-primary)">${count}</span>
+        <span style="font-size:11px;color:var(--text-muted)">(${total > 0 ? (count/total*100).toFixed(0) : 0}%)</span>
+      </div>`;
+    }).join('');
+  } else if (retEl) { retEl.innerHTML = ''; }
+
+  // Executive Summary
+  renderExecSummary();
+
+  // Fulfillment
+  renderFulfillment();
+}
+
+function renderExecSummary() {
+  const exec = dataStore.realServiceCheck ? dataStore.realServiceCheck.execSummary : null;
+  const container = document.getElementById('scExecSummary');
+  if (!container) return;
+  if (!exec) { container.style.display = 'none'; return; }
+  container.style.display = '';
+
+  const varColor = exec.variance < 0 ? 'var(--status-good)' : 'var(--status-critical)';
+  const varSign = exec.variance > 0 ? '+' : '';
+  document.getElementById('execKpis').innerHTML = `
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px;">
+      <div style="padding:12px 20px;border-radius:10px;background:var(--surface-input);min-width:140px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Current Period</div>
+        <div style="font-size:24px;font-weight:700;color:var(--text-primary)">${exec.totalContacts}</div>
+      </div>
+      <div style="padding:12px 20px;border-radius:10px;background:var(--surface-input);min-width:140px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Prior Period</div>
+        <div style="font-size:24px;font-weight:700;color:var(--text-primary)">${exec.priorContacts}</div>
+      </div>
+      <div style="padding:12px 20px;border-radius:10px;background:var(--surface-input);min-width:140px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Variance</div>
+        <div style="font-size:24px;font-weight:700;color:${varColor}">${varSign}${exec.variance}%</div>
+      </div>
+    </div>
+  `;
+
+  // Monthly trend chart
+  if (exec.monthlyTrend) {
+    const months = Object.entries(exec.monthlyTrend);
+    const W = 480, H = 200, pad = { t: 20, r: 20, b: 40, l: 44 };
+    const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+    const vals = months.map(([,v]) => v);
+    const yMax = Math.ceil(Math.max(...vals) * 1.15);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.t + (plotH / 4) * i;
+      const val = Math.round(yMax - (yMax * i / 4));
+      svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+      svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${val}</text>`;
+    }
+    const pts = months.map(([m, v], i) => {
+      const x = pad.l + (plotW / Math.max(1, months.length - 1)) * i;
+      const y = pad.t + plotH * (1 - v / yMax);
+      return { x, y, v, m };
+    });
+    // Area fill
+    svg += `<path d="M${pts.map(p => `${p.x},${p.y}`).join(' L')} L${pts[pts.length-1].x},${pad.t+plotH} L${pts[0].x},${pad.t+plotH} Z" fill="var(--brand-red)" fill-opacity="0.08"/>`;
+    svg += `<polyline points="${pts.map(p => p.x+','+p.y).join(' ')}" fill="none" stroke="var(--brand-red)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    pts.forEach((p, i) => {
+      svg += `<circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--brand-red)" stroke="var(--surface-chart)" stroke-width="2"/>`;
+      if (i % 2 === 0 || i === pts.length - 1) {
+        const [yr, mo] = p.m.split('-');
+        const label = new Date(+yr, +mo - 1).toLocaleDateString('en-US', { month: 'short' });
+        svg += `<text x="${p.x}" y="${H - 8}" text-anchor="middle" fill="var(--text-muted)" font-size="9">${label} ${yr.slice(2)}</text>`;
+      }
+    });
+    svg += '</svg>';
+    document.getElementById('execTrendChart').innerHTML = svg;
+  }
+
+  // Top problems
+  if (exec.topProblems && exec.topProblems.length) {
+    document.getElementById('execTopProblems').innerHTML = exec.topProblems.map(p =>
+      `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gridline);">
+        <span style="min-width:28px;height:28px;border-radius:50%;background:var(--brand-red);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${p.count}</span>
+        <span style="font-size:13px;color:var(--text-secondary)">${p.issue}</span>
+      </div>`
+    ).join('');
+  }
+}
+
+function renderFulfillment() {
+  const ful = dataStore.realServiceCheck ? dataStore.realServiceCheck.fulfillment : null;
+  const container = document.getElementById('scFulfillment');
+  if (!container) return;
+  if (!ful || !ful.items || !ful.items.length) { container.style.display = 'none'; return; }
+  container.style.display = '';
+
+  document.getElementById('fulfillmentKpis').innerHTML = `
+    <div style="display:flex;gap:16px;margin-bottom:12px;">
+      <div style="padding:8px 16px;border-radius:8px;background:var(--surface-input);">
+        <span style="font-size:11px;color:var(--text-muted)">Total Compensations</span>
+        <span style="font-size:18px;font-weight:700;margin-left:8px;color:var(--text-primary)">${ful.totalCount}</span>
+      </div>
+      <div style="padding:8px 16px;border-radius:8px;background:var(--surface-input);">
+        <span style="font-size:11px;color:var(--text-muted)">Total Amount</span>
+        <span style="font-size:18px;font-weight:700;margin-left:8px;color:var(--text-primary)">$${ful.totalAmount.toFixed(2)}</span>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('fulfillmentBody').innerHTML = ful.items.map(item => {
+    const store = STORES.find(s => s.id === item.storeId);
+    return `<tr>
+      <td>${store ? store.name : item.storeId} (${item.storeId})</td>
+      <td>#${item.incident}</td>
+      <td>${item.reported}</td>
+      <td>${item.type}</td>
+      <td>${item.category}</td>
+      <td>$${item.amount.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSCBarChart(containerId, data) {
+  const container = document.getElementById(containerId);
+  const W = 440, H = 220, pad = { t: 24, r: 20, b: 40, l: 48 };
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  const barW = Math.min(28, (plotW / data.length) * 0.55);
+  const gap = (plotW - barW * data.length) / (data.length + 1);
+  const yMax = Math.max(3, Math.ceil(Math.max(...data.map(d => d.value)) * 1.3)) || 3;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+  for (let i = 0; i <= 3; i++) {
+    const y = pad.t + (plotH / 3) * i;
+    const val = Math.round(yMax - (yMax * i / 3));
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${val}</text>`;
+  }
+  data.forEach((d, i) => {
+    const x = pad.l + gap + i * (barW + gap);
+    const h = (d.value / yMax) * plotH;
+    const y = pad.t + plotH - h;
+    const color = d.value === 0 ? 'var(--status-good)' : (d.value <= 1 ? 'var(--status-warn)' : 'var(--status-critical)');
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h, 1)}" rx="3" fill="${color}"><title>${d.label}: ${d.value} problem SCs</title></rect>`;
+    svg += `<text x="${x + barW/2}" y="${y - 6}" text-anchor="middle" fill="var(--text-secondary)" font-size="10" font-weight="600">${d.value}</text>`;
+    svg += `<text x="${x + barW/2}" y="${H - 10}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${d.label}</text>`;
+  });
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+function renderSCTrendChart() {
+  const container = document.getElementById('chartSCTrend');
+  const weeks = Object.keys(dataStore.realServiceCheck || {}).filter(k => k !== 'execSummary' && k !== 'fulfillment').sort();
+  if (weeks.length === 0) { container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding:20px">No trend data yet</p>'; return; }
+  const W = 440, H = 220, pad = { t: 24, r: 30, b: 44, l: 48 };
+  const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
+  const vals = weeks.map(w => dataStore.realServiceCheck[w].totalProblem);
+  const yMax = Math.max(5, Math.ceil(Math.max(...vals) * 1.3));
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (plotH / 4) * i;
+    const val = Math.round(yMax - (yMax * i / 4));
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${pad.l - 6}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${val}</text>`;
+  }
+  const pts = vals.map((v, i) => {
+    const x = weeks.length === 1 ? pad.l + plotW / 2 : pad.l + (plotW / (weeks.length - 1)) * i;
+    const y = pad.t + plotH * (1 - v / yMax);
+    return { x, y, v };
+  });
+  if (pts.length > 1) svg += `<polyline points="${pts.map(p => p.x+','+p.y).join(' ')}" fill="none" stroke="var(--brand-red)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  pts.forEach((p, i) => {
+    svg += `<circle cx="${p.x}" cy="${p.y}" r="5" fill="var(--brand-red)" stroke="var(--surface-chart)" stroke-width="2"/>`;
+    svg += `<text x="${p.x}" y="${p.y - 10}" text-anchor="middle" fill="var(--text-secondary)" font-size="11" font-weight="600">${p.v}</text>`;
+    const wData = dataStore.realServiceCheck[weeks[i]];
+    const label = wData.weekStart ? new Date(wData.weekStart + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'}) : weeks[i];
+    svg += `<text x="${p.x}" y="${H - 8}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${label}</text>`;
+  });
+  svg += '</svg>';
+  container.innerHTML = svg;
+}
+
+/* ===== HELPERS ===== */
+function fmtDollar(v) { const n = +v; return (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('en-US'); }
+function fmtCompact(v) {
+  const n = +v;
+  if (Math.abs(n) >= 1000) return (n > 0 ? '+' : '') + '$' + (n/1000).toFixed(1) + 'K';
+  return (n > 0 ? '+' : '') + '$' + n;
+}
+function renderStars(rating) {
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.3 && rating - full < 0.8;
+  const stars = [];
+  for (let i = 0; i < full; i++) stars.push('<span style="color:#FFD201">&#9733;</span>');
+  if (half) stars.push('<span style="color:#FFD201">&#9734;</span>');
+  for (let i = stars.length; i < 5; i++) stars.push('<span style="color:var(--gridline)">&#9734;</span>');
+  return stars.join('');
+}
+function kpiTile(label, value, sentiment, deltaText) {
+  const deltaHtml = deltaText
+    ? `<div class="kpi-delta ${sentiment || ''}">${deltaText}</div>`
+    : (sentiment ? `<div class="kpi-delta ${sentiment}"><span class="status-dot ${sentiment}"></span></div>` : '');
+  return `<div class="kpi-tile"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div>${deltaHtml}</div>`;
+}
+
+/* ===== QBO FINANCIAL DATA (auto-pulled from QuickBooks) ===== */
+const QBO_MONTHLY = [
+  { month:'Jan 2026', monthShort:'Jan', sales:762923.23, food:208984.92, paper:14602.59, totalCOGS:223587.51, grossProfit:539335.72, payroll:297644.95, crewWages:182308.14, gmWages:42772.11, agmWages:26384.09, utilities:34147.28, electric:16693.02, gas:6996.42, water:6149.09, maintenance:25934.15, storeSupport:11641.42, delivery:33549.03, adFee:29161.74, royalty:36452.18, franchise:10802.30, ccFees:14275.54, rent:84977.67, insurance:7360.28, noi:-67798.64 },
+  { month:'Feb 2026', monthShort:'Feb', sales:782461.02, food:217811.81, paper:14644.12, totalCOGS:232455.93, grossProfit:550005.09, payroll:276163.90, crewWages:168271.02, gmWages:43114.56, agmWages:26407.13, utilities:26516.05, electric:12630.83, gas:5847.32, water:4165.37, maintenance:16279.54, storeSupport:12808.82, delivery:25606.58, adFee:31156.06, royalty:38945.07, franchise:51534.89, ccFees:13060.24, rent:84977.67, insurance:7360.28, noi:-53656.10 },
+  { month:'Mar 2026', monthShort:'Mar', sales:957000.32, food:259978.31, paper:17710.60, totalCOGS:277688.91, grossProfit:679311.41, payroll:431569.10, crewWages:260734.44, gmWages:65052.90, agmWages:43918.83, utilities:37559.51, electric:18192.56, gas:6110.95, water:7801.72, maintenance:23975.79, storeSupport:12574.46, delivery:29421.23, adFee:36789.88, royalty:45987.35, franchise:9837.09, ccFees:13272.08, rent:84977.67, insurance:7360.28, noi:-77485.58 },
+  { month:'Apr 2026', monthShort:'Apr', sales:881809.74, food:258941.05, paper:17929.65, totalCOGS:276870.70, grossProfit:604939.04, payroll:303694.33, crewWages:187223.02, gmWages:43846.16, agmWages:28023.22, utilities:35796.98, electric:21129.38, gas:3312.09, water:6876.53, maintenance:19152.91, storeSupport:14076.04, delivery:31798.83, adFee:34911.22, royalty:43639.05, franchise:9612.39, ccFees:15501.21, rent:84977.67, insurance:7360.28, noi:-47669.96 },
+  { month:'May 2026', monthShort:'May', sales:914923.82, food:275404.92, paper:18987.85, totalCOGS:294392.77, grossProfit:620531.05, payroll:296000.04, crewWages:179019.21, gmWages:42081.73, agmWages:30989.33, utilities:30715.39, electric:16692.25, gas:2885.98, water:6655.06, maintenance:21557.55, storeSupport:12860.46, delivery:37621.00, adFee:36474.44, royalty:45593.07, franchise:6902.83, ccFees:15859.43, rent:84977.67, insurance:7456.93, noi:1640.98 },
+  { month:'Jun 2026', monthShort:'Jun', sales:925725.31, food:287376.48, paper:19288.33, totalCOGS:306664.81, grossProfit:619060.50, payroll:298769.59, crewWages:177062.71, gmWages:41884.62, agmWages:32634.88, utilities:34583.43, electric:21401.27, gas:2154.10, water:6593.96, maintenance:23816.24, storeSupport:10828.23, delivery:34239.42, adFee:35551.61, royalty:44439.50, franchise:7301.57, ccFees:15449.49, rent:84977.67, insurance:7352.37, noi:2914.02 },
+  { month:'Jul 2026', monthShort:'Jul', sales:902434.61, food:281501.94, paper:20761.90, totalCOGS:302263.84, grossProfit:600170.77, payroll:305530.70, crewWages:186695.46, gmWages:39388.46, agmWages:34078.73, utilities:33800.48, electric:22753.38, gas:2592.46, water:4499.08, maintenance:27133.49, storeSupport:10901.31, delivery:37568.44, adFee:0, royalty:0, franchise:6625.44, ccFees:15104.98, rent:87977.67, insurance:9976.13, noi:44227.52 },
+];
+
+// Per-store YTD data from analysis_export.json (H1 2026 — Jan–Jun)
+const QBO_STORE_YTD = {
+  '1029': { name:'Central',     ns:599510.87, food:158238.32, payroll:193907.79, utilities:20896.59, maintenance:20144.75, delivery:25788.24, rent:45000.00, noi:39325.39 },
+  '1056': { name:'Los Lunas',   ns:697764.10, food:188482.61, payroll:225205.13, utilities:19623.02, maintenance:14546.40, delivery:13883.36, rent:56250.00, noi:70882.48 },
+  '1153': { name:'Rio Rancho',  ns:464708.19, food:137537.65, payroll:164752.77, utilities:13897.41, maintenance:11892.49, delivery:28423.74, rent:65575.74, noi:-34454.82 },
+  '1187': { name:'Alamogordo',  ns:526580.35, food:159300.39, payroll:183119.27, utilities:22243.96, maintenance:8618.36,  delivery:33509.61, rent:64490.28, noi:-34962.78 },
+  '1205': { name:'Gallup',      ns:394013.90, food:127945.20, payroll:157268.87, utilities:32073.07, maintenance:13797.09, delivery:6307.91,  rent:42000.00, noi:-59254.20 },
+  '1357': { name:'T or C',      ns:296722.64, food:88822.35,  payroll:124206.56, utilities:8125.73,  maintenance:8173.01,  delivery:4387.36,  rent:21000.00, noi:-12705.14 },
+  '1364': { name:'Bernalillo',  ns:369745.02, food:111251.00, payroll:154036.66, utilities:20329.12, maintenance:13881.93, delivery:5636.59,  rent:51049.98, noi:-54460.85 },
+  '1391': { name:'Gibson',      ns:501521.42, food:148351.40, payroll:167988.14, utilities:16981.87, maintenance:11373.03, delivery:15654.68, rent:55000.02, noi:440.46 },
+  '726':  { name:'Montgomery',  ns:818894.36, food:221605.57, payroll:244432.57, utilities:24291.38, maintenance:14494.61, delivery:32602.23, rent:54499.98, noi:97361.75 },
+  '898':  { name:'Coors',       ns:619168.02, food:169897.65, payroll:190932.67, utilities:19656.49, maintenance:12806.42, delivery:26042.37, rent:55000.02, noi:48215.03 },
+};
+
+// Monthly sales by store (Jan–Jun 2026)
+const QBO_STORE_MONTHLY_SALES = {
+  '1029': [82703.36, 89323.65, 102078.82, 133205.42, 97226.89, 94972.73],
+  '1056': [98506.76, 101168.42, 117296.40, 148425.78, 117967.82, 114398.92],
+  '1153': [68985.72, 67788.28, 81722.92, 79000.24, 84303.69, 82907.34],
+  '1187': [80232.75, 79235.47, 98019.62, 88782.28, 93008.33, 87301.90],
+  '1205': [53287.02, 56959.83, 74750.46, 65047.61, 69748.29, 74220.69],
+  '1357': [42328.57, 45950.12, 55487.38, 50601.90, 53641.23, 48713.44],
+  '1364': [53247.76, 55865.06, 64182.74, 61935.22, 66351.16, 68163.08],
+  '1391': [73757.18, 73609.44, 87340.31, 89138.46, 90866.39, 86809.64],
+  '726':  [116232.04, 123053.25, 138026.59, 168655.39, 138172.91, 134754.18],
+  '898':  [85808.37, 89578.92, 103354.36, 134133.73, 104391.68, 101900.96],
+};
+
+// Financial flag thresholds (from RUNBOOK)
+const FIN_THRESHOLDS = {
+  food: { warn: 30, critical: 32 },
+  payroll: { warn: 37, critical: 40 },
+  utilities: { warn: 5, critical: 7 },
+  rent: { warn: 12, critical: 15 },
+  delivery: { warn: 5.5, critical: 7 },
+};
+
+/* ===== RENDER: FINANCIAL HEALTH ===== */
+
+// Helper: filter QBO_MONTHLY by period state
+function getFinMonths() {
+  const period = state.finPeriod || 'ytd';
+  if (period === 'ytd') return QBO_MONTHLY;
+  if (period === 'month') {
+    const mi = state.finMonth != null ? state.finMonth : QBO_MONTHLY.length - 1;
+    return [QBO_MONTHLY[mi]].filter(Boolean);
+  }
+  if (period === 'quarter') {
+    const q = state.finQuarter || 'Q3';
+    const qMap = { Q1: [0,1,2], Q2: [3,4,5], Q3: [6] }; // Q3 only has Jul so far
+    return (qMap[q] || []).map(i => QBO_MONTHLY[i]).filter(Boolean);
+  }
+  return QBO_MONTHLY;
+}
+
+// Helper: get store-specific monthly sales for charts (uses QBO_STORE_MONTHLY_SALES — Jan–Jun only)
+function getStoreMonthlyData(storeId) {
+  const sales = QBO_STORE_MONTHLY_SALES[storeId];
+  if (!sales) return [];
+  const s = QBO_STORE_YTD[storeId];
+  if (!s) return [];
+  // Approximate per-store monthly breakdown from YTD ratios
+  const foodR = s.food / s.ns, payR = s.payroll / s.ns, utilR = s.utilities / s.ns;
+  const maintR = s.maintenance / s.ns, delivR = s.delivery / s.ns, rentR = s.rent / s.ns;
+  const noiR = s.noi / s.ns;
+  return sales.map((ns, i) => ({
+    month: QBO_MONTHLY[i].month, monthShort: QBO_MONTHLY[i].monthShort,
+    sales: ns, food: ns * foodR, payroll: ns * payR, utilities: ns * utilR,
+    totalCOGS: ns * foodR * 1.07, grossProfit: ns - ns * foodR * 1.07,
+    maintenance: ns * maintR, delivery: ns * delivR, rent: s.rent / 6,
+    noi: ns * noiR,
+  }));
+}
+
+function renderFinancial() {
+  const storeId = state.finStore || 'all';
+  const isStore = storeId !== 'all';
+  const period = state.finPeriod || 'ytd';
+  const periodLabel = period === 'ytd' ? 'YTD' : period === 'quarter' ? (state.finQuarter || 'Q3') : (QBO_MONTHLY[state.finMonth != null ? state.finMonth : QBO_MONTHLY.length - 1] || {}).monthShort || '';
+
+  // Determine data source
+  let months, totals;
+  if (isStore) {
+    const storeMonths = getStoreMonthlyData(storeId);
+    if (period === 'ytd') { months = storeMonths; }
+    else if (period === 'month') {
+      const mi = state.finMonth != null ? state.finMonth : storeMonths.length - 1;
+      months = [storeMonths[mi]].filter(Boolean);
+    } else if (period === 'quarter') {
+      const qMap = { Q1: [0,1,2], Q2: [3,4,5], Q3: [] };
+      months = (qMap[state.finQuarter || 'Q3'] || []).map(i => storeMonths[i]).filter(Boolean);
+    } else { months = storeMonths; }
+  } else {
+    months = getFinMonths();
+  }
+
+  // Aggregate totals
+  totals = {};
+  ['sales','food','payroll','utilities','delivery','totalCOGS','grossProfit','noi','maintenance','rent'].forEach(k => {
+    totals[k] = months.reduce((s, m) => s + ((m && m[k]) || 0), 0);
+  });
+
+  const foodPct = totals.sales > 0 ? (totals.food / totals.sales * 100).toFixed(1) : '0.0';
+  const payrollPct = totals.sales > 0 ? (totals.payroll / totals.sales * 100).toFixed(1) : '0.0';
+  const gpPct = totals.sales > 0 ? (totals.grossProfit / totals.sales * 100).toFixed(1) : '0.0';
+  const noiPct = totals.sales > 0 ? (totals.noi / totals.sales * 100).toFixed(1) : '0.0';
+  const utilPct = totals.sales > 0 ? (totals.utilities / totals.sales * 100).toFixed(1) : '0.0';
+  const delivPct = totals.sales > 0 ? (totals.delivery / totals.sales * 100).toFixed(1) : '0.0';
+
+  const scopeLabel = isStore ? (QBO_STORE_YTD[storeId] || {}).name || storeId : 'Portfolio';
+  const kpiPrefix = periodLabel;
+
+  document.getElementById('finKpiRow').innerHTML = `
+    ${kpiTile(kpiPrefix + ' Net Sales', fmtDollar(totals.sales), null)}
+    ${kpiTile('Gross Profit %', gpPct + '%', +gpPct >= 65 ? 'good' : 'bad')}
+    ${kpiTile('Food Cost %', foodPct + '%', +foodPct <= 30 ? 'good' : 'bad')}
+    ${kpiTile('Payroll %', payrollPct + '%', +payrollPct <= 37 ? 'good' : 'bad')}
+    ${kpiTile('Utilities %', utilPct + '%', +utilPct <= 5 ? 'good' : 'bad')}
+    ${kpiTile('3rd Party Delivery %', delivPct + '%', +delivPct <= 5.5 ? 'good' : null)}
+    ${kpiTile(kpiPrefix + ' NOI', fmtDollar(totals.noi), totals.noi >= 0 ? 'good' : 'bad')}
+    ${kpiTile('NOI Margin', noiPct + '%', +noiPct >= 0 ? 'good' : 'bad')}
+  `;
+
+  // Call-outs — contextual to selected store/portfolio
+  const callouts = [];
+  if (isStore) {
+    const s = QBO_STORE_YTD[storeId];
+    if (s) {
+      const fp = s.food / s.ns * 100, pp = s.payroll / s.ns * 100, up = s.utilities / s.ns * 100;
+      if (s.noi < 0) callouts.push({ type: 'critical', icon: '&#10060;', text: `${s.name} is operating at a YTD loss of ${fmtDollar(s.noi)}.` });
+      if (fp > FIN_THRESHOLDS.food.warn) callouts.push({ type: fp > FIN_THRESHOLDS.food.critical ? 'critical' : 'warn', icon: '&#9888;', text: `Food cost at ${fp.toFixed(1)}% of sales — above ${FIN_THRESHOLDS.food.warn}% threshold.` });
+      if (pp > FIN_THRESHOLDS.payroll.warn) callouts.push({ type: pp > FIN_THRESHOLDS.payroll.critical ? 'critical' : 'warn', icon: '&#9888;', text: `Payroll at ${pp.toFixed(1)}% of sales — above ${FIN_THRESHOLDS.payroll.warn}% threshold.` });
+      if (up > FIN_THRESHOLDS.utilities.warn) callouts.push({ type: 'warn', icon: '&#9889;', text: `Utilities at ${up.toFixed(1)}% of sales — above ${FIN_THRESHOLDS.utilities.warn}% threshold.` });
+      if (s.noi > 0) callouts.push({ type: 'good', icon: '&#10004;', text: `${s.name} is profitable with ${(s.noi/s.ns*100).toFixed(1)}% NOI margin.` });
+    }
+  } else {
+    // Portfolio call-outs
+    const latestComplete = QBO_MONTHLY.filter(m => m.adFee > 0);
+    if (latestComplete.length >= 2) {
+      const last = latestComplete[latestComplete.length - 1];
+      const prev = latestComplete[latestComplete.length - 2];
+      const lastFoodPct = last.food / last.sales * 100;
+      const prevFoodPct = prev.food / prev.sales * 100;
+      if (lastFoodPct > FIN_THRESHOLDS.food.warn) {
+        callouts.push({ type: 'critical', icon: '&#9888;', text: `Food cost hit ${lastFoodPct.toFixed(1)}% in ${last.monthShort} (threshold: ${FIN_THRESHOLDS.food.warn}%). ${lastFoodPct > prevFoodPct ? 'Trending up from ' + prevFoodPct.toFixed(1) + '% in ' + prev.monthShort + '.' : 'Down from ' + prevFoodPct.toFixed(1) + '% in ' + prev.monthShort + '.'}` });
+      }
+      const lastPayPct = last.payroll / last.sales * 100;
+      if (lastPayPct > FIN_THRESHOLDS.payroll.warn) {
+        callouts.push({ type: 'warn', icon: '&#9888;', text: `Payroll at ${lastPayPct.toFixed(1)}% in ${last.monthShort} — above ${FIN_THRESHOLDS.payroll.warn}% threshold.` });
+      }
+    }
+    const storeFlags = [];
+    Object.entries(QBO_STORE_YTD).forEach(([id, s]) => {
+      if (s.noi < 0) storeFlags.push({ store: `${s.name} (${id})`, value: fmtDollar(s.noi) });
+    });
+    if (storeFlags.length > 0) {
+      callouts.push({ type: 'critical', icon: '&#10060;', text: `${storeFlags.length} store(s) at a YTD loss: ${storeFlags.map(f => f.store + ' (' + f.value + ')').join(', ')}.` });
+    }
+    const profitStores = Object.entries(QBO_STORE_YTD).filter(([,s]) => s.noi > 20000).sort((a,b) => b[1].noi - a[1].noi);
+    if (profitStores.length > 0) {
+      callouts.push({ type: 'good', icon: '&#10004;', text: `Top performers: ${profitStores.map(([id,s]) => s.name + ' (NOI ' + fmtDollar(s.noi) + ')').join(', ')}.` });
+    }
+  }
+
+  document.getElementById('finCallouts').innerHTML = callouts.length ? callouts.map(c => {
+    const bg = c.type === 'critical' ? 'var(--status-critical-bg)' : c.type === 'warn' ? 'var(--status-warn-bg)' : 'var(--status-good-bg)';
+    const border = c.type === 'critical' ? 'var(--status-critical)' : c.type === 'warn' ? 'var(--status-warn)' : 'var(--status-good)';
+    return `<div style="background:${bg};border-left:4px solid ${border};padding:10px 16px;border-radius:4px;margin-bottom:8px;font-size:13px;"><span style="margin-right:6px;">${c.icon}</span>${c.text}</div>`;
+  }).join('') : '';
+
+  // P&L table
+  if (isStore) {
+    renderSingleStorePL(storeId);
+  } else {
+    renderPortfolioPL();
+  }
+
+  // Charts
+  renderFinSalesChart();
+  renderFinNOIChart();
+  renderFinFoodTrend();
+  renderFinLaborTrend();
+  renderFinPieChart();
+  renderFinRatiosChart();
+  renderFinStoresChart();
+}
+
+function renderPortfolioPL() {
+  const rows = [
+    { label: 'Net Sales', key: 'sales', bold: true },
+    { label: 'Food', key: 'food' },
+    { label: 'Paper & Plastic', key: 'paper' },
+    { label: 'Total COGS', key: 'totalCOGS', bold: true },
+    { label: 'Gross Profit', key: 'grossProfit', bold: true, highlight: true },
+    { label: 'Total Payroll', key: 'payroll' },
+    { label: '  Crew Wages', key: 'crewWages', indent: true },
+    { label: '  GM Wages', key: 'gmWages', indent: true },
+    { label: '  AGM/Shift Wages', key: 'agmWages', indent: true },
+    { label: 'Utilities', key: 'utilities' },
+    { label: 'Maintenance & Svc', key: 'maintenance' },
+    { label: 'Store Support', key: 'storeSupport' },
+    { label: '3rd Party Delivery', key: 'delivery' },
+    { label: 'Del Taco Ad Fee', key: 'adFee' },
+    { label: 'Del Taco Royalty', key: 'royalty' },
+    { label: 'Franchise Admin', key: 'franchise' },
+    { label: 'Credit Card Fees', key: 'ccFees' },
+    { label: 'Rent', key: 'rent' },
+    { label: 'Insurance', key: 'insurance' },
+    { label: 'Net Operating Income', key: 'noi', bold: true, highlight: true },
+  ];
+
+  const months = QBO_MONTHLY;
+  const ytd = {};
+  rows.forEach(r => { ytd[r.key] = months.reduce((s, m) => s + (m[r.key] || 0), 0); });
+
+  document.getElementById('finTableHead').innerHTML = `<tr>
+    <th style="text-align:left;min-width:180px;">Category</th>
+    ${months.map(m => `<th style="text-align:right;">${m.monthShort}</th>`).join('')}
+    <th style="text-align:right;font-weight:700;">YTD</th>
+    <th style="text-align:right;">% of Sales</th>
+  </tr>`;
+
+  document.getElementById('finTableBody').innerHTML = rows.map(r => {
+    const pct = ytd.sales > 0 ? (ytd[r.key] / ytd.sales * 100).toFixed(1) : '0.0';
+    const isSales = r.key === 'sales';
+    const rowStyle = r.highlight ? 'background:var(--surface-chart);' : '';
+    const labelStyle = r.indent ? 'padding-left:24px;color:var(--text-secondary);font-size:12px;' : (r.bold ? 'font-weight:700;' : '');
+    let flagIcon = '';
+    if (!r.indent && !r.bold) {
+      const th = r.key === 'food' ? FIN_THRESHOLDS.food : r.key === 'payroll' ? FIN_THRESHOLDS.payroll : r.key === 'utilities' ? FIN_THRESHOLDS.utilities : r.key === 'delivery' ? FIN_THRESHOLDS.delivery : r.key === 'rent' ? FIN_THRESHOLDS.rent : null;
+      if (th && +pct > th.warn) {
+        flagIcon = +pct > (th.critical||999) ? ' <span style="color:var(--status-critical);">&#9888;</span>' : ' <span style="color:var(--status-warn);">&#9888;</span>';
+      }
+    }
+    return `<tr style="${rowStyle}">
+      <td style="${labelStyle}">${r.label}</td>
+      ${months.map(m => {
+        const v = m[r.key] || 0;
+        const color = r.key === 'noi' ? (v >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)') : '';
+        return `<td style="text-align:right;${color}">${fmtDollar(v)}</td>`;
+      }).join('')}
+      <td style="text-align:right;font-weight:700;${r.key === 'noi' ? (ytd[r.key] >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)') : ''}">${fmtDollar(ytd[r.key])}</td>
+      <td style="text-align:right;${isSales ? '' : 'font-size:12px;color:var(--text-secondary);'}">${isSales ? '100.0%' : pct + '%'}${flagIcon}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSingleStorePL(storeId) {
+  const s = QBO_STORE_YTD[storeId];
+  if (!s) { document.getElementById('finTableBody').innerHTML = '<tr><td colspan="4">No data for this store.</td></tr>'; return; }
+  const rows = [
+    { label: 'Net Sales', val: s.ns, pct: 100 },
+    { label: 'Food', val: s.food, pct: s.food/s.ns*100, threshold: FIN_THRESHOLDS.food },
+    { label: 'Payroll', val: s.payroll, pct: s.payroll/s.ns*100, threshold: FIN_THRESHOLDS.payroll },
+    { label: 'Utilities', val: s.utilities, pct: s.utilities/s.ns*100, threshold: FIN_THRESHOLDS.utilities },
+    { label: 'Maintenance', val: s.maintenance, pct: s.maintenance/s.ns*100 },
+    { label: 'Delivery', val: s.delivery, pct: s.delivery/s.ns*100, threshold: FIN_THRESHOLDS.delivery },
+    { label: 'Rent', val: s.rent, pct: s.rent/s.ns*100, threshold: FIN_THRESHOLDS.rent },
+    { label: 'NOI', val: s.noi, pct: s.noi/s.ns*100, bold: true },
+  ];
+  document.getElementById('finTableHead').innerHTML = `<tr>
+    <th style="text-align:left;min-width:180px;">Category</th>
+    <th style="text-align:right;">H1 2026 Amount</th>
+    <th style="text-align:right;">% of Sales</th>
+    <th style="text-align:right;">Status</th>
+  </tr>`;
+  document.getElementById('finTableBody').innerHTML = rows.map(r => {
+    const noiColor = r.label === 'NOI' ? (r.val >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)') : '';
+    let status = '';
+    if (r.threshold) {
+      if (r.pct > (r.threshold.critical || 999)) status = '<span style="color:var(--status-critical);font-weight:600;">Over limit</span>';
+      else if (r.pct > r.threshold.warn) status = '<span style="color:var(--status-warn);">Above target</span>';
+      else status = '<span style="color:var(--status-good);">On target</span>';
+    } else if (r.label === 'NOI') {
+      status = r.val >= 0 ? '<span style="color:var(--status-good);">Profitable</span>' : '<span style="color:var(--status-critical);">Loss</span>';
+    }
+    return `<tr${r.bold ? ' style="background:var(--surface-chart);font-weight:700;"' : ''}>
+      <td${r.bold ? ' style="font-weight:700;"' : ''}>${r.label}</td>
+      <td style="text-align:right;${noiColor}">${fmtDollar(r.val)}</td>
+      <td style="text-align:right;">${r.pct.toFixed(1)}%</td>
+      <td style="text-align:right;">${status}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderStorePL(storeId) {
+  const stores = storeId === 'all' ? Object.entries(QBO_STORE_YTD) : Object.entries(QBO_STORE_YTD).filter(([id]) => id === storeId);
+  const storeRows = stores.map(([id, s]) => {
+    const fp = (s.food / s.ns * 100).toFixed(1);
+    const pp = (s.payroll / s.ns * 100).toFixed(1);
+    const up = (s.utilities / s.ns * 100).toFixed(1);
+    const dp = (s.delivery / s.ns * 100).toFixed(1);
+    const rp = (s.rent / s.ns * 100).toFixed(1);
+    const np = (s.noi / s.ns * 100).toFixed(1);
+    const flags = [];
+    if (s.noi < 0) flags.push('<span style="color:var(--status-critical);font-weight:700;">Loss</span>');
+    if (+fp > FIN_THRESHOLDS.food.warn) flags.push('<span style="color:var(--status-warn);">Food</span>');
+    if (+pp > FIN_THRESHOLDS.payroll.warn) flags.push('<span style="color:var(--status-warn);">Labor</span>');
+    if (+up > FIN_THRESHOLDS.utilities.warn) flags.push('<span style="color:var(--status-warn);">Util</span>');
+    if (+dp > FIN_THRESHOLDS.delivery.warn) flags.push('<span style="color:var(--text-muted);">Deliv</span>');
+    return { id, name: s.name, ns: s.ns, food: s.food, payroll: s.payroll, utilities: s.utilities, maintenance: s.maintenance, delivery: s.delivery, rent: s.rent, noi: s.noi, fp, pp, up, dp, rp, np, flags };
+  }).sort((a, b) => +b.np - +a.np);
+
+  document.getElementById('finTableHead').innerHTML = `<tr>
+    <th>Store</th><th style="text-align:right;">Net Sales</th><th style="text-align:right;">Food %</th>
+    <th style="text-align:right;">Labor %</th><th style="text-align:right;">Util %</th>
+    <th style="text-align:right;">Delivery %</th><th style="text-align:right;">Rent %</th>
+    <th style="text-align:right;">NOI</th><th style="text-align:right;">NOI %</th><th>Flags</th>
+  </tr>`;
+
+  const totNS = stores.reduce((s,[,d]) => s + d.ns, 0);
+  const totFood = stores.reduce((s,[,d]) => s + d.food, 0);
+  const totPayroll = stores.reduce((s,[,d]) => s + d.payroll, 0);
+  const totUtil = stores.reduce((s,[,d]) => s + d.utilities, 0);
+  const totDeliv = stores.reduce((s,[,d]) => s + d.delivery, 0);
+  const totRent = stores.reduce((s,[,d]) => s + d.rent, 0);
+  const totNOI = stores.reduce((s,[,d]) => s + d.noi, 0);
+
+  document.getElementById('finTableBody').innerHTML = storeRows.map(r => {
+    const noiColor = r.noi >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
+    return `<tr>
+      <td>${r.name} (${r.id})</td>
+      <td style="text-align:right;">${fmtDollar(r.ns)}</td>
+      <td style="text-align:right;${+r.fp > FIN_THRESHOLDS.food.warn ? 'color:var(--status-warn);font-weight:600;' : ''}">${r.fp}%</td>
+      <td style="text-align:right;${+r.pp > FIN_THRESHOLDS.payroll.warn ? 'color:var(--status-warn);font-weight:600;' : ''}">${r.pp}%</td>
+      <td style="text-align:right;${+r.up > FIN_THRESHOLDS.utilities.warn ? 'color:var(--status-warn);font-weight:600;' : ''}">${r.up}%</td>
+      <td style="text-align:right;">${r.dp}%</td>
+      <td style="text-align:right;">${r.rp}%</td>
+      <td style="text-align:right;${noiColor};font-weight:600;">${fmtDollar(r.noi)}</td>
+      <td style="text-align:right;${noiColor};">${r.np}%</td>
+      <td style="font-size:11px;">${r.flags.join(' ')}</td>
+    </tr>`;
+  }).join('') + `<tr style="background:var(--surface-chart);font-weight:700;">
+    <td>Portfolio</td>
+    <td style="text-align:right;">${fmtDollar(totNS)}</td>
+    <td style="text-align:right;">${(totFood/totNS*100).toFixed(1)}%</td>
+    <td style="text-align:right;">${(totPayroll/totNS*100).toFixed(1)}%</td>
+    <td style="text-align:right;">${(totUtil/totNS*100).toFixed(1)}%</td>
+    <td style="text-align:right;">${(totDeliv/totNS*100).toFixed(1)}%</td>
+    <td style="text-align:right;">${(totRent/totNS*100).toFixed(1)}%</td>
+    <td style="text-align:right;${totNOI >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'}">${fmtDollar(totNOI)}</td>
+    <td style="text-align:right;${totNOI >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'}">${(totNOI/totNS*100).toFixed(1)}%</td>
+    <td></td>
+  </tr>`;
+}
+
+function renderFinSalesChart() {
+  const el = document.getElementById('chartFinSales');
+  const storeId = state.finStore || 'all';
+  const srcData = storeId !== 'all' ? getStoreMonthlyData(storeId) : QBO_MONTHLY;
+  const data = srcData.map(m => ({ label: m.monthShort, value: m.sales }));
+  if (!data.length) { el.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No monthly data available.</p>'; return; }
+  const titleEl = el.closest('.chart-card').querySelector('h3');
+  const subEl = el.closest('.chart-card').querySelector('.chart-subtitle');
+  if (titleEl) titleEl.textContent = storeId !== 'all' ? (QBO_STORE_YTD[storeId]||{}).name + ' — Monthly Sales' : 'Monthly Net Sales Trend';
+  if (subEl) subEl.textContent = storeId !== 'all' ? 'Store-level net sales by month' : 'Portfolio net sales by month';
+  renderLineChart(el, data, '$', 'Net Sales');
+}
+
+function renderFinNOIChart() {
+  const el = document.getElementById('chartFinNOI');
+  const storeId = state.finStore || 'all';
+  const srcData = storeId !== 'all' ? getStoreMonthlyData(storeId) : QBO_MONTHLY;
+  const data = srcData.map(m => ({ label: m.monthShort, value: m.noi }));
+  if (!data.length) { el.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No monthly data available.</p>'; return; }
+  const titleEl = el.closest('.chart-card').querySelector('h3');
+  if (titleEl) titleEl.textContent = storeId !== 'all' ? (QBO_STORE_YTD[storeId]||{}).name + ' — Monthly NOI' : 'Monthly NOI Trend';
+  renderLineChart(el, data, '$', 'NOI', true);
+}
+
+function renderFinRatiosChart() {
+  const el = document.getElementById('chartFinRatios');
+  const storeId = state.finStore || 'all';
+  const srcData = storeId !== 'all' ? getStoreMonthlyData(storeId) : QBO_MONTHLY;
+  if (!srcData.length) { el.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No monthly data available.</p>'; return; }
+  const series = [
+    { name: 'Food %', color: 'var(--cat-1)', data: srcData.map(m => m.food / m.sales * 100) },
+    { name: 'Payroll %', color: 'var(--cat-2)', data: srcData.map(m => m.payroll / m.sales * 100) },
+    { name: 'Utilities %', color: 'var(--cat-3)', data: srcData.map(m => m.utilities / m.sales * 100) },
+  ];
+  const labels = srcData.map(m => m.monthShort);
+  const titleEl = el.closest('.chart-card').querySelector('h3');
+  if (titleEl) titleEl.textContent = storeId !== 'all' ? (QBO_STORE_YTD[storeId]||{}).name + ' — Expense Ratios' : 'Key Expense Ratios';
+  renderMultiLineChart(el, labels, series, '%');
+}
+
+function renderThresholdLineChart(el, data, unit, thresholdVal, thresholdLabel, lineColor) {
+  const W = 480, H = 220;
+  const pad = { top: 20, right: 20, bottom: 30, left: 50 };
+  const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+  const vals = data.map(d => d.value);
+  let minV = Math.min(...vals, thresholdVal) - 2;
+  let maxV = Math.max(...vals, thresholdVal) + 2;
+  const range = maxV - minV || 1;
+  const x = (i) => pad.left + (data.length > 1 ? (i / (data.length - 1)) * cW : cW / 2);
+  const y = (v) => pad.top + cH - ((v - minV) / range) * cH;
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const gridColor = isDark ? '#2c2c2a' : '#e1e0d9';
+  const textColor = isDark ? '#898781' : '#52514e';
+  const threshColor = isDark ? '#e66767' : '#d03b3b';
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">`;
+  // Grid
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const gv = minV + (range / steps) * i;
+    const gy = y(gv);
+    svg += `<line x1="${pad.left}" y1="${gy}" x2="${W - pad.right}" y2="${gy}" stroke="${gridColor}" stroke-width="1"/>`;
+    svg += `<text x="${pad.left - 8}" y="${gy + 4}" fill="${textColor}" font-size="10" text-anchor="end">${gv.toFixed(0)}${unit}</text>`;
+  }
+  // Threshold line
+  const ty = y(thresholdVal);
+  svg += `<line x1="${pad.left}" y1="${ty}" x2="${W - pad.right}" y2="${ty}" stroke="${threshColor}" stroke-width="1.5" stroke-dasharray="6,3"/>`;
+  svg += `<text x="${W - pad.right + 2}" y="${ty + 3}" fill="${threshColor}" font-size="9" text-anchor="start">${thresholdLabel}</text>`;
+  // Area fill for above-threshold
+  const areaAbove = [];
+  data.forEach((d, i) => {
+    if (d.value > thresholdVal) {
+      areaAbove.push({ x: x(i), yVal: y(d.value), yThresh: ty });
+    }
+  });
+  // Line
+  const pts = data.map((d, i) => `${x(i)},${y(d.value)}`).join(' ');
+  svg += `<polyline points="${pts}" fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linejoin="round"/>`;
+  // Dots with color coding
+  data.forEach((d, i) => {
+    const dotColor = d.value > thresholdVal ? threshColor : lineColor;
+    svg += `<circle cx="${x(i)}" cy="${y(d.value)}" r="4.5" fill="${dotColor}" stroke="var(--surface-card)" stroke-width="2"/>`;
+    // Value label on dot
+    svg += `<text x="${x(i)}" y="${y(d.value) - 8}" fill="${textColor}" font-size="9" text-anchor="middle" font-weight="600">${d.value.toFixed(1)}%</text>`;
+    svg += `<text x="${x(i)}" y="${H - 6}" fill="${textColor}" font-size="10" text-anchor="middle">${d.label}</text>`;
+  });
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+function renderFinFoodTrend() {
+  const el = document.getElementById('chartFinFood');
+  const storeId = state.finStore || 'all';
+  const srcData = storeId !== 'all' ? getStoreMonthlyData(storeId) : QBO_MONTHLY;
+  if (!srcData.length) { el.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No data.</p>'; return; }
+  const data = srcData.map(m => ({ label: m.monthShort, value: m.food / m.sales * 100 }));
+  const titleEl = el.closest('.chart-card').querySelector('h3');
+  if (titleEl) titleEl.textContent = storeId !== 'all' ? (QBO_STORE_YTD[storeId]||{}).name + ' — Food Cost %' : 'Food Cost % Trend';
+  renderThresholdLineChart(el, data, '%', FIN_THRESHOLDS.food.warn, FIN_THRESHOLDS.food.warn + '%', 'var(--cat-2)');
+}
+
+function renderFinLaborTrend() {
+  const el = document.getElementById('chartFinLabor');
+  const storeId = state.finStore || 'all';
+  const srcData = storeId !== 'all' ? getStoreMonthlyData(storeId) : QBO_MONTHLY;
+  if (!srcData.length) { el.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No data.</p>'; return; }
+  const data = srcData.map(m => ({ label: m.monthShort, value: m.payroll / m.sales * 100 }));
+  const titleEl = el.closest('.chart-card').querySelector('h3');
+  if (titleEl) titleEl.textContent = storeId !== 'all' ? (QBO_STORE_YTD[storeId]||{}).name + ' — Labor Cost %' : 'Labor Cost % Trend';
+  renderThresholdLineChart(el, data, '%', FIN_THRESHOLDS.payroll.warn, FIN_THRESHOLDS.payroll.warn + '%', 'var(--cat-1)');
+}
+
+function renderPieChart(el, slices, title) {
+  const W = 480, H = 260;
+  const cx = 180, cy = 130, r = 100;
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const textColor = isDark ? '#c9c8c5' : '#2e2d2b';
+  const total = slices.reduce((s, sl) => s + sl.value, 0);
+  if (total <= 0) { el.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No data.</p>'; return; }
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">`;
+
+  let angle = -Math.PI / 2; // start at top
+  slices.forEach((sl, i) => {
+    const sliceAngle = (sl.value / total) * Math.PI * 2;
+    const x1 = cx + r * Math.cos(angle);
+    const y1 = cy + r * Math.sin(angle);
+    const x2 = cx + r * Math.cos(angle + sliceAngle);
+    const y2 = cy + r * Math.sin(angle + sliceAngle);
+    const largeArc = sliceAngle > Math.PI ? 1 : 0;
+    const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+    svg += `<path d="${path}" fill="${sl.color}" stroke="var(--surface-card)" stroke-width="2"><title>${sl.label}: ${fmtDollar(sl.value)} (${(sl.value/total*100).toFixed(1)}%)</title></path>`;
+    angle += sliceAngle;
+  });
+
+  // Center hole for donut effect
+  svg += `<circle cx="${cx}" cy="${cy}" r="50" fill="var(--surface-card)"/>`;
+  svg += `<text x="${cx}" y="${cy - 6}" fill="${textColor}" font-size="11" text-anchor="middle" font-weight="600">${fmtDollar(total)}</text>`;
+  svg += `<text x="${cx}" y="${cy + 10}" fill="${isDark ? '#898781' : '#706f6c'}" font-size="9" text-anchor="middle">Total</text>`;
+
+  // Legend on right side
+  let ly = 30;
+  slices.forEach(sl => {
+    const pct = (sl.value / total * 100).toFixed(1);
+    svg += `<rect x="300" y="${ly - 6}" width="10" height="10" rx="2" fill="${sl.color}"/>`;
+    svg += `<text x="316" y="${ly + 3}" fill="${textColor}" font-size="11">${sl.label}</text>`;
+    svg += `<text x="460" y="${ly + 3}" fill="${isDark ? '#898781' : '#706f6c'}" font-size="10" text-anchor="end">${pct}%</text>`;
+    ly += 22;
+  });
+
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+function renderFinPieChart() {
+  const el = document.getElementById('chartFinPie');
+  const storeId = state.finStore || 'all';
+  const titleEl = el.closest('.chart-card').querySelector('h3');
+  const subEl = el.closest('.chart-card').querySelector('.chart-subtitle');
+
+  if (storeId !== 'all') {
+    const s = QBO_STORE_YTD[storeId];
+    if (!s) { el.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No data.</p>'; return; }
+    if (titleEl) titleEl.textContent = (s.name || storeId) + ' — Controllable Expenses';
+    if (subEl) subEl.textContent = 'H1 2026 controllable cost breakdown';
+    const slices = [
+      { label: 'Food', value: s.food, color: 'var(--cat-2)' },
+      { label: 'Payroll', value: s.payroll, color: 'var(--cat-1)' },
+      { label: 'Utilities', value: s.utilities, color: 'var(--cat-3)' },
+      { label: 'Maintenance', value: s.maintenance, color: 'var(--cat-4)' },
+      { label: 'Delivery', value: s.delivery, color: 'var(--cat-5)' },
+      { label: 'Rent', value: s.rent, color: 'var(--cat-6)' },
+    ];
+    renderPieChart(el, slices);
+  } else {
+    if (titleEl) titleEl.textContent = 'Controllable Expenses Breakdown';
+    if (subEl) subEl.textContent = 'YTD share of controllable costs';
+    const totFood = QBO_MONTHLY.reduce((s,m) => s + m.food, 0);
+    const totPayroll = QBO_MONTHLY.reduce((s,m) => s + m.payroll, 0);
+    const totUtil = QBO_MONTHLY.reduce((s,m) => s + m.utilities, 0);
+    const totMaint = QBO_MONTHLY.reduce((s,m) => s + m.maintenance, 0);
+    const totDeliv = QBO_MONTHLY.reduce((s,m) => s + m.delivery, 0);
+    const totRent = QBO_MONTHLY.reduce((s,m) => s + m.rent, 0);
+    const slices = [
+      { label: 'Food', value: totFood, color: 'var(--cat-2)' },
+      { label: 'Payroll', value: totPayroll, color: 'var(--cat-1)' },
+      { label: 'Utilities', value: totUtil, color: 'var(--cat-3)' },
+      { label: 'Maintenance', value: totMaint, color: 'var(--cat-4)' },
+      { label: 'Delivery', value: totDeliv, color: 'var(--cat-5)' },
+      { label: 'Rent', value: totRent, color: 'var(--cat-6)' },
+    ];
+    renderPieChart(el, slices);
+  }
+}
+
+function renderFinStoresChart() {
+  const el = document.getElementById('chartFinStores');
+  const storeId = state.finStore || 'all';
+  const card = el.closest('.chart-card');
+  if (storeId !== 'all') {
+    // Single store — hide comparison chart
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  const data = Object.entries(QBO_STORE_YTD).map(([id, s]) => ({
+    label: id,
+    value: +(s.noi / s.ns * 100).toFixed(1),
+  })).sort((a, b) => b.value - a.value);
+  renderDivergingBar('chartFinStores', data, '%');
+}
+
+/* ===== LINE CHART RENDERER ===== */
+function renderLineChart(el, data, unit, label, showZero) {
+  const W = 480, H = 220;
+  const pad = { top: 20, right: 20, bottom: 30, left: 70 };
+  const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+  const vals = data.map(d => d.value);
+  let minV = Math.min(...vals), maxV = Math.max(...vals);
+  if (showZero) { minV = Math.min(minV, 0); maxV = Math.max(maxV, 0); }
+  const range = maxV - minV || 1;
+  const x = (i) => pad.left + (data.length > 1 ? (i / (data.length - 1)) * cW : cW / 2);
+  const y = (v) => pad.top + cH - ((v - minV) / range) * cH;
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const gridColor = isDark ? '#2c2c2a' : '#e1e0d9';
+  const textColor = isDark ? '#898781' : '#52514e';
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">`;
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const gv = minV + (range / steps) * i;
+    const gy = y(gv);
+    svg += `<line x1="${pad.left}" y1="${gy}" x2="${W - pad.right}" y2="${gy}" stroke="${gridColor}" stroke-width="1"/>`;
+    svg += `<text x="${pad.left - 8}" y="${gy + 4}" fill="${textColor}" font-size="10" text-anchor="end">${unit === '$' ? fmtDollar(gv) : gv.toFixed(1) + unit}</text>`;
+  }
+  if (showZero && minV < 0 && maxV > 0) {
+    svg += `<line x1="${pad.left}" y1="${y(0)}" x2="${W - pad.right}" y2="${y(0)}" stroke="${isDark ? '#555' : '#999'}" stroke-width="1" stroke-dasharray="4,3"/>`;
+  }
+  const pts = data.map((d, i) => `${x(i)},${y(d.value)}`).join(' ');
+  svg += `<polyline points="${pts}" fill="none" stroke="var(--cat-1)" stroke-width="2.5" stroke-linejoin="round"/>`;
+  data.forEach((d, i) => {
+    svg += `<circle cx="${x(i)}" cy="${y(d.value)}" r="4" fill="var(--cat-1)" stroke="var(--surface-card)" stroke-width="2"/>`;
+    svg += `<text x="${x(i)}" y="${H - 6}" fill="${textColor}" font-size="10" text-anchor="middle">${d.label}</text>`;
+  });
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+function renderMultiLineChart(el, labels, series, unit) {
+  const W = 480, H = 240;
+  const pad = { top: 20, right: 20, bottom: 44, left: 50 };
+  const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
+  const allVals = series.flatMap(s => s.data);
+  const minV = Math.min(...allVals) - 2, maxV = Math.max(...allVals) + 2;
+  const range = maxV - minV || 1;
+  const x = (i) => pad.left + (labels.length > 1 ? (i / (labels.length - 1)) * cW : cW / 2);
+  const y = (v) => pad.top + cH - ((v - minV) / range) * cH;
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const gridColor = isDark ? '#2c2c2a' : '#e1e0d9';
+  const textColor = isDark ? '#898781' : '#52514e';
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">`;
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const gv = minV + (range / steps) * i;
+    const gy = y(gv);
+    svg += `<line x1="${pad.left}" y1="${gy}" x2="${W - pad.right}" y2="${gy}" stroke="${gridColor}" stroke-width="1"/>`;
+    svg += `<text x="${pad.left - 8}" y="${gy + 4}" fill="${textColor}" font-size="10" text-anchor="end">${gv.toFixed(0)}${unit}</text>`;
+  }
+  series.forEach(s => {
+    const pts = s.data.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+    svg += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
+    s.data.forEach((v, i) => {
+      svg += `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}" stroke="var(--surface-card)" stroke-width="1.5"/>`;
+    });
+  });
+  labels.forEach((l, i) => {
+    svg += `<text x="${x(i)}" y="${H - 24}" fill="${textColor}" font-size="10" text-anchor="middle">${l}</text>`;
+  });
+  // Legend
+  let lx = pad.left;
+  series.forEach(s => {
+    svg += `<rect x="${lx}" y="${H - 14}" width="12" height="3" rx="1" fill="${s.color}"/>`;
+    svg += `<text x="${lx + 16}" y="${H - 8}" fill="${textColor}" font-size="10">${s.name}</text>`;
+    lx += s.name.length * 6 + 30;
+  });
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+/* ===== INIT & EVENTS ===== */
+async function init() {
+  await loadExternalData();
+
+  const realDates = Object.keys(dataStore.realSalesDaily).sort().reverse();
+  if (realDates.length) state.opsDate = realDates[0];
+  document.getElementById('opsDate').value = state.opsDate;
+
+  const ts = dataStore.lastUpdated || dataStore.sources.powerbi.lastPull;
+  if (ts) {
+    const d = new Date(ts);
+    document.getElementById('lastUpdated').textContent = 'Updated ' + d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+  } else {
+    document.getElementById('lastUpdated').textContent = 'Sample data -- ' + new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  }
+
+  const weeks = generateWeekOptions();
+  state.opsWeek = weeks[0];
+  state.foodWeek = weeks[0];
+  ['opsWeek', 'foodWeek'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = weeks.map(w => {
+      const d = new Date(w + 'T12:00:00');
+      const wedDate = new Date(d); wedDate.setDate(wedDate.getDate() - 6);
+      const label = wedDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' - ' +
+                    d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      return `<option value="${w}">${label}</option>`;
+    }).join('');
+  });
+
+  const periods = generatePeriodOptions();
+  state.foodPeriod = periods[0];
+  document.getElementById('foodPeriod').innerHTML = periods.map(p => `<option value="${p}">${p}</option>`).join('');
+
+  // SC week select
+  const scWeekSelect = document.getElementById('scWeek');
+  const scWeeks = Object.keys(dataStore.realServiceCheck || {}).filter(k => k !== 'execSummary' && k !== 'fulfillment').sort().reverse();
+  state.scWeek = scWeeks[0] || null;
+  scWeekSelect.innerHTML = scWeeks.map(w => {
+    const wData = dataStore.realServiceCheck[w];
+    const label = wData.weekStart
+      ? new Date(wData.weekStart + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' - ' +
+        new Date(wData.weekEnd + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})
+      : w;
+    return `<option value="${w}">${label}</option>`;
+  }).join('');
+  scWeekSelect.addEventListener('change', e => { state.scWeek = e.target.value; renderSC(); });
+
+  // SC date default
+  state.scDate = state.opsDate;
+  document.getElementById('scDate').value = state.scDate;
+  document.getElementById('scDate').addEventListener('change', e => { state.scDate = e.target.value; renderSC(); });
+
+  // SC view toggle
+  document.querySelectorAll('#scViewToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#scViewToggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.scView = btn.dataset.view;
+      document.getElementById('scWeekGroup').style.display = state.scView === 'weekly' ? '' : 'none';
+      document.getElementById('scDateGroup').style.display = state.scView === 'daily' ? '' : 'none';
+      renderSC();
+    });
+  });
+
+  // Store filter for ops tab
+  const opsStoreFilter = document.getElementById('opsStoreFilter');
+  STORES.forEach(s => { opsStoreFilter.innerHTML += `<option value="${s.id}">${s.name} (${s.id})</option>`; });
+  opsStoreFilter.addEventListener('change', e => { state.opsStoreFilter = e.target.value; renderOps(); });
+
+  // Food store select
+  const foodStoreSelect = document.getElementById('foodStore');
+  STORES.forEach(s => { foodStoreSelect.innerHTML += `<option value="${s.id}">${s.name} (${s.id})</option>`; });
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Ops view toggle
+  document.querySelectorAll('#opsViewToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#opsViewToggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.opsView = btn.dataset.view;
+      document.getElementById('datePicker').style.display = state.opsView === 'daily' ? '' : 'none';
+      document.getElementById('weekPicker').style.display = state.opsView === 'weekly' ? '' : 'none';
+      renderOps();
+    });
+  });
+
+  // Food view toggle
+  document.querySelectorAll('#foodViewToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#foodViewToggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.foodView = btn.dataset.view;
+      document.getElementById('foodWeekPicker').style.display = state.foodView === 'weekly' ? '' : 'none';
+      document.getElementById('foodPeriodPicker').style.display = state.foodView === 'period' ? '' : 'none';
+      renderFood();
+    });
+  });
+
+  document.getElementById('opsDate').addEventListener('change', e => { state.opsDate = e.target.value; renderOps(); });
+  document.getElementById('opsWeek').addEventListener('change', e => { state.opsWeek = e.target.value; renderOps(); });
+  document.getElementById('foodWeek').addEventListener('change', e => { state.foodWeek = e.target.value; renderFood(); });
+  document.getElementById('foodPeriod').addEventListener('change', e => { state.foodPeriod = e.target.value; renderFood(); });
+  document.getElementById('foodStore').addEventListener('change', e => { state.foodStore = e.target.value; renderFood(); });
+
+  // Financial store picker
+  const finStorePicker = document.getElementById('finStorePicker');
+  if (finStorePicker) {
+    STORES.forEach(s => { finStorePicker.innerHTML += `<option value="${s.id}">${s.name} (${s.id})</option>`; });
+    finStorePicker.addEventListener('change', e => { state.finStore = e.target.value; renderFinancial(); });
+  }
+
+  // Financial period toggle
+  document.querySelectorAll('#finPeriodToggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#finPeriodToggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.finPeriod = btn.dataset.period;
+      document.getElementById('finMonthPickerWrap').style.display = state.finPeriod === 'month' ? '' : 'none';
+      document.getElementById('finQuarterPickerWrap').style.display = state.finPeriod === 'quarter' ? '' : 'none';
+      renderFinancial();
+    });
+  });
+
+  // Populate month picker
+  const finMonthPicker = document.getElementById('finMonthPicker');
+  if (finMonthPicker) {
+    QBO_MONTHLY.forEach((m, i) => { finMonthPicker.innerHTML += `<option value="${i}"${i === QBO_MONTHLY.length - 1 ? ' selected' : ''}>${m.month}</option>`; });
+    state.finMonth = QBO_MONTHLY.length - 1;
+    finMonthPicker.addEventListener('change', e => { state.finMonth = +e.target.value; renderFinancial(); });
+  }
+  // Quarter picker
+  const finQuarterPicker = document.getElementById('finQuarterPicker');
+  if (finQuarterPicker) {
+    state.finQuarter = 'Q3';
+    finQuarterPicker.addEventListener('change', e => { state.finQuarter = e.target.value; renderFinancial(); });
+  }
+
+  renderOps();
+  renderSC();
+  renderFood();
+  renderFinancial();
+}
+
+function toggleTheme() {
+  const root = document.documentElement;
+  const current = root.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  document.querySelector('.theme-toggle').textContent = next === 'dark' ? 'Light' : 'Dark';
+  renderOps(); renderSC(); renderFood(); renderFinancial();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

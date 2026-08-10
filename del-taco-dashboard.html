@@ -1508,13 +1508,15 @@ function getWeeklyOpsData(weekEndStr) {
       const totalNet = storeDays.reduce((sum, d) => sum + (d.netSales || 0), 0);
       const totalTrans = storeDays.reduce((sum, d) => sum + (d.trans || 0), 0);
       const avgChangePct = +(storeDays.reduce((sum, d) => sum + (d.changePct || 0), 0) / storeDays.length).toFixed(2);
+      const daysWithTransComp = storeDays.filter(d => d.transChangePct !== undefined && d.transChangePct !== null);
+      const avgTransChangePct = daysWithTransComp.length > 0 ? +(daysWithTransComp.reduce((sum, d) => sum + d.transChangePct, 0) / daysWithTransComp.length).toFixed(1) : null;
       const gcaVal = totalTrans > 0 ? +(totalNet / totalTrans).toFixed(2) : 0;
       const labor = laborData ? laborData[s.id] : null;
       const reviewData = findReviewsForStore(s.id);
       return {
         storeId: s.id, storeName: s.name, date: weekEndStr,
         grossSales: totalGross, netSales: totalNet, changePct: avgChangePct,
-        transChangePct: null,
+        transChangePct: avgTransChangePct,
         gca: gcaVal, gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
         trans: totalTrans,
         laborPct: labor ? +labor.laborPct.toFixed(1) : +sampleVal(20, 28, weekEndStr, i, 4).toFixed(1),

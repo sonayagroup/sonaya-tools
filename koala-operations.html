@@ -193,6 +193,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 
 <nav class="tab-bar">
   <button class="tab-btn active" data-tab="funnel">Sales Funnel</button>
+  <button class="tab-btn" data-tab="leadsources">Lead Sources</button>
   <button class="tab-btn" data-tab="revenue">Revenue &amp; Jobs</button>
   <button class="tab-btn" data-tab="reps">Sales Rep Performance</button>
   <button class="tab-btn" data-tab="pipeline">Pipeline &amp; Scheduling</button>
@@ -222,34 +223,52 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   </div>
 </div>
 
+<!-- TAB: LEAD SOURCES -->
+<div class="tab-content" id="tab-leadsources">
+  <div class="container">
+    <div class="connection-banner connected" id="leadSourcesBanner">
+      <span class="banner-icon">&#10003;</span>
+      <span>Live data from ServiceMinder contacts (org 4457) — 30-day window, Jul 12–Aug 11. ServiceMinder's "Channel" field mirrors "Lead Source" 1:1 for this account, so only Source is shown. Category is the contact record type as set in ServiceMinder, not a marketing dimension.</span>
+    </div>
+    <div class="kpi-summary" id="leadSourcesKpiRow"></div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Leads by Source</h3>
+        <p class="chart-subtitle">Last 30 days</p>
+        <div class="chart-area" id="chartLeadSources"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Leads by Contact Category</h3>
+        <p class="chart-subtitle">Last 30 days — as categorized in ServiceMinder</p>
+        <div class="chart-area" id="chartLeadCategories"></div>
+      </div>
+    </div>
+    <div class="section-title">Lead Source Detail (30 days)</div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="leadSourceTable">
+        <thead><tr><th>Source</th><th>Leads</th><th>% of Total</th></tr></thead>
+        <tbody id="leadSourceTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- TAB 2: REVENUE & JOBS -->
 <div class="tab-content" id="tab-revenue">
   <div class="container">
     <div class="connection-banner connected" id="revenueBanner">
       <span class="banner-icon">&#10003;</span>
-      <span>Live data from ServiceMinder appointments/proposals — 30-day window. Revenue-by-source ($) needs a contact↔proposal join not yet built; source breakdown below is by lead count. Monthly trend chart is still illustrative.</span>
+      <span>Live data from ServiceMinder appointments/proposals — 30-day window. Lead source breakdown has moved to the Lead Sources tab.</span>
     </div>
     <div class="kpi-summary" id="revenueKpiRow"></div>
     <div class="section-title">Month-to-Date Financials <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— from ServiceMinder invoices (Aug 1–11), a proxy until QuickBooks is connected. Budget targets pending.</span></div>
     <div class="callout-row" id="mtdFinancialsRow"></div>
     <div class="charts-grid">
       <div class="chart-card">
-        <h3>Leads by Source</h3>
-        <p class="chart-subtitle">Last 30 days</p>
-        <div class="chart-area" id="chartRevenueSource"></div>
-      </div>
-      <div class="chart-card">
         <h3>Booked Revenue Trend</h3>
         <p class="chart-subtitle">Illustrative — last 6 months (monthly historical pull not yet automated)</p>
         <div class="chart-area" id="chartRevenueTrend"></div>
       </div>
-    </div>
-    <div class="section-title">Lead Source Detail (30 days)</div>
-    <div class="store-table-wrap">
-      <table class="store-table" id="revenueSourceTable">
-        <thead><tr><th>Source</th><th>Leads</th><th>% of Total</th></tr></thead>
-        <tbody id="revenueSourceTbody"></tbody>
-      </table>
     </div>
   </div>
 </div>
@@ -387,6 +406,13 @@ const dataStore = {
     { source: 'National Partnerships', leads: 1 },
     { source: 'Referral Web Traffic', leads: 1 },
     { source: 'Other', leads: 1 },
+  ],
+  leadCategories: [
+    { category: 'Prospect', shortLabel: 'Prospect', count: 83 },
+    { category: 'Customer', shortLabel: 'Customer', count: 9 },
+    { category: 'Partner', shortLabel: 'Partner', count: 4 },
+    { category: "Prospect - Lowe's", shortLabel: "Lowe's", count: 2 },
+    { category: 'Reschedule / Estimate Admin', shortLabel: 'Reschedule', count: 2 },
   ],
   revenue: {
     booked30d: 309395, revenuePerLead30d: 3094, openPipelineValue: 1261572, acceptedAllTime: 145,
@@ -663,14 +689,29 @@ function renderRevenueTab() {
       r.onTheBooksBudget != null ? { target: r.onTheBooksBudget, actual: dataStore.pipeline.backlogValue } : null),
   ].join('');
 
-  renderBarChart('chartRevenueSource', dataStore.leadsBySource.map((s, i) => ({ label: s.source.split(' ')[0], value: s.leads, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });
-
   renderLineChart('chartRevenueTrend', [
     { name: 'Revenue', color: 'var(--brand-teal)', points: dataStore.revenueTrend.map(d => ({ x: d.month, y: d.revenue, label: d.month })) },
   ]);
+}
 
-  const totalLeads = dataStore.leadsBySource.reduce((a, s) => a + s.leads, 0);
-  document.getElementById('revenueSourceTbody').innerHTML = dataStore.leadsBySource.map(s => {
+/* ---------------- Render: Lead Sources tab ---------------- */
+function renderLeadSourcesTab() {
+  const sources = dataStore.leadsBySource;
+  const totalLeads = sources.reduce((a, s) => a + s.leads, 0);
+  const top = [...sources].sort((a, b) => b.leads - a.leads)[0];
+  const existing = sources.find(s => s.source.startsWith('Existing'));
+
+  document.getElementById('leadSourcesKpiRow').innerHTML = [
+    kpiTile('Total Leads (30d)', totalLeads),
+    kpiTile('Top Source', top.source, `${top.leads} leads &middot; ${fmtPct((top.leads / totalLeads) * 100)}`, 'good'),
+    kpiTile('Distinct Sources', sources.length),
+    kpiTile('Existing / Repeat', existing ? existing.leads : 0, existing ? fmtPct((existing.leads / totalLeads) * 100) + ' of leads' : null),
+  ].join('');
+
+  renderBarChart('chartLeadSources', sources.map((s, i) => ({ label: s.source.split(' ')[0], value: s.leads, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });
+  renderBarChart('chartLeadCategories', dataStore.leadCategories.map((c, i) => ({ label: c.shortLabel, value: c.count, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });
+
+  document.getElementById('leadSourceTbody').innerHTML = sources.map(s => {
     const pct = (s.leads / totalLeads) * 100;
     return `<tr><td>${s.source}</td><td>${s.leads}</td><td>${fmtPct(pct)}</td></tr>`;
   }).join('');
@@ -766,6 +807,7 @@ document.querySelectorAll('#finPeriodToggle button').forEach(btn => {
 /* ---------------- Init ---------------- */
 function renderAll() {
   renderFunnelTab();
+  renderLeadSourcesTab();
   renderRevenueTab();
   renderRepsTab();
   renderPipelineTab();

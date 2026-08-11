@@ -1,0 +1,739 @@
+<!DOCTYPE html><script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Koala Insulation Dashboard",
+  "schemaVersion": 1,
+  "description": "Koala Insulation (Patel Insulation LLC) operations dashboard. Sales funnel, revenue, sales rep performance, and pipeline from ServiceMinder; Financial Snapshot from QuickBooks. Initial layout — sample data until both sources are connected.",
+  "mcpTools": [],
+  "mcpServerNames": []
+}
+</script>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Koala Insulation Dashboard — Patel Insulation LLC</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface-page:   #f5f6f5;
+  --surface-card:   #ffffff;
+  --surface-chart:  #fcfcfb;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --gridline:       #e1e0d9;
+  --baseline:       #c3c2b7;
+  --border:         rgba(11,11,11,0.08);
+  --brand-teal:       #0d7a6e;
+  --brand-teal-light: #e6f7f4;
+  --brand-amber:      #d97706;
+  --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100;
+  --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #4a3aa7; --cat-8: #e34948;
+  --status-good:     #0ca30c;
+  --status-good-bg:  #edfaed;
+  --status-ok:       #1a9a6a;
+  --status-ok-bg:    #e6f7f0;
+  --status-warn:     #b37a00;
+  --status-warn-bg:  #fff8e6;
+  --status-serious:  #ec835a;
+  --status-serious-bg:#fff3ed;
+  --status-critical: #d03b3b;
+  --status-critical-bg:#fef2f2;
+  --delta-up-good:   #006300;
+  --delta-down-bad:  #d03b3b;
+  --seq-100:#cde2fb; --seq-300:#6da7ec; --seq-500:#256abf; --seq-700:#0d366b;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+  --transition: 150ms ease;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-page:   #111110;
+  --surface-card:   #1e1e1c;
+  --surface-chart:  #1a1a19;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #898781;
+  --gridline:       #2c2c2a;
+  --baseline:       #383835;
+  --border:         rgba(255,255,255,0.08);
+  --brand-teal:       #2dd4bf;
+  --brand-teal-light: #143733;
+  --brand-amber:      #f0a94e;
+  --cat-1:#3987e5; --cat-2:#d95926; --cat-3:#199e70; --cat-4:#c98500;
+  --cat-5:#d55181; --cat-6:#008300; --cat-7:#9085e9; --cat-8:#e66767;
+  --status-good:    #0ca30c; --status-good-bg:#1a2e1a;
+  --status-ok:      #1a9a6a; --status-ok-bg:#1a2e24;
+  --status-warn:    #fab219; --status-warn-bg:#2e2a1a;
+  --status-serious: #ec835a; --status-serious-bg:#2e221a;
+  --status-critical:#e66767; --status-critical-bg:#2e1a1a;
+  --delta-up-good:  #0ca30c; --delta-down-bad: #e66767;
+  --seq-100:#0d366b; --seq-300:#256abf; --seq-500:#5598e7; --seq-700:#cde2fb;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--surface-page); color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px; background: var(--surface-card); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 20;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-logo-badge {
+  width: 40px; height: 40px; border-radius: 10px; background: var(--brand-teal);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.header-left h1 { margin: 0; font-size: 18px; font-weight: 700; }
+.header-left h1 small { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-top: 2px; }
+.header-right { display: flex; align-items: center; gap: 14px; }
+.last-updated { font-size: 12px; color: var(--text-muted); }
+.theme-toggle {
+  background: var(--surface-page); border: 1px solid var(--gridline); color: var(--text-secondary);
+  padding: 6px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.tab-bar {
+  display: flex; gap: 2px; background: var(--surface-card); border-bottom: 1px solid var(--border);
+  padding: 0 24px; overflow-x: auto; position: sticky; top: 68px; z-index: 19;
+}
+.tab-btn {
+  background: none; border: none; padding: 13px 16px; font-size: 13px; font-weight: 600;
+  color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent;
+  white-space: nowrap; transition: color var(--transition), border-color var(--transition);
+}
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn.active { color: var(--brand-teal); border-bottom-color: var(--brand-teal); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+.connection-banner {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: var(--radius-sm);
+  font-size: 13px; margin-bottom: 20px; background: var(--status-warn-bg); color: var(--status-warn);
+  border: 1px solid rgba(179,122,0,0.18);
+}
+.connection-banner.connected { background: var(--status-good-bg); color: var(--status-good); border-color: rgba(12,163,12,0.18); }
+.banner-icon { font-size: 14px; }
+.kpi-summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 24px;
+}
+.kpi-tile { background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow-sm); }
+.kpi-tile .kpi-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.kpi-tile .kpi-value { font-size: 26px; font-weight: 600; line-height: 1.2; }
+.kpi-tile .kpi-delta { font-size: 13px; font-weight: 500; margin-top: 2px; display: flex; align-items: center; gap: 4px; }
+.kpi-delta.good { color: var(--delta-up-good); }
+.kpi-delta.bad { color: var(--delta-down-bad); }
+.kpi-delta.neutral { color: var(--text-muted); }
+.charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.chart-card { background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow-sm); }
+.chart-card h3 { margin: 0 0 2px 0; font-size: 14px; font-weight: 700; }
+.chart-subtitle { margin: 0 0 12px 0; font-size: 12px; color: var(--text-muted); }
+.chart-area { width: 100%; }
+.chart-legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-secondary); margin-top: 8px; flex-wrap: wrap; }
+.chart-legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.store-table-wrap { background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); overflow-x: auto; margin-bottom: 24px; }
+.store-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.store-table thead th {
+  background: var(--surface-card); color: var(--text-muted); font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.4px; font-size: 11px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--gridline); white-space: nowrap;
+}
+.store-table thead th:first-child { padding-left: 20px; }
+.store-table tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.store-table tbody td:first-child { padding-left: 20px; font-weight: 600; font-variant-numeric: normal; }
+.store-table tbody tr:last-child td { border-bottom: none; }
+.store-table tbody tr:hover td { background: var(--surface-page); }
+.section-title { font-size: 15px; font-weight: 700; margin: 28px 0 12px; }
+.status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; }
+.status-pill.good { background: var(--status-good-bg); color: var(--status-good); }
+.status-pill.ok { background: var(--status-ok-bg); color: var(--status-ok); }
+.status-pill.warn { background: var(--status-warn-bg); color: var(--status-warn); }
+.status-pill.critical { background: var(--status-critical-bg); color: var(--status-critical); }
+.controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.control-group { display: flex; align-items: center; gap: 6px; }
+.control-group label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.control-select { padding: 6px 10px; border: 1px solid var(--gridline); border-radius: var(--radius-sm); background: var(--surface-card); color: var(--text-primary); font-size: 13px; font-family: inherit; }
+.view-toggle { display: flex; border: 1px solid var(--gridline); border-radius: var(--radius-sm); overflow: hidden; }
+.view-toggle button { background: var(--surface-card); border: none; padding: 6px 16px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; }
+.view-toggle button + button { border-left: 1px solid var(--gridline); }
+.view-toggle button.active { background: var(--brand-teal); color: #fff; }
+.callout-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.callout { background: var(--brand-teal-light); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.callout .callout-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-bottom: 4px; }
+.callout .callout-value { font-size: 20px; font-weight: 700; color: var(--brand-teal); }
+.app-footer { text-align: center; padding: 20px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 20px; }
+svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, sans-serif; }
+.bar-value-label { fill: var(--text-primary); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-left">
+    <div class="header-logo-badge">&#128018;</div>
+    <h1>Koala Insulation Dashboard<small>Patel Insulation LLC</small></h1>
+  </div>
+  <div class="header-right">
+    <span class="last-updated" id="lastUpdated">ServiceMinder live &bull; QuickBooks not yet connected</span>
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">Dark</button>
+  </div>
+</header>
+
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="funnel">Sales Funnel</button>
+  <button class="tab-btn" data-tab="revenue">Revenue &amp; Jobs</button>
+  <button class="tab-btn" data-tab="reps">Sales Rep Performance</button>
+  <button class="tab-btn" data-tab="pipeline">Pipeline &amp; Scheduling</button>
+  <button class="tab-btn" data-tab="financial">Financial Snapshot</button>
+</nav>
+
+<!-- TAB 1: SALES FUNNEL -->
+<div class="tab-content active" id="tab-funnel">
+  <div class="container">
+    <div class="connection-banner connected" id="funnelBanner">
+      <span class="banner-icon">&#10003;</span>
+      <span>Live data from ServiceMinder (org 4457) — pulled Aug 11, 2026, window Jul 12–Aug 11. Daily trend chart below is still illustrative (historical daily pull not automated yet).</span>
+    </div>
+    <div class="kpi-summary" id="funnelKpiRow"></div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Sales Activity — Last 30 Days</h3>
+        <p class="chart-subtitle">Leads, appointments, estimates sent, open proposals</p>
+        <div class="chart-area" id="chartFunnel"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Leads vs. Appointments Held</h3>
+        <p class="chart-subtitle">Illustrative pattern — daily historical pull not yet automated</p>
+        <div class="chart-area" id="chartFunnelTrend"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 2: REVENUE & JOBS -->
+<div class="tab-content" id="tab-revenue">
+  <div class="container">
+    <div class="connection-banner connected" id="revenueBanner">
+      <span class="banner-icon">&#10003;</span>
+      <span>Live data from ServiceMinder appointments/proposals — 30-day window. Revenue-by-source ($) needs a contact↔proposal join not yet built; source breakdown below is by lead count. Monthly trend chart is still illustrative.</span>
+    </div>
+    <div class="kpi-summary" id="revenueKpiRow"></div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Leads by Source</h3>
+        <p class="chart-subtitle">Last 30 days</p>
+        <div class="chart-area" id="chartRevenueSource"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Booked Revenue Trend</h3>
+        <p class="chart-subtitle">Illustrative — last 6 months (monthly historical pull not yet automated)</p>
+        <div class="chart-area" id="chartRevenueTrend"></div>
+      </div>
+    </div>
+    <div class="section-title">Lead Source Detail (30 days)</div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="revenueSourceTable">
+        <thead><tr><th>Source</th><th>Leads</th><th>% of Total</th></tr></thead>
+        <tbody id="revenueSourceTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 3: SALES REP PERFORMANCE -->
+<div class="tab-content" id="tab-reps">
+  <div class="container">
+    <div class="connection-banner connected" id="repsBanner">
+      <span class="banner-icon">&#10003;</span>
+      <span>Live data from ServiceMinder appointments, grouped by assigned service agent — last 30 days. Per-rep close rate isn't available yet (proposals are tracked by owner user, not service agent) — flagged as an open question for Pranav.</span>
+    </div>
+    <div class="kpi-summary" id="repsKpiRow"></div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Revenue by Sales Rep</h3>
+        <p class="chart-subtitle">Last 30 days</p>
+        <div class="chart-area" id="chartReps"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Appointments by Sales Rep</h3>
+        <p class="chart-subtitle">Last 30 days</p>
+        <div class="chart-area" id="chartRepsClose"></div>
+      </div>
+    </div>
+    <div class="section-title">Rep Leaderboard (30 days)</div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="repsTable">
+        <thead><tr><th>Rep</th><th>Appointments</th><th>Revenue</th><th>Avg $ / Appt</th></tr></thead>
+        <tbody id="repsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 4: PIPELINE & SCHEDULING -->
+<div class="tab-content" id="tab-pipeline">
+  <div class="container">
+    <div class="connection-banner connected" id="pipelineBanner">
+      <span class="banner-icon">&#10003;</span>
+      <span>Live data from ServiceMinder scheduling and open proposals, pulled Aug 11, 2026.</span>
+    </div>
+    <div class="kpi-summary" id="pipelineKpiRow"></div>
+    <div class="section-title">Upcoming Appointments (next 7 days, sample)</div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="upcomingTable">
+        <thead><tr><th>Date</th><th>Customer</th><th>Rep</th><th>Type</th><th>Status</th></tr></thead>
+        <tbody id="upcomingTbody"></tbody>
+      </table>
+    </div>
+    <div class="section-title">Open Estimates Awaiting Decision (largest, sample)</div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="openEstTable">
+        <thead><tr><th>Customer</th><th>Service</th><th>Estimate Date</th><th>Amount</th><th>Days Open</th></tr></thead>
+        <tbody id="openEstTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 5: FINANCIAL SNAPSHOT -->
+<div class="tab-content" id="tab-financial">
+  <div class="container">
+    <div class="connection-banner" id="finBanner">
+      <span class="banner-icon">&#9888;</span>
+      <span>Sample data shown. QuickBooks is currently connected to Patel DT LLC (Del Taco) — reconnect it to Patel Insulation LLC to pull live financials here.</span>
+    </div>
+    <div class="controls">
+      <div class="view-toggle" id="finPeriodToggle">
+        <button class="active" data-period="mtd">Month</button>
+        <button data-period="ytd">YTD</button>
+      </div>
+    </div>
+    <div class="kpi-summary" id="finKpiRow"></div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Revenue &amp; Net Income Trend</h3>
+        <p class="chart-subtitle">Last 6 months</p>
+        <div class="chart-area" id="chartFinTrend"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Expense Breakdown</h3>
+        <p class="chart-subtitle">Share of operating expenses — month to date</p>
+        <div class="chart-area" id="chartFinExpense"></div>
+      </div>
+    </div>
+    <div class="section-title">P&amp;L Summary</div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="finTable">
+        <thead><tr><th>Line Item</th><th>Month to Date</th><th>Year to Date</th></tr></thead>
+        <tbody id="finTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<footer class="app-footer">
+  Koala Insulation Dashboard &mdash; Patel Insulation LLC &mdash; ServiceMinder live, QuickBooks pending &mdash; tools.sonayagroup.com
+</footer>
+
+<script>
+/* ---------------- Sample dataStore (to be replaced by live pulls) ---------------- */
+const dataStore = {
+  lastUpdated: '2026-08-11T12:00:00',
+  pullWindow: { from: '2026-07-12', through: '2026-08-11' },
+  sources: {
+    serviceminder: { connected: true, note: 'Live pull via browser session (org 4457, "KPI Dashboard" key) — 30-day window', lastPull: '2026-08-11' },
+    quickbooks:    { connected: false, note: 'Connected QuickBooks company is Patel DT LLC, not Patel Insulation LLC' },
+  },
+  // All figures below are REAL, pulled from the ServiceMinder API (appointments/query, contacts/locate, proposal/query)
+  // for the 30-day window Jul 12 - Aug 11, 2026, except funnelTrend and revenueTrend which are still illustrative.
+  funnel: {
+    leads30d: 100, appts30d: 184, estimatesSent30d: 109,
+    openProposals: 70, openProposalsValue: 1261572,
+    acceptedAllTime: 145,
+    backlogJobs: 388, backlogValue: 510506,
+  },
+  funnelTrend: (() => {
+    const days = 14, out = [];
+    let leads = 12, held = 9;
+    const today = new Date('2026-08-11');
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      leads = Math.max(4, Math.round(12 + Math.sin(i / 2) * 4 + (Math.random() - 0.5) * 5));
+      held = Math.max(2, Math.round(leads * (0.62 + (Math.random() - 0.5) * 0.15)));
+      out.push({ date: d.toISOString().slice(5, 10), leads, held });
+    }
+    return out;
+  })(),
+  leadsBySource: [
+    { source: 'Online Advertising', leads: 42 },
+    { source: 'Existing / Repeat', leads: 26 },
+    { source: 'Organic Search', leads: 16 },
+    { source: 'Referral & Trade Alliance', leads: 11 },
+    { source: 'Home Shows & Events', leads: 2 },
+    { source: 'National Partnerships', leads: 1 },
+    { source: 'Referral Web Traffic', leads: 1 },
+    { source: 'Other', leads: 1 },
+  ],
+  revenue: { booked30d: 309395, revenuePerLead30d: 3094, openPipelineValue: 1261572, acceptedAllTime: 145 },
+  revenueTrend: [
+    { month: 'Mar', revenue: 318400 }, { month: 'Apr', revenue: 356900 }, { month: 'May', revenue: 389100 },
+    { month: 'Jun', revenue: 421700 }, { month: 'Jul', revenue: 447300 }, { month: 'Aug', revenue: 402200 },
+  ],
+  reps: [
+    { name: 'Miguel Angel Calderon Aguilar', appts30d: 26, revenue30d: 87864.78 },
+    { name: 'Javier Valencia',               appts30d: 17, revenue30d: 45717.48 },
+    { name: 'Isidro Rodriguez',              appts30d: 23, revenue30d: 48058.96 },
+    { name: 'Mark Jr. Aragon',               appts30d: 6,  revenue30d: 49222.89 },
+    { name: 'Mark Aragon',                   appts30d: 9,  revenue30d: 31680.18 },
+    { name: 'Jorge Gonzalez',                appts30d: 18, revenue30d: 26740.22 },
+    { name: 'Gabriel Espinosa',              appts30d: 32, revenue30d: 0 },
+    { name: 'Mike Jones',                    appts30d: 28, revenue30d: 0 },
+    { name: 'Ricardo Aguero-Martinez',       appts30d: 10, revenue30d: 6462.69 },
+    { name: 'Jacob Martin',                  appts30d: 4,  revenue30d: 12154.98 },
+    { name: 'Brian Roosenberg',              appts30d: 5,  revenue30d: 1493.13 },
+    { name: 'Frank Emanuel',                 appts30d: 3,  revenue30d: 0 },
+    { name: 'Unassigned',                    appts30d: 3,  revenue30d: 0 },
+  ],
+  pipeline: { openEstimates: 70, pipelineValue: 1261572, apptsNext7: 25, backlogJobs: 388, backlogValue: 510506 },
+  upcomingAppts: [
+    { date: 'Tue Aug 11, 8:00a',  customer: 'Mark Dentremont',                      rep: 'Isidro Rodriguez',        type: 'B2B New Installation' },
+    { date: 'Tue Aug 11, 8:00a',  customer: 'Rohrlich Residence Addition/Remodel',  rep: 'Jorge Gonzalez',          type: 'B2B New Installation' },
+    { date: 'Tue Aug 11, 8:00a',  customer: '5902 Diebenkorn',                      rep: 'Javier Valencia',         type: 'Residential New Installation' },
+    { date: 'Thu Aug 13, 8:30a',  customer: 'Nguyen-Kieu Residence',                rep: 'Ricardo Aguero-Martinez', type: 'B2B New Installation' },
+    { date: 'Fri Aug 14, 8:00a',  customer: 'Amy Nowell',                           rep: 'Mark Aragon',             type: 'Residential New Installation' },
+    { date: 'Fri Aug 14, 8:00a',  customer: 'Parmenides Orpinel',                   rep: 'Javier Valencia',         type: 'Residential New Installation' },
+    { date: 'Mon Aug 17, 8:00a',  customer: 'Amy Nowell',                           rep: 'Mark Aragon',             type: 'Residential New Installation' },
+  ],
+  openEstimatesList: [
+    { customer: 'Bernalillo Fire Station',       date: '2026-06-24', amount: 29919.46, service: 'B2B New Installation' },
+    { customer: 'Tru Hotel By Hilton — Floor 1', date: '2026-04-14', amount: 33221.62, service: 'B2B New Installation' },
+    { customer: 'Tru Hotel By Hilton — Floor 4', date: '2026-04-14', amount: 33209.15, service: 'B2B New Installation' },
+    { customer: 'Tru Hotel By Hilton — Floor 3', date: '2026-04-14', amount: 29076.58, service: 'B2B New Installation' },
+    { customer: 'Tru Hotel By Hilton — Floor 2', date: '2026-04-14', amount: 21496.77, service: 'B2B New Installation' },
+    { customer: 'Audrey Brooks',                 date: '2026-07-17', amount: 8071.29,  service: 'Residential Retrofit' },
+    { customer: 'Top Off + Solar Fan',           date: '2026-07-14', amount: 2698.73,  service: 'Residential Retrofit' },
+    { customer: 'Augustin Eichwald',             date: '2026-07-14', amount: 1599.33,  service: 'B2B Retrofit' },
+  ],
+  financial: {
+    mtd: { revenue: 402200, cogs: 168900, grossMargin: 58.0, opex: 121300, netIncome: 112000 },
+    ytd: { revenue: 2687400, cogs: 1128700, grossMargin: 58.0, opex: 812600, netIncome: 746100 },
+  },
+  finTrend: [
+    { month: 'Mar', revenue: 318400, netIncome: 84200 }, { month: 'Apr', revenue: 356900, netIncome: 96700 },
+    { month: 'May', revenue: 389100, netIncome: 104300 }, { month: 'Jun', revenue: 421700, netIncome: 118900 },
+    { month: 'Jul', revenue: 447300, netIncome: 126400 }, { month: 'Aug', revenue: 402200, netIncome: 112000 },
+  ],
+  expenseBreakdown: [
+    { label: 'Materials',        value: 168900 },
+    { label: 'Field Labor',      value: 89200  },
+    { label: 'Vehicle & Fuel',   value: 21400  },
+    { label: 'Marketing / Lead Gen', value: 18700 },
+    { label: 'Admin & Overhead', value: 31000 },
+  ],
+};
+
+/* ---------------- Theme ---------------- */
+function toggleTheme() {
+  const root = document.documentElement;
+  const isDark = root.getAttribute('data-theme') === 'dark';
+  root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('themeBtn').textContent = isDark ? 'Dark' : 'Light';
+  renderAll();
+}
+
+/* ---------------- Tabs ---------------- */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ---------------- Helpers ---------------- */
+const fmtMoney = v => '$' + Math.round(v).toLocaleString('en-US');
+const fmtMoneyCompact = v => {
+  if (Math.abs(v) >= 1000000) return '$' + (v / 1000000).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1000) return '$' + (v / 1000).toFixed(1) + 'K';
+  return '$' + Math.round(v);
+};
+const fmtPct = v => v.toFixed(1) + '%';
+const catColor = i => getComputedStyle(document.documentElement).getPropertyValue('--cat-' + (i + 1)).trim();
+
+function kpiTile(label, value, deltaText, sentiment) {
+  const deltaHtml = deltaText ? `<div class="kpi-delta ${sentiment || 'neutral'}">${deltaText}</div>` : '';
+  return `<div class="kpi-tile"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div>${deltaHtml}</div>`;
+}
+
+function svgOpen(W, H) { return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">`; }
+
+/* Vertical bar chart: data = [{label, value, color?}] */
+function renderBarChart(containerId, data, opts = {}) {
+  const W = 460, H = 220, padL = 44, padR = 16, padT = 16, padB = 34;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const max = opts.max || Math.max(...data.map(d => d.value)) * 1.15;
+  const n = data.length;
+  const slot = plotW / n;
+  const barW = Math.min(28, slot * 0.55);
+  let svg = svgOpen(W, H);
+  // gridlines
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const y = padT + plotH - (plotH * i / steps);
+    svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${padL - 8}" y="${y + 4}" font-size="10" text-anchor="end">${(opts.fmt || fmtMoneyCompact)(max * i / steps)}</text>`;
+  }
+  data.forEach((d, i) => {
+    const x = padL + slot * i + (slot - barW) / 2;
+    const barH = plotH * (d.value / max);
+    const y = padT + plotH - barH;
+    const color = d.color || opts.color || 'var(--brand-teal)';
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(barH,1)}" rx="4" fill="${color}"><title>${d.label}: ${(opts.fmt || fmtMoneyCompact)(d.value)}</title></rect>`;
+    svg += `<text class="bar-value-label" x="${x + barW / 2}" y="${y - 6}" font-size="10" text-anchor="middle">${(opts.fmt || fmtMoneyCompact)(d.value)}</text>`;
+    svg += `<text x="${x + barW / 2}" y="${H - padB + 16}" font-size="10" text-anchor="middle">${d.label}</text>`;
+  });
+  svg += `</svg>`;
+  document.getElementById(containerId).innerHTML = svg;
+}
+
+/* Horizontal funnel bars: stages = [{label, value}] descending */
+function renderFunnel(containerId, stages) {
+  const W = 460, H = 220, padL = 130, padR = 50, padT = 10, rowH = 34, gap = 8;
+  const max = Math.max(...stages.map(s => s.value));
+  let svg = svgOpen(W, stages.length * (rowH + gap) + padT);
+  stages.forEach((s, i) => {
+    const y = padT + i * (rowH + gap);
+    const w = (W - padL - padR) * (s.value / max);
+    const color = `var(--cat-${(i % 8) + 1})`;
+    svg += `<text x="${padL - 10}" y="${y + rowH / 2 + 4}" font-size="12" text-anchor="end">${s.label}</text>`;
+    svg += `<rect x="${padL}" y="${y}" width="${Math.max(w,2)}" height="${rowH}" rx="4" fill="${color}"><title>${s.label}: ${s.value}</title></rect>`;
+    svg += `<text class="bar-value-label" x="${padL + w + 8}" y="${y + rowH / 2 + 4}" font-size="12">${s.value}</text>`;
+  });
+  svg += `</svg>`;
+  document.getElementById(containerId).innerHTML = svg;
+}
+
+/* Line chart: series = [{name, color, points:[{x,y}]}] */
+function renderLineChart(containerId, series, opts = {}) {
+  const W = 460, H = 220, padL = 46, padR = 16, padT = 16, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const allVals = series.flatMap(s => s.points.map(p => p.y));
+  const max = opts.max || Math.max(...allVals) * 1.15;
+  const n = series[0].points.length;
+  const stepX = plotW / (n - 1);
+  let svg = svgOpen(W, H);
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const y = padT + plotH - (plotH * i / steps);
+    svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${padL - 8}" y="${y + 4}" font-size="10" text-anchor="end">${(opts.fmt || fmtMoneyCompact)(max * i / steps)}</text>`;
+  }
+  series.forEach(s => {
+    let pts = s.points.map((p, i) => {
+      const x = padL + stepX * i;
+      const y = padT + plotH - plotH * (p.y / max);
+      return [x, y];
+    });
+    const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    svg += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    pts.forEach((p, i) => {
+      svg += `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="${s.color}" stroke="var(--surface-card)" stroke-width="2"><title>${s.points[i].label || ''} ${s.name}: ${(opts.fmt || fmtMoneyCompact)(s.points[i].y)}</title></circle>`;
+    });
+    // end label
+    const last = pts[pts.length - 1];
+    svg += `<text class="bar-value-label" x="${last[0]}" y="${last[1] - 10}" font-size="10" text-anchor="end">${(opts.fmt || fmtMoneyCompact)(s.points[s.points.length-1].y)}</text>`;
+  });
+  const s0 = series[0];
+  s0.points.forEach((p, i) => {
+    if (n > 10 && i % 2 !== 0) return;
+    const x = padL + stepX * i;
+    svg += `<text x="${x}" y="${H - padB + 16}" font-size="10" text-anchor="middle">${p.label}</text>`;
+  });
+  svg += `</svg>`;
+  let legendHtml = '';
+  if (series.length > 1) {
+    const legend = series.map(s => `<span><span class="swatch" style="background:${s.color}"></span>${s.name}</span>`).join('');
+    legendHtml = `<div class="chart-legend">${legend}</div>`;
+  }
+  document.getElementById(containerId).innerHTML = svg + legendHtml;
+}
+
+/* Pie chart: slices = [{label, value}] */
+function renderPieChart(containerId, slices) {
+  const W = 300, H = 220, cx = 110, cy = 110, r = 90;
+  const total = slices.reduce((a, b) => a + b.value, 0);
+  let angle = -Math.PI / 2, svg = svgOpen(460, H);
+  slices.forEach((s, i) => {
+    const frac = s.value / total;
+    const a0 = angle, a1 = angle + frac * Math.PI * 2;
+    angle = a1;
+    const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+    const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+    const large = frac > 0.5 ? 1 : 0;
+    const color = `var(--cat-${(i % 8) + 1})`;
+    svg += `<path d="M${cx},${cy} L${x0.toFixed(2)},${y0.toFixed(2)} A${r},${r} 0 ${large} 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z" fill="${color}" stroke="var(--surface-card)" stroke-width="2"><title>${s.label}: ${fmtMoney(s.value)} (${(frac*100).toFixed(1)}%)</title></path>`;
+  });
+  // legend to the right
+  let ly = 30;
+  slices.forEach((s, i) => {
+    const color = `var(--cat-${(i % 8) + 1})`;
+    const pct = ((s.value / total) * 100).toFixed(1);
+    svg += `<rect x="240" y="${ly}" width="10" height="10" rx="2" fill="${color}"/>`;
+    svg += `<text x="256" y="${ly + 9}" font-size="11">${s.label} — ${pct}%</text>`;
+    ly += 22;
+  });
+  svg += `</svg>`;
+  document.getElementById(containerId).innerHTML = svg;
+}
+
+/* ---------------- Render: Funnel tab ---------------- */
+function renderFunnelTab() {
+  const f = dataStore.funnel;
+  document.getElementById('funnelKpiRow').innerHTML = [
+    kpiTile('Leads (30d)', f.leads30d),
+    kpiTile('Appointments (30d)', f.appts30d),
+    kpiTile('Estimates Sent (30d)', f.estimatesSent30d),
+    kpiTile('Open Proposals', f.openProposals, fmtMoneyCompact(f.openProposalsValue) + ' pipeline', 'neutral'),
+    kpiTile('Accepted (All-Time)', f.acceptedAllTime),
+    kpiTile('Job Backlog', f.backlogJobs, fmtMoneyCompact(f.backlogValue), 'good'),
+  ].join('');
+
+  renderFunnel('chartFunnel', [
+    { label: 'Leads', value: f.leads30d },
+    { label: 'Appointments', value: f.appts30d },
+    { label: 'Estimates Sent', value: f.estimatesSent30d },
+    { label: 'Open Proposals', value: f.openProposals },
+  ]);
+
+  renderLineChart('chartFunnelTrend', [
+    { name: 'Leads', color: 'var(--cat-1)', points: dataStore.funnelTrend.map(d => ({ x: d.date, y: d.leads, label: d.date })) },
+    { name: 'Appts Held', color: 'var(--cat-3)', points: dataStore.funnelTrend.map(d => ({ x: d.date, y: d.held, label: d.date })) },
+  ], { fmt: v => Math.round(v) });
+}
+
+/* ---------------- Render: Revenue tab ---------------- */
+function renderRevenueTab() {
+  const r = dataStore.revenue;
+  document.getElementById('revenueKpiRow').innerHTML = [
+    kpiTile('Booked Revenue (30d)', fmtMoneyCompact(r.booked30d)),
+    kpiTile('Revenue / Lead (30d)', fmtMoney(r.revenuePerLead30d)),
+    kpiTile('Open Pipeline Value', fmtMoneyCompact(r.openPipelineValue)),
+    kpiTile('Accepted (All-Time)', r.acceptedAllTime),
+  ].join('');
+
+  renderBarChart('chartRevenueSource', dataStore.leadsBySource.map((s, i) => ({ label: s.source.split(' ')[0], value: s.leads, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });
+
+  renderLineChart('chartRevenueTrend', [
+    { name: 'Revenue', color: 'var(--brand-teal)', points: dataStore.revenueTrend.map(d => ({ x: d.month, y: d.revenue, label: d.month })) },
+  ]);
+
+  const totalLeads = dataStore.leadsBySource.reduce((a, s) => a + s.leads, 0);
+  document.getElementById('revenueSourceTbody').innerHTML = dataStore.leadsBySource.map(s => {
+    const pct = (s.leads / totalLeads) * 100;
+    return `<tr><td>${s.source}</td><td>${s.leads}</td><td>${fmtPct(pct)}</td></tr>`;
+  }).join('');
+}
+
+/* ---------------- Render: Reps tab ---------------- */
+function renderRepsTab() {
+  const reps = [...dataStore.reps].sort((a, b) => b.revenue30d - a.revenue30d);
+  const totalRevenue = reps.reduce((a, r) => a + r.revenue30d, 0);
+  const totalAppts = reps.reduce((a, r) => a + r.appts30d, 0);
+  const topRep = reps[0];
+
+  document.getElementById('repsKpiRow').innerHTML = [
+    kpiTile('Top Rep (30d)', topRep.name, fmtMoney(topRep.revenue30d), 'good'),
+    kpiTile('Reps Active (30d)', reps.length),
+    kpiTile('Team Revenue (30d)', fmtMoneyCompact(totalRevenue)),
+    kpiTile('Team Appointments (30d)', totalAppts),
+  ].join('');
+
+  const shortName = n => n.split(' ')[0];
+  renderBarChart('chartReps', reps.map((r, i) => ({ label: shortName(r.name), value: r.revenue30d, color: `var(--cat-${(i % 8) + 1})` })));
+  renderBarChart('chartRepsClose', reps.map((r, i) => ({ label: shortName(r.name), value: r.appts30d, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });
+
+  document.getElementById('repsTbody').innerHTML = reps.map(r => {
+    const avgPerAppt = r.appts30d > 0 ? fmtMoney(r.revenue30d / r.appts30d) : '&mdash;';
+    return `<tr><td>${r.name}</td><td>${r.appts30d}</td><td>${fmtMoney(r.revenue30d)}</td><td>${avgPerAppt}</td></tr>`;
+  }).join('');
+}
+
+/* ---------------- Render: Pipeline tab ---------------- */
+function renderPipelineTab() {
+  const p = dataStore.pipeline;
+  document.getElementById('pipelineKpiRow').innerHTML = [
+    kpiTile('Open Estimates', p.openEstimates),
+    kpiTile('Estimate $ in Pipeline', fmtMoneyCompact(p.pipelineValue)),
+    kpiTile('Appointments — Next 7 Days', p.apptsNext7),
+    kpiTile('Job Backlog (Won, Unscheduled)', p.backlogJobs + ' jobs', fmtMoneyCompact(p.backlogValue), 'good'),
+  ].join('');
+
+  document.getElementById('upcomingTbody').innerHTML = dataStore.upcomingAppts.map(a =>
+    `<tr><td>${a.date}</td><td>${a.customer}</td><td>${a.rep}</td><td>${a.type}</td><td><span class="status-pill good">Scheduled</span></td></tr>`
+  ).join('');
+
+  const today = new Date('2026-08-11');
+  document.getElementById('openEstTbody').innerHTML = dataStore.openEstimatesList.map(e => {
+    const daysOpen = Math.round((today - new Date(e.date)) / 86400000);
+    const cls = daysOpen > 21 ? 'warn' : 'ok';
+    return `<tr><td>${e.customer}</td><td>${e.service}</td><td>${e.date}</td><td>${fmtMoney(e.amount)}</td><td><span class="status-pill ${cls}">${daysOpen}</span></td></tr>`;
+  }).join('');
+}
+
+/* ---------------- Render: Financial tab ---------------- */
+let finPeriod = 'mtd';
+function renderFinancialTab() {
+  const f = dataStore.financial[finPeriod];
+  const periodLabel = finPeriod === 'mtd' ? 'Month to Date' : 'Year to Date';
+  document.getElementById('finKpiRow').innerHTML = [
+    kpiTile('Revenue (' + periodLabel + ')', fmtMoneyCompact(f.revenue)),
+    kpiTile('Gross Margin', fmtPct(f.grossMargin)),
+    kpiTile('Operating Expenses', fmtMoneyCompact(f.opex)),
+    kpiTile('Net Income', fmtMoneyCompact(f.netIncome), fmtPct((f.netIncome / f.revenue) * 100) + ' margin', 'good'),
+  ].join('');
+
+  renderLineChart('chartFinTrend', [
+    { name: 'Revenue', color: 'var(--brand-teal)', points: dataStore.finTrend.map(d => ({ x: d.month, y: d.revenue, label: d.month })) },
+    { name: 'Net Income', color: 'var(--brand-amber)', points: dataStore.finTrend.map(d => ({ x: d.month, y: d.netIncome, label: d.month })) },
+  ]);
+
+  renderPieChart('chartFinExpense', dataStore.expenseBreakdown);
+
+  const mtd = dataStore.financial.mtd, ytd = dataStore.financial.ytd;
+  const rows = [
+    ['Revenue', mtd.revenue, ytd.revenue],
+    ['Cost of Goods Sold (Materials + Field Labor)', -mtd.cogs, -ytd.cogs],
+    ['Gross Profit', mtd.revenue - mtd.cogs, ytd.revenue - ytd.cogs],
+    ['Operating Expenses', -mtd.opex, -ytd.opex],
+    ['Net Income', mtd.netIncome, ytd.netIncome],
+  ];
+  document.getElementById('finTbody').innerHTML = rows.map(([label, mVal, yVal]) => {
+    const cell = v => fmtMoney(Math.abs(v)) + (v < 0 ? ' (deduction)' : '');
+    return `<tr><td>${label}</td><td>${cell(mVal)}</td><td>${cell(yVal)}</td></tr>`;
+  }).join('');
+}
+document.querySelectorAll('#finPeriodToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#finPeriodToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    finPeriod = btn.dataset.period;
+    renderFinancialTab();
+  });
+});
+
+/* ---------------- Init ---------------- */
+function renderAll() {
+  renderFunnelTab();
+  renderRevenueTab();
+  renderRepsTab();
+  renderPipelineTab();
+  renderFinancialTab();
+}
+renderAll();
+</script>
+</body>
+</html>

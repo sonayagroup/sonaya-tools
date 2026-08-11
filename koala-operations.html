@@ -230,6 +230,8 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       <span>Live data from ServiceMinder appointments/proposals — 30-day window. Revenue-by-source ($) needs a contact↔proposal join not yet built; source breakdown below is by lead count. Monthly trend chart is still illustrative.</span>
     </div>
     <div class="kpi-summary" id="revenueKpiRow"></div>
+    <div class="section-title">Month-to-Date Financials <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— from ServiceMinder invoices (Aug 1–11), a proxy until QuickBooks is connected. Budget targets pending.</span></div>
+    <div class="callout-row" id="mtdFinancialsRow"></div>
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Leads by Source</h3>
@@ -386,7 +388,13 @@ const dataStore = {
     { source: 'Referral Web Traffic', leads: 1 },
     { source: 'Other', leads: 1 },
   ],
-  revenue: { booked30d: 309395, revenuePerLead30d: 3094, openPipelineValue: 1261572, acceptedAllTime: 145 },
+  revenue: {
+    booked30d: 309395, revenuePerLead30d: 3094, openPipelineValue: 1261572, acceptedAllTime: 145,
+    // MTD financials pulled from ServiceMinder invoice/query, Aug 1–11 2026 (20 invoices). Proxy for
+    // true accounting revenue until QuickBooks is connected. Budget fields are null until Pranav supplies targets.
+    mtdInvoiced: 77631.87, mtdCollected: 46080.15, mtdOutstanding: 29157.95, mtdInvoiceCount: 20,
+    mtdRevenueBudget: null, mtdCollectedBudget: null, onTheBooksBudget: null,
+  },
   revenueTrend: [
     { month: 'Mar', revenue: 318400 }, { month: 'Apr', revenue: 356900 }, { month: 'May', revenue: 389100 },
     { month: 'Jun', revenue: 421700 }, { month: 'Jul', revenue: 447300 }, { month: 'Aug', revenue: 402200 },
@@ -476,6 +484,18 @@ const catColor = i => getComputedStyle(document.documentElement).getPropertyValu
 function kpiTile(label, value, deltaText, sentiment) {
   const deltaHtml = deltaText ? `<div class="kpi-delta ${sentiment || 'neutral'}">${deltaText}</div>` : '';
   return `<div class="kpi-tile"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div>${deltaHtml}</div>`;
+}
+
+/* Callout tile with an optional vs-budget line. budget: {target, sentiment} or null when no target set yet. */
+function calloutTile(label, value, budget) {
+  let budgetHtml;
+  if (budget && typeof budget.target === 'number') {
+    const pct = budget.target ? (budget.actual / budget.target) * 100 : 0;
+    budgetHtml = `<div class="kpi-delta ${budget.sentiment || 'neutral'}">${fmtPct(pct)} of ${fmtMoneyCompact(budget.target)} budget</div>`;
+  } else {
+    budgetHtml = `<div class="kpi-delta neutral" style="opacity:.6;">vs budget: pending</div>`;
+  }
+  return `<div class="callout"><div class="callout-label">${label}</div><div class="callout-value">${value}</div>${budgetHtml}</div>`;
 }
 
 function svgOpen(W, H) { return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">`; }
@@ -632,6 +652,15 @@ function renderRevenueTab() {
     kpiTile('Revenue / Lead (30d)', fmtMoney(r.revenuePerLead30d)),
     kpiTile('Open Pipeline Value', fmtMoneyCompact(r.openPipelineValue)),
     kpiTile('Accepted (All-Time)', r.acceptedAllTime),
+  ].join('');
+
+  document.getElementById('mtdFinancialsRow').innerHTML = [
+    calloutTile('MTD Revenue (Invoiced)', fmtMoneyCompact(r.mtdInvoiced),
+      r.mtdRevenueBudget != null ? { target: r.mtdRevenueBudget, actual: r.mtdInvoiced } : null),
+    calloutTile('MTD Collected', fmtMoneyCompact(r.mtdCollected),
+      r.mtdCollectedBudget != null ? { target: r.mtdCollectedBudget, actual: r.mtdCollected } : null),
+    calloutTile('On the Books (Backlog)', fmtMoneyCompact(dataStore.pipeline.backlogValue) + ' &middot; ' + dataStore.pipeline.backlogJobs + ' jobs',
+      r.onTheBooksBudget != null ? { target: r.onTheBooksBudget, actual: dataStore.pipeline.backlogValue } : null),
   ].join('');
 
   renderBarChart('chartRevenueSource', dataStore.leadsBySource.map((s, i) => ({ label: s.source.split(' ')[0], value: s.leads, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });

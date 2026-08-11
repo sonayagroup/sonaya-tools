@@ -250,6 +250,26 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <tbody id="leadSourceTbody"></tbody>
       </table>
     </div>
+
+    <div class="connection-banner connected" style="margin-top:24px;">
+      <span class="banner-icon">&#10003;</span>
+      <span>From ServiceMinder's "Revenue by Lead Source" report (Reports &gt; Revenue by Lead Source), same 30-day window. This counts the 47 contacts with invoiced revenue in the window — a different, smaller base than the 100 total leads above, which counts every new contact regardless of whether they've bought yet.</span>
+    </div>
+    <div class="kpi-summary" id="revenueBySourceKpiRow"></div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>Revenue by Source</h3>
+        <p class="chart-subtitle">Last 30 days — invoiced revenue attributed to source</p>
+        <div class="chart-area" id="chartRevenueBySource"></div>
+      </div>
+    </div>
+    <div class="section-title">Revenue by Source Detail (30 days)</div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="revenueBySourceTable">
+        <thead><tr><th>Source</th><th>Contacts</th><th>Invoices</th><th>Revenue</th><th>Avg / Invoice</th></tr></thead>
+        <tbody id="revenueBySourceTbody"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -406,6 +426,18 @@ const dataStore = {
     { source: 'National Partnerships', leads: 1 },
     { source: 'Referral Web Traffic', leads: 1 },
     { source: 'Other', leads: 1 },
+  ],
+  // Revenue by Lead Source report (ServiceMinder Reports > Revenue by Lead Source), 30-day window
+  // Jul 12–Aug 11 2026, Mode=Invoice. Channel variants with matching normalized names merged:
+  // "*Referral and Trade Alliances" (2 contacts, $33,725) + "Referral & Trade Alliance" (2, $10,161).
+  revenueBySource: [
+    { source: 'Organic Search', contacts: 10, invoices: 13, revenue: 90865 },
+    { source: 'Existing / Repeat', contacts: 12, invoices: 15, revenue: 89564 },
+    { source: 'Online Advertising', contacts: 15, invoices: 17, revenue: 71740 },
+    { source: 'Referral & Trade Alliance', contacts: 4, invoices: 6, revenue: 43886 },
+    { source: 'HCP', contacts: 4, invoices: 4, revenue: 41874 },
+    { source: 'Other', contacts: 1, invoices: 1, revenue: 8813 },
+    { source: 'Grassroots Marketing', contacts: 1, invoices: 1, revenue: 2152 },
   ],
   leadCategories: [
     { category: 'Prospect', shortLabel: 'Prospect', count: 83 },
@@ -714,6 +746,25 @@ function renderLeadSourcesTab() {
   document.getElementById('leadSourceTbody').innerHTML = sources.map(s => {
     const pct = (s.leads / totalLeads) * 100;
     return `<tr><td>${s.source}</td><td>${s.leads}</td><td>${fmtPct(pct)}</td></tr>`;
+  }).join('');
+
+  const revSources = [...dataStore.revenueBySource].sort((a, b) => b.revenue - a.revenue);
+  const totalAttributedRevenue = revSources.reduce((a, s) => a + s.revenue, 0);
+  const totalAttributedContacts = revSources.reduce((a, s) => a + s.contacts, 0);
+  const topRevSource = revSources[0];
+
+  document.getElementById('revenueBySourceKpiRow').innerHTML = [
+    kpiTile('Attributed Revenue (30d)', fmtMoneyCompact(totalAttributedRevenue)),
+    kpiTile('Revenue-Attributed Contacts', totalAttributedContacts),
+    kpiTile('Top Revenue Source', topRevSource.source, fmtMoneyCompact(topRevSource.revenue), 'good'),
+    kpiTile('Revenue / Attributed Contact', fmtMoney(totalAttributedRevenue / totalAttributedContacts)),
+  ].join('');
+
+  renderBarChart('chartRevenueBySource', revSources.map((s, i) => ({ label: s.source.split(' ')[0], value: s.revenue, color: `var(--cat-${(i % 8) + 1})` })));
+
+  document.getElementById('revenueBySourceTbody').innerHTML = revSources.map(s => {
+    const avgPerInvoice = s.invoices > 0 ? fmtMoney(s.revenue / s.invoices) : '&mdash;';
+    return `<tr><td>${s.source}</td><td>${s.contacts}</td><td>${s.invoices}</td><td>${fmtMoney(s.revenue)}</td><td>${avgPerInvoice}</td></tr>`;
   }).join('');
 }
 

@@ -599,6 +599,20 @@ body {
         </table>
       </div>
     </div>
+    <!-- Shift Inventory Quality -->
+    <div class="chart-card" style="margin-bottom:24px;">
+      <h3>Shift Inventory Quality</h3>
+      <p class="chart-subtitle">Variance % per store from shift inventory counts — pulled from PowerBI</p>
+      <div class="store-table-wrap" style="border:none;box-shadow:none;">
+        <table class="store-table variance-table" id="shiftInventoryTable">
+          <thead>
+            <tr><th>Store</th><th>Variance %</th><th>Items Counted</th><th>Items w/ Variance</th><th>Rating</th></tr>
+          </thead>
+          <tbody id="shiftInventoryBody"></tbody>
+        </table>
+      </div>
+      <p id="shiftInventoryEmpty" style="display:none;color:var(--text-muted,#888);font-size:13px;text-align:center;padding:16px 0;">No shift inventory data for selected week. Data is pulled from PowerBI when available.</p>
+    </div>
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Food Cost % Variance Heatmap</h3>
@@ -760,6 +774,12 @@ const KPI_THRESHOLDS = {
     { max: 0.75, label: 'Great',   cls: 'great' },
     { max: 1.00, label: 'Good',    cls: 'good' },
     { max: 2.00, label: 'NI',      cls: 'warn' },
+    { max: 999,  label: 'IA',      cls: 'critical' },
+  ],
+  shiftInventory: [ // variance % (absolute)
+    { max: 1.0,  label: 'Great',   cls: 'great' },
+    { max: 2.0,  label: 'Good',    cls: 'good' },
+    { max: 4.0,  label: 'NI',      cls: 'warn' },
     { max: 999,  label: 'IA',      cls: 'critical' },
   ],
 };
@@ -1158,6 +1178,13 @@ const dataStore = {
       { item: 'Chicken', storeId: '1364', storeName: 'Bernalillo', theoryCost: 854, actualCost: 827, dollarVar: -27, pctVar: -0.04 },
     ],
   },
+  /* Shift Inventory Quality — keyed by week-ending date, array of per-store entries */
+  realShiftInventory: {
+    // Example structure (will be populated from PowerBI):
+    // '2026-08-05': [
+    //   { storeId: '726', storeName: 'Montgomery', variancePct: 1.2, itemsCounted: 45, itemsWithVariance: 3 },
+    // ],
+  },
 };
 
 /* ===== REAL DATA from PowerBI Loss Prevention & Speed (8/5/2026) ===== */
@@ -1244,6 +1271,7 @@ async function loadExternalData() {
       if (ext.qboPL) Object.assign(dataStore.realQboPL, ext.qboPL);
       if (ext.foodCost) Object.assign(dataStore.realFoodCost, ext.foodCost);
       if (ext.varianceItems) Object.assign(dataStore.realVarianceItems, ext.varianceItems);
+      if (ext.shiftInventory) Object.assign(dataStore.realShiftInventory, ext.shiftInventory);
       if (ext.serviceCheck) Object.assign(dataStore.realServiceCheck, ext.serviceCheck);
       if (ext.googleReviews) Object.assign(dataStore.realGoogleReviews, ext.googleReviews);
       if (ext.storeReviews) Object.assign(dataStore.storeReviews, ext.storeReviews);
@@ -1885,6 +1913,29 @@ function renderFood() {
       <td><span class="status-pill ${impact}"><span class="status-dot ${impact}"></span>${impact === 'critical' ? 'High' : (impact === 'warn' ? 'Med' : 'Low')}</span></td>
     </tr>`;
   }).join('');
+
+  // Shift Inventory Quality
+  const siData = dataStore.realShiftInventory[weekEnd] || [];
+  const siFiltered = state.foodStore === 'all' ? siData : siData.filter(d => d.storeId === state.foodStore);
+  const siBody = document.getElementById('shiftInventoryBody');
+  const siEmpty = document.getElementById('shiftInventoryEmpty');
+  if (siFiltered.length === 0) {
+    siBody.innerHTML = '';
+    siEmpty.style.display = 'block';
+  } else {
+    siEmpty.style.display = 'none';
+    siBody.innerHTML = siFiltered.map(d => {
+      const r = rateKPI('shiftInventory', Math.abs(d.variancePct));
+      const ratingLabel = r.label === 'Great' ? 'Great' : r.label === 'Good' ? 'Good' : r.label === 'NI' ? 'Needs Improvement' : 'Immediate Action';
+      return `<tr>
+        <td>${d.storeName} (${d.storeId})</td>
+        <td class="cell-${r.cls}">${d.variancePct > 0 ? '+' : ''}${d.variancePct}%</td>
+        <td>${d.itemsCounted != null ? d.itemsCounted : '--'}</td>
+        <td>${d.itemsWithVariance != null ? d.itemsWithVariance : '--'}</td>
+        <td><span class="status-pill ${r.cls}"><span class="status-dot ${r.cls}"></span>${ratingLabel}</span></td>
+      </tr>`;
+    }).join('');
+  }
 
   renderFoodHeatmap();
   renderFoodTrendChart();

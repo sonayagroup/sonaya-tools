@@ -1291,11 +1291,29 @@ const dataStore = {
   },
 };
 
-/* ===== REAL DATA from PowerBI Loss Prevention & Speed (8/5/2026) ===== */
-const REAL_SOS = {
-  '726': 163, '898': 152, '1029': 171, '1056': 176, '1153': 261,
-  '1187': 189, '1205': 215, '1357': 237, '1364': 143, '1391': 154,
+/* ===== REAL DATA from PowerBI Speed Timer Metrics — Window times (seconds) ===== */
+/* Per-day Window-only values pulled from Speed Timer Metrics report (NOT SWS) */
+const REAL_SOS_DAILY = {
+  '2026-08-05': { '726': 87, '898': 95, '1029': 120, '1056': 106, '1153': 168, '1187': 127, '1205': 117, '1357': 185, '1364': 111, '1391': 97 },
+  '2026-08-06': { '726': 90, '898': 96, '1029': 112, '1056': 111, '1153': 153, '1187': 128, '1205': 155, '1357': 178, '1364': 102, '1391': 86 },
+  '2026-08-07': { '726': 123, '898': 93, '1029': 101, '1056': 108, '1153': 208, '1187': 130, '1205': 153, '1357': 199, '1364': 133, '1391': 88 },
+  '2026-08-08': { '726': 102, '898': 103, '1029': 110, '1056': 115, '1153': 176, '1187': 132, '1205': 193, '1357': 135, '1364': 140, '1391': 93 },
+  '2026-08-09': { '726': 99, '898': 99, '1029': 139, '1056': 138, '1153': 197, '1187': 148, '1205': 139, '1357': 152, '1364': 164, '1391': 82 },
+  '2026-08-10': { '726': 104, '898': 92, '1029': 112, '1056': 114, '1153': 187, '1187': 126, '1205': 144, '1357': 155, '1364': 143, '1391': 84 },
+  '2026-08-11': { '726': 94, '898': 90, '1153': 146, '1187': 120, '1357': 137, '1364': 120, '1391': 81 },
 };
+/* Latest complete day's Window data for backward compat / fallback */
+const REAL_SOS = REAL_SOS_DAILY['2026-08-10'];
+function findSosForDate(dateStr, storeId) {
+  const day = REAL_SOS_DAILY[dateStr];
+  if (day && day[storeId] !== undefined) return day[storeId];
+  // Fallback: find nearest available date
+  const dates = Object.keys(REAL_SOS_DAILY).sort().reverse();
+  for (const d of dates) {
+    if (d <= dateStr && REAL_SOS_DAILY[d][storeId] !== undefined) return REAL_SOS_DAILY[d][storeId];
+  }
+  return REAL_SOS[storeId] || 120;
+}
 const REAL_VOIDS = {
   '726': 0.12, '898': 0.00, '1029': 0.82, '1056': 0.46, '1153': 0.70,
   '1187': 1.08, '1205': 0.37, '1357': 0.16, '1364': 6.41, '1391': 0.60,
@@ -1412,7 +1430,7 @@ function getOpsData(dateStr) {
         googleRating: reviewData ? reviewData.rating : null,
         totalReviews: reviewData ? reviewData.totalReviews : null,
         serviceChecks: findSCForStore(dateStr, s.id) ?? 0,
-        sos: SAMPLE_SOS[s.id] || 120,
+        sos: findSosForDate(dateStr, s.id),
         voidsPct: SAMPLE_VOIDS[s.id] || 0.5,
         refunds: SAMPLE_REFUNDS[s.id] || 0,
         _real: true,
@@ -1437,7 +1455,7 @@ function getOpsData(dateStr) {
         googleRating: reviewData ? reviewData.rating : +sampleVal(3.5, 4.8, dateStr, i, 8).toFixed(1),
         totalReviews: reviewData ? reviewData.totalReviews : Math.round(sampleVal(200, 2500, dateStr, i, 9)),
         serviceChecks: Math.max(0, Math.round(sampleVal(0, 5, dateStr, i, 6))),
-        sos: SAMPLE_SOS[s.id] || 120,
+        sos: findSosForDate(dateStr, s.id),
         voidsPct: SAMPLE_VOIDS[s.id] || 0.5,
         refunds: SAMPLE_REFUNDS[s.id] || 0,
         _real: false,
@@ -1656,7 +1674,7 @@ function getWeeklyOpsData(weekEndStr) {
         googleRating: reviewData ? reviewData.rating : null,
         totalReviews: reviewData ? reviewData.totalReviews : null,
         serviceChecks: findSCForWeek(weekEndStr, s.id) ?? 0,
-        sos: SAMPLE_SOS[s.id] || 120,
+        sos: findSosForDate(weekEndStr, s.id),
         voidsPct: SAMPLE_VOIDS[s.id] || 0.5,
         refunds: SAMPLE_REFUNDS[s.id] || 0,
         _real: true, _days: storeDays.length, _totalSales: totalNet,

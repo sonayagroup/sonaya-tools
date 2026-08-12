@@ -192,9 +192,11 @@ tbody tr.clickrow{cursor:pointer}
 </section>
 
 <section class="panel" id="trends">
-  <div class="sec-title">Trends over time</div>
+  <div class="sec-title">Monthly Trends</div>
   <div class="recap-bar">
-    <label style="font-size:12.5px;color:var(--muted)">Metric</label>
+    <label style="font-size:12.5px;color:var(--muted)">Month</label>
+    <select id="trendMonth"></select>
+    <label style="font-size:12.5px;color:var(--muted);margin-left:8px">Metric</label>
     <select id="trendMetric">
       <option value="payrollPct">Payroll %</option>
       <option value="cust">Customers</option>
@@ -204,7 +206,7 @@ tbody tr.clickrow{cursor:pointer}
       <option value="waitOver15Pct">Wait &gt;15 %</option>
       <option value="custGrowthPct">Cust Growth %</option>
     </select>
-    <span style="font-size:12.5px;color:var(--muted)">for the salon selected above, across all stored days.</span>
+    <span style="font-size:12.5px;color:var(--muted)">for the salon selected above,.</span>
   </div>
   <div class="card"><div class="chart-box tall"><canvas id="cTrend"></canvas></div>
     <div class="legend-note" id="trendNote"></div></div>
@@ -343,6 +345,13 @@ function onBoot(b){
   ds.onchange=()=>{curDate=ds.value;loadDay();};
   ws.onchange=()=>{curWeek=ws.value;loadWeek();};
   $("#trendMetric").onchange=loadTrend;
+  $("#trendMonth").onchange=loadTrend;
+  // Populate month picker from available dates
+  const moSet=new Set();DATES.forEach(d=>moSet.add(d.slice(0,7)));
+  const months=[...moSet].sort().reverse();
+  const tm=$("#trendMonth");tm.innerHTML="";
+  const mNames=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  months.forEach(m=>{const o=document.createElement("option");o.value=m;const[y,mn]=m.split("-");o.textContent=mNames[+mn]+" "+y;tm.appendChild(o);});
   updMeta();
   if(!DATES.length&&!WEEKS.length){$("#emptyBanner").innerHTML='<div class="banner warn">No data stored yet. Once the daily/weekly tasks run (or a day is ingested), pick a date here and it appears.</div>';}
   loadDay();loadWeek();
@@ -544,9 +553,16 @@ function renderRed(){
 const BENCH={payrollPct:{value:40,dir:"max",label:"40% target"},cust:null,totalSales:null,
   cutsHr:{value:2.0,dir:"min",label:"2.0 CPH standard"},avgHC:{value:19,dir:"max",label:"19 min standard"},
   waitOver15Pct:{value:19,dir:"max",label:"19% standard"},custGrowthPct:{value:0,dir:"min",label:"0% (flat)"}};
-function loadTrend(){const m=$("#trendMetric").value;renderTrend(dTrend(current,m),m);}
-function renderTrend(series,m){
-  const labels=(series||[]).map(x=>fmtDate(x[0]));const data=(series||[]).map(x=>x[1]);
+function loadTrend(){
+  const m=$("#trendMetric").value;
+  const mo=$("#trendMonth").value;
+  const all=dTrend(current,m);
+  const series=mo?all.filter(x=>x[0].startsWith(mo)):all;
+  renderTrend(series,m,mo);
+}
+function renderTrend(series,m,mo){
+  const labels=(series||[]).map(x=>{const p=x[0].split("-");return(+p[1])+"/"+(+p[2]);});
+  const data=(series||[]).map(x=>x[1]);
   const isPct=/Pct|payroll|wait|Growth/i.test(m);
   const b=BENCH[m];
   const datasets=[{label:$("#trendMetric").selectedOptions[0].text,data,borderColor:BLUE,backgroundColor:"rgba(4,134,103,.12)",fill:true,tension:.25,pointRadius:3}];
@@ -554,19 +570,15 @@ function renderTrend(series,m){
   if(charts.cTrend)charts.cTrend.destroy();
   charts.cTrend=new Chart($("#cTrend"),{type:"line",data:{labels,datasets},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:b?true:false,labels:{font:{size:11},usePointStyle:true}}},scales:{y:{grid:{color:"#eef1f5"},ticks:{callback:v=>isPct?v+"%":v}}}}});
-  // Out-of-standard count for current month
-  let note=series&&series.length?series.length+" day(s) of history for "+sName(current):"No history yet for "+sName(current)+" — trends fill as days accumulate.";
+  // Out-of-standard count
   if(b&&series&&series.length){
-    const now=new Date();const curMo=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
-    const moData=series.filter(x=>x[0].startsWith(curMo));
-    if(moData.length){
-      const oos=moData.filter(x=>b.dir==="max"?x[1]>b.value:x[1]<b.value).length;
-      const tag=oos>0?`<span style="color:${RED};font-weight:600">${oos} of ${moData.length} day(s) out of standard</span>`
-        :`<span style="color:${GREEN};font-weight:600">All ${moData.length} day(s) in standard</span>`;
-      note="";
-      $("#trendNote").innerHTML=series.length+" day(s) of history · "+tag+" this month ("+b.label+")";
-    }else{$("#trendNote").textContent=note;}
-  }else{$("#trendNote").textContent=note;}
+    const oos=series.filter(x=>b.dir==="max"?x[1]>b.value:x[1]<b.value).length;
+    const tag=oos>0?`<span style="color:${RED};font-weight:600">${oos} of ${series.length} day(s) out of standard</span>`
+      :`<span style="color:${GREEN};font-weight:600">All ${series.length} day(s) in standard</span>`;
+    $("#trendNote").innerHTML=sName(current)+" \u00b7 "+tag+" ("+b.label+")";
+  }else{
+    $("#trendNote").textContent=series&&series.length?series.length+" day(s) for "+sName(current):"No data for "+sName(current)+" this month.";
+  }
 }
 
 // RECAP

@@ -163,10 +163,16 @@ body {
 .view-toggle button { background: var(--surface-card); border: none; padding: 6px 16px; font-size: 13px; font-weight: 500; color: var(--text-secondary); cursor: pointer; }
 .view-toggle button + button { border-left: 1px solid var(--gridline); }
 .view-toggle button.active { background: var(--brand-teal); color: #fff; }
+.view-toggle button:disabled { opacity: .35; cursor: not-allowed; }
 .callout-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
 .callout { background: var(--brand-teal-light); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
 .callout .callout-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-bottom: 4px; }
 .callout .callout-value { font-size: 20px; font-weight: 700; color: var(--brand-teal); }
+.flag-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+.flag-item { display: flex; gap: 12px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface-card); align-items: flex-start; }
+.flag-item .status-pill { flex-shrink: 0; margin-top: 2px; }
+.flag-item .flag-title { font-weight: 600; font-size: 13.5px; margin-bottom: 3px; }
+.flag-item .flag-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
 .app-footer { text-align: center; padding: 20px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 20px; }
 svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, sans-serif; }
 .bar-value-label { fill: var(--text-primary); font-weight: 600; }
@@ -351,33 +357,47 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 <!-- TAB 5: FINANCIAL SNAPSHOT -->
 <div class="tab-content" id="tab-financial">
   <div class="container">
-    <div class="connection-banner" id="finBanner">
-      <span class="banner-icon">&#9888;</span>
-      <span>Sample data shown for Month to Date (Aug 1–11, 2026) and Year to Date (Jan 1–Aug 11, 2026). QuickBooks is currently connected to Patel DT LLC (Del Taco) — reconnect it to Patel Insulation LLC to pull live financials here.</span>
+    <div class="connection-banner connected" id="finBanner">
+      <span class="banner-icon">&#10003;</span>
+      <span>Real QuickBooks P&amp;L data for Patel Insulation LLC — Jan, Feb, Mar (restated), May &amp; Jun 2026. April and July 2026 have not been provided yet, so they're omitted rather than estimated. August (in progress) isn't closed in QuickBooks yet — the small tile below uses the ServiceMinder invoice proxy in the meantime.</span>
     </div>
+    <div class="section-title">Callouts</div>
+    <div class="flag-list" id="finFlagList"></div>
     <div class="controls">
-      <div class="view-toggle" id="finPeriodToggle">
-        <button class="active" data-period="mtd">Month</button>
-        <button data-period="ytd">YTD</button>
+      <div class="view-toggle" id="finMonthToggle">
+        <button data-month="jan">Jan</button>
+        <button data-month="feb">Feb</button>
+        <button data-month="mar">Mar</button>
+        <button data-month="apr" disabled title="No P&amp;L provided for April 2026">Apr</button>
+        <button data-month="may">May</button>
+        <button data-month="jun" class="active">Jun</button>
       </div>
     </div>
     <div class="kpi-summary" id="finKpiRow"></div>
+    <div class="callout-row" id="finContextRow"></div>
     <div class="charts-grid">
       <div class="chart-card">
-        <h3>Revenue &amp; Net Income Trend</h3>
-        <p class="chart-subtitle">Mar–Aug 2026</p>
+        <h3>Revenue &amp; Net Income — Monthly Actuals</h3>
+        <p class="chart-subtitle">Jan, Feb, Mar, May, Jun 2026 — Apr &amp; Jul omitted (no data)</p>
         <div class="chart-area" id="chartFinTrend"></div>
       </div>
       <div class="chart-card">
         <h3>Expense Breakdown</h3>
-        <p class="chart-subtitle">Share of operating expenses — Aug 1–11, 2026 (month to date)</p>
+        <p class="chart-subtitle" id="finExpenseSubtitle">Share of COGS + operating expenses</p>
         <div class="chart-area" id="chartFinExpense"></div>
       </div>
     </div>
-    <div class="section-title">P&amp;L Summary</div>
+    <div class="section-title">June 2026 by Location</div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="finLocationTable">
+        <thead><tr><th>Location</th><th>Revenue</th><th>Net Income</th></tr></thead>
+        <tbody id="finLocationTbody"></tbody>
+      </table>
+    </div>
+    <div class="section-title" id="finPLTitle">P&amp;L Summary — Jun 2026</div>
     <div class="store-table-wrap">
       <table class="store-table" id="finTable">
-        <thead><tr><th>Line Item</th><th>Month to Date (Aug 1–11)</th><th>Year to Date (Jan 1–Aug 11)</th></tr></thead>
+        <thead><tr><th>Line Item</th><th id="finTableMonthCol">Jun 2026</th></tr></thead>
         <tbody id="finTbody"></tbody>
       </table>
     </div>
@@ -492,21 +512,50 @@ const dataStore = {
     { customer: 'Top Off + Solar Fan',           date: '2026-07-14', amount: 2698.73,  service: 'Residential Retrofit' },
     { customer: 'Augustin Eichwald',             date: '2026-07-14', amount: 1599.33,  service: 'B2B Retrofit' },
   ],
+  // Real QuickBooks Online Profit & Loss reports for Patel Insulation LLC, provided by Pranav as PDFs
+  // (Jan/Feb pulled Mar 17 2026; March is the "Updated"/restated version pulled Apr 8 2026; May pulled
+  // Jun 15 2026; June pulled Jul 30 2026, first month reported with an Albuquerque/Corporate/Las Cruces
+  // location split). April and July 2026 were not provided — intentionally left out, not estimated.
+  // Expense-bucket splits (Materials / Field Labor / Vehicle & Fuel / Marketing / Admin & Overhead) are
+  // derived by category-mapping each month's actual COGS + Expense line items; each month's five buckets
+  // sum exactly to that month's COGS + Total Expenses.
   financial: {
-    mtd: { revenue: 402200, cogs: 168900, grossMargin: 58.0, opex: 121300, netIncome: 112000 },
-    ytd: { revenue: 2687400, cogs: 1128700, grossMargin: 58.0, opex: 812600, netIncome: 746100 },
+    monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun'],
+    months: {
+      jan: { label: 'Jan 2026', revenue: 156946.51, cogs: 72199.23, grossProfit: 84747.28, grossMargin: 54.00, opex: 78306.22, netIncome: 6442.68, netMargin: 4.11,
+             buckets: { materials: 40801.54, fieldLabor: 31397.69, vehicleFuel: 2021.05, marketing: 8497.93, admin: 67787.24 } },
+      feb: { label: 'Feb 2026', revenue: 185272.10, cogs: 48668.00, grossProfit: 136604.10, grossMargin: 73.73, opex: 67916.07, netIncome: 68742.38, netMargin: 37.10,
+             buckets: { materials: 14618.05, fieldLabor: 34049.95, vehicleFuel: 4117.40, marketing: 4779.03, admin: 59019.64 } },
+      mar: { label: 'Mar 2026 (restated)', revenue: 192370.66, cogs: 148880.34, grossProfit: 43490.32, grossMargin: 22.61, opex: 83337.58, netIncome: -39845.79, netMargin: -20.71,
+             buckets: { materials: 101634.39, fieldLabor: 47245.95, vehicleFuel: 3595.83, marketing: 3922.09, admin: 75819.66 } },
+      may: { label: 'May 2026', revenue: 287973.43, cogs: 116558.43, grossProfit: 171415.00, grossMargin: 59.52, opex: 109043.44, netIncome: 62372.19, netMargin: 21.66,
+             buckets: { materials: 54112.38, fieldLabor: 62446.05, vehicleFuel: 2103.68, marketing: 10163.59, admin: 96776.17 } },
+      jun: { label: 'Jun 2026', revenue: 217252.45, cogs: 107998.99, grossProfit: 109253.46, grossMargin: 50.28, opex: 90354.13, netIncome: 18899.92, netMargin: 8.70,
+             buckets: { materials: 71378.76, fieldLabor: 36620.23, vehicleFuel: 2711.19, marketing: 7172.14, admin: 80470.80 } },
+    },
+    // Officially reported cumulative YTD as of the May 2026 P&L (QuickBooks-computed, not derived by us).
+    ytdThroughMay: { label: 'Jan–May 2026 YTD (as reported)', revenue: 1120805.82, netIncome: 27935.00 },
+    // June 2026 was the first month QuickBooks reported with a location split.
+    juneByLocation: [
+      { location: 'Albuquerque', revenue: 213367.23, netIncome: 62021.98 },
+      { location: 'Las Cruces',  revenue: 3885.22,   netIncome: -9332.27 },
+      { location: 'Corporate (overhead)', revenue: 0, netIncome: -33762.76 },
+    ],
   },
-  finTrend: [
-    { month: 'Mar', revenue: 318400, netIncome: 84200 }, { month: 'Apr', revenue: 356900, netIncome: 96700 },
-    { month: 'May', revenue: 389100, netIncome: 104300 }, { month: 'Jun', revenue: 421700, netIncome: 118900 },
-    { month: 'Jul', revenue: 447300, netIncome: 126400 }, { month: 'Aug', revenue: 402200, netIncome: 112000 },
-  ],
-  expenseBreakdown: [
-    { label: 'Materials',        value: 168900 },
-    { label: 'Field Labor',      value: 89200  },
-    { label: 'Vehicle & Fuel',   value: 21400  },
-    { label: 'Marketing / Lead Gen', value: 18700 },
-    { label: 'Admin & Overhead', value: 31000 },
+  // Notable flags surfaced directly from the real P&L numbers above.
+  finFlags: [
+    { level: 'critical', title: 'March P&L was restated — confirm with your bookkeeper',
+      body: 'The "Updated" March report revised Jan–Mar YTD net income to –$115,050, roughly $190K lower than the +$75,185 that Jan–Feb alone showed as of mid-March. Treat Jan–Mar actuals as provisional until you confirm what drove the adjustment.' },
+    { level: 'serious', title: 'March posted a $39,846 net loss',
+      body: 'COGS jumped to 77.4% of revenue in March — more than double every other month shown (26–50%). February’s BI Fiberglass COGS line shows $0 despite $90,671 in BI Fiberglass sales that month, which suggests the cost landed in March instead of February — likely the same restatement as above.' },
+    { level: 'warn', title: 'Las Cruces is running at a loss',
+      body: 'June was the first month QuickBooks split results by location. Albuquerque was profitable (+$62,022 net income), but Las Cruces posted –$9,332 and newly broken-out Corporate overhead (royalties, brand fund, management fees, G/L insurance) came to –$33,763 — June’s consolidated net income ($18,900) is being carried entirely by Albuquerque.' },
+    { level: 'warn', title: 'Two months of P&L data are missing',
+      body: 'No report was provided for April or July 2026 — both are left out of the trend chart below rather than estimated. Send those over when you have them.' },
+    { level: 'ok', title: 'February included a one-time $40,000 inspection contract',
+      body: '"Annual Inspection Sales" was $40,000 in Feb 2026 vs. $0 in Feb 2025 — looks like a bulk/annual contract, not a run-rate increase. Worth excluding when judging month-over-month growth.' },
+    { level: 'ok', title: 'May expenses included an $18,298 payroll credit',
+      body: 'A negative "Vacation Pay" line (–$18,298, i.e. a reversal/credit) reduced May’s expenses and flattered that month’s margin somewhat versus a typical month.' },
   ],
 };
 
@@ -604,25 +653,36 @@ function renderFunnel(containerId, stages) {
   document.getElementById(containerId).innerHTML = svg;
 }
 
-/* Line chart: series = [{name, color, points:[{x,y}]}] */
+/* Line chart: series = [{name, color, points:[{x,y}]}]. Supports negative y-values (e.g. a net-loss month)
+   via a proper min/max domain with a zero baseline, rather than assuming all values are >= 0. */
 function renderLineChart(containerId, series, opts = {}) {
   const W = 460, H = 220, padL = 46, padR = 16, padT = 16, padB = 28;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const allVals = series.flatMap(s => s.points.map(p => p.y));
-  const max = opts.max || Math.max(...allVals) * 1.15;
+  const rawMax = Math.max(...allVals), rawMin = Math.min(0, ...allVals);
+  const span = (rawMax - rawMin) || 1;
+  const max = opts.max || rawMax + span * 0.15;
+  const min = rawMin < 0 ? rawMin - span * 0.05 : 0;
+  const domain = (max - min) || 1;
+  const yOf = v => padT + plotH - plotH * ((v - min) / domain);
   const n = series[0].points.length;
   const stepX = plotW / (n - 1);
   let svg = svgOpen(W, H);
   const steps = 4;
   for (let i = 0; i <= steps; i++) {
-    const y = padT + plotH - (plotH * i / steps);
+    const val = min + (domain * i / steps);
+    const y = yOf(val);
     svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
-    svg += `<text x="${padL - 8}" y="${y + 4}" font-size="10" text-anchor="end">${(opts.fmt || fmtMoneyCompact)(max * i / steps)}</text>`;
+    svg += `<text x="${padL - 8}" y="${y + 4}" font-size="10" text-anchor="end">${(opts.fmt || fmtMoneyCompact)(val)}</text>`;
+  }
+  if (min < 0) {
+    const zy = yOf(0);
+    svg += `<line x1="${padL}" y1="${zy}" x2="${W - padR}" y2="${zy}" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3,3"/>`;
   }
   series.forEach(s => {
     let pts = s.points.map((p, i) => {
       const x = padL + stepX * i;
-      const y = padT + plotH - plotH * (p.y / max);
+      const y = yOf(p.y);
       return [x, y];
     });
     const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
@@ -815,42 +875,81 @@ function renderPipelineTab() {
 }
 
 /* ---------------- Render: Financial tab ---------------- */
-let finPeriod = 'mtd';
+let finMonth = 'jun';
+const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
+const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
+
 function renderFinancialTab() {
-  const f = dataStore.financial[finPeriod];
-  const periodLabel = finPeriod === 'mtd' ? 'Month to Date — Aug 1–11, 2026' : 'Year to Date — Jan 1–Aug 11, 2026';
+  const months = dataStore.financial.months;
+  const f = months[finMonth];
+  const bucketLabels = { materials: 'Materials', fieldLabor: 'Field Labor', vehicleFuel: 'Vehicle & Fuel', marketing: 'Marketing / Lead Gen', admin: 'Admin & Overhead' };
+
+  // Flags
+  document.getElementById('finFlagList').innerHTML = dataStore.finFlags.map(fl => `
+    <div class="flag-item">
+      <span class="status-pill ${FLAG_PILL[fl.level]}">${FLAG_ICON[fl.level]}</span>
+      <div><div class="flag-title">${fl.title}</div><div class="flag-body">${fl.body}</div></div>
+    </div>`).join('');
+
+  // KPI row for selected month
   document.getElementById('finKpiRow').innerHTML = [
-    kpiTile('Revenue (' + periodLabel + ')', fmtMoneyCompact(f.revenue)),
+    kpiTile('Revenue (' + f.label + ')', fmtMoneyCompact(f.revenue)),
     kpiTile('Gross Margin', fmtPct(f.grossMargin)),
     kpiTile('Operating Expenses', fmtMoneyCompact(f.opex)),
-    kpiTile('Net Income', fmtMoneyCompact(f.netIncome), fmtPct((f.netIncome / f.revenue) * 100) + ' margin', 'good'),
+    kpiTile('Net Income', fmtMoneyCompact(f.netIncome), fmtPct(f.netMargin) + ' margin', f.netIncome >= 0 ? 'good' : 'bad'),
   ].join('');
 
+  // Context row: official YTD, estimated YTD through June, and current month in progress
+  const ytd = dataStore.financial.ytdThroughMay, jun = months.jun;
+  const estThroughJun = { revenue: ytd.revenue + jun.revenue, netIncome: ytd.netIncome + jun.netIncome };
+  const deltaLine = (text, color) => `<div style="font-size:13px;font-weight:500;margin-top:6px;color:${color};">${text}</div>`;
+  document.getElementById('finContextRow').innerHTML = `
+    <div class="callout"><div class="callout-label">${ytd.label}</div><div class="callout-value">${fmtMoneyCompact(ytd.revenue)}</div>
+      ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income', 'var(--delta-up-good)')}</div>
+    <div class="callout"><div class="callout-label">Est. YTD through Jun (May-YTD + Jun standalone)</div><div class="callout-value">${fmtMoneyCompact(estThroughJun.revenue)}</div>
+      ${deltaLine(fmtMoneyCompact(estThroughJun.netIncome) + ' net income — not an official Jan–Jun QBO report', 'var(--text-muted)')}</div>
+    <div class="callout"><div class="callout-label">Aug 2026 (in progress) — ServiceMinder proxy</div><div class="callout-value">${fmtMoneyCompact(dataStore.revenue.mtdInvoiced)}</div>
+      ${deltaLine('Aug 1–11 invoiced, not yet closed in QuickBooks', 'var(--text-muted)')}</div>
+  `;
+
+  // Trend: only months with real data (Apr & Jul omitted, not interpolated)
+  const trendMonths = ['jan', 'feb', 'mar', 'may', 'jun'];
+  const shortLabel = { jan: 'Jan', feb: 'Feb', mar: 'Mar', may: 'May', jun: 'Jun' };
   renderLineChart('chartFinTrend', [
-    { name: 'Revenue', color: 'var(--brand-teal)', points: dataStore.finTrend.map(d => ({ x: d.month, y: d.revenue, label: d.month })) },
-    { name: 'Net Income', color: 'var(--brand-amber)', points: dataStore.finTrend.map(d => ({ x: d.month, y: d.netIncome, label: d.month })) },
+    { name: 'Revenue', color: 'var(--brand-teal)', points: trendMonths.map(m => ({ x: m, y: months[m].revenue, label: shortLabel[m] })) },
+    { name: 'Net Income', color: 'var(--brand-amber)', points: trendMonths.map(m => ({ x: m, y: months[m].netIncome, label: shortLabel[m] })) },
   ]);
 
-  renderPieChart('chartFinExpense', dataStore.expenseBreakdown);
+  // Expense breakdown pie for the selected month
+  document.getElementById('finExpenseSubtitle').textContent = f.label + ' — share of COGS + operating expenses';
+  renderPieChart('chartFinExpense', Object.entries(f.buckets).map(([k, v]) => ({ label: bucketLabels[k], value: v })));
 
-  const mtd = dataStore.financial.mtd, ytd = dataStore.financial.ytd;
+  // June-by-location table (always shown; June is the only month with a location split so far)
+  document.getElementById('finLocationTbody').innerHTML = dataStore.financial.juneByLocation.map(l =>
+    `<tr><td>${l.location}</td><td>${fmtMoney(l.revenue)}</td><td>${l.netIncome < 0 ? '(' + fmtMoney(Math.abs(l.netIncome)) + ')' : fmtMoney(l.netIncome)}</td></tr>`
+  ).join('');
+
+  // P&L summary for selected month
+  document.getElementById('finPLTitle').textContent = 'P&L Summary — ' + f.label;
+  document.getElementById('finTableMonthCol').textContent = f.label;
   const rows = [
-    ['Revenue', mtd.revenue, ytd.revenue],
-    ['Cost of Goods Sold (Materials + Field Labor)', -mtd.cogs, -ytd.cogs],
-    ['Gross Profit', mtd.revenue - mtd.cogs, ytd.revenue - ytd.cogs],
-    ['Operating Expenses', -mtd.opex, -ytd.opex],
-    ['Net Income', mtd.netIncome, ytd.netIncome],
+    ['Revenue', f.revenue],
+    ['Cost of Goods Sold', -f.cogs],
+    ['Gross Profit', f.grossProfit],
+    ['Operating Expenses', -f.opex],
+    ['Net Income', f.netIncome],
   ];
-  document.getElementById('finTbody').innerHTML = rows.map(([label, mVal, yVal]) => {
-    const cell = v => fmtMoney(Math.abs(v)) + (v < 0 ? ' (deduction)' : '');
-    return `<tr><td>${label}</td><td>${cell(mVal)}</td><td>${cell(yVal)}</td></tr>`;
+  document.getElementById('finTbody').innerHTML = rows.map(([label, v]) => {
+    const cell = fmtMoney(Math.abs(v)) + (v < 0 ? ' (deduction)' : '');
+    return `<tr><td>${label}</td><td>${cell}</td></tr>`;
   }).join('');
 }
-document.querySelectorAll('#finPeriodToggle button').forEach(btn => {
+document.querySelectorAll('#finMonthToggle button').forEach(btn => {
+  if (btn.disabled) return;
   btn.addEventListener('click', () => {
-    document.querySelectorAll('#finPeriodToggle button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#finMonthToggle button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    finPeriod = btn.dataset.period;
+    finMonth = btn.dataset.month;
     renderFinancialTab();
   });
 });

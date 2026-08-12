@@ -373,7 +373,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   <div class="container">
     <div class="connection-banner connected" id="finBanner">
       <span class="banner-icon">&#10003;</span>
-      <span>Real QuickBooks P&amp;L data for Patel Insulation LLC — Jan, Feb, Mar (restated), May &amp; Jun 2026. April and July 2026 have not been provided yet, so they're omitted rather than estimated. August (in progress) isn't closed in QuickBooks yet — the small tile below uses the ServiceMinder invoice proxy in the meantime.</span>
+      <span>Real QuickBooks P&amp;L data for Patel Insulation LLC — Jan through Jun 2026 (Mar restated). July 2026 hasn't been provided yet, so it's omitted rather than estimated. August (in progress) isn't closed in QuickBooks yet — the small tile below uses the ServiceMinder invoice proxy in the meantime.</span>
     </div>
     <div class="section-title">Callouts</div>
     <div class="flag-list" id="finFlagList"></div>
@@ -382,7 +382,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <button data-month="jan">Jan</button>
         <button data-month="feb">Feb</button>
         <button data-month="mar">Mar</button>
-        <button data-month="apr" disabled title="No P&amp;L provided for April 2026">Apr</button>
+        <button data-month="apr">Apr</button>
         <button data-month="may">May</button>
         <button data-month="jun" class="active">Jun</button>
       </div>
@@ -392,7 +392,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Revenue &amp; Net Income — Monthly Actuals</h3>
-        <p class="chart-subtitle">Jan, Feb, Mar, May, Jun 2026 — Apr &amp; Jul omitted (no data)</p>
+        <p class="chart-subtitle">Jan–Jun 2026 — Jul omitted (no data)</p>
         <div class="chart-area" id="chartFinTrend"></div>
       </div>
       <div class="chart-card">
@@ -606,13 +606,17 @@ const dataStore = {
              buckets: { materials: 14618.05, fieldLabor: 34049.95, vehicleFuel: 4117.40, marketing: 4779.03, admin: 59019.64 } },
       mar: { label: 'Mar 2026 (restated)', revenue: 192370.66, cogs: 148880.34, grossProfit: 43490.32, grossMargin: 22.61, opex: 83337.58, netIncome: -39845.79, netMargin: -20.71,
              buckets: { materials: 101634.39, fieldLabor: 47245.95, vehicleFuel: 3595.83, marketing: 3922.09, admin: 75819.66 } },
+      apr: { label: 'Apr 2026', revenue: 297674.37, cogs: 95443.30, grossProfit: 202231.07, grossMargin: 67.94, opex: 81840.05, netIncome: 119743.27, netMargin: 40.23,
+             buckets: { materials: 49921.77, fieldLabor: 45521.53, vehicleFuel: 1766.14, marketing: 5939.60, admin: 74134.31 } },
       may: { label: 'May 2026', revenue: 287973.43, cogs: 116558.43, grossProfit: 171415.00, grossMargin: 59.52, opex: 109043.44, netIncome: 62372.19, netMargin: 21.66,
              buckets: { materials: 54112.38, fieldLabor: 62446.05, vehicleFuel: 2103.68, marketing: 10163.59, admin: 96776.17 } },
       jun: { label: 'Jun 2026', revenue: 217252.45, cogs: 107998.99, grossProfit: 109253.46, grossMargin: 50.28, opex: 90354.13, netIncome: 18899.92, netMargin: 8.70,
              buckets: { materials: 71378.76, fieldLabor: 36620.23, vehicleFuel: 2711.19, marketing: 7172.14, admin: 80470.80 } },
     },
     // Officially reported cumulative YTD as of the May 2026 P&L (QuickBooks-computed, not derived by us).
-    ytdThroughMay: { label: 'Jan–May 2026 YTD (as reported)', revenue: 1120805.82, netIncome: 27935.00 },
+    // Revenue reconciles almost exactly against summing the 5 individual monthly statements (off by ~$569 on $1.12M);
+    // net income does not (off by ~$189.5K) — see the critical callout below.
+    ytdThroughMay: { label: 'Jan–May 2026 YTD (QuickBooks report)', revenue: 1120805.82, netIncome: 27935.00 },
     // June 2026 was the first month QuickBooks reported with a location split.
     juneByLocation: [
       { location: 'Albuquerque', revenue: 213367.23, netIncome: 62021.98 },
@@ -622,14 +626,16 @@ const dataStore = {
   },
   // Notable flags surfaced directly from the real P&L numbers above.
   finFlags: [
-    { level: 'critical', title: 'March P&L was restated — confirm with your bookkeeper',
-      body: 'The "Updated" March report revised Jan–Mar YTD net income to –$115,050, roughly $190K lower than the +$75,185 that Jan–Feb alone showed as of mid-March. Treat Jan–Mar actuals as provisional until you confirm what drove the adjustment.' },
+    { level: 'critical', title: 'March restatement still unreconciled — now off by $189.5K through May',
+      body: 'With April added, summing the five individual Jan–May monthly P&Ls gives $217,455 in net income — but QuickBooks\' own Jan–May YTD report shows just $27,935, a $189,520 gap. Revenue reconciles almost exactly between the two (within $569 on $1.12M), so the entire gap is on the cost side. That points to costs sitting at the YTD/consolidated level that aren\'t reflected in one or more of the individual monthly statements — worth a direct reconciliation with your bookkeeper before trusting Jan–May actuals.' },
+    { level: 'serious', title: 'BI Fiberglass costs are missing for a second month — now April too',
+      body: 'April shows $80,130 in BI Fiberglass sales but $0 in the matching COGS line (compare June: $130,448 in BI Fiberglass sales against $45,822 of COGS, a ~35% ratio). At that same ratio, April is likely missing roughly $28,000 of cost, which would mean April\'s 67.9% gross margin and 40.2% net margin are overstated. This is the same pattern flagged for February, where $90,671 of BI Fiberglass sales also carried $0 COGS that month — suggests BI Fiberglass installer costs are being posted to a different month than the matching revenue.' },
     { level: 'serious', title: 'March posted a $39,846 net loss',
-      body: 'COGS jumped to 77.4% of revenue in March — more than double every other month shown (26–50%). February’s BI Fiberglass COGS line shows $0 despite $90,671 in BI Fiberglass sales that month, which suggests the cost landed in March instead of February — likely the same restatement as above.' },
+      body: 'COGS jumped to 77.4% of revenue in March — more than double every other month shown (26–50%). Likely related to the BI Fiberglass timing issue above and the broader restatement flagged first.' },
     { level: 'warn', title: 'Las Cruces is running at a loss',
       body: 'June was the first month QuickBooks split results by location. Albuquerque was profitable (+$62,022 net income), but Las Cruces posted –$9,332 and newly broken-out Corporate overhead (royalties, brand fund, management fees, G/L insurance) came to –$33,763 — June’s consolidated net income ($18,900) is being carried entirely by Albuquerque.' },
-    { level: 'warn', title: 'Two months of P&L data are missing',
-      body: 'No report was provided for April or July 2026 — both are left out of the trend chart below rather than estimated. Send those over when you have them.' },
+    { level: 'warn', title: 'One month of P&L data is still missing',
+      body: 'No report has been provided for July 2026 yet — it\'s left out of the trend chart below rather than estimated. Send it over when you have it.' },
     { level: 'ok', title: 'February included a one-time $40,000 inspection contract',
       body: '"Annual Inspection Sales" was $40,000 in Feb 2026 vs. $0 in Feb 2025 — looks like a bulk/annual contract, not a run-rate increase. Worth excluding when judging month-over-month growth.' },
     { level: 'ok', title: 'May expenses included an $18,298 payroll credit',
@@ -993,25 +999,30 @@ function renderFinancialTab() {
     kpiTile('Net Income', fmtMoneyCompact(f.netIncome), fmtPct(f.netMargin) + ' margin', f.netIncome >= 0 ? 'good' : 'bad'),
   ].join('');
 
-  // Context row: official YTD, estimated YTD through June, and current month in progress
-  const ytd = dataStore.financial.ytdThroughMay, jun = months.jun;
-  const estThroughJun = { revenue: ytd.revenue + jun.revenue, netIncome: ytd.netIncome + jun.netIncome };
+  // Context row: official YTD-through-May (as reported), sum of all real monthly statements on file, and current month in progress
+  const ytd = dataStore.financial.ytdThroughMay;
+  const presentMonths = dataStore.financial.monthOrder.filter(m => months[m]);
+  const sumRevenue = presentMonths.reduce((a, m) => a + months[m].revenue, 0);
+  const sumNetIncome = presentMonths.reduce((a, m) => a + months[m].netIncome, 0);
+  const sumFirst = months[presentMonths[0]].label.split(' ')[0];
+  const sumLast = months[presentMonths[presentMonths.length - 1]].label.split(' ')[0];
+  const sumLabel = `${sumFirst}–${sumLast} 2026 (sum of monthly P&Ls)`;
   const deltaLine = (text, color) => `<div style="font-size:13px;font-weight:500;margin-top:6px;color:${color};">${text}</div>`;
   document.getElementById('finContextRow').innerHTML = `
+    <div class="callout"><div class="callout-label">${sumLabel}</div><div class="callout-value">${fmtMoneyCompact(sumRevenue)}</div>
+      ${deltaLine(fmtMoneyCompact(sumNetIncome) + ' net income', 'var(--delta-up-good)')}</div>
     <div class="callout"><div class="callout-label">${ytd.label}</div><div class="callout-value">${fmtMoneyCompact(ytd.revenue)}</div>
-      ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income', 'var(--delta-up-good)')}</div>
-    <div class="callout"><div class="callout-label">Est. YTD through Jun (May-YTD + Jun standalone)</div><div class="callout-value">${fmtMoneyCompact(estThroughJun.revenue)}</div>
-      ${deltaLine(fmtMoneyCompact(estThroughJun.netIncome) + ' net income — not an official Jan–Jun QBO report', 'var(--text-muted)')}</div>
+      ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income — $189.5K below the monthly-sum total at left, see callout above', 'var(--delta-down-bad)')}</div>
     <div class="callout"><div class="callout-label">Aug 2026 (in progress) — ServiceMinder proxy</div><div class="callout-value">${fmtMoneyCompact(dataStore.revenue.mtdInvoiced)}</div>
       ${deltaLine('Aug 1–11 invoiced, not yet closed in QuickBooks', 'var(--text-muted)')}</div>
   `;
 
-  // Trend: only months with real data (Apr & Jul omitted, not interpolated)
-  const trendMonths = ['jan', 'feb', 'mar', 'may', 'jun'];
-  const shortLabel = { jan: 'Jan', feb: 'Feb', mar: 'Mar', may: 'May', jun: 'Jun' };
+  // Trend: every month with real data on file (Jul omitted, not interpolated)
+  const trendMonths = presentMonths;
+  const shortLabel = m => months[m].label.split(' ')[0];
   renderLineChart('chartFinTrend', [
-    { name: 'Revenue', color: 'var(--brand-teal)', points: trendMonths.map(m => ({ x: m, y: months[m].revenue, label: shortLabel[m] })) },
-    { name: 'Net Income', color: 'var(--brand-amber)', points: trendMonths.map(m => ({ x: m, y: months[m].netIncome, label: shortLabel[m] })) },
+    { name: 'Revenue', color: 'var(--brand-teal)', points: trendMonths.map(m => ({ x: m, y: months[m].revenue, label: shortLabel(m) })) },
+    { name: 'Net Income', color: 'var(--brand-amber)', points: trendMonths.map(m => ({ x: m, y: months[m].netIncome, label: shortLabel(m) })) },
   ]);
 
   // Expense breakdown pie for the selected month

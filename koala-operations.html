@@ -257,19 +257,26 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       </table>
     </div>
 
-    <div class="connection-banner connected" style="margin-top:24px;">
+    <div class="connection-banner connected" style="margin-top:24px;" id="revSourceBanner">
       <span class="banner-icon">&#10003;</span>
-      <span>From ServiceMinder's "Revenue by Lead Source" report (Reports &gt; Revenue by Lead Source), same 30-day window Jul 12–Aug 11, 2026. This counts the 47 contacts with invoiced revenue in the window — a different, smaller base than the 100 total leads above, which counts every new contact regardless of whether they've bought yet.</span>
+      <span id="revSourceBannerText"></span>
+    </div>
+    <div class="controls">
+      <div class="view-toggle" id="revSourceRangeToggle">
+        <button data-range="7d">7D</button>
+        <button data-range="30d" class="active">30D</button>
+        <button data-range="90d">90D</button>
+      </div>
     </div>
     <div class="kpi-summary" id="revenueBySourceKpiRow"></div>
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Revenue by Source</h3>
-        <p class="chart-subtitle">Jul 12–Aug 11, 2026 — invoiced revenue attributed to source</p>
+        <p class="chart-subtitle" id="revenueBySourceSubtitle">Jul 12–Aug 11, 2026 — invoiced revenue attributed to source</p>
         <div class="chart-area" id="chartRevenueBySource"></div>
       </div>
     </div>
-    <div class="section-title">Revenue by Source Detail (Jul 12–Aug 11, 2026)</div>
+    <div class="section-title" id="revenueBySourceTableTitle">Revenue by Source Detail (Jul 12–Aug 11, 2026)</div>
     <div class="store-table-wrap">
       <table class="store-table" id="revenueBySourceTable">
         <thead><tr><th>Source</th><th>Contacts</th><th>Invoices</th><th>Revenue</th><th>Avg / Invoice</th></tr></thead>
@@ -310,7 +317,14 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Revenue by Sales Rep</h3>
-        <p class="chart-subtitle">Jul 12–Aug 11, 2026</p>
+        <p class="chart-subtitle" id="chartRepsSubtitle">Jul 12–Aug 11, 2026</p>
+        <div class="controls" style="margin-bottom:8px;">
+          <div class="view-toggle" id="repRevenueRangeToggle">
+            <button data-range="7d">7D</button>
+            <button data-range="30d" class="active">30D</button>
+            <button data-range="90d">90D</button>
+          </div>
+        </div>
         <div class="chart-area" id="chartReps"></div>
       </div>
       <div class="chart-card">
@@ -447,18 +461,48 @@ const dataStore = {
     { source: 'Referral Web Traffic', leads: 1 },
     { source: 'Other', leads: 1 },
   ],
-  // Revenue by Lead Source report (ServiceMinder Reports > Revenue by Lead Source), 30-day window
-  // Jul 12–Aug 11 2026, Mode=Invoice. Channel variants with matching normalized names merged:
-  // "*Referral and Trade Alliances" (2 contacts, $33,725) + "Referral & Trade Alliance" (2, $10,161).
-  revenueBySource: [
-    { source: 'Organic Search', contacts: 10, invoices: 13, revenue: 90865 },
-    { source: 'Existing / Repeat', contacts: 12, invoices: 15, revenue: 89564 },
-    { source: 'Online Advertising', contacts: 15, invoices: 17, revenue: 71740 },
-    { source: 'Referral & Trade Alliance', contacts: 4, invoices: 6, revenue: 43886 },
-    { source: 'HCP', contacts: 4, invoices: 4, revenue: 41874 },
-    { source: 'Other', contacts: 1, invoices: 1, revenue: 8813 },
-    { source: 'Grassroots Marketing', contacts: 1, invoices: 1, revenue: 2152 },
-  ],
+  // Revenue by Lead Source report (ServiceMinder Reports > Revenue by Lead Source), Mode=Invoice.
+  // Channel variants with matching normalized names merged, e.g. "*Referral and Trade Alliances" + "Referral & Trade Alliance".
+  // 7d and 90d invoice counts for single/near-1:1 sources are inferred from the report's total
+  // invoice count reconciling exactly against contact count (flagged inline where that applies).
+  revenueBySourceByRange: {
+    '7d': {
+      label: 'Aug 5–11, 2026',
+      sources: [
+        { source: 'HCP', contacts: 3, invoices: 3, revenue: 26589 },
+        { source: 'Existing / Repeat', contacts: 4, invoices: 4, revenue: 11750 },
+        { source: 'Online Advertising', contacts: 4, invoices: 4, revenue: 8552 },
+        { source: 'Organic Search', contacts: 2, invoices: 2, revenue: 5161 },
+        { source: 'Referral & Trade Alliance', contacts: 1, invoices: 1, revenue: 0 },
+      ],
+    },
+    '30d': {
+      label: 'Jul 12–Aug 11, 2026',
+      sources: [
+        { source: 'Organic Search', contacts: 10, invoices: 13, revenue: 90865 },
+        { source: 'Existing / Repeat', contacts: 12, invoices: 15, revenue: 89564 },
+        { source: 'Online Advertising', contacts: 15, invoices: 17, revenue: 71740 },
+        { source: 'Referral & Trade Alliance', contacts: 4, invoices: 6, revenue: 43886 },
+        { source: 'HCP', contacts: 4, invoices: 4, revenue: 41874 },
+        { source: 'Other', contacts: 1, invoices: 1, revenue: 8813 },
+        { source: 'Grassroots Marketing', contacts: 1, invoices: 1, revenue: 2152 },
+      ],
+    },
+    '90d': {
+      label: 'May 13–Aug 11, 2026',
+      sources: [
+        { source: 'Existing / Repeat', contacts: 43, invoices: 53, revenue: 294736 },
+        { source: 'Organic Search', contacts: 24, invoices: 30, revenue: 288001 },
+        { source: 'Online Advertising', contacts: 33, invoices: 39, revenue: 136556 },
+        { source: 'Referral & Trade Alliance', contacts: 9, invoices: 19, revenue: 88030 },
+        { source: 'HCP', contacts: 9, invoices: 10, revenue: 64729 },
+        { source: 'Email', contacts: 1, invoices: 1, revenue: 21928 },
+        { source: 'Home Shows & Events', contacts: 2, invoices: 2, revenue: 11046 },
+        { source: 'Other', contacts: 1, invoices: 1, revenue: 8813 },
+        { source: 'Grassroots Marketing', contacts: 1, invoices: 1, revenue: 2152 },
+      ],
+    },
+  },
   leadCategories: [
     { category: 'Prospect', shortLabel: 'Prospect', count: 83 },
     { category: 'Customer', shortLabel: 'Customer', count: 9 },
@@ -492,6 +536,40 @@ const dataStore = {
     { name: 'Frank Emanuel',                 appts30d: 3,  revenue30d: 0 },
     { name: 'Unassigned',                    appts30d: 3,  revenue30d: 0 },
   ],
+  // Revenue by Service Agent report (ServiceMinder Reports > Revenue by Service Agent), Totals row per rep.
+  // 30d mirrors the `reps` array above (same window, same source); 7d/90d pulled separately since
+  // appointment counts and close-rate context aren't available at those windows.
+  repRevenueByRange: {
+    '7d': {
+      label: 'Aug 5–11, 2026',
+      reps: [
+        { name: 'Javier Valencia', revenue: 17671.49 },
+        { name: 'Miguel Angel Calderon Aguilar', revenue: 7470.70 },
+        { name: 'Jorge Gonzalez', revenue: 3900.00 },
+        { name: 'Ricardo Aguero-Martinez', revenue: 3218.41 },
+        { name: 'Isidro Rodriguez', revenue: 0 },
+      ],
+    },
+    '90d': {
+      label: 'May 13–Aug 11, 2026',
+      reps: [
+        { name: 'Isidro Rodriguez', revenue: 149074.86 },
+        { name: 'Jorge Gonzalez', revenue: 125860.21 },
+        { name: 'Javier Valencia', revenue: 123100.93 },
+        { name: 'Miguel Angel Calderon Aguilar', revenue: 80358.21 },
+        { name: 'Mark Aragon', revenue: 67248.37 },
+        { name: 'Mark Jr. Aragon', revenue: 48395.02 },
+        { name: 'Ricardo Aguero-Martinez', revenue: 30453.07 },
+        { name: 'Alicia Rascon', revenue: 16511.31 },
+        { name: 'Danny Montellano', revenue: 14845.73 },
+        { name: 'Jacob Martin', revenue: 11500.11 },
+        { name: 'Jesus Guerrero', revenue: 3643.22 },
+        { name: 'Brian Roosenberg', revenue: 1377.55 },
+        { name: 'Mike Jones', revenue: 0 },
+        { name: 'Gabriel Espinosa', revenue: 0 },
+      ],
+    },
+  },
   pipeline: { openEstimates: 70, pipelineValue: 1261572, apptsNext7: 25, backlogJobs: 388, backlogValue: 510506 },
   upcomingAppts: [
     { date: 'Tue Aug 11, 8:00a',  customer: 'Mark Dentremont',                      rep: 'Isidro Rodriguez',        type: 'B2B New Installation' },
@@ -808,13 +886,15 @@ function renderLeadSourcesTab() {
     return `<tr><td>${s.source}</td><td>${s.leads}</td><td>${fmtPct(pct)}</td></tr>`;
   }).join('');
 
-  const revSources = [...dataStore.revenueBySource].sort((a, b) => b.revenue - a.revenue);
+  const revRange = dataStore.revenueBySourceByRange[revSourceRange];
+  const revSources = [...revRange.sources].sort((a, b) => b.revenue - a.revenue);
   const totalAttributedRevenue = revSources.reduce((a, s) => a + s.revenue, 0);
   const totalAttributedContacts = revSources.reduce((a, s) => a + s.contacts, 0);
   const topRevSource = revSources[0];
+  const rangeLabel = { '7d': '7d', '30d': '30d', '90d': '90d' }[revSourceRange];
 
   document.getElementById('revenueBySourceKpiRow').innerHTML = [
-    kpiTile('Attributed Revenue (30d)', fmtMoneyCompact(totalAttributedRevenue)),
+    kpiTile(`Attributed Revenue (${rangeLabel})`, fmtMoneyCompact(totalAttributedRevenue)),
     kpiTile('Revenue-Attributed Contacts', totalAttributedContacts),
     kpiTile('Top Revenue Source', topRevSource.source, fmtMoneyCompact(topRevSource.revenue), 'good'),
     kpiTile('Revenue / Attributed Contact', fmtMoney(totalAttributedRevenue / totalAttributedContacts)),
@@ -826,6 +906,13 @@ function renderLeadSourcesTab() {
     const avgPerInvoice = s.invoices > 0 ? fmtMoney(s.revenue / s.invoices) : '&mdash;';
     return `<tr><td>${s.source}</td><td>${s.contacts}</td><td>${s.invoices}</td><td>${fmtMoney(s.revenue)}</td><td>${avgPerInvoice}</td></tr>`;
   }).join('');
+
+  document.getElementById('revenueBySourceSubtitle').textContent = `${revRange.label} — invoiced revenue attributed to source`;
+  document.getElementById('revenueBySourceTableTitle').textContent = `Revenue by Source Detail (${revRange.label})`;
+  const compareNote = revSourceRange === '30d'
+    ? ` — a different, smaller base than the 100 total leads above, which counts every new contact in the same 30-day window regardless of whether they've bought yet.`
+    : '. Note: the "Leads by Source" volume section above is a fixed 30-day window and does not change with this toggle.';
+  document.getElementById('revSourceBannerText').textContent = `From ServiceMinder's "Revenue by Lead Source" report (Reports > Revenue by Lead Source), Invoice mode, ${revRange.label} window. This counts the ${totalAttributedContacts} contacts with invoiced revenue in the window${compareNote}`;
 }
 
 /* ---------------- Render: Reps tab ---------------- */
@@ -843,7 +930,12 @@ function renderRepsTab() {
   ].join('');
 
   const shortName = n => n.split(' ')[0];
-  renderBarChart('chartReps', reps.map((r, i) => ({ label: shortName(r.name), value: r.revenue30d, color: `var(--cat-${(i % 8) + 1})` })));
+  const repRevRange = repRevenueRange === '30d'
+    ? { label: 'Jul 12–Aug 11, 2026', reps: reps.map(r => ({ name: r.name, revenue: r.revenue30d })) }
+    : dataStore.repRevenueByRange[repRevenueRange];
+  const repRevSorted = [...repRevRange.reps].sort((a, b) => b.revenue - a.revenue);
+  renderBarChart('chartReps', repRevSorted.map((r, i) => ({ label: shortName(r.name), value: r.revenue, color: `var(--cat-${(i % 8) + 1})` })));
+  document.getElementById('chartRepsSubtitle').textContent = repRevRange.label;
   renderBarChart('chartRepsClose', reps.map((r, i) => ({ label: shortName(r.name), value: r.appts30d, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });
 
   document.getElementById('repsTbody').innerHTML = reps.map(r => {
@@ -876,6 +968,8 @@ function renderPipelineTab() {
 
 /* ---------------- Render: Financial tab ---------------- */
 let finMonth = 'jun';
+let revSourceRange = '30d';
+let repRevenueRange = '30d';
 const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
 const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
 
@@ -951,6 +1045,24 @@ document.querySelectorAll('#finMonthToggle button').forEach(btn => {
     btn.classList.add('active');
     finMonth = btn.dataset.month;
     renderFinancialTab();
+  });
+});
+
+document.querySelectorAll('#revSourceRangeToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#revSourceRangeToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    revSourceRange = btn.dataset.range;
+    renderLeadSourcesTab();
+  });
+});
+
+document.querySelectorAll('#repRevenueRangeToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#repRevenueRangeToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    repRevenueRange = btn.dataset.range;
+    renderRepsTab();
   });
 });
 

@@ -540,14 +540,33 @@ function renderRed(){
 }
 
 // TRENDS
+// Benchmarks: {value, dir:"max"|"min", label} — max=must stay at or below, min=must stay at or above
+const BENCH={payrollPct:{value:40,dir:"max",label:"40% target"},cust:null,totalSales:null,
+  cutsHr:{value:2.0,dir:"min",label:"2.0 CPH standard"},avgHC:{value:19,dir:"max",label:"19 min standard"},
+  waitOver15Pct:{value:19,dir:"max",label:"19% standard"},custGrowthPct:{value:0,dir:"min",label:"0% (flat)"}};
 function loadTrend(){const m=$("#trendMetric").value;renderTrend(dTrend(current,m),m);}
 function renderTrend(series,m){
   const labels=(series||[]).map(x=>fmtDate(x[0]));const data=(series||[]).map(x=>x[1]);
   const isPct=/Pct|payroll|wait|Growth/i.test(m);
+  const b=BENCH[m];
+  const datasets=[{label:$("#trendMetric").selectedOptions[0].text,data,borderColor:BLUE,backgroundColor:"rgba(4,134,103,.12)",fill:true,tension:.25,pointRadius:3}];
+  if(b){datasets.push({label:b.label,data:data.map(()=>b.value),borderColor:RED,borderDash:[8,4],borderWidth:2,pointRadius:0,fill:false});}
   if(charts.cTrend)charts.cTrend.destroy();
-  charts.cTrend=new Chart($("#cTrend"),{type:"line",data:{labels,datasets:[{label:$("#trendMetric").selectedOptions[0].text,data,borderColor:BLUE,backgroundColor:"rgba(4,134,103,.12)",fill:true,tension:.25,pointRadius:3}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:"#eef1f5"},ticks:{callback:v=>isPct?v+"%":v}}}}});
-  $("#trendNote").textContent=series&&series.length?series.length+" day(s) of history for "+sName(current):"No history yet for "+sName(current)+" — trends fill as days accumulate.";
+  charts.cTrend=new Chart($("#cTrend"),{type:"line",data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:b?true:false,labels:{font:{size:11},usePointStyle:true}}},scales:{y:{grid:{color:"#eef1f5"},ticks:{callback:v=>isPct?v+"%":v}}}}});
+  // Out-of-standard count for current month
+  let note=series&&series.length?series.length+" day(s) of history for "+sName(current):"No history yet for "+sName(current)+" — trends fill as days accumulate.";
+  if(b&&series&&series.length){
+    const now=new Date();const curMo=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+    const moData=series.filter(x=>x[0].startsWith(curMo));
+    if(moData.length){
+      const oos=moData.filter(x=>b.dir==="max"?x[1]>b.value:x[1]<b.value).length;
+      const tag=oos>0?`<span style="color:${RED};font-weight:600">${oos} of ${moData.length} day(s) out of standard</span>`
+        :`<span style="color:${GREEN};font-weight:600">All ${moData.length} day(s) in standard</span>`;
+      note="";
+      $("#trendNote").innerHTML=series.length+" day(s) of history · "+tag+" this month ("+b.label+")";
+    }else{$("#trendNote").textContent=note;}
+  }else{$("#trendNote").textContent=note;}
 }
 
 // RECAP

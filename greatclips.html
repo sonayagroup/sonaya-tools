@@ -108,6 +108,11 @@ tbody tr.clickrow{cursor:pointer}
 <div id="emptyBanner"></div>
 
 <section class="panel active" id="portfolio">
+  <div class="modebar">
+    <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
+    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="ytd">YTD</button></span>
+    <span id="portModeHint" style="font-size:12px;color:var(--muted)"></span>
+  </div>
   <div class="kpis" id="portKpis"></div>
   <div class="sec-title" id="portTitle"></div>
   <div class="card tbl-scroll" style="margin-bottom:18px">
@@ -133,7 +138,7 @@ tbody tr.clickrow{cursor:pointer}
 <section class="panel" id="detail">
   <div class="modebar">
     <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
-    <span class="det-mode" id="detModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="week">Week</button></span>
+    <span class="det-mode" id="detModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="week">Week</button><button data-mode="ytd">YTD</button></span>
     <span id="detModeHint" style="font-size:12px;color:var(--muted)"></span>
   </div>
   <div class="kpis" id="detKpis"></div>
@@ -164,6 +169,18 @@ tbody tr.clickrow{cursor:pointer}
       <div class="card"><h3>Weekly wait &amp; pace</h3><div class="hint" id="detWeekWaitHint"></div><ul class="mini-list" id="detWeekWait"></ul></div>
       <div class="card"><h3>At a glance</h3><div class="hint">Weekly totals</div><ul class="mini-list" id="detWeekList"></ul></div>
     </div>
+  </div>
+
+  <div id="detYTD" style="display:none">
+    <div class="grid g2">
+      <div class="card"><h3>Monthly Sales</h3><div class="chart-box"><canvas id="cYtdSales"></canvas></div></div>
+      <div class="card"><h3>Monthly Customers</h3><div class="chart-box"><canvas id="cYtdCust"></canvas></div></div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card"><h3>Monthly Payroll %</h3><div class="chart-box"><canvas id="cYtdPay"></canvas></div></div>
+      <div class="card"><h3>Monthly CPH</h3><div class="chart-box"><canvas id="cYtdCph"></canvas></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>YTD at a glance</h3><div class="hint">Calendar year to date</div><ul class="mini-list" id="detYtdList"></ul></div>
   </div>
 
   <div class="card" style="margin-top:16px"><h3>Recent Google Reviews</h3><div class="hint" id="revHint"></div><div id="revList"></div></div>
@@ -308,6 +325,30 @@ const SALIDX={serviceSales:2,productSales:3,totalSales:4,cust:5,payrollPct:6,avg
 function dTrend(salon,metric){const idx=SALIDX[metric];if(idx==null)return [];const out=[];
   Object.keys(DATA.days||{}).sort().forEach(d=>{const sal=((DATA.days[d]||{}).SAL||[]).find(r=>String(r[0])===String(salon));if(sal&&typeof sal[idx]==="number")out.push([d,sal[idx]]);});
   return out;}
+// --- YTD aggregation ---
+let portMode="day";
+function ytdYear(){return DATES.length?DATES[0].slice(0,4):String(new Date().getFullYear());}
+function computeYTD(){
+  const yr=ytdYear(),prefix=yr+"-";
+  const sids=Object.keys(DATA.salons||{});
+  const acc={};sids.forEach(id=>{acc[id]={sales:0,svcSales:0,prodSales:0,cust:0,paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,days:0,monthly:{}};});
+  Object.keys(DATA.days||{}).sort().forEach(d=>{
+    if(!d.startsWith(prefix))return;
+    const mo=d.slice(0,7);
+    (DATA.days[d].SAL||[]).forEach(s=>{
+      const id=String(s[0]);if(!acc[id])return;const a=acc[id];
+      a.sales+=s[4]||0;a.svcSales+=s[2]||0;a.prodSales+=s[3]||0;a.cust+=s[5]||0;
+      if(typeof s[6]==="number"){a.paySum+=s[6];a.hcSum+=s[7];a.cphSum+=s[8];a.prodSum+=s[9];a.waitSum+=s[10];a.w15Sum+=s[11];a.cgSum+=s[12];a.sgSum+=s[13];a.days++;}
+      if(!a.monthly[mo])a.monthly[mo]={sales:0,cust:0,paySum:0,cphSum:0,days:0};
+      const m=a.monthly[mo];m.sales+=s[4]||0;m.cust+=s[5]||0;if(typeof s[6]==="number"){m.paySum+=s[6];m.cphSum+=s[8];m.days++;}
+    });
+  });
+  const rows=[];
+  sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
+    rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,a.paySum/n,a.hcSum/n,a.cphSum/n,a.prodSum/n,a.waitSum/n,a.w15Sum/n,a.cgSum/n,a.sgSum/n]);
+  });
+  return {rows,acc,year:yr};
+}
 // --- Supabase recaps (read + upsert) ---
 function supaHeaders(extra){return Object.assign({apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},extra||{});}
 function mapRecapRow(x){return {salonId:x.salon_id,weekEnding:x.week_ending,areaManager:x.area_manager,
@@ -391,8 +432,15 @@ function renderReviews(id){
 
 // PORTFOLIO
 let sortK=4,sortDir=-1;
+document.querySelectorAll("#portModeToggle button").forEach(b=>b.onclick=()=>{
+  portMode=b.dataset.mode;
+  document.querySelectorAll("#portModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  renderPort();
+});
 function renderPort(){
+  if(portMode==="ytd")return renderPortYTD();
   const SAL=DAY.SAL||[];
+  $("#portModeHint").textContent=curDate?fmtDate(curDate):"";
   $("#portTitle").textContent="All salons — "+(curDate?fmtDate(curDate):"no day selected")+"  · click a row to open its detail";
   let t={sales:0,cust:0,pay:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];});
   const over=SAL.filter(s=>s[6]>40).length, neg=SAL.filter(s=>s[12]<0).length;
@@ -411,6 +459,30 @@ function renderPort(){
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${(t.pay/t.n).toFixed(1)}%</td><td colspan="8" class="sub">Google ratings as of ${GRATE_ASOF}</td></tr>`:"";
   $("#hSales").textContent=curDate?fmtDate(curDate):"";
+  portCharts(SAL);
+}
+function renderPortYTD(){
+  const ytd=computeYTD();const SAL=ytd.rows;const yr=ytd.year;
+  $("#portModeHint").textContent="Jan 1 \u2013 "+fmtDate(DATES[0]||"")+" "+yr;
+  $("#portTitle").textContent="All salons \u2014 YTD "+yr+"  \u00b7 click a row to open its detail";
+  let t={sales:0,cust:0,pay:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];});
+  const over=SAL.filter(s=>s[6]>40).length;
+  const totalDays=Object.values(ytd.acc).reduce((a,v)=>Math.max(a,v.days),0);
+  $("#portKpis").innerHTML=[["Salons",SAL.length,""],["YTD Sales",money0(t.sales),totalDays+" day(s)"],
+    ["YTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",(t.pay/t.n).toFixed(1)+"%","target \u2264 40%"],
+    ["Over payroll",over+" of "+SAL.length,"avg above 40%"],["Days in data",totalDays,"calendar "+yr]]
+    .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
+  const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
+  const tb=$("#portTable tbody");tb.innerHTML="";
+  rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    tr.innerHTML=`<td>${s[0]} \u2014 ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
+      <td class="${kpi('payroll',s[6])}">${s[6].toFixed(1)}%</td><td class="${kpi('avghc',s[7])}">${s[7].toFixed(1)}</td><td class="${kpi('cuts',s[8])}">${s[8].toFixed(1)}</td>
+      <td>${money(s[9])}</td><td>${(s[10]||0).toFixed(0)}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
+      <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
+    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];detMode="ytd";document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x.dataset.mode==="ytd"));$("#detDay").style.display="none";$("#detWeek").style.display="none";$("#detYTD").style.display="";renderDetail();document.querySelector('.tab[data-t="detail"]').click();};
+    tb.appendChild(tr);});
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${(t.pay/t.n).toFixed(1)}%</td><td colspan="8" class="sub">YTD totals (sales/cust) \u00b7 averages (payroll/HC/CPH/wait/growth)</td></tr>`:"";
+  $("#hSales").textContent="YTD "+yr;
   portCharts(SAL);
 }
 document.querySelectorAll("#portTable thead th").forEach(th=>th.onclick=()=>{if(th.dataset.k===undefined)return;const k=+th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=(k===0?1:-1);}renderPort();});
@@ -434,9 +506,10 @@ document.querySelectorAll("#detModeToggle button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
   $("#detDay").style.display=detMode==="day"?"":"none";
   $("#detWeek").style.display=detMode==="week"?"":"none";
+  $("#detYTD").style.display=detMode==="ytd"?"":"none";
   renderDetail();
 });
-function renderDetail(){ renderReviews(current); if(detMode==="week")renderDetailWeek(); else renderDetailDay(); }
+function renderDetail(){ renderReviews(current); if(detMode==="ytd")renderDetailYTD(); else if(detMode==="week")renderDetailWeek(); else renderDetailDay(); }
 function renderDetailDay(){
   const s=salById(current);
   $("#detModeHint").textContent=curDate?fmtDate(curDate):"no day selected";
@@ -488,6 +561,40 @@ function renderDetailWeek(){
   $("#detWeekWaitHint").textContent=curWeek?("week ending "+fmtDate(curWeek)):"";
   $("#detWeekWait").innerHTML=w?[["Avg wait",num(g("avgWait"),0)+" min"],["Wait > 15 min",num(g("waitOver15Pct"))+"%"],["Avg min between waiting cust",num(g("avgMinBtwn"))],["Floor hours",num(g("floorHours"),2)],["Floor hours growth",(typeof g("floorHoursGrowth")==="number"?g("floorHoursGrowth").toFixed(2):"—")]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):'<li><span class="k">—</span></li>';
   $("#detWeekList").innerHTML=w?[["Service Sales",mo(g("serviceSales"))],["Product Sales",mo(g("productSales"))],["Total Sales",mo(g("totalSales"))],["Customers",(typeof g("cust")==="number"?g("cust").toLocaleString():"—")],["New Customers",(g("newCust")!=null?g("newCust"):"—")],["Productivity ($/floor hr)",mo(g("prodvity"))],["Payroll %",num(g("payrollPct"))+"%"],["New Cust Return %",num(g("newRetPct"))+"%"],["Repeat Cust Return %",num(g("repRetPct"))+"%"]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):'<li><span class="k">—</span></li>';
+}
+function renderDetailYTD(){
+  const ytd=computeYTD();const yr=ytd.year;const a=ytd.acc[current];
+  $("#detModeHint").textContent="Jan 1 \u2013 "+fmtDate(DATES[0]||"")+" "+yr;
+  $("#detTitle").textContent=(current||"")+" \u2014 "+sName(current)+" \u00b7 YTD "+yr;
+  const k=$("#detKpis");
+  if(a&&a.days){const n=a.days;
+    k.innerHTML=[
+      ["YTD Sales",money(a.sales),"across "+n+" day(s)"],
+      ["YTD Customers",a.cust.toLocaleString(),""],
+      ["Avg Payroll %",(a.paySum/n).toFixed(1)+"%",((a.paySum/n)>40?'<span class="down">over</span>':'<span class="up">under</span>')+" 40%"],
+      ["Avg HC Time",(a.hcSum/n).toFixed(1),"min"],
+      ["Avg CPH",(a.cphSum/n).toFixed(1),((a.cphSum/n)<2.4?'<span class="down">below</span>':'<span class="up">at/above</span>')+" 2.4"],
+      ["Avg Wait >15%",(a.w15Sum/n).toFixed(1)+"%",""],
+      ["Avg Cust Growth",(a.cgSum/n).toFixed(1)+"%","YoY"],
+      ["Avg Sales Growth",(a.sgSum/n).toFixed(1)+"%","YoY"]
+    ].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");
+    const mos=Object.keys(a.monthly).sort();
+    const mNames=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const mLabels=mos.map(m=>{const mn=+m.split("-")[1];return mNames[mn];});
+    const mSales=mos.map(m=>a.monthly[m].sales);
+    const mCust=mos.map(m=>a.monthly[m].cust);
+    const mPay=mos.map(m=>a.monthly[m].days?a.monthly[m].paySum/a.monthly[m].days:0);
+    const mCph=mos.map(m=>a.monthly[m].days?a.monthly[m].cphSum/a.monthly[m].days:0);
+    mk("cYtdSales","bar",mLabels,[{label:"Sales",data:mSales,backgroundColor:BLUE}],{x:v=>"$"+v});
+    mk("cYtdCust","bar",mLabels,[{label:"Customers",data:mCust,backgroundColor:BLUE}],{});
+    mk("cYtdPay","bar",mLabels,[{label:"Payroll %",data:mPay,backgroundColor:mPay.map(v=>kcolor("payroll",v))},{label:"40% target",type:"line",data:mPay.map(()=>40),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{x:v=>v+"%"});
+    mk("cYtdCph","bar",mLabels,[{label:"CPH",data:mCph,backgroundColor:mCph.map(v=>kcolor("cuts",v))},{label:"2.0 standard",type:"line",data:mCph.map(()=>2.0),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{});
+    $("#detYtdList").innerHTML=[["Service Sales",money(a.svcSales)],["Product Sales",money(a.prodSales)],["Total Sales",money(a.sales)],["Customers",a.cust.toLocaleString()],["Avg Productivity ($/floor hr)",money(a.prodSum/n)],["Avg Payroll %",(a.paySum/n).toFixed(1)+"%"],["Avg Wait >15%",(a.w15Sum/n).toFixed(1)+"%"],["Days of data",n]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join("");
+  }else{
+    k.innerHTML='<div class="banner warn" style="grid-column:1/-1">No YTD data for '+sName(current)+' in '+yr+'.</div>';
+    ["cYtdSales","cYtdCust","cYtdPay","cYtdCph"].forEach(c=>{if(charts[c])charts[c].destroy();});
+    $("#detYtdList").innerHTML="";
+  }
 }
 function mkWait(w,tot){const labels=["≤10","10-15","15-20","20-25","25-30","30-40","40+"];const colors=w.map((v,i)=>i<2?GREEN:i<3?AMBER:RED);
   if(charts.cDetWait)charts.cDetWait.destroy();

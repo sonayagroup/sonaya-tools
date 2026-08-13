@@ -577,13 +577,24 @@ body {
     <!-- Mitigation & Discounts -->
     <div class="chart-card" style="margin-bottom:24px;">
       <h3>Mitigation &amp; Discounts</h3>
-      <p class="chart-subtitle">Manager Meals, Employee Meals, and other discount categories</p>
+      <p class="chart-subtitle" id="mitigationSubtitle">Employee &amp; Manager Meals per store — from PowerBI Discounts Overview</p>
       <div class="store-table-wrap" style="border:none;box-shadow:none;">
         <table class="store-table variance-table" id="mitigationTable">
           <thead>
-            <tr><th>Category</th><th>Store</th><th>Count</th><th>$ Amount</th><th>% of Sales</th></tr>
+            <tr>
+              <th rowspan="2" style="vertical-align:bottom;min-width:100px;">Store</th>
+              <th colspan="2" style="text-align:center;border-bottom:2px solid var(--primary);padding-bottom:2px;">Employee Meals (490)</th>
+              <th colspan="2" style="text-align:center;border-bottom:2px solid var(--warning-color, #e67e22);padding-bottom:2px;">Manager Meals (491)</th>
+              <th rowspan="2" style="vertical-align:bottom;">Total Disc $</th>
+              <th rowspan="2" style="vertical-align:bottom;">% of Net Sales</th>
+            </tr>
+            <tr>
+              <th>QTY</th><th>Disc $</th>
+              <th>QTY</th><th>Disc $</th>
+            </tr>
           </thead>
           <tbody id="mitigationBody"></tbody>
+          <tfoot id="mitigationFoot"></tfoot>
         </table>
       </div>
     </div>
@@ -1332,8 +1343,7 @@ const SAMPLE_VOIDS = REAL_VOIDS;
 const SAMPLE_REFUNDS = REAL_REFUNDS;
 const SAMPLE_GCA_PRIOR = REAL_GCA_PRIOR;
 
-/* Real Mitigation / Discounts data from PowerBI (FY2026-P12-W1, JITB M-S calendar) */
-/* Area 373-001 stores: per-store data. Area 373-002: allocated proportionally by Emp Disc ratio */
+/* Real Mitigation / Discounts data from PowerBI Discounts Overview — per-store cross-filter */
 const REAL_MITIGATION = {
   'FY2026-P12-W1': {
     totalEmpMeal: { qty: 42, amount: 183.33 },
@@ -1344,12 +1354,27 @@ const REAL_MITIGATION = {
       '1153': { empMealQty: 12, empMealAmt: 32.95, mgrMealQty: 5, mgrMealAmt: 53.90 },
       '1357': { empMealQty: 6, empMealAmt: 18.81, mgrMealQty: 3, mgrMealAmt: 26.25 },
       '1391': { empMealQty: 4, empMealAmt: 27.78, mgrMealQty: 3, mgrMealAmt: 15.47 },
-      /* 373-002 stores proportionally allocated from area aggregate (Emp $94.01, Mgr $292.33) */
       '726':  { empMealQty: 1, empMealAmt: 5.47, mgrMealQty: 2, mgrMealAmt: 22.15 },
       '898':  { empMealQty: 5, empMealAmt: 20.43, mgrMealQty: 8, mgrMealAmt: 82.83 },
       '1187': { empMealQty: 10, empMealAmt: 39.98, mgrMealQty: 13, mgrMealAmt: 162.02 },
       '1205': { empMealQty: 2, empMealAmt: 18.08, mgrMealQty: 5, mgrMealAmt: 12.59 },
       '1364': { empMealQty: 0, empMealAmt: 10.05, mgrMealQty: 3, mgrMealAmt: 14.74 },
+    },
+  },
+  'FY2026-P12-W2': {
+    totalEmpMeal: { qty: 24, amount: 154.82 },
+    totalMgrMeal: { qty: 42, amount: 360.80 },
+    stores: {
+      '1029': { empMealQty: 2, empMealAmt: 19.65, mgrMealQty: 0, mgrMealAmt: 0.00 },
+      '1056': { empMealQty: 0, empMealAmt: 0.00, mgrMealQty: 4, mgrMealAmt: 29.32 },
+      '1153': { empMealQty: 8, empMealAmt: 31.48, mgrMealQty: 7, mgrMealAmt: 61.23 },
+      '1357': { empMealQty: 2, empMealAmt: 6.83, mgrMealQty: 5, mgrMealAmt: 35.24 },
+      '1391': { empMealQty: 1, empMealAmt: 1.45, mgrMealQty: 4, mgrMealAmt: 33.20 },
+      '726':  { empMealQty: 7, empMealAmt: 79.00, mgrMealQty: 6, mgrMealAmt: 58.48 },
+      '898':  { empMealQty: 0, empMealAmt: 0.00, mgrMealQty: 4, mgrMealAmt: 34.44 },
+      '1187': { empMealQty: 1, empMealAmt: 8.72, mgrMealQty: 4, mgrMealAmt: 32.05 },
+      '1205': { empMealQty: 3, empMealAmt: 7.69, mgrMealQty: 5, mgrMealAmt: 60.77 },
+      '1364': { empMealQty: 0, empMealAmt: 0.00, mgrMealQty: 3, mgrMealAmt: 16.07 },
     },
   },
 };
@@ -1368,18 +1393,30 @@ const REAL_LOSS_PREVENTION = {
     '1391': { voidsDollar: 17.66, voidsPct: 0.60, refunds: 0.00, empDisc: 11.79 },
   },
 };
+// Helper: get the latest REAL_MITIGATION period key
+function getLatestMitigationPeriod() {
+  const keys = Object.keys(REAL_MITIGATION).sort();
+  return keys[keys.length - 1];
+}
 // Backward compat alias — compute pctOfSales from realSalesDaily
-const SAMPLE_MITIGATION = {
-  '2026-08-05': Object.entries(REAL_MITIGATION['FY2026-P12-W1'].stores).flatMap(([id, d]) => {
-    const s = STORES.find(st => st.id === id);
-    const sales = (dataStore.realSalesDaily['2026-08-05'] && dataStore.realSalesDaily['2026-08-05'][id])
-      ? dataStore.realSalesDaily['2026-08-05'][id].netSales : 3000;
-    return [
-      { category: 'Manager Meals', storeId: id, storeName: s?.name||id, count: d.mgrMealQty, amount: d.mgrMealAmt, pctOfSales: sales > 0 ? +(d.mgrMealAmt / sales * 100).toFixed(2) : 0 },
-      { category: 'Employee Meals', storeId: id, storeName: s?.name||id, count: d.empMealQty, amount: d.empMealAmt, pctOfSales: sales > 0 ? +(d.empMealAmt / sales * 100).toFixed(2) : 0 },
-    ];
-  }),
-};
+const SAMPLE_MITIGATION = (() => {
+  const result = {};
+  for (const [period, pdata] of Object.entries(REAL_MITIGATION)) {
+    // Map period to a representative date (use first available sales date)
+    const salesDates = Object.keys(dataStore.realSalesDaily).sort();
+    const dateKey = period === 'FY2026-P12-W1' ? '2026-08-05' : (period === 'FY2026-P12-W2' ? '2026-08-11' : (salesDates[salesDates.length-1] || '2026-08-05'));
+    result[dateKey] = Object.entries(pdata.stores).flatMap(([id, d]) => {
+      const s = STORES.find(st => st.id === id);
+      const sales = (dataStore.realSalesDaily[dateKey] && dataStore.realSalesDaily[dateKey][id])
+        ? dataStore.realSalesDaily[dateKey][id].netSales : 3000;
+      return [
+        { category: 'Manager Meals', storeId: id, storeName: s?.name||id, count: d.mgrMealQty, amount: d.mgrMealAmt, pctOfSales: sales > 0 ? +(d.mgrMealAmt / sales * 100).toFixed(2) : 0 },
+        { category: 'Employee Meals', storeId: id, storeName: s?.name||id, count: d.empMealQty, amount: d.empMealAmt, pctOfSales: sales > 0 ? +(d.empMealAmt / sales * 100).toFixed(2) : 0 },
+      ];
+    });
+  }
+  return result;
+})();
 
 async function loadExternalData() {
   try {
@@ -2009,18 +2046,47 @@ function renderFood() {
     </tr>`;
   }).join('');
 
-  // Mitigation & Discounts
-  const mitigationData = SAMPLE_MITIGATION[weekEnd] || SAMPLE_MITIGATION['2026-08-05'] || [];
-  const filteredMit = state.foodStore === 'all' ? mitigationData : mitigationData.filter(m => m.storeId === state.foodStore);
-  document.getElementById('mitigationBody').innerHTML = filteredMit.map(m => {
-    return `<tr>
-      <td>${m.category}</td>
-      <td>${m.storeName} (${m.storeId})</td>
-      <td>${m.count}</td>
-      <td>$${m.amount.toFixed(2)}</td>
-      <td>${m.pctOfSales.toFixed(2)}%</td>
+  // Mitigation & Discounts — per-store table with Emp/Mgr columns
+  const latestMitPeriod = getLatestMitigationPeriod();
+  const mitPeriodData = REAL_MITIGATION[latestMitPeriod];
+  document.getElementById('mitigationSubtitle').textContent = `Employee & Manager Meals per store — ${latestMitPeriod} (PowerBI Discounts Overview)`;
+  if (mitPeriodData) {
+    const storeIds = state.foodStore === 'all' ? Object.keys(mitPeriodData.stores) : [state.foodStore];
+    const validIds = storeIds.filter(id => mitPeriodData.stores[id]);
+    let totalEmpQty = 0, totalEmpAmt = 0, totalMgrQty = 0, totalMgrAmt = 0, totalNetSales = 0;
+    document.getElementById('mitigationBody').innerHTML = validIds.map(id => {
+      const d = mitPeriodData.stores[id];
+      const s = STORES.find(st => st.id === id);
+      const storeName = s ? s.name : id;
+      const salesDay = dataStore.realSalesDaily[weekEnd] || dataStore.realSalesDaily[Object.keys(dataStore.realSalesDaily).sort().pop()] || {};
+      const netSales = salesDay[id] ? salesDay[id].netSales : 0;
+      const totalDisc = d.empMealAmt + d.mgrMealAmt;
+      const pctSales = netSales > 0 ? (totalDisc / netSales * 100) : 0;
+      totalEmpQty += d.empMealQty; totalEmpAmt += d.empMealAmt;
+      totalMgrQty += d.mgrMealQty; totalMgrAmt += d.mgrMealAmt;
+      totalNetSales += netSales;
+      const highFlag = pctSales > 3 ? ' style="color:var(--critical-color,#e74c3c);font-weight:600;"' : (pctSales > 2 ? ' style="color:var(--warning-color,#e67e22);font-weight:600;"' : '');
+      return `<tr>
+        <td>${storeName} (${id})</td>
+        <td>${d.empMealQty}</td><td>$${d.empMealAmt.toFixed(2)}</td>
+        <td>${d.mgrMealQty}</td><td>$${d.mgrMealAmt.toFixed(2)}</td>
+        <td>$${totalDisc.toFixed(2)}</td>
+        <td${highFlag}>${pctSales.toFixed(2)}%</td>
+      </tr>`;
+    }).join('');
+    const grandTotal = totalEmpAmt + totalMgrAmt;
+    const grandPct = totalNetSales > 0 ? (grandTotal / totalNetSales * 100) : 0;
+    document.getElementById('mitigationFoot').innerHTML = `<tr style="font-weight:700;border-top:2px solid var(--border);">
+      <td>Total</td>
+      <td>${totalEmpQty}</td><td>$${totalEmpAmt.toFixed(2)}</td>
+      <td>${totalMgrQty}</td><td>$${totalMgrAmt.toFixed(2)}</td>
+      <td>$${grandTotal.toFixed(2)}</td>
+      <td>${grandPct.toFixed(2)}%</td>
     </tr>`;
-  }).join('');
+  } else {
+    document.getElementById('mitigationBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No mitigation data for this period</td></tr>';
+    document.getElementById('mitigationFoot').innerHTML = '';
+  }
 
   // Variance items
   document.getElementById('varianceItemsBody').innerHTML = items.map(it => {

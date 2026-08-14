@@ -731,6 +731,23 @@ body {
         <div class="chart-area" id="chartFinStores"></div>
       </div>
     </div>
+    <!-- Break-Even Analysis -->
+    <div style="margin-top:24px;">
+      <div class="chart-card" style="max-width:100%;">
+        <h3>Break-Even Analysis</h3>
+        <p class="chart-subtitle">Monthly avg revenue vs break-even point (incl. corporate overhead) — Jan–Jul 2026</p>
+        <div class="chart-area" id="chartBreakeven" style="min-height:220px;"></div>
+        <div class="store-table-wrap" style="margin-top:16px;">
+          <table class="store-table" id="breakevenTable">
+            <thead id="breakevenTableHead"></thead>
+            <tbody id="breakevenTableBody"></tbody>
+          </table>
+        </div>
+        <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">
+          Break-even = Fixed Costs &divide; Contribution Margin %. Variable costs include COGS, Ad &amp; Royalty fees, CC fees, 3rd-party delivery. Fixed costs include payroll, occupancy, utilities, maintenance, insurance, interest, plus equal corporate overhead allocation ($4,278/store/mo). Payroll treated as fully fixed (simplification — actual break-even likely lower).
+        </p>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1341,6 +1358,25 @@ const dataStore = {
       { item: 'Cheese Cheddar Block', storeId: '1364', storeName: 'Bernalillo', theoryCost: 1287, actualCost: 1030, dollarVar: -258, pctVar: -0.42 },
       { item: 'Chicken', storeId: '1364', storeName: 'Bernalillo', theoryCost: 854, actualCost: 827, dollarVar: -27, pctVar: -0.04 },
     ],
+  },
+  /* Break-Even Analysis — Jan-Jul 2026 monthly averages from Patel_DT_BreakEven_2026.xlsx */
+  breakeven: {
+    period: 'Jan–Jul 2026',
+    months: 7,
+    corpOverheadTotal: 299479.02,
+    corpOverheadPerStore: 4278.27,
+    stores: {
+      '726':  { revPerMonth: 136305.63, varCostPct: 44.06, contribMarginPct: 55.94, fixedPerMonth: 61609.64, breakEvenExclCorp: 110129.37, breakEvenInclCorp: 117776.93, cushionGap: 18528.70 },
+      '898':  { revPerMonth: 103535.25, varCostPct: 43.85, contribMarginPct: 56.15, fixedPerMonth: 49898.18, breakEvenExclCorp: 88863.08, breakEvenInclCorp: 96482.20, cushionGap: 7053.05 },
+      '1029': { revPerMonth: 98961.70,  varCostPct: 43.46, contribMarginPct: 56.54, fixedPerMonth: 49572.08, breakEvenExclCorp: 87681.54, breakEvenInclCorp: 95248.82, cushionGap: 3712.89 },
+      '1056': { revPerMonth: 116313.15, varCostPct: 41.39, contribMarginPct: 58.61, fixedPerMonth: 56262.24, breakEvenExclCorp: 95991.39, breakEvenInclCorp: 103290.73, cushionGap: 13022.42 },
+      '1153': { revPerMonth: 78135.56,  varCostPct: 48.98, contribMarginPct: 51.02, fixedPerMonth: 45625.14, breakEvenExclCorp: 89421.25, breakEvenInclCorp: 97806.29, cushionGap: -19670.73 },
+      '1187': { revPerMonth: 87936.64,  varCostPct: 48.89, contribMarginPct: 51.11, fixedPerMonth: 50938.32, breakEvenExclCorp: 99672.18, breakEvenInclCorp: 108043.58, cushionGap: -20106.93 },
+      '1205': { revPerMonth: 66970.14,  varCostPct: 46.31, contribMarginPct: 53.69, fixedPerMonth: 43877.55, breakEvenExclCorp: 81723.33, breakEvenInclCorp: 89691.75, cushionGap: -22721.61 },
+      '1357': { revPerMonth: 49506.02,  varCostPct: 44.91, contribMarginPct: 55.09, fixedPerMonth: 29670.91, breakEvenExclCorp: 53862.06, breakEvenInclCorp: 61628.47, cushionGap: -12122.45 },
+      '1364': { revPerMonth: 62051.33,  varCostPct: 44.97, contribMarginPct: 55.03, fixedPerMonth: 42537.24, breakEvenExclCorp: 77296.72, breakEvenInclCorp: 85071.00, cushionGap: -23019.66 },
+      '1391': { revPerMonth: 84788.17,  varCostPct: 46.40, contribMarginPct: 53.60, fixedPerMonth: 45093.89, breakEvenExclCorp: 84130.09, breakEvenInclCorp: 92111.91, cushionGap: -7323.74 },
+    },
   },
   /* Shift Inventory Quality — keyed by week-ending date, array of per-store entries */
   realShiftInventory: {
@@ -2886,6 +2922,7 @@ function renderFinancial() {
   renderFinPieChart();
   renderFinRatiosChart();
   renderFinStoresChart();
+  renderBreakeven();
 }
 
 function renderPortfolioPL() {
@@ -3258,6 +3295,110 @@ function renderFinStoresChart() {
     value: +(s.noi / s.ns * 100).toFixed(1),
   })).sort((a, b) => b.value - a.value);
   renderDivergingBar('chartFinStores', data, '%');
+}
+
+/* ===== BREAK-EVEN ANALYSIS RENDERER ===== */
+function renderBreakeven() {
+  const be = dataStore.breakeven;
+  if (!be || !be.stores) return;
+  const chartEl = document.getElementById('chartBreakeven');
+  const headEl = document.getElementById('breakevenTableHead');
+  const bodyEl = document.getElementById('breakevenTableBody');
+  if (!chartEl || !headEl || !bodyEl) return;
+  const storeId = state.finStore || 'all';
+
+  // If a single store is selected, show just that store's detail
+  const storeList = storeId !== 'all' ? [[storeId, be.stores[storeId]]] : Object.entries(be.stores);
+  if (storeId !== 'all' && !be.stores[storeId]) {
+    chartEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No break-even data for this store.</p>';
+    headEl.innerHTML = ''; bodyEl.innerHTML = '';
+    return;
+  }
+
+  // Sort by cushionGap descending
+  const sorted = storeList.map(([id, s]) => ({
+    id, name: STORES.find(st => st.id === id)?.name || id, ...s
+  })).sort((a, b) => b.cushionGap - a.cushionGap);
+
+  // Bar chart: revenue vs breakeven per store
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const gridColor = isDark ? '#2c2c2a' : '#e1e0d9';
+  const textColor = isDark ? '#898781' : '#52514e';
+  const W = 580, barH = 28, gap = 6;
+  const pad = { top: 10, right: 16, bottom: 10, left: 95 };
+  const H = pad.top + pad.bottom + sorted.length * (barH + gap);
+  const cW = W - pad.left - pad.right;
+  const maxVal = Math.max(...sorted.map(s => Math.max(s.revPerMonth, s.breakEvenInclCorp))) * 1.08;
+  const x = (v) => pad.left + (v / maxVal) * cW;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">`;
+  sorted.forEach((s, i) => {
+    const yBase = pad.top + i * (barH + gap);
+    const revW = x(s.revPerMonth) - pad.left;
+    const beW = x(s.breakEvenInclCorp) - pad.left;
+    const isAbove = s.cushionGap >= 0;
+    const barColor = isAbove ? 'var(--delta-up-good)' : 'var(--delta-down-bad)';
+    const beColor = isDark ? '#898781' : '#706f6c';
+
+    // Revenue bar
+    svg += `<rect x="${pad.left}" y="${yBase}" width="${revW}" height="${barH * 0.45}" rx="2" fill="${barColor}" opacity="0.85"/>`;
+    // Break-even bar (thinner, below)
+    svg += `<rect x="${pad.left}" y="${yBase + barH * 0.5}" width="${beW}" height="${barH * 0.35}" rx="2" fill="${beColor}" opacity="0.4"/>`;
+    // Break-even marker line
+    svg += `<line x1="${x(s.breakEvenInclCorp)}" y1="${yBase - 1}" x2="${x(s.breakEvenInclCorp)}" y2="${yBase + barH}" stroke="${beColor}" stroke-width="1.5" stroke-dasharray="3,2"/>`;
+    // Store label
+    svg += `<text x="${pad.left - 6}" y="${yBase + barH * 0.55}" fill="${textColor}" font-size="11" text-anchor="end" font-weight="500">${s.id} ${s.name}</text>`;
+    // Cushion/gap label at end of revenue bar
+    const label = (isAbove ? '+' : '') + fmtDollar(s.cushionGap);
+    svg += `<text x="${x(s.revPerMonth) + 4}" y="${yBase + barH * 0.4}" fill="${barColor}" font-size="10" font-weight="600">${label}</text>`;
+  });
+  // Legend
+  const legY = H - 2;
+  svg += `<rect x="${pad.left}" y="${legY - 8}" width="10" height="8" rx="1" fill="var(--delta-up-good)" opacity="0.85"/>`;
+  svg += `<text x="${pad.left + 14}" y="${legY}" fill="${textColor}" font-size="9">Avg Monthly Revenue</text>`;
+  svg += `<rect x="${pad.left + 140}" y="${legY - 8}" width="10" height="6" rx="1" fill="${isDark ? '#898781' : '#706f6c'}" opacity="0.4"/>`;
+  svg += `<text x="${pad.left + 154}" y="${legY}" fill="${textColor}" font-size="9">Break-Even (incl. corp)</text>`;
+  svg += `</svg>`;
+  chartEl.innerHTML = svg;
+
+  // Table
+  headEl.innerHTML = `<tr>
+    <th>Store</th>
+    <th style="text-align:right;">Avg Revenue/mo</th>
+    <th style="text-align:right;">Break-Even/mo</th>
+    <th style="text-align:right;">Cushion / (Gap)</th>
+    <th style="text-align:right;">Contrib Margin %</th>
+    <th style="text-align:right;">Variable Cost %</th>
+    <th style="text-align:right;">Fixed Cost/mo</th>
+  </tr>`;
+
+  const totRev = sorted.reduce((s, r) => s + r.revPerMonth, 0);
+  const totBE = sorted.reduce((s, r) => s + r.breakEvenInclCorp, 0);
+  const totCG = sorted.reduce((s, r) => s + r.cushionGap, 0);
+  const totFixed = sorted.reduce((s, r) => s + r.fixedPerMonth + be.corpOverheadPerStore, 0);
+
+  bodyEl.innerHTML = sorted.map(s => {
+    const isAbove = s.cushionGap >= 0;
+    const cgColor = isAbove ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
+    const cgText = (isAbove ? '+' : '') + fmtDollar(s.cushionGap);
+    return `<tr>
+      <td>${s.name} (${s.id})</td>
+      <td style="text-align:right;">${fmtDollar(s.revPerMonth)}</td>
+      <td style="text-align:right;">${fmtDollar(s.breakEvenInclCorp)}</td>
+      <td style="text-align:right;${cgColor};font-weight:600;">${cgText}</td>
+      <td style="text-align:right;">${s.contribMarginPct.toFixed(1)}%</td>
+      <td style="text-align:right;">${s.varCostPct.toFixed(1)}%</td>
+      <td style="text-align:right;">${fmtDollar(s.fixedPerMonth + be.corpOverheadPerStore)}</td>
+    </tr>`;
+  }).join('') + `<tr style="background:var(--surface-chart);font-weight:700;">
+    <td>Portfolio (${sorted.length} stores)</td>
+    <td style="text-align:right;">${fmtDollar(totRev)}</td>
+    <td style="text-align:right;">${fmtDollar(totBE)}</td>
+    <td style="text-align:right;${totCG >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'};font-weight:700;">${(totCG >= 0 ? '+' : '') + fmtDollar(totCG)}</td>
+    <td style="text-align:right;">—</td>
+    <td style="text-align:right;">—</td>
+    <td style="text-align:right;">${fmtDollar(totFixed)}</td>
+  </tr>`;
 }
 
 /* ===== LINE CHART RENDERER ===== */

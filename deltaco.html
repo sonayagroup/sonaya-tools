@@ -742,7 +742,7 @@ body {
           </table>
         </div>
         <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">
-          Break-even = Fixed Costs &divide; Contribution Margin %. Variable costs include COGS, Ad &amp; Royalty fees, CC fees, 3rd-party delivery. Fixed costs include payroll, occupancy, utilities, maintenance, insurance, interest, plus equal corporate overhead allocation ($4,278/store/mo). Payroll treated as fully fixed (simplification — actual break-even likely lower). Revenue is projected from available daily sales data when the month is incomplete. Cost ratios update automatically when new QBO P&amp;L data is loaded.
+          Break-even = Fixed Costs &divide; Contribution Margin %. Variable costs include COGS, Ad &amp; Royalty fees, CC fees, 3rd-party delivery. Fixed costs include payroll, occupancy, utilities, maintenance, insurance, interest, plus equal corporate overhead allocation ($4,278/store/mo). Payroll treated as fully fixed (simplification — actual break-even likely lower). Averages are weighted across all uploaded P&amp;L periods; add new months to extend.
         </p>
       </div>
     </div>
@@ -1408,22 +1408,35 @@ const dataStore = {
       { item: 'Chicken', storeId: '1364', storeName: 'Bernalillo', theoryCost: 854, actualCost: 827, dollarVar: -27, pctVar: -0.04 },
     ],
   },
-  /* Break-Even Config — baseline per-store cost structure; breakeven is computed dynamically */
-  breakevenConfig: {
+  /* Break-Even P&L — per-store monthly P&L data by period; breakeven computed dynamically.
+     Add new period entries when store-level P&L data is loaded. The compute function
+     averages across all periods (weighted by month count) to produce breakeven. */
+  breakevenPL: {
     corpOverheadPerStore: 4278.27,
-    /* Per-store monthly fixed costs (payroll, rent, utilities, insurance, maintenance, interest).
-       Source: Jan–Jul 2026 store-level P&L. Update these when new store-level cost data is loaded. */
-    baselineFixed: {
-      '726': 61609.64, '898': 49898.18, '1029': 49572.08, '1056': 56262.24,
-      '1153': 45625.14, '1187': 50938.32, '1205': 43877.55, '1357': 29670.91,
-      '1364': 42537.24, '1391': 45093.89,
-    },
-    /* Per-store variable cost % (COGS + ad/royalty + CC fees + 3rd-party delivery as % of revenue).
-       Source: Jan–Jul 2026 store-level P&L. Overridden by QBO food cost when available. */
-    baselineVarPct: {
-      '726': 44.06, '898': 43.85, '1029': 43.46, '1056': 41.39,
-      '1153': 48.98, '1187': 48.89, '1205': 46.31, '1357': 44.91,
-      '1364': 44.97, '1391': 46.40,
+    periods: {
+      'Jan–Jul 2026': {
+        months: 7,
+        stores: {
+          '726':  { revPerMonth: 136305.63, varCostPct: 44.06, fixedPerMonth: 61609.64 },
+          '898':  { revPerMonth: 103535.25, varCostPct: 43.85, fixedPerMonth: 49898.18 },
+          '1029': { revPerMonth: 98961.70,  varCostPct: 43.46, fixedPerMonth: 49572.08 },
+          '1056': { revPerMonth: 116313.15, varCostPct: 41.39, fixedPerMonth: 56262.24 },
+          '1153': { revPerMonth: 78135.56,  varCostPct: 48.98, fixedPerMonth: 45625.14 },
+          '1187': { revPerMonth: 87936.64,  varCostPct: 48.89, fixedPerMonth: 50938.32 },
+          '1205': { revPerMonth: 66970.14,  varCostPct: 46.31, fixedPerMonth: 43877.55 },
+          '1357': { revPerMonth: 49506.02,  varCostPct: 44.91, fixedPerMonth: 29670.91 },
+          '1364': { revPerMonth: 62051.33,  varCostPct: 44.97, fixedPerMonth: 42537.24 },
+          '1391': { revPerMonth: 84788.17,  varCostPct: 46.40, fixedPerMonth: 45093.89 },
+        },
+      },
+      /* Add new months here as store-level P&L data is uploaded, e.g.:
+      'Aug 2026': {
+        months: 1,
+        stores: {
+          '726': { revPerMonth: 130000, varCostPct: 43.5, fixedPerMonth: 62000 },
+          ...
+        },
+      }, */
     },
   },
   /* Shift Inventory Quality — keyed by week-ending date, array of per-store entries */
@@ -3347,95 +3360,55 @@ function renderFinStoresChart() {
 }
 
 /* ===== DYNAMIC BREAK-EVEN COMPUTATION ===== */
-/* Computes per-store breakeven from realSalesDaily + QBO P&L + baseline cost config.
-   Updates automatically whenever new P&L data or daily sales are loaded. */
+/* Computes per-store breakeven from breakevenPL period data.
+   Averages across all uploaded P&L periods (weighted by month count).
+   Add new period entries to dataStore.breakevenPL.periods to extend. */
 function computeBreakeven() {
-  const cfg = dataStore.breakevenConfig;
-  if (!cfg) return null;
+  const pl = dataStore.breakevenPL;
+  if (!pl || !pl.periods) return null;
 
-  const corpOH = cfg.corpOverheadPerStore;
+  const corpOH = pl.corpOverheadPerStore;
   const storeIds = STORES.map(s => s.id);
-  const varPct = { ...cfg.baselineVarPct };
-  const fixedBase = { ...cfg.baselineFixed };
+  const periodKeys = Object.keys(pl.periods);
+  if (periodKeys.length === 0) return null;
 
-  // --- Update variable cost % from QBO if we have enough data ---
-  const qbo = dataStore.realQboPL;
-  const qboKeys = Object.keys(qbo);
-  if (qboKeys.length > 0) {
-    // Use weekly entries to avoid double-counting with period-level summaries
-    const weeklyKeys = qboKeys.filter(k => /-W\d+$/.test(k));
-    const entries = weeklyKeys.length > 0 ? weeklyKeys : qboKeys;
-    let totSales = 0, totCOGS = 0;
-    for (const k of entries) {
-      const e = qbo[k];
-      totSales += e.cashSales || 0;
-      totCOGS += (e.foodCOGS || 0) + (e.paperPlastic || 0);
-    }
-    if (totSales > 0) {
-      const qboCogsPct = (totCOGS / totSales) * 100;
-      // COGS is one component of variable costs. Compute the ratio of COGS to total
-      // variable costs from baseline, then scale all stores proportionally.
-      const baseAvgVar = Object.values(cfg.baselineVarPct).reduce((a, b) => a + b, 0) / storeIds.length;
-      // Baseline COGS component ≈ weighted avg of store food cost data, typically ~60% of varCost
-      // Use a reference ratio: Jan-Jul 2026 company avg food cost was ~27%, variable was ~45%
-      const baselineCogsPct = 27.0;
-      const scaleFactor = qboCogsPct / baselineCogsPct;
-      // Scale each store's variable cost % proportionally — keeps per-store differentiation
-      for (const sid of storeIds) {
-        if (cfg.baselineVarPct[sid]) {
-          varPct[sid] = Math.min(95, cfg.baselineVarPct[sid] * scaleFactor);
-        }
-      }
-    }
-  }
+  // Weighted average across all uploaded P&L periods
+  const storeData = {};
+  let totalMonths = 0;
 
-  // --- Compute per-store monthly revenue from realSalesDaily ---
-  const monthlyRev = {}; // { '2026-08': { '726': total, ... } }
-  const monthDays = {};  // { '2026-08': Set of dates }
-  const dailySales = dataStore.realSalesDaily;
-
-  for (const [date, stores] of Object.entries(dailySales)) {
-    const mo = date.substring(0, 7);
-    if (!monthlyRev[mo]) { monthlyRev[mo] = {}; monthDays[mo] = new Set(); }
-    monthDays[mo].add(date);
-    for (const [sid, data] of Object.entries(stores)) {
-      monthlyRev[mo][sid] = (monthlyRev[mo][sid] || 0) + (data.netSales || 0);
-    }
-  }
-
-  const months = Object.keys(monthlyRev).sort();
-  if (months.length === 0) return null;
-
-  // --- Compute breakeven per store per month ---
-  const result = { months: {}, corpOverheadPerStore: corpOH, allMonths: months };
-  for (const mo of months) {
-    const numDays = monthDays[mo].size;
-    const [yr, mn] = mo.split('-').map(Number);
-    const daysInMo = new Date(yr, mn, 0).getDate();
-    const extrap = daysInMo / numDays; // extrapolation factor for partial months
-
-    const stores = {};
+  for (const key of periodKeys) {
+    const period = pl.periods[key];
+    const m = period.months || 1;
+    totalMonths += m;
     for (const sid of storeIds) {
-      const rawRev = monthlyRev[mo][sid] || 0;
-      const estRev = rawRev * extrap;
-      const vp = (varPct[sid] || 45) / 100;
-      const cm = 1 - vp;
-      const fixed = (fixedBase[sid] || 45000);
-      const beExcl = cm > 0 ? fixed / cm : Infinity;
-      const beIncl = cm > 0 ? (fixed + corpOH) / cm : Infinity;
-      stores[sid] = {
-        revPerMonth: estRev,
-        varCostPct: vp * 100,
-        contribMarginPct: cm * 100,
-        fixedPerMonth: fixed,
-        breakEvenExclCorp: beExcl,
-        breakEvenInclCorp: beIncl,
-        cushionGap: estRev - beIncl,
-      };
+      const s = period.stores && period.stores[sid];
+      if (!s) continue;
+      if (!storeData[sid]) storeData[sid] = { revW: 0, varW: 0, fixW: 0, mCount: 0 };
+      storeData[sid].revW += (s.revPerMonth || 0) * m;
+      storeData[sid].varW += (s.varCostPct || 0) * m;
+      storeData[sid].fixW += (s.fixedPerMonth || 0) * m;
+      storeData[sid].mCount += m;
     }
-    result.months[mo] = { daysOfData: numDays, totalDays: daysInMo, isPartial: numDays < daysInMo, stores };
   }
-  return result;
+
+  const stores = {};
+  for (const sid of storeIds) {
+    const d = storeData[sid];
+    if (!d || d.mCount === 0) continue;
+    const rev = d.revW / d.mCount;
+    const vp = d.varW / d.mCount;
+    const fixed = d.fixW / d.mCount;
+    const cm = (100 - vp) / 100;
+    const beExcl = cm > 0 ? fixed / cm : Infinity;
+    const beIncl = cm > 0 ? (fixed + corpOH) / cm : Infinity;
+    stores[sid] = {
+      revPerMonth: rev, varCostPct: vp, contribMarginPct: 100 - vp,
+      fixedPerMonth: fixed, breakEvenExclCorp: beExcl,
+      breakEvenInclCorp: beIncl, cushionGap: rev - beIncl,
+    };
+  }
+
+  return { corpOverheadPerStore: corpOH, periodLabel: periodKeys.join(' + '), totalMonths, stores };
 }
 
 /* ===== BREAK-EVEN RENDERER ===== */
@@ -3445,27 +3418,19 @@ function renderBreakeven() {
   const bodyEl = document.getElementById('breakevenTableBody');
   const subtitleEl = document.getElementById('breakevenSubtitle');
   if (!headEl || !bodyEl) return;
-  if (!be || !be.allMonths || be.allMonths.length === 0) {
+  if (!be || !be.stores || Object.keys(be.stores).length === 0) {
     headEl.innerHTML = ''; bodyEl.innerHTML = '';
-    if (subtitleEl) subtitleEl.textContent = 'No sales data available for break-even analysis';
+    if (subtitleEl) subtitleEl.textContent = 'No P&L data available for break-even analysis';
     return;
   }
 
   const storeId = state.finStore || 'all';
-  const latestMo = be.allMonths[be.allMonths.length - 1];
-  const moData = be.months[latestMo];
-  if (!moData) return;
-
-  // Format month name for subtitle
-  const [yr, mn] = latestMo.split('-').map(Number);
-  const moName = new Date(yr, mn - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const partialNote = moData.isPartial ? ` (${moData.daysOfData} of ${moData.totalDays} days, projected)` : '';
-  if (subtitleEl) subtitleEl.textContent = `Estimated revenue vs break-even (incl. corporate overhead) — ${moName}${partialNote}`;
+  if (subtitleEl) subtitleEl.textContent = `Monthly avg revenue vs break-even (incl. corporate overhead) — ${be.periodLabel}`;
 
   // Build store list
   const storeEntries = storeId !== 'all'
-    ? (moData.stores[storeId] ? [[storeId, moData.stores[storeId]]] : [])
-    : Object.entries(moData.stores);
+    ? (be.stores[storeId] ? [[storeId, be.stores[storeId]]] : [])
+    : Object.entries(be.stores);
 
   if (storeEntries.length === 0) {
     headEl.innerHTML = ''; bodyEl.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No break-even data for this store.</td></tr>';
@@ -3477,10 +3442,9 @@ function renderBreakeven() {
     id, name: STORES.find(st => st.id === id)?.name || id, ...s
   })).sort((a, b) => b.cushionGap - a.cushionGap);
 
-  // Table header
   headEl.innerHTML = `<tr>
     <th>Store</th>
-    <th style="text-align:right;">Est. Revenue/mo</th>
+    <th style="text-align:right;">Avg Revenue/mo</th>
     <th style="text-align:right;">Break-Even/mo</th>
     <th style="text-align:right;">Cushion / (Gap)</th>
     <th style="text-align:right;">Contrib Margin %</th>

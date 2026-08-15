@@ -158,17 +158,54 @@ tbody tr:hover{background:var(--surface-2)}
 .filter-row select,.filter-row input{padding:6px 10px;font-size:.8rem}
 .filter-row .search-input{min-width:200px}
 
+/* ===== CLICKABLE TITLE ===== */
+.wo-title-link{color:var(--primary);text-decoration:none;cursor:pointer;font-weight:600}
+.wo-title-link:hover{text-decoration:underline}
+
 /* ===== RESPONSIVE ===== */
-.mobile-toggle{display:none;position:fixed;top:12px;left:12px;z-index:150;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px;font-size:1.2rem;box-shadow:var(--shadow)}
+.mobile-toggle{display:none;position:fixed;top:12px;left:12px;z-index:150;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;font-size:1.4rem;box-shadow:var(--shadow);line-height:1}
+.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99}
+.mobile-overlay.open{display:block}
 @media(max-width:768px){
   .sidebar{transform:translateX(-100%)}
   .sidebar.open{transform:translateX(0)}
   .mobile-toggle{display:block}
   .main{margin-left:0}
-  .content{padding:16px}
-  .topbar{padding:12px 16px;padding-left:52px}
+  .content{padding:12px}
+  .topbar{padding:10px 12px;padding-left:52px;flex-wrap:wrap;gap:8px}
+  .topbar h2{font-size:.95rem}
   .stats-row{grid-template-columns:1fr 1fr}
+  .stat-card{padding:12px}
+  .stat-card .value{font-size:1.3rem}
   .form-row{grid-template-columns:1fr}
+  .filter-row{flex-direction:column;align-items:stretch}
+  .filter-row select,.filter-row input{width:100%;font-size:.9rem;padding:10px 12px}
+  .filter-row .search-input{min-width:unset}
+  /* Table: horizontal scroll with minimum column widths */
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{min-width:700px}
+  tbody td,thead th{padding:10px 12px;font-size:.8rem}
+  /* Modal: full-screen on mobile */
+  .modal-overlay{padding:0;align-items:stretch}
+  .modal{max-width:100%;border-radius:0;min-height:100vh}
+  .modal-header{padding:16px;position:sticky;top:0;background:var(--surface);z-index:1}
+  .modal-body{padding:16px}
+  .modal-footer{padding:12px 16px;position:sticky;bottom:0;background:var(--surface)}
+  /* Photo gallery */
+  .photo-grid{grid-template-columns:1fr 1fr !important}
+  /* Buttons & touch targets */
+  .btn,.btn-primary,.btn-secondary{padding:10px 16px;font-size:.9rem}
+  .btn-icon{min-width:40px;min-height:40px;font-size:1.1rem}
+  .sidebar-nav a{padding:12px 20px;font-size:.95rem}
+  /* Cost summary */
+  .cost-summary{flex-wrap:wrap;gap:12px;padding:12px 16px}
+  /* Settings */
+  .wo-detail{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .stats-row{grid-template-columns:1fr}
+  .topbar{padding-left:48px}
+  table{min-width:600px}
 }
 
 /* ===== SECTION-SPECIFIC ===== */
@@ -214,7 +251,8 @@ tbody tr:hover{background:var(--surface-2)}
 </style>
 </head>
 <body>
-<button class="mobile-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button>
+<button class="mobile-toggle" onclick="toggleMobileNav()">☰</button>
+<div class="mobile-overlay" id="mobile-overlay" onclick="toggleMobileNav()"></div>
 
 <div class="app">
 <!-- SIDEBAR -->
@@ -300,6 +338,12 @@ let cache = {};
 // ===== HELPERS =====
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
+function toggleMobileNav(){
+  const sb = document.querySelector('.sidebar');
+  const ov = document.getElementById('mobile-overlay');
+  sb.classList.toggle('open');
+  ov.classList.toggle('open');
+}
 const el = (tag, attrs={}, children=[]) => {
   const e = document.createElement(tag);
   Object.entries(attrs).forEach(([k,v]) => { if(k==='html')e.innerHTML=v; else if(k.startsWith('on'))e.addEventListener(k.slice(2),v); else e.setAttribute(k,v); });
@@ -376,6 +420,7 @@ function navigate(page){
   currentPage = page;
   $$('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
   document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('mobile-overlay')?.classList.remove('open');
   render();
 }
 function render(){
@@ -565,7 +610,7 @@ function renderWorkOrders(){
     `<table><thead><tr><th>WO#</th><th>Title</th><th>Location</th><th>Equipment</th><th>Priority</th><th>Status</th><th>Assigned</th><th>Due</th><th></th></tr></thead><tbody>
     ${items.map(w=>`<tr>
       <td><strong>${w.wo_number}</strong></td>
-      <td class="truncate">${w.title}</td>
+      <td class="truncate"><a href="#" class="wo-title-link" onclick="event.preventDefault();openWOForm('${w.id}')">${w.title}</a></td>
       <td>${locName(w.location_id)}</td>
       <td>${eqName(w.equipment_id)}</td>
       <td>${priorityBadge(w.priority)}</td>

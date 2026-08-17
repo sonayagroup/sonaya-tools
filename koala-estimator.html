@@ -1,4 +1,13 @@
 <!DOCTYPE html>
+<script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Koala Estimator",
+  "schemaVersion": 1,
+  "description": "Koala Insulation in-home estimator with area-based calculations, job type selection, multi-option tabs, trip charges, and customer view mode.",
+  "mcpTools": [],
+  "mcpServerNames": []
+}
+</script>
 <html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
@@ -634,6 +643,7 @@ const MISC_CATALOG = [
   { name: 'Insulweb (cellulose)', price: 0.04 },
   { name: 'Insulweb (fiberglass)', price: 0.04 },
   { name: 'N95 Mask', price: 1.44 },
+  { name: 'Permit Fee (Los Alamos)', price: 0 },
   { name: 'Poly Sheeting', price: 19.90 },
   { name: 'Recessed Light Cover', price: 8.80 },
   { name: 'Removal Bags', price: 11.13 },
@@ -648,13 +658,14 @@ const MISC_CATALOG = [
 ];
 
 const JOB_AUTO_SUPPLIES = {
-  attic:     [{ idx: 9, qty: 2 }, { idx: 13, qty: 1 }, { idx: 5, qty: 20 }],
+  attic:     [{ idx: 9, qty: 2 }, { idx: 14, qty: 1 }, { idx: 5, qty: 20 }],
   densepack: [{ idx: 10, qty: 1 }],
   netblow:   [{ idx: 10, qty: 1 }],
-  removal:   [{ idx: 7, qty: 1 }, { idx: 15, qty: 10 }, { idx: 12, qty: 4 }],
+  removal:   [{ idx: 7, qty: 1 }, { idx: 16, qty: 10 }, { idx: 12, qty: 4 }],
 };
 
 const TRIP_RATE_PER_MILE = 1.75;
+const GENERATOR_FUEL_RATE = 4.00; // $32/day ÷ 8 hrs = $4/hr (from spreadsheet formula)
 const PAYROLL_TAX_RATE = 0.10;
 
 // ─── STATE ──────────────────────────────────────────────────────────────────
@@ -770,14 +781,25 @@ function buildOptionContainer(opt) {
           <label>Round-Trip Miles</label>
           <input type="number" id="${p}tripMiles" value="0" min="0" step="1" oninput="recalc()" style="text-align:right">
         </div>
+        <div class="field" style="flex:1; max-width:160px">
+          <label>Trip Charge ($)</label>
+          <input type="number" id="${p}tripChargeAmt" value="0" min="0" step="5" oninput="recalc()" style="text-align:right">
+        </div>
       </div>
       <div class="row" style="margin-top:4px">
-        <div class="field" style="flex:1; max-width:200px">
-          <label>Generator &amp; Fuel Cost</label>
-          <input type="number" id="${p}fuelCost" value="0" min="0" step="5" oninput="recalc()" style="text-align:right">
+        <div class="field" style="flex:1; max-width:160px">
+          <label>Generator Hours</label>
+          <input type="number" id="${p}genHours" value="0" min="0" step="0.5" oninput="recalc()" style="text-align:right">
+        </div>
+        <div class="field" style="flex:1; max-width:160px">
+          <label>Fuel Rate ($/hr)</label>
+          <input type="number" id="${p}fuelRate" value="4.00" min="0" step="0.25" oninput="recalc()" style="text-align:right">
+        </div>
+        <div class="field" style="flex:1; max-width:160px; display:flex; align-items:flex-end">
+          <span style="font-size:.85rem; color:var(--green-dark); font-weight:600; padding-bottom:8px" id="${p}fuelCalc">Fuel: $0.00</span>
         </div>
         <div class="field internal-only" style="flex:1; max-width:200px; display:flex; align-items:flex-end">
-          <span style="font-size:.85rem; color:var(--green-dark); font-weight:600; padding-bottom:8px" id="${p}tripTotal">Trip: $0.00</span>
+          <span style="font-size:.85rem; color:var(--green-dark); font-weight:600; padding-bottom:8px" id="${p}tripTotal">Trip+Fuel: $0.00</span>
         </div>
       </div>
     </div>
@@ -845,6 +867,11 @@ function optPrefixFor(opt) { return 'o' + opt.id + '-'; }
 function onTripTierChange(prefix) {
   const tier = $(prefix + 'tripTier').value;
   $(prefix + 'tripMilesField').style.display = tier === 'custom' ? '' : 'none';
+  // Auto-fill the trip charge override field from the tier
+  if (tier !== 'custom') {
+    $(prefix + 'tripChargeAmt').value = parseFloat(tier) || 0;
+  }
+  // For custom, recalc will handle it via miles × rate
 }
 
 // ─── ADD ROW FUNCTIONS ──────────────────────────────────────────────────────
@@ -916,7 +943,7 @@ function addMisc(presetIdx, presetQty, autoTag) {
   tr.innerHTML = `
     <td><select onchange="onMiscSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}ms-sel">${selHtml}</select>${autoTag ? '<span class="auto-badge">Auto</span>' : ''}</td>
     <td><input type="number" value="${presetQty || 1}" min="0" class="${p}ms-qty" data-id="${id}" oninput="recalc()"></td>
-    <td class="num ${p}ms-price cost-col" data-id="${id}">--</td>
+    <td class="cost-col"><input type="number" value="0" min="0" step="0.01" class="${p}ms-price" data-id="${id}" oninput="recalc()" style="width:80px;text-align:right;font-size:.85rem"></td>
     <td class="num cost ${p}ms-cost cost-col" data-id="${id}">$0.00</td>
     <td><button class="btn-remove" onclick="removeRow('misc','${p}ms-${id}',${id})">&#10005;</button></td>`;
   $(p + 'miscBody').appendChild(tr);
@@ -982,11 +1009,11 @@ function onBattSelect(p, id) {
 
 function onMiscSelect(p, id) {
   const sel = document.querySelector(`.${CSS.escape(p)}ms-sel[data-id="${id}"]`);
-  const priceEl = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${id}"]`);
-  if (sel && sel.value !== '') {
-    priceEl.textContent = fmt(MISC_CATALOG[parseInt(sel.value)].price);
-  } else if (priceEl) {
-    priceEl.textContent = '--';
+  const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${id}"]`);
+  if (sel && sel.value !== '' && priceInput) {
+    priceInput.value = MISC_CATALOG[parseInt(sel.value)].price;
+  } else if (priceInput) {
+    priceInput.value = 0;
   }
 }
 
@@ -1313,15 +1340,16 @@ function calcOption(opt) {
     totalLabor += cost;
   });
 
-  // Misc
+  // Misc — use the editable price input (may be overridden by user)
   const miscIds = opt.rows.misc.map(m => m.id);
   miscIds.forEach(id => {
     const sel = document.querySelector(`.${CSS.escape(p)}ms-sel[data-id="${id}"]`);
     const qty = parseFloat(document.querySelector(`.${CSS.escape(p)}ms-qty[data-id="${id}"]`)?.value) || 0;
+    const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${id}"]`);
+    const unitPrice = parseFloat(priceInput?.value) || 0;
     const costEl = document.querySelector(`.${CSS.escape(p)}ms-cost[data-id="${id}"]`);
     if (sel && sel.value !== '') {
-      const item = MISC_CATALOG[parseInt(sel.value)];
-      const cost = qty * item.price;
+      const cost = qty * unitPrice;
       if (costEl) costEl.textContent = fmt(cost);
       totalMisc += cost;
     } else {
@@ -1329,21 +1357,31 @@ function calcOption(opt) {
     }
   });
 
-  // Trip
+  // Trip — use the override field (auto-populated from tier, or manually entered)
   const tierEl = $(p + 'tripTier');
   let tripCharge = 0;
   if (tierEl) {
     const tier = tierEl.value;
     if (tier === 'custom') {
-      tripCharge = (parseFloat($(p + 'tripMiles')?.value) || 0) * TRIP_RATE_PER_MILE;
+      // For custom mileage, auto-fill the override field with calculated amount
+      const miles = parseFloat($(p + 'tripMiles')?.value) || 0;
+      const calcTrip = miles * TRIP_RATE_PER_MILE;
+      $(p + 'tripChargeAmt').value = calcTrip.toFixed(2);
+      tripCharge = calcTrip;
     } else {
-      tripCharge = parseFloat(tier) || 0;
+      // Use whatever is in the override field (user may have changed it)
+      tripCharge = parseFloat($(p + 'tripChargeAmt')?.value) || 0;
     }
   }
-  const fuelCost = parseFloat($(p + 'fuelCost')?.value) || 0;
+  // Generator fuel: hours × rate
+  const genHours = parseFloat($(p + 'genHours')?.value) || 0;
+  const fuelRate = parseFloat($(p + 'fuelRate')?.value) || GENERATOR_FUEL_RATE;
+  const fuelCost = genHours * fuelRate;
+  const fuelCalcEl = $(p + 'fuelCalc');
+  if (fuelCalcEl) fuelCalcEl.textContent = 'Fuel: ' + fmt(fuelCost);
   tripCharge += fuelCost;
   const tripTotalEl = $(p + 'tripTotal');
-  if (tripTotalEl) tripTotalEl.textContent = 'Trip: ' + fmt(tripCharge);
+  if (tripTotalEl) tripTotalEl.textContent = 'Trip+Fuel: ' + fmt(tripCharge);
 
   const totalMaterials = totalBlowIn + totalBatt + totalSpf;
   const payrollTax = totalLabor * PAYROLL_TAX_RATE;

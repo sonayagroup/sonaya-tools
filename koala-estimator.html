@@ -636,10 +636,12 @@ const MISC_CATALOG = [
   { name: 'Attic Hatch Cover', price: 65 },
   { name: 'Attic Stairs Insulation Cover', price: 20.99 },
   { name: 'Baffles', price: 1 },
+  { name: 'Batt Wire 16"', price: 20.00 },
   { name: 'Caulking', price: 4.50 },
   { name: 'Dumpster', price: 400 },
   { name: 'Fan Fold', price: 1.25 },
   { name: 'Foam Sealant', price: 6 },
+  { name: 'Galvanized Tie Wire', price: 6.87 },
   { name: 'Insulweb (cellulose)', price: 0.04 },
   { name: 'Insulweb (fiberglass)', price: 0.04 },
   { name: 'N95 Mask', price: 1.44 },
@@ -658,10 +660,10 @@ const MISC_CATALOG = [
 ];
 
 const JOB_AUTO_SUPPLIES = {
-  attic:     [{ idx: 9, qty: 2 }, { idx: 14, qty: 1 }, { idx: 5, qty: 20 }],
-  densepack: [{ idx: 10, qty: 1 }],
-  netblow:   [{ idx: 10, qty: 1 }],
-  removal:   [{ idx: 7, qty: 1 }, { idx: 16, qty: 10 }, { idx: 12, qty: 4 }],
+  attic:     [{ idx: 10, qty: 2 }, { idx: 16, qty: 1 }, { idx: 5, qty: 20 }],
+  densepack: [{ idx: 12, qty: 1 }],
+  netblow:   [{ idx: 12, qty: 1 }],
+  removal:   [{ idx: 8, qty: 1 }, { idx: 18, qty: 10 }, { idx: 14, qty: 4 }],
 };
 
 const TRIP_RATE_PER_MILE = 1.75;
@@ -685,6 +687,11 @@ const fmt = n => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, max
 function optionsHtml(items, labelKey) {
   return '<option value="">-- Select --</option>' +
     items.map((it, i) => `<option value="${i}">${it[labelKey]}</option>`).join('');
+}
+
+function battOptionsHtml() {
+  return '<option value="">-- Select --</option>' +
+    INSULATION.map((it, i) => `<option value="${i}">${it.name} — ${it.coverage} sf</option>`).join('');
 }
 
 function getOpt() { return options[activeOptionIdx]; }
@@ -781,9 +788,13 @@ function buildOptionContainer(opt) {
           <label>Round-Trip Miles</label>
           <input type="number" id="${p}tripMiles" value="0" min="0" step="1" oninput="recalc()" style="text-align:right">
         </div>
-        <div class="field" style="flex:1; max-width:160px">
-          <label>Trip Charge ($)</label>
+        <div class="field" style="flex:1; max-width:140px">
+          <label>Trip $/Visit</label>
           <input type="number" id="${p}tripChargeAmt" value="0" min="0" step="5" oninput="recalc()" style="text-align:right">
+        </div>
+        <div class="field" style="flex:0 0 80px">
+          <label># of Days</label>
+          <input type="number" id="${p}tripDays" value="1" min="1" step="1" oninput="recalc()" style="text-align:right">
         </div>
       </div>
       <div class="row" style="margin-top:4px">
@@ -895,7 +906,7 @@ function addBatt() {
   opt.rows.batt.push(id);
   const tr = document.createElement('tr'); tr.id = p + 'bt-' + id;
   tr.innerHTML = `
-    <td><select onchange="onBattSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}bt-sel">${optionsHtml(INSULATION, 'name')}</select></td>
+    <td><select onchange="onBattSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}bt-sel">${battOptionsHtml()}</select></td>
     <td><input type="number" value="0" min="0" class="${p}bt-qty" data-id="${id}" oninput="recalc()"></td>
     <td class="num ${p}bt-price cost-col" data-id="${id}">--</td>
     <td class="num ${p}bt-sqft" data-id="${id}">--</td>
@@ -1212,7 +1223,7 @@ function addBattFromSuggestion(prodIdx, qty) {
   opt.rows.batt.push(id);
   const tr = document.createElement('tr'); tr.id = p + 'bt-' + id;
   tr.innerHTML = `
-    <td><select onchange="onBattSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}bt-sel">${optionsHtml(INSULATION, 'name')}</select></td>
+    <td><select onchange="onBattSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}bt-sel">${battOptionsHtml()}</select></td>
     <td><input type="number" value="${qty || 0}" min="0" class="${p}bt-qty" data-id="${id}" oninput="recalc()"></td>
     <td class="num ${p}bt-price cost-col" data-id="${id}">--</td>
     <td class="num ${p}bt-sqft" data-id="${id}">--</td>
@@ -1359,7 +1370,7 @@ function calcOption(opt) {
 
   // Trip — use the override field (auto-populated from tier, or manually entered)
   const tierEl = $(p + 'tripTier');
-  let tripCharge = 0;
+  let tripPerVisit = 0;
   if (tierEl) {
     const tier = tierEl.value;
     if (tier === 'custom') {
@@ -1367,12 +1378,14 @@ function calcOption(opt) {
       const miles = parseFloat($(p + 'tripMiles')?.value) || 0;
       const calcTrip = miles * TRIP_RATE_PER_MILE;
       $(p + 'tripChargeAmt').value = calcTrip.toFixed(2);
-      tripCharge = calcTrip;
+      tripPerVisit = calcTrip;
     } else {
       // Use whatever is in the override field (user may have changed it)
-      tripCharge = parseFloat($(p + 'tripChargeAmt')?.value) || 0;
+      tripPerVisit = parseFloat($(p + 'tripChargeAmt')?.value) || 0;
     }
   }
+  const tripDays = Math.max(1, parseInt($(p + 'tripDays')?.value) || 1);
+  let tripCharge = tripPerVisit * tripDays;
   // Generator fuel: hours × rate
   const genHours = parseFloat($(p + 'genHours')?.value) || 0;
   const fuelRate = parseFloat($(p + 'fuelRate')?.value) || GENERATOR_FUEL_RATE;
@@ -1381,7 +1394,7 @@ function calcOption(opt) {
   if (fuelCalcEl) fuelCalcEl.textContent = 'Fuel: ' + fmt(fuelCost);
   tripCharge += fuelCost;
   const tripTotalEl = $(p + 'tripTotal');
-  if (tripTotalEl) tripTotalEl.textContent = 'Trip+Fuel: ' + fmt(tripCharge);
+  if (tripTotalEl) tripTotalEl.textContent = 'Trip+Fuel: ' + fmt(tripCharge) + (tripDays > 1 ? ' (' + tripDays + ' days)' : '');
 
   const totalMaterials = totalBlowIn + totalBatt + totalSpf;
   const payrollTax = totalLabor * PAYROLL_TAX_RATE;

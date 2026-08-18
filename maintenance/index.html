@@ -295,6 +295,9 @@ tbody tr:hover{background:var(--surface-2)}
     <div class="nav-item" data-page="costs" onclick="navigate('costs')">
       <span class="icon">💰</span> Cost Reports
     </div>
+    <div class="nav-item" data-page="receipts" onclick="navigate('receipts')">
+      <span class="icon">🧾</span> Receipts
+    </div>
     <div class="nav-section">System</div>
     <div class="nav-item" data-page="settings" onclick="navigate('settings')">
       <span class="icon">🔔</span> Notifications
@@ -384,6 +387,7 @@ async function loadAll(){
     load('dt_equipment_categories','sort_order',true),
     load('dt_photos','uploaded_at',false),
     load('dt_notification_recipients','name',true),
+    load('dt_wo_receipts','created_at',false),
   ]);
 }
 async function upsert(table, row, id){
@@ -424,7 +428,7 @@ function navigate(page){
   render();
 }
 function render(){
-  const pages = {dashboard:renderDashboard,'work-orders':renderWorkOrders,equipment:renderEquipment,hvac:renderHVAC,'pm-schedules':renderPM,locations:renderLocations,vendors:renderVendors,team:renderTeam,logs:renderLogs,costs:renderCosts,settings:renderSettings};
+  const pages = {dashboard:renderDashboard,'work-orders':renderWorkOrders,equipment:renderEquipment,hvac:renderHVAC,'pm-schedules':renderPM,locations:renderLocations,vendors:renderVendors,team:renderTeam,logs:renderLogs,costs:renderCosts,receipts:renderReceipts,settings:renderSettings};
   (pages[currentPage]||renderDashboard)();
 }
 
@@ -517,6 +521,76 @@ window.openLightbox = function(url){
   document.body.appendChild(lb);
 };
 window.deletePhoto = deletePhoto;
+
+// ===== RECEIPT HELPERS =====
+async function uploadReceipt(file, woId, amount){
+  if(!file||!woId) return null;
+  const maxSize=25*1024*1024;
+  if(file.size>maxSize){toast('File too large. Max 25MB.','error');return null;}
+  const ext=file.name.split('.').pop()||'bin';
+  const path=`wo/${woId}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const {error:upErr}=await sb.storage.from('maintenance-receipts').upload(path,file,{contentType:file.type});
+  if(upErr){toast('Upload failed: '+upErr.message,'error');return null;}
+  const row={wo_id:woId,file_name:file.name,file_path:path,file_type:file.type||ext,amount:amount||null};
+  const {error:dbErr}=await sb.from('dt_wo_receipts').insert(row);
+  if(dbErr){toast('File saved but record failed: '+dbErr.message,'error');}
+  return true;
+}
+async function deleteReceipt(receipt){
+  if(!confirm('Delete this receipt?'))return;
+  await sb.storage.from('maintenance-receipts').remove([receipt.file_path]);
+  await sb.from('dt_wo_receipts').delete().eq('id',receipt.id);
+  toast('Receipt deleted');
+  await load('dt_wo_receipts','created_at',false);
+  render();
+}
+function getReceipts(woId){
+  return (cache.dt_wo_receipts||[]).filter(r=>r.wo_id===woId);
+}
+function receiptUrl(r){
+  return sb.storage.from('maintenance-receipts').getPublicUrl(r.file_path).data?.publicUrl||'';
+}
+function receiptSectionHTML(woId){
+  const receipts=getReceipts(woId);
+  const total=receipts.reduce((s,r)=>s+Number(r.amount||0),0);
+  return `
+    <div class="form-group" style="margin-top:8px"><label>Receipts</label>
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px">
+          <input type="file" id="receipt-input" style="font-size:.85rem;width:100%">
+        </div>
+        <div style="width:120px">
+          <label style="font-size:.75rem;color:var(--text-muted)">Amount ($)</label>
+          <input type="number" id="receipt-amount" step="0.01" min="0" placeholder="0.00" style="width:100%">
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="handleReceiptUpload('${woId}')" style="white-space:nowrap">Upload Receipt</button>
+      </div>
+      ${receipts.length?`
+        <table style="font-size:.82rem;margin-top:8px">
+          <thead><tr><th>File</th><th style="text-align:right">Amount</th><th style="text-align:right">Date</th><th></th></tr></thead>
+          <tbody>${receipts.map(r=>`<tr>
+            <td><a href="${receiptUrl(r)}" target="_blank" style="color:var(--primary);text-decoration:none">${r.file_name}</a></td>
+            <td style="text-align:right">${r.amount?'$'+Number(r.amount).toFixed(2):'—'}</td>
+            <td style="text-align:right">${formatDate(r.created_at)}</td>
+            <td><button class="btn-icon btn-sm" onclick="deleteReceipt(${JSON.stringify(r).replace(/"/g,'&quot;')})" title="Delete">✕</button></td>
+          </tr>`).join('')}</tbody>
+          ${receipts.length>1?`<tfoot><tr><td><strong>Total</strong></td><td style="text-align:right"><strong>$${total.toFixed(2)}</strong></td><td></td><td></td></tr></tfoot>`:''}
+        </table>`:'<p style="font-size:.8rem;color:var(--text-muted)">No receipts uploaded yet.</p>'}
+    </div>`;
+}
+window.handleReceiptUpload = async function(woId){
+  const input=document.getElementById('receipt-input');
+  const amtInput=document.getElementById('receipt-amount');
+  if(!input?.files?.length){toast('Select a file first','error');return;}
+  const amount=amtInput?.value?parseFloat(amtInput.value):null;
+  for(let i=0;i<input.files.length;i++){
+    await uploadReceipt(input.files[i],woId,amount);
+  }
+  toast('Receipt uploaded');
+  await load('dt_wo_receipts','created_at',false);
+  openWOForm(woId);
+};
+window.deleteReceipt = deleteReceipt;
 
 // ===== DASHBOARD =====
 function renderDashboard(){
@@ -669,6 +743,7 @@ window.openWOForm = function(id){
       <div class="form-group"><label>Description</label><textarea id="m-desc">${w.description||''}</textarea></div>
       ${id?`<div class="form-group"><label>Resolution Notes</label><textarea id="m-res">${w.resolution_notes||''}</textarea></div>`:''}
       ${id?photoGalleryHTML('work_order',id):'<p style="font-size:.8rem;color:var(--text-muted);margin-top:12px"><em>Save the work order first to add photos.</em></p>'}
+      ${id?receiptSectionHTML(id):'<p style="font-size:.8rem;color:var(--text-muted)"><em>Save the work order first to add receipts.</em></p>'}
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -703,6 +778,7 @@ function renderEquipment(){
   $('#page-title').textContent='Equipment';
   $('#topbar-actions').innerHTML='<button class="btn btn-primary" onclick="openEqForm()">+ Add Equipment</button>';
   const eq = cache.dt_equipment||[];
+  const wo=cache.dt_work_orders||[];
   $('#content').innerHTML=`
     <div class="filter-row">
       <input type="text" id="eq-search" class="search-input" placeholder="Search equipment...">
@@ -710,6 +786,7 @@ function renderEquipment(){
       <select id="eq-cat"><option value="">All Categories</option>${(cache.dt_equipment_categories||[]).map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}</select>
       <select id="eq-stat"><option value="">All Statuses</option><option value="operational">Operational</option><option value="needs_repair">Needs Repair</option><option value="out_of_service">Out of Service</option><option value="decommissioned">Decommissioned</option></select>
     </div>
+    <div class="card" style="margin-bottom:20px"><div class="card-header"><h3>Service History</h3><div style="display:flex;gap:8px;align-items:center"><label style="font-size:.8rem;color:var(--text-secondary)">From</label><input type="date" id="sh-from" style="font-size:.8rem"><label style="font-size:.8rem;color:var(--text-secondary)">To</label><input type="date" id="sh-to" style="font-size:.8rem"></div></div><div class="card-body"><div class="table-scroll" id="sh-table"></div></div></div>
     <div class="card"><div class="card-body"><div class="table-scroll" id="eq-table"></div></div></div>`;
   function draw(){
     let items=[...eq];
@@ -726,10 +803,58 @@ function renderEquipment(){
       return `<tr><td><strong>${e.name}</strong></td><td>${locStore(e.location_id)}</td><td>${catName(e.category_id)}</td><td>${e.make||''} ${e.model||''}</td><td>${e.serial_number||'—'}</td><td>${statusBadge(e.status)}</td><td>${wBadge}</td><td><button class="btn-icon btn-sm" onclick="openEqForm('${e.id}')">✏️</button><button class="btn-icon btn-sm" onclick="deleteEq('${e.id}')">🗑️</button></td></tr>`;
     }).join('')}</tbody></table>`;
   }
+  function drawServiceHistory(){
+    const from=$('#sh-from')?.value,to=$('#sh-to')?.value;
+    let woItems=wo.filter(w=>w.equipment_id);
+    if(from) woItems=woItems.filter(w=>(w.created_at||'')>=from);
+    if(to) woItems=woItems.filter(w=>(w.created_at||'')<=to+'T23:59:59');
+    // Group by equipment
+    const counts={};
+    woItems.forEach(w=>{counts[w.equipment_id]=(counts[w.equipment_id]||0)+1;});
+    const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    const shTbl=$('#sh-table');
+    if(!shTbl)return;
+    shTbl.innerHTML=sorted.length===0?'<div class="empty"><p>No service records found for the selected range. Assign equipment to work orders to track service history.</p></div>':
+    `<table><thead><tr><th>Equipment</th><th>Store</th><th>Category</th><th style="text-align:center">Times Serviced</th><th></th></tr></thead><tbody>
+    ${sorted.map(([eqId,count])=>{
+      const e=eq.find(x=>x.id===eqId)||{};
+      return `<tr><td><strong>${e.name||'Unknown'}</strong></td><td>${locStore(e.location_id)}</td><td>${catName(e.category_id)}</td><td style="text-align:center"><span class="badge ${count>=5?'badge-emergency':count>=3?'badge-high':'badge-medium'}">${count}</span></td><td><button class="btn btn-secondary btn-sm" onclick="showEqWOHistory('${eqId}','${from||''}','${to||''}')">View WOs</button></td></tr>`;
+    }).join('')}</tbody></table>`;
+  }
   draw();
+  drawServiceHistory();
+  // Set default date range to last 90 days
+  const now=new Date(), ago=new Date(now); ago.setDate(ago.getDate()-90);
+  const shFrom=$('#sh-from'),shTo=$('#sh-to');
+  if(shFrom&&!shFrom.value){shFrom.value=ago.toISOString().slice(0,10);}
+  if(shTo&&!shTo.value){shTo.value=now.toISOString().slice(0,10);}
+  drawServiceHistory();
   ['eq-loc','eq-cat','eq-stat'].forEach(id=>{document.getElementById(id)?.addEventListener('change',draw)});
   document.getElementById('eq-search')?.addEventListener('input',draw);
+  document.getElementById('sh-from')?.addEventListener('change',drawServiceHistory);
+  document.getElementById('sh-to')?.addEventListener('change',drawServiceHistory);
 }
+window.showEqWOHistory = function(eqId,from,to){
+  const e=(cache.dt_equipment||[]).find(x=>x.id===eqId)||{};
+  let woItems=(cache.dt_work_orders||[]).filter(w=>w.equipment_id===eqId);
+  if(from) woItems=woItems.filter(w=>(w.created_at||'')>=from);
+  if(to) woItems=woItems.filter(w=>(w.created_at||'')<=to+'T23:59:59');
+  openModal(`
+    <div class="modal-header"><h3>Service History: ${e.name||'Equipment'}</h3><button class="btn-icon" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:12px">${locStore(e.location_id)} &bull; ${woItems.length} work order${woItems.length!==1?'s':''} ${from?'from '+from:''} ${to?'to '+to:''}</p>
+      ${woItems.length===0?'<div class="empty"><p>No work orders found</p></div>':
+      `<table style="font-size:.85rem"><thead><tr><th>WO#</th><th>Title</th><th>Priority</th><th>Status</th><th>Created</th></tr></thead><tbody>
+      ${woItems.map(w=>`<tr>
+        <td><strong>${w.wo_number}</strong></td>
+        <td><a href="#" class="wo-title-link" onclick="event.preventDefault();closeModal();setTimeout(()=>openWOForm('${w.id}'),300)">${w.title}</a></td>
+        <td>${priorityBadge(w.priority)}</td>
+        <td>${statusBadge(w.status)}</td>
+        <td>${formatDate(w.created_at)}</td>
+      </tr>`).join('')}</tbody></table>`}
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Close</button></div>`);
+};
 window.openEqForm = function(id){
   const e = id ? (cache.dt_equipment||[]).find(x=>x.id===id) : {};
   openModal(`
@@ -1169,6 +1294,65 @@ window.saveCost = async function(id){
   if(await upsert('dt_work_order_costs',row,id||undefined)){closeModal();await load('dt_work_order_costs','date_incurred',false);render();}
 };
 window.deleteCost = async function(id){if(await remove('dt_work_order_costs',id)){await load('dt_work_order_costs','date_incurred',false);render();}};
+
+// ===== RECEIPTS PAGE =====
+function renderReceipts(){
+  $('#page-title').textContent='Receipts';
+  $('#topbar-actions').innerHTML='';
+  const receipts=cache.dt_wo_receipts||[];
+  const wo=cache.dt_work_orders||[];
+  const locs=cache.dt_locations||[];
+
+  // Build search/filter state
+  const fState={search:'',loc:'',dateFrom:'',dateTo:''};
+  function getFiltered(){
+    let items=[...receipts];
+    const q=fState.search.toLowerCase();
+    if(q) items=items.filter(r=>{
+      const w=wo.find(x=>x.id===r.wo_id);
+      return (r.file_name||'').toLowerCase().includes(q)||(w?.title||'').toLowerCase().includes(q)||(w?.wo_number?.toString()||'').includes(q);
+    });
+    if(fState.loc) items=items.filter(r=>{const w=wo.find(x=>x.id===r.wo_id);return w?.location_id===fState.loc;});
+    if(fState.dateFrom) items=items.filter(r=>r.created_at>=fState.dateFrom);
+    if(fState.dateTo) items=items.filter(r=>r.created_at<=fState.dateTo+'T23:59:59');
+    return items;
+  }
+  function drawReceipts(){
+    const items=getFiltered();
+    const total=items.reduce((s,r)=>s+Number(r.amount||0),0);
+    const tbl=document.getElementById('receipts-table');
+    if(!tbl)return;
+    tbl.innerHTML=items.length===0?'<div class="empty"><p>No receipts found</p></div>':`
+      <div style="padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:.85rem;color:var(--text-secondary)">${items.length} receipt${items.length!==1?'s':''}</span>
+        <span style="font-size:.95rem;font-weight:700">Total: $${total.toFixed(2)}</span>
+      </div>
+      <table><thead><tr><th>WO#</th><th>Work Order</th><th>Store</th><th>File</th><th style="text-align:right">Amount</th><th>Uploaded</th></tr></thead><tbody>
+      ${items.map(r=>{const w=wo.find(x=>x.id===r.wo_id)||{};return `<tr>
+        <td><strong>${w.wo_number||'—'}</strong></td>
+        <td class="truncate"><a href="#" class="wo-title-link" onclick="event.preventDefault();openWOForm('${r.wo_id}')">${w.title||'—'}</a></td>
+        <td>${locName(w.location_id)}</td>
+        <td><a href="${receiptUrl(r)}" target="_blank" style="color:var(--primary);text-decoration:none">${r.file_name}</a></td>
+        <td style="text-align:right">${r.amount?'$'+Number(r.amount).toFixed(2):'—'}</td>
+        <td>${formatDate(r.created_at)}</td>
+      </tr>`;}).join('')}</tbody></table>`;
+  }
+
+  $('#content').innerHTML=`
+    <div class="filter-row">
+      <input type="text" id="r-search" class="search-input" placeholder="Search by WO#, title, or filename...">
+      <select id="r-loc"><option value="">All Stores</option>${locs.map(l=>`<option value="${l.id}">#${l.store_number} ${l.name}</option>`).join('')}</select>
+      <input type="date" id="r-from" title="From date">
+      <input type="date" id="r-to" title="To date">
+    </div>
+    <div class="card"><div class="card-body"><div class="table-scroll" id="receipts-table"></div></div></div>`;
+
+  drawReceipts();
+  document.getElementById('r-search')?.addEventListener('input',e=>{fState.search=e.target.value;drawReceipts();});
+  document.getElementById('r-loc')?.addEventListener('change',e=>{fState.loc=e.target.value;drawReceipts();});
+  document.getElementById('r-from')?.addEventListener('change',e=>{fState.dateFrom=e.target.value;drawReceipts();});
+  document.getElementById('r-to')?.addEventListener('change',e=>{fState.dateTo=e.target.value;drawReceipts();});
+}
 
 // ===== SETTINGS / NOTIFICATIONS =====
 function renderSettings(){

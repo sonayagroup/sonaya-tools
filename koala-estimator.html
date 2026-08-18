@@ -567,6 +567,7 @@ body.customer-mode .customer-total-box { display: block; }
     <button class="header-btn header-btn-save" onclick="openSaveModal()">&#128190; Save</button>
     <button class="header-btn header-btn-email" onclick="openEmailPanel()">&#9993; Generate Email</button>
     <a class="header-btn header-btn-browse" href="koala-estimates.html">&#128269; Browse Estimates</a>
+    <a class="header-btn" href="koala-pricing.html" style="background:rgba(149,201,61,.15);border-color:var(--green)">&#128176; Pricing</a>
   </div>
   <div class="mode-toggle" id="modeToggle" onclick="toggleCustomerMode()" title="Ctrl+Shift+H">
     <span id="modeLabel">Customer View</span>
@@ -977,6 +978,77 @@ const JOB_AUTO_SUPPLIES = {
 const TRIP_RATE_PER_MILE = 1.75;
 const GENERATOR_FUEL_RATE = 4.00; // $32/day ÷ 8 hrs = $4/hr (from spreadsheet formula)
 const PAYROLL_TAX_RATE = 0.10;
+
+// ─── SUPABASE LIVE PRICING ─────────────────────────────────────────────────
+const SUPABASE_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
+
+function normKey(s) {
+  return s.toLowerCase()
+    .replace(/[""'']/g, '')
+    .replace(/\bkraft\b/gi, 'k')
+    .replace(/\bunfaced\b/gi, 'uf')
+    .replace(/\s+/g, '')
+    .replace(/[^a-z0-9.]/g, '');
+}
+
+let pricingLoaded = false;
+
+async function loadPricingFromSupabase() {
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/common_items?select=category,product_type,unit_price,coverage_sqft,price_per_sqft&order=sort_order`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` } }
+    );
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const items = await resp.json();
+
+    // Update INSULATION (batt/rigid) prices
+    items.filter(i => i.category === 'Insulation' && !i.product_type.startsWith('SPF')).forEach(ci => {
+      const key = normKey(ci.product_type);
+      const match = INSULATION.find(ins => normKey(ins.name) === key);
+      if (match) {
+        const p = parseFloat(ci.unit_price);
+        const c = parseFloat(ci.coverage_sqft);
+        if (p > 0) match.price = p;
+        if (c > 0) match.coverage = c;
+      }
+    });
+
+    // Update SPF prices (price_per_sqft = price per board foot for SPF)
+    items.filter(i => i.product_type.startsWith('SPF')).forEach(ci => {
+      const ppsf = parseFloat(ci.price_per_sqft);
+      if (ci.product_type.includes('Closed') && ppsf > 0) {
+        const cc = SPF_TYPES.find(s => s.name.includes('CC'));
+        if (cc) cc.pricePerBdFt = ppsf;
+      }
+      if (ci.product_type.includes('Open') && ppsf > 0) {
+        const oc = SPF_TYPES.find(s => s.name.includes('OC'));
+        if (oc) oc.pricePerBdFt = ppsf;
+      }
+    });
+
+    // Update MISC_CATALOG prices (Material, SPF Supplies, Tools/PPE)
+    const miscItems = items.filter(i => ['Material', 'SPF Supplies', 'Tools/PPE'].includes(i.category));
+    MISC_CATALOG.forEach(mc => {
+      const key = normKey(mc.name);
+      // Try exact normalized match first
+      let ci = miscItems.find(i => normKey(i.product_type) === key);
+      // Fallback: check if one contains the other
+      if (!ci) ci = miscItems.find(i => normKey(i.product_type).includes(key) || key.includes(normKey(i.product_type)));
+      if (ci) {
+        const p = parseFloat(ci.unit_price);
+        if (p > 0) mc.price = p;
+      }
+    });
+
+    pricingLoaded = true;
+    console.log('[Pricing] Loaded live prices from Supabase (' + items.length + ' items)');
+    recalc();
+  } catch (e) {
+    console.warn('[Pricing] Could not load from Supabase, using built-in prices:', e.message);
+  }
+}
 
 // ─── STATE ──────────────────────────────────────────────────────────────────
 
@@ -2355,6 +2427,9 @@ function copyEmailPlainText() {
 createOption('Option 1');
 addLabor();
 recalc();
+
+// Load live pricing from Supabase (updates in background; falls back to built-in prices)
+loadPricingFromSupabase();
 
 // Check for estimate ID in URL
 loadEstimateFromUrl();

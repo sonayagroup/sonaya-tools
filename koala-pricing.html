@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Koala Insulation — Materials Pricing</title>
+<style>
+:root {
+  --navy: #043968;
+  --navy-dark: #022a4e;
+  --green: #95C93D;
+  --green-bright: #97D700;
+  --green-light: #f0f7e1;
+  --green-dark: #6a9a1e;
+  --sage: #7EB4A3;
+  --surface: #fcfcfb;
+  --surface-2: #f5f5f4;
+  --surface-3: #ebebea;
+  --text-primary: #1a1a1a;
+  --text-secondary: #555;
+  --text-muted: #888;
+  --border: #ddd;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-lg: 0 4px 12px rgba(4,57,104,.15);
+  --red: #c62828;
+  --orange: #ef6c00;
+}
+@import url('https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700;800&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body {
+  font-family: 'Alegreya Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+header {
+  background: var(--navy);
+  color: #fff;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-lg);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.logo { height: 40px; }
+.header-title { font-size: 1.3rem; font-weight: 700; flex: 1; }
+.header-title span { font-weight: 400; font-size: .95rem; opacity: .8; margin-left: 8px; }
+.header-btn {
+  padding: 6px 14px; font-size: .82rem; font-weight: 600;
+  border: 1px solid rgba(255,255,255,.3); border-radius: 8px;
+  cursor: pointer; transition: background .2s;
+  font-family: inherit; white-space: nowrap;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 5px;
+  line-height: 1.4; min-height: 34px;
+}
+.header-btn-back { background: rgba(255,255,255,.15); color: #fff; }
+.header-btn-back:hover { background: rgba(255,255,255,.25); }
+
+/* ── Layout ── */
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+/* ── Filter bar ── */
+.filter-bar {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  margin-bottom: 16px; padding: 12px 16px;
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.filter-bar input[type="text"] {
+  flex: 1; min-width: 200px; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: 6px;
+  font-family: inherit; font-size: .9rem;
+}
+.filter-bar select {
+  padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 6px; font-family: inherit; font-size: .9rem;
+  background: #fff;
+}
+.filter-bar label {
+  font-size: .85rem; display: flex; align-items: center; gap: 5px;
+  color: var(--text-secondary);
+}
+
+/* ── Stats bar ── */
+.stats-bar {
+  display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.stat-card {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 12px 18px; box-shadow: var(--shadow); flex: 1; min-width: 140px;
+}
+.stat-card .stat-val { font-size: 1.5rem; font-weight: 700; color: var(--navy); }
+.stat-card .stat-label { font-size: .78rem; color: var(--text-muted); text-transform: uppercase; }
+
+/* ── Table ── */
+.pricing-table-wrap {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow); overflow: hidden;
+}
+table {
+  width: 100%; border-collapse: collapse; font-size: .85rem;
+}
+thead th {
+  background: var(--navy); color: #fff;
+  padding: 10px 12px; text-align: left; font-weight: 600;
+  position: sticky; top: 54px; z-index: 10;
+  white-space: nowrap; font-size: .78rem; text-transform: uppercase;
+  letter-spacing: .3px;
+}
+thead th.supplier-col { text-align: center; min-width: 100px; }
+thead th.sortable { cursor: pointer; user-select: none; }
+thead th.sortable:hover { background: var(--navy-dark); }
+tbody td {
+  padding: 8px 12px; border-bottom: 1px solid var(--surface-3);
+  vertical-align: middle;
+}
+tbody tr:hover { background: var(--green-light); }
+tbody tr.category-row {
+  background: var(--surface-2); font-weight: 700;
+}
+tbody tr.category-row td {
+  padding: 12px; font-size: .95rem; color: var(--navy);
+  border-bottom: 2px solid var(--navy);
+}
+
+/* Product name col */
+.prod-name { font-weight: 600; }
+.prod-detail { font-size: .75rem; color: var(--text-muted); }
+
+/* Supplier price cells */
+.price-cell { text-align: center; position: relative; }
+.price-cell .price-val { font-weight: 600; }
+.price-cell .price-sqft { font-size: .7rem; color: var(--text-muted); display: block; }
+.price-cell.no-price { color: var(--text-muted); font-style: italic; }
+.price-cell.selected {
+  background: var(--green-light);
+  outline: 2px solid var(--green);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+.price-cell.lowest-price .price-val { color: var(--green-dark); }
+.price-cell.highest-price .price-val { color: var(--red); }
+
+.price-cell .select-btn {
+  display: none; position: absolute; top: 2px; right: 2px;
+  background: var(--green); color: var(--navy); border: none;
+  border-radius: 4px; font-size: .65rem; padding: 2px 5px;
+  cursor: pointer; font-weight: 700;
+}
+.price-cell:hover .select-btn { display: block; }
+.price-cell.selected .select-btn { display: block; background: var(--navy); color: #fff; }
+
+/* Current price col */
+.current-price { font-weight: 700; color: var(--navy); }
+.current-source { font-size: .7rem; color: var(--text-muted); display: block; }
+
+/* Coverage col */
+.coverage-val { font-size: .82rem; }
+
+/* Bulk actions */
+.bulk-bar {
+  display: flex; gap: 10px; align-items: center;
+  padding: 10px 16px; background: var(--navy);
+  color: #fff; border-radius: var(--radius) var(--radius) 0 0;
+  font-size: .85rem;
+}
+.bulk-bar select {
+  padding: 4px 8px; border-radius: 4px; border: none;
+  font-family: inherit; font-size: .82rem;
+}
+.bulk-bar button {
+  padding: 5px 14px; background: var(--green); color: var(--navy);
+  border: none; border-radius: 6px; font-weight: 700;
+  cursor: pointer; font-family: inherit; font-size: .82rem;
+}
+.bulk-bar button:hover { background: var(--green-bright); }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 20px; right: 20px;
+  background: var(--navy); color: #fff;
+  padding: 12px 20px; border-radius: 8px;
+  box-shadow: var(--shadow-lg); font-size: .9rem;
+  transform: translateY(100px); opacity: 0;
+  transition: all .3s ease;
+  z-index: 1000;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* Loading */
+.loading {
+  text-align: center; padding: 40px; color: var(--text-muted);
+  font-size: 1.1rem;
+}
+.loading .spinner {
+  display: inline-block; width: 24px; height: 24px;
+  border: 3px solid var(--border); border-top-color: var(--navy);
+  border-radius: 50%; animation: spin .8s linear infinite;
+  margin-right: 10px; vertical-align: middle;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .container { padding: 10px; }
+  table { font-size: .78rem; }
+  thead th, tbody td { padding: 6px 8px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="https://koalainsulation.com/wp-content/themes/theme-flavor-developer/images/koala-logo.svg" alt="Koala" class="logo">
+  <div class="header-title">Materials Pricing <span>Koala Insulation of New Mexico</span></div>
+  <a class="header-btn header-btn-back" href="koala-estimator.html">&#128736; Estimator</a>
+  <a class="header-btn header-btn-back" href="koala-estimates.html">&#128269; Estimates</a>
+</header>
+
+<div class="container">
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-card"><div class="stat-val" id="statTotal">—</div><div class="stat-label">Total Items</div></div>
+    <div class="stat-card"><div class="stat-val" id="statSourced">—</div><div class="stat-label">Source Set</div></div>
+    <div class="stat-card"><div class="stat-val" id="statUnset">—</div><div class="stat-label">No Source</div></div>
+    <div class="stat-card"><div class="stat-val" id="statCheapest">—</div><div class="stat-label">Using Cheapest</div></div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <input type="text" id="searchInput" placeholder="Search products..." oninput="renderTable()">
+    <select id="categoryFilter" onchange="renderTable()">
+      <option value="">All Categories</option>
+      <option value="Insulation">Insulation</option>
+      <option value="Material">Material</option>
+      <option value="SPF Supplies">SPF Supplies</option>
+      <option value="Tools/PPE">Tools/PPE</option>
+    </select>
+    <select id="sourceFilter" onchange="renderTable()">
+      <option value="">All Sources</option>
+      <option value="__unset">No Source Set</option>
+      <option value="IDI">IDI</option>
+      <option value="RIS">RIS</option>
+      <option value="Cameron Ashley">Cameron Ashley</option>
+      <option value="Lowes">Lowe's</option>
+      <option value="Material & Product">Material & Product</option>
+    </select>
+    <label><input type="checkbox" id="showOnlyPriced" onchange="renderTable()"> Has price</label>
+  </div>
+
+  <!-- Bulk actions -->
+  <div class="bulk-bar">
+    <span>Bulk Set Source:</span>
+    <select id="bulkCategory">
+      <option value="">All categories</option>
+      <option value="Insulation">Insulation</option>
+      <option value="Material">Material</option>
+      <option value="SPF Supplies">SPF Supplies</option>
+      <option value="Tools/PPE">Tools/PPE</option>
+    </select>
+    <span>→</span>
+    <select id="bulkSupplier">
+      <option value="__cheapest">Cheapest Available</option>
+      <option value="IDI">IDI</option>
+      <option value="RIS">RIS</option>
+      <option value="Cameron Ashley">Cameron Ashley</option>
+      <option value="Lowes">Lowe's</option>
+      <option value="Material & Product">Material & Product</option>
+    </select>
+    <button onclick="bulkSetSource()">Apply</button>
+    <span style="flex:1"></span>
+    <button onclick="saveAllDefaults()" style="background:#fff;color:var(--navy)">&#128190; Save All Changes</button>
+  </div>
+
+  <!-- Table -->
+  <div class="pricing-table-wrap">
+    <div class="loading" id="loadingMsg"><span class="spinner"></span> Loading pricing data...</div>
+    <table id="pricingTable" style="display:none">
+      <thead>
+        <tr>
+          <th style="width:30px">#</th>
+          <th class="sortable" onclick="sortBy('product_type')">Product</th>
+          <th>Coverage</th>
+          <th>Current Price</th>
+          <th class="supplier-col">IDI</th>
+          <th class="supplier-col">RIS</th>
+          <th class="supplier-col">Cameron Ashley</th>
+          <th class="supplier-col">Lowe's</th>
+          <th class="supplier-col">Misc</th>
+        </tr>
+      </thead>
+      <tbody id="pricingBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SB_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
+
+const SUPPLIERS = ['IDI', 'RIS', 'Cameron Ashley', 'Lowes', 'Material & Product'];
+const SUPPLIER_LABELS = { 'IDI': 'IDI', 'RIS': 'RIS', 'Cameron Ashley': 'Cam. Ashley', 'Lowes': "Lowe's", 'Material & Product': 'Misc' };
+
+let commonItems = [];
+let supplierProducts = [];
+let pendingChanges = {};  // itemId -> { default_source, unit_price, coverage_sqft, price_per_sqft }
+let sortField = 'sort_order';
+let sortDir = 1;
+
+async function sbFetch(table, params = '') {
+  const res = await fetch(`${SB_URL}/rest/v1/${table}?${params}`, {
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+  });
+  return res.json();
+}
+
+async function sbPatch(table, id, data) {
+  const res = await fetch(`${SB_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json', 'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify(data)
+  });
+  return res.ok;
+}
+
+async function loadData() {
+  try {
+    const [ci, sp] = await Promise.all([
+      sbFetch('common_items', 'order=sort_order.asc&limit=500'),
+      sbFetch('pricing_products', 'limit=1000')
+    ]);
+    commonItems = ci;
+    supplierProducts = sp;
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('pricingTable').style.display = '';
+    updateStats();
+    renderTable();
+  } catch (e) {
+    document.getElementById('loadingMsg').innerHTML = '&#9888; Failed to load data. Check connection.';
+    console.error(e);
+  }
+}
+
+// Build a lookup: for each common item, find matching supplier products
+function findSupplierMatches(item) {
+  const matches = {};
+  const itemKey = normalizeKey(item.product_type);
+
+  for (const sp of supplierProducts) {
+    const spKey = normalizeKey(sp.product_type);
+    if (spKey === itemKey || fuzzyMatch(item, sp)) {
+      if (!matches[sp.supplier]) matches[sp.supplier] = [];
+      matches[sp.supplier].push(sp);
+    }
+  }
+  return matches;
+}
+
+function normalizeKey(name) {
+  if (!name) return '';
+  let s = name.toLowerCase().trim();
+  // Normalize common patterns: "R-13 Kraft 15"" -> "r13 kraft 15"
+  // "R13X15 K" -> "r13 kraft 15"  (IDI format)
+  // "R-13 K 15"" -> "r13 kraft 15" (RIS format)
+
+  // Remove quotes, extra spaces
+  s = s.replace(/["""]/g, '').replace(/\s+/g, ' ');
+
+  // Expand IDI-style "R13X15 K" -> "R-13 Kraft 15"
+  const idiMatch = s.match(/^r(\d+)x([\d.]+)\s*(k|uf|fsk)$/);
+  if (idiMatch) {
+    const facing = idiMatch[3] === 'k' ? 'kraft' : idiMatch[3] === 'uf' ? 'unfaced' : 'fsk';
+    return `r${idiMatch[1]} ${facing} ${idiMatch[2]}`;
+  }
+
+  // Expand RIS-style "R-13 K 15"" -> "R-13 Kraft 15"
+  const risMatch = s.match(/^r-?(\d+)\s+(k|uf|fsk)\s+([\d.]+)/);
+  if (risMatch) {
+    const facing = risMatch[2] === 'k' ? 'kraft' : risMatch[2] === 'uf' ? 'unfaced' : 'fsk';
+    return `r${risMatch[1]} ${facing} ${risMatch[3]}`;
+  }
+
+  // Standard format "R-13 Kraft 15"" or "R-13 Unfaced 15""
+  const stdMatch = s.match(/^r-?(\d+)\s+(kraft|unfaced|unaced|rockwool|safe & sound)\s+([\d.]+)/);
+  if (stdMatch) {
+    let facing = stdMatch[2];
+    if (facing === 'unaced') facing = 'unfaced';
+    return `r${stdMatch[1]} ${facing} ${stdMatch[3]}`;
+  }
+
+  // Blow-in
+  if (s.includes('blow-in') || s.includes('blow in')) {
+    if (s.includes('cellulose') || s.includes('cleanfiber') || s.includes('clean fiber')) return 'blow-in cellulose';
+    if (s.includes('fiberglass') || s.includes('l77') || s.includes('l-77')) return 'blow-in fiberglass';
+  }
+  // SPF
+  if (s.includes('spf') || s.includes('spray foam')) {
+    if (s.includes('closed')) return 'spf closed cell';
+    if (s.includes('open')) return 'spf open cell';
+  }
+
+  return s;
+}
+
+function fuzzyMatch(item, sp) {
+  // Try product_name matching as fallback
+  const iName = (item.product_name || '').toLowerCase();
+  const spName = (sp.product_name || '').toLowerCase();
+  const iProd = (item.product_type || '').toLowerCase();
+  const spProd = (sp.product_type || '').toLowerCase();
+
+  // Exact product_type match (case-insensitive)
+  if (iProd && spProd && iProd === spProd) return true;
+
+  // Name-based matching for non-insulation items
+  if (iProd && spProd) {
+    // Remove common prefixes/suffixes and compare
+    const cleanI = iProd.replace(/[^a-z0-9]/g, '');
+    const cleanSP = spProd.replace(/[^a-z0-9]/g, '');
+    if (cleanI.length > 3 && cleanSP.length > 3) {
+      if (cleanI === cleanSP) return true;
+      // One contains the other
+      if (cleanI.includes(cleanSP) || cleanSP.includes(cleanI)) return true;
+    }
+  }
+
+  return false;
+}
+
+function getBestPrice(matches) {
+  // Find cheapest across all suppliers (with a non-zero price)
+  let best = null;
+  for (const [supplier, products] of Object.entries(matches)) {
+    for (const p of products) {
+      if (p.unit_price > 0 && (!best || p.unit_price < best.unit_price)) {
+        best = { ...p, supplier };
+      }
+    }
+  }
+  return best;
+}
+
+function updateStats() {
+  const total = commonItems.length;
+  const sourced = commonItems.filter(i => (pendingChanges[i.id]?.default_source || i.default_source)).length;
+  const unset = total - sourced;
+
+  // Count how many are set to cheapest
+  let cheapestCount = 0;
+  for (const item of commonItems) {
+    const source = pendingChanges[item.id]?.default_source || item.default_source;
+    if (!source) continue;
+    const matches = findSupplierMatches(item);
+    const best = getBestPrice(matches);
+    if (best && best.supplier === source) cheapestCount++;
+  }
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statSourced').textContent = sourced;
+  document.getElementById('statUnset').textContent = unset;
+  document.getElementById('statCheapest').textContent = cheapestCount;
+}
+
+function renderTable() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const catFilter = document.getElementById('categoryFilter').value;
+  const srcFilter = document.getElementById('sourceFilter').value;
+  const onlyPriced = document.getElementById('showOnlyPriced').checked;
+
+  let items = [...commonItems];
+
+  // Filter
+  if (search) {
+    items = items.filter(i =>
+      i.product_type.toLowerCase().includes(search) ||
+      (i.product_name || '').toLowerCase().includes(search) ||
+      (i.product_info || '').toLowerCase().includes(search)
+    );
+  }
+  if (catFilter) items = items.filter(i => i.category === catFilter);
+  if (srcFilter === '__unset') {
+    items = items.filter(i => !(pendingChanges[i.id]?.default_source || i.default_source));
+  } else if (srcFilter) {
+    items = items.filter(i => (pendingChanges[i.id]?.default_source || i.default_source) === srcFilter);
+  }
+
+  // Sort
+  items.sort((a, b) => {
+    let va = a[sortField], vb = b[sortField];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return -1 * sortDir;
+    if (va > vb) return 1 * sortDir;
+    return 0;
+  });
+
+  const tbody = document.getElementById('pricingBody');
+  let html = '';
+  let lastCat = '';
+  let rowNum = 0;
+
+  for (const item of items) {
+    // Category header
+    if (item.category !== lastCat) {
+      lastCat = item.category;
+      html += `<tr class="category-row"><td colspan="9">${esc(lastCat)}</td></tr>`;
+    }
+
+    rowNum++;
+    const matches = findSupplierMatches(item);
+    const currentSource = pendingChanges[item.id]?.default_source ?? item.default_source;
+    const currentPrice = pendingChanges[item.id]?.unit_price ?? item.unit_price;
+    const currentCov = pendingChanges[item.id]?.coverage_sqft ?? item.coverage_sqft;
+
+    // Find lowest and highest prices
+    let allPrices = [];
+    for (const [sup, prods] of Object.entries(matches)) {
+      for (const p of prods) {
+        if (p.unit_price > 0) allPrices.push({ price: p.unit_price, supplier: sup });
+      }
+    }
+    const lowestPrice = allPrices.length ? Math.min(...allPrices.map(p => p.price)) : null;
+    const highestPrice = allPrices.length ? Math.max(...allPrices.map(p => p.price)) : null;
+
+    if (onlyPriced && allPrices.length === 0 && currentPrice <= 0) continue;
+
+    html += `<tr>`;
+    html += `<td style="color:var(--text-muted);font-size:.75rem">${rowNum}</td>`;
+    html += `<td><div class="prod-name">${esc(item.product_type)}</div>`;
+    if (item.product_name) html += `<div class="prod-detail">${esc(item.product_name)}</div>`;
+    if (item.product_info) html += `<div class="prod-detail">${esc(item.product_info)}</div>`;
+    html += `</td>`;
+    html += `<td class="coverage-val">${currentCov > 0 ? currentCov + ' sf' : '—'}</td>`;
+    html += `<td><span class="current-price">${currentPrice > 0 ? '$' + fmt(currentPrice) : '—'}</span>`;
+    html += `<span class="current-source">${currentSource ? SUPPLIER_LABELS[currentSource] || currentSource : 'not set'}</span></td>`;
+
+    // Supplier columns
+    for (const sup of SUPPLIERS) {
+      const prods = matches[sup] || [];
+      // Pick best (with price) from this supplier
+      const withPrice = prods.filter(p => p.unit_price > 0);
+      const prod = withPrice.length ? withPrice.reduce((a, b) => a.unit_price < b.unit_price ? a : b) : prods[0];
+
+      if (prod && prod.unit_price > 0) {
+        const isSelected = currentSource === sup;
+        const isLowest = prod.unit_price === lowestPrice && allPrices.length > 1;
+        const isHighest = prod.unit_price === highestPrice && allPrices.length > 1 && lowestPrice !== highestPrice;
+        const cls = ['price-cell'];
+        if (isSelected) cls.push('selected');
+        if (isLowest) cls.push('lowest-price');
+        if (isHighest) cls.push('highest-price');
+
+        html += `<td class="${cls.join(' ')}">`;
+        html += `<span class="price-val">$${fmt(prod.unit_price)}</span>`;
+        if (prod.coverage_sqft > 0) html += `<span class="price-sqft">${prod.coverage_sqft} sf</span>`;
+        html += `<button class="select-btn" onclick="selectSource('${item.id}','${sup}',${prod.unit_price},${prod.coverage_sqft || 0},${prod.price_per_sqft || 0})">${isSelected ? '✓' : 'Use'}</button>`;
+        html += `</td>`;
+      } else if (prod) {
+        html += `<td class="price-cell no-price">avail</td>`;
+      } else {
+        html += `<td class="price-cell no-price">—</td>`;
+      }
+    }
+    html += `</tr>`;
+  }
+
+  tbody.innerHTML = html;
+}
+
+function selectSource(itemId, supplier, price, coverage, priceSqft) {
+  pendingChanges[itemId] = {
+    default_source: supplier,
+    unit_price: price,
+    coverage_sqft: coverage,
+    price_per_sqft: priceSqft
+  };
+  updateStats();
+  renderTable();
+  showToast(`Source set to ${SUPPLIER_LABELS[supplier] || supplier}`);
+}
+
+function bulkSetSource() {
+  const cat = document.getElementById('bulkCategory').value;
+  const supplier = document.getElementById('bulkSupplier').value;
+  let count = 0;
+
+  for (const item of commonItems) {
+    if (cat && item.category !== cat) continue;
+
+    const matches = findSupplierMatches(item);
+
+    if (supplier === '__cheapest') {
+      const best = getBestPrice(matches);
+      if (best) {
+        pendingChanges[item.id] = {
+          default_source: best.supplier,
+          unit_price: best.unit_price,
+          coverage_sqft: best.coverage_sqft || 0,
+          price_per_sqft: best.price_per_sqft || 0
+        };
+        count++;
+      }
+    } else {
+      const prods = matches[supplier] || [];
+      const withPrice = prods.filter(p => p.unit_price > 0);
+      if (withPrice.length) {
+        const prod = withPrice.reduce((a, b) => a.unit_price < b.unit_price ? a : b);
+        pendingChanges[item.id] = {
+          default_source: supplier,
+          unit_price: prod.unit_price,
+          coverage_sqft: prod.coverage_sqft || 0,
+          price_per_sqft: prod.price_per_sqft || 0
+        };
+        count++;
+      }
+    }
+  }
+
+  updateStats();
+  renderTable();
+  showToast(`Bulk updated ${count} items`);
+}
+
+async function saveAllDefaults() {
+  const ids = Object.keys(pendingChanges);
+  if (!ids.length) { showToast('No changes to save'); return; }
+
+  showToast(`Saving ${ids.length} changes...`);
+  let ok = 0, fail = 0;
+
+  for (const id of ids) {
+    const data = { ...pendingChanges[id], updated_at: new Date().toISOString() };
+    const success = await sbPatch('common_items', id, data);
+    if (success) {
+      // Update local data
+      const item = commonItems.find(i => i.id === id);
+      if (item) Object.assign(item, data);
+      ok++;
+    } else {
+      fail++;
+    }
+  }
+
+  pendingChanges = {};
+  updateStats();
+  renderTable();
+  showToast(fail ? `Saved ${ok}, failed ${fail}` : `Saved ${ok} items ✓`);
+}
+
+function sortBy(field) {
+  if (sortField === field) sortDir *= -1;
+  else { sortField = field; sortDir = 1; }
+  renderTable();
+}
+
+function fmt(n) {
+  return Number(n).toFixed(2);
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Init
+loadData();
+</script>
+</body>
+</html>

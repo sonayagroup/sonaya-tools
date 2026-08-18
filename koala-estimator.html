@@ -1,13 +1,4 @@
 <!DOCTYPE html>
-<script type="application/json" id="cowork-artifact-meta">
-{
-  "name": "Koala Estimator",
-  "schemaVersion": 1,
-  "description": "Koala Insulation in-home estimator with area-based calculations, job type selection, multi-option tabs, trip charges, and customer view mode.",
-  "mcpTools": [],
-  "mcpServerNames": []
-}
-</script>
 <html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
@@ -347,11 +338,80 @@ body.customer-mode .customer-total-box { display: block; }
   .main { max-width: 100%; }
 }
 
+/* ── Save/Load UI ───────────────────── */
+.header-actions {
+  display: flex; gap: 8px; align-items: center;
+}
+.header-btn {
+  padding: 6px 14px; font-size: .82rem; font-weight: 600;
+  border: 1px solid rgba(255,255,255,.3); border-radius: 8px;
+  cursor: pointer; transition: background .2s;
+  font-family: inherit; white-space: nowrap;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 5px;
+}
+.header-btn-save { background: var(--green); color: var(--navy); border-color: var(--green); }
+.header-btn-save:hover { background: var(--green-bright); }
+.header-btn-browse { background: rgba(255,255,255,.15); color: #fff; }
+.header-btn-browse:hover { background: rgba(255,255,255,.25); }
+
+/* Toast notification */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--navy); color: #fff;
+  padding: 12px 20px; border-radius: 8px;
+  font-size: .88rem; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,.25);
+  z-index: 9999; opacity: 0; transform: translateY(10px);
+  transition: opacity .3s, transform .3s;
+  max-width: 400px;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { background: var(--red); }
+.toast.success { background: #2e7d32; }
+
+/* Save modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  z-index: 1000; display: none; align-items: center; justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 24px; max-width: 480px; width: 90%;
+  box-shadow: 0 8px 32px rgba(0,0,0,.25);
+}
+.modal h2 {
+  font-size: 1.1rem; font-weight: 700; color: var(--navy);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+}
+.modal .field { margin-bottom: 14px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+.modal-btn {
+  padding: 8px 20px; border-radius: 6px; font-size: .88rem;
+  font-weight: 600; cursor: pointer; border: 1px solid var(--border);
+  font-family: inherit; transition: background .15s;
+}
+.modal-btn-primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+.modal-btn-primary:hover { background: var(--navy-dark); }
+.modal-btn-cancel { background: var(--surface-2); color: var(--text-primary); }
+.modal-btn-cancel:hover { background: var(--surface-3); }
+.modal select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: .95rem; }
+
+/* Estimate ID badge */
+.estimate-badge {
+  display: none; align-items: center; gap: 6px;
+  background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
+  border-radius: 6px; padding: 4px 10px;
+  font-size: .75rem; color: rgba(255,255,255,.8); white-space: nowrap;
+}
+.estimate-badge.visible { display: flex; }
+.estimate-badge .badge-label { font-weight: 600; color: var(--green); }
+
 /* ── Print ───────────────────────────── */
 @media print {
   header { position: static; }
   .sidebar { position: static; height: auto; }
-  .btn-add, .btn-remove, .mode-toggle, .tab-add, .tab-close { display: none; }
+  .btn-add, .btn-remove, .mode-toggle, .tab-add, .tab-close, .header-actions { display: none; }
   .internal-only { display: none !important; }
 }
 </style>
@@ -365,11 +425,71 @@ body.customer-mode .customer-total-box { display: block; }
     <text x="22" y="28" text-anchor="middle" fill="#95C93D" font-size="20" font-weight="800" font-family="'Alegreya Sans',sans-serif">K</text>
   </svg>
   <h1>In-Home Estimator <span class="subtitle">Koala Insulation of New Mexico</span></h1>
+  <div class="estimate-badge" id="estimateBadge">
+    <span class="badge-label">Loaded:</span>
+    <span id="estimateBadgeName">—</span>
+  </div>
+  <div class="header-actions">
+    <button class="header-btn header-btn-save" onclick="openSaveModal()">&#128190; Save</button>
+    <a class="header-btn header-btn-browse" href="koala-estimates.html">&#128269; Browse Estimates</a>
+  </div>
   <div class="mode-toggle" id="modeToggle" onclick="toggleCustomerMode()" title="Ctrl+Shift+H">
     <span id="modeLabel">Customer View</span>
     <div class="toggle-track"><div class="toggle-thumb"></div></div>
   </div>
 </header>
+
+<!-- Save Modal -->
+<div class="modal-overlay" id="saveModal">
+  <div class="modal">
+    <h2>&#128190; Save Estimate</h2>
+    <div class="field">
+      <label>Customer Name</label>
+      <input type="text" id="saveCustomerName" placeholder="Auto-filled from form">
+    </div>
+    <div class="field">
+      <label>Service Address</label>
+      <input type="text" id="saveAddress" placeholder="Auto-filled from form">
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Customer Phone</label>
+        <input type="text" id="savePhone" placeholder="(505) 555-1234">
+      </div>
+      <div class="field">
+        <label>Customer Email</label>
+        <input type="text" id="saveEmail" placeholder="email@example.com">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Estimator</label>
+        <input type="text" id="saveEstimator" placeholder="Auto-filled from form">
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="saveStatus">
+          <option value="draft">Draft</option>
+          <option value="sent">Sent</option>
+          <option value="accepted">Accepted</option>
+          <option value="declined">Declined</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="saveNotes" rows="2" placeholder="Optional notes about this estimate"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" onclick="closeSaveModal()">Cancel</button>
+      <button class="modal-btn modal-btn-primary" onclick="saveEstimate()" id="saveBtn">Save Estimate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
 
 <div class="app">
   <div class="main">
@@ -1464,11 +1584,359 @@ function recalc() {
   updateSpfCalc();
 }
 
+// ─── SUPABASE ──────────────────────────────────────────────────────────────
+
+const SUPABASE_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
+
+let currentEstimateId = null; // set when loading an existing estimate
+
+// ─── TOAST ─────────────────────────────────────────────────────────────────
+
+function showToast(msg, type) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type || '') + ' show';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ─── SERIALIZE / DESERIALIZE FORM ──────────────────────────────────────────
+
+function serializeForm() {
+  const data = {
+    custName: $('custName').value,
+    estimator: $('estimator').value,
+    address: $('address').value,
+    totalSqft: $('totalSqft').value,
+    insulSqft: $('insulSqft').value,
+    jobType: $('jobType').value,
+    targetR: $('targetR').value,
+    framingDepth: $('framingDepth').value,
+    studSpacing: $('studSpacing').value,
+    ceilingSqft: $('ceilingSqft').value,
+    wallSqft: $('wallSqft').value,
+    margin: $('marginInput').value,
+    royalty: $('royaltyInput').value,
+    notes: $('notes').value,
+    options: []
+  };
+
+  options.forEach(opt => {
+    const p = optPrefixFor(opt);
+    const optData = {
+      id: opt.id,
+      name: opt.name,
+      trip: {
+        tier: $(p + 'tripTier')?.value || '0',
+        miles: $(p + 'tripMiles')?.value || '0',
+        chargeAmt: $(p + 'tripChargeAmt')?.value || '0',
+        days: $(p + 'tripDays')?.value || '1',
+        genHours: $(p + 'genHours')?.value || '0',
+        fuelRate: $(p + 'fuelRate')?.value || '4.00'
+      },
+      blowIn: [],
+      batt: [],
+      spf: [],
+      labor: [],
+      misc: []
+    };
+
+    opt.rows.blowIn.forEach(id => {
+      const sel = document.querySelector(`.${CSS.escape(p)}bi-sel[data-id="${id}"]`);
+      const qty = document.querySelector(`.${CSS.escape(p)}bi-qty[data-id="${id}"]`);
+      optData.blowIn.push({ material: sel?.value || '', qty: qty?.value || '0' });
+    });
+
+    opt.rows.batt.forEach(id => {
+      const sel = document.querySelector(`.${CSS.escape(p)}bt-sel[data-id="${id}"]`);
+      const qty = document.querySelector(`.${CSS.escape(p)}bt-qty[data-id="${id}"]`);
+      optData.batt.push({ product: sel?.value || '', qty: qty?.value || '0' });
+    });
+
+    opt.rows.spf.forEach(id => {
+      const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${id}"]`);
+      const qty = document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${id}"]`);
+      optData.spf.push({ type: sel?.value || '', qty: qty?.value || '0' });
+    });
+
+    opt.rows.labor.forEach(id => {
+      const hrs = document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${id}"]`);
+      const rate = document.querySelector(`.${CSS.escape(p)}lb-rate[data-id="${id}"]`);
+      const ot = document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${id}"]`);
+      const otRate = document.querySelector(`.${CSS.escape(p)}lb-otrate[data-id="${id}"]`);
+      optData.labor.push({
+        hrs: hrs?.value || '0', rate: rate?.value || '25',
+        ot: ot?.value || '0', otRate: otRate?.value || '37.50'
+      });
+    });
+
+    opt.rows.misc.forEach(m => {
+      const sel = document.querySelector(`.${CSS.escape(p)}ms-sel[data-id="${m.id}"]`);
+      const qty = document.querySelector(`.${CSS.escape(p)}ms-qty[data-id="${m.id}"]`);
+      const price = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${m.id}"]`);
+      optData.misc.push({
+        item: sel?.value || '', qty: qty?.value || '1',
+        price: price?.value || '0', auto: m.auto || false
+      });
+    });
+
+    data.options.push(optData);
+  });
+
+  return data;
+}
+
+function deserializeForm(data) {
+  // Clear existing options
+  while (options.length > 0) {
+    const opt = options[0];
+    const container = $('opt-' + opt.id);
+    if (container) container.remove();
+    options.splice(0, 1);
+  }
+  nextId = 1;
+  activeOptionIdx = 0;
+
+  // Restore top-level fields
+  $('custName').value = data.custName || '';
+  $('estimator').value = data.estimator || '';
+  $('address').value = data.address || '';
+  $('totalSqft').value = data.totalSqft || '';
+  $('insulSqft').value = data.insulSqft || '';
+  $('jobType').value = data.jobType || '';
+  $('targetR').value = data.targetR || '';
+  $('framingDepth').value = data.framingDepth || '';
+  $('studSpacing').value = data.studSpacing || '';
+  $('ceilingSqft').value = data.ceilingSqft || '';
+  $('wallSqft').value = data.wallSqft || '';
+  $('marginInput').value = data.margin || '50';
+  $('royaltyInput').value = data.royalty || '5';
+  $('notes').value = data.notes || '';
+
+  // Rebuild options
+  (data.options || []).forEach((optData, idx) => {
+    const opt = createOption(optData.name || ('Option ' + (idx + 1)));
+    const p = optPrefixFor(opt);
+
+    // Trip
+    if (optData.trip) {
+      $(p + 'tripTier').value = optData.trip.tier || '0';
+      onTripTierChange(p);
+      $(p + 'tripMiles').value = optData.trip.miles || '0';
+      $(p + 'tripChargeAmt').value = optData.trip.chargeAmt || '0';
+      $(p + 'tripDays').value = optData.trip.days || '1';
+      $(p + 'genHours').value = optData.trip.genHours || '0';
+      $(p + 'fuelRate').value = optData.trip.fuelRate || '4.00';
+    }
+
+    // Blow-in rows
+    (optData.blowIn || []).forEach(row => {
+      addBlowIn();
+      const lastId = opt.rows.blowIn[opt.rows.blowIn.length - 1];
+      const sel = document.querySelector(`.${CSS.escape(p)}bi-sel[data-id="${lastId}"]`);
+      const qty = document.querySelector(`.${CSS.escape(p)}bi-qty[data-id="${lastId}"]`);
+      if (sel) sel.value = row.material;
+      if (qty) qty.value = row.qty;
+    });
+
+    // Batt rows
+    (optData.batt || []).forEach(row => {
+      addBatt();
+      const lastId = opt.rows.batt[opt.rows.batt.length - 1];
+      const sel = document.querySelector(`.${CSS.escape(p)}bt-sel[data-id="${lastId}"]`);
+      const qty = document.querySelector(`.${CSS.escape(p)}bt-qty[data-id="${lastId}"]`);
+      if (sel) sel.value = row.product;
+      if (qty) qty.value = row.qty;
+      onBattSelect(p, lastId);
+    });
+
+    // SPF rows
+    (optData.spf || []).forEach(row => {
+      addSpf();
+      const lastId = opt.rows.spf[opt.rows.spf.length - 1];
+      const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${lastId}"]`);
+      const qty = document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${lastId}"]`);
+      if (sel) sel.value = row.type;
+      if (qty) qty.value = row.qty;
+    });
+
+    // Remove default labor row that createOption+addLabor added
+    // (we'll add the saved ones instead)
+    while (opt.rows.labor.length > 0) {
+      const lid = opt.rows.labor[0];
+      const tr = document.getElementById(p + 'lb-' + lid);
+      if (tr) tr.remove();
+      opt.rows.labor.splice(0, 1);
+    }
+
+    // Labor rows
+    (optData.labor || []).forEach(row => {
+      addLabor();
+      const lastId = opt.rows.labor[opt.rows.labor.length - 1];
+      const hrs = document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${lastId}"]`);
+      const rate = document.querySelector(`.${CSS.escape(p)}lb-rate[data-id="${lastId}"]`);
+      const ot = document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${lastId}"]`);
+      const otRate = document.querySelector(`.${CSS.escape(p)}lb-otrate[data-id="${lastId}"]`);
+      if (hrs) hrs.value = row.hrs;
+      if (rate) rate.value = row.rate;
+      if (ot) ot.value = row.ot;
+      if (otRate) otRate.value = row.otRate;
+    });
+
+    // Misc rows
+    (optData.misc || []).forEach(row => {
+      addMisc(row.item !== '' ? parseInt(row.item) : undefined, parseInt(row.qty) || 1, row.auto);
+      const lastMisc = opt.rows.misc[opt.rows.misc.length - 1];
+      const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${lastMisc.id}"]`);
+      if (priceInput) priceInput.value = row.price;
+    });
+  });
+
+  switchToOption(0);
+  recalc();
+}
+
+// ─── SAVE MODAL ────────────────────────────────────────────────────────────
+
+function openSaveModal() {
+  $('saveCustomerName').value = $('custName').value;
+  $('saveAddress').value = $('address').value;
+  $('saveEstimator').value = $('estimator').value;
+  $('saveModal').classList.add('active');
+}
+
+function closeSaveModal() {
+  $('saveModal').classList.remove('active');
+}
+
+// Close modal on overlay click
+$('saveModal').addEventListener('click', e => {
+  if (e.target === $('saveModal')) closeSaveModal();
+});
+
+// ─── SAVE TO SUPABASE ──────────────────────────────────────────────────────
+
+async function supabaseRequest(method, path, body) {
+  const url = SUPABASE_URL + '/rest/v1/' + path;
+  const headers = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Content-Type': 'application/json',
+    'Prefer': method === 'POST' ? 'return=representation' : (method === 'PATCH' ? 'return=representation' : undefined)
+  };
+  // Clean undefined headers
+  Object.keys(headers).forEach(k => headers[k] === undefined && delete headers[k]);
+
+  const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+async function saveEstimate() {
+  const btn = $('saveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const formData = serializeForm();
+    const c = calcOption(getOpt());
+    const margin = parseFloat($('marginInput').value) || 50;
+    const royalty = parseFloat($('royaltyInput').value) || 0;
+    const divisor = 1 - (margin / 100) - (royalty / 100);
+    const customerPrice = divisor > 0 ? c.totalJobCost / divisor : 0;
+
+    const record = {
+      customer_name: $('saveCustomerName').value || '',
+      customer_address: $('saveAddress').value || '',
+      customer_phone: $('savePhone').value || '',
+      customer_email: $('saveEmail').value || '',
+      estimator_name: $('saveEstimator').value || '',
+      status: $('saveStatus').value || 'draft',
+      notes: $('saveNotes').value || '',
+      total_cost: parseFloat(c.totalJobCost.toFixed(2)),
+      customer_price: parseFloat(customerPrice.toFixed(2)),
+      margin_percent: margin,
+      royalty_percent: royalty,
+      form_data: formData
+    };
+
+    let result;
+    if (currentEstimateId) {
+      // Update existing
+      result = await supabaseRequest('PATCH',
+        'koala_estimates?id=eq.' + currentEstimateId, record);
+      result = Array.isArray(result) ? result[0] : result;
+      showToast('Estimate updated!', 'success');
+    } else {
+      // Insert new
+      result = await supabaseRequest('POST', 'koala_estimates', record);
+      result = Array.isArray(result) ? result[0] : result;
+      currentEstimateId = result.id;
+      showToast('Estimate saved!', 'success');
+    }
+
+    // Update badge
+    updateEstimateBadge(record.customer_name);
+    closeSaveModal();
+  } catch (err) {
+    console.error('Save error:', err);
+    showToast('Save failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save Estimate';
+  }
+}
+
+function updateEstimateBadge(name) {
+  const badge = $('estimateBadge');
+  $('estimateBadgeName').textContent = name || 'Unnamed';
+  badge.classList.add('visible');
+}
+
+// ─── LOAD FROM URL PARAM ───────────────────────────────────────────────────
+
+async function loadEstimateFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if (!id) return;
+
+  try {
+    const result = await supabaseRequest('GET', 'koala_estimates?id=eq.' + id + '&select=*');
+    if (!result || !result.length) {
+      showToast('Estimate not found', 'error');
+      return;
+    }
+    const est = result[0];
+    currentEstimateId = est.id;
+    deserializeForm(est.form_data);
+
+    // Populate save modal fields from DB record
+    $('savePhone').value = est.customer_phone || '';
+    $('saveEmail').value = est.customer_email || '';
+    $('saveStatus').value = est.status || 'draft';
+    $('saveNotes').value = est.notes || '';
+
+    updateEstimateBadge(est.customer_name);
+    showToast('Estimate loaded: ' + (est.customer_name || 'Unnamed'), 'success');
+  } catch (err) {
+    console.error('Load error:', err);
+    showToast('Failed to load estimate', 'error');
+  }
+}
+
 // ─── INIT ───────────────────────────────────────────────────────────────────
 
 createOption('Option 1');
 addLabor();
 recalc();
+
+// Check for estimate ID in URL
+loadEstimateFromUrl();
 </script>
 </body>
 </html>

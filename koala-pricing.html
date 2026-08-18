@@ -330,6 +330,53 @@ tbody tr.category-row td {
 .edit-modal-footer .btn-save:hover { background: var(--green-bright); }
 .edit-hint { font-size: .75rem; color: var(--text-muted); margin-top: 14px; line-height: 1.4; }
 
+/* ── Password Gate Overlay ── */
+.pw-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.5); z-index: 600;
+  align-items: center; justify-content: center;
+}
+.pw-overlay.open { display: flex; }
+.pw-modal {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); width: 340px; max-width: 90vw;
+  overflow: hidden; text-align: center;
+}
+.pw-modal-header {
+  background: var(--navy); color: #fff;
+  padding: 16px 18px; font-weight: 700; font-size: 1rem;
+}
+.pw-modal-header .pw-subtitle {
+  font-weight: 400; opacity: .7; font-size: .82rem; display: block; margin-top: 4px;
+}
+.pw-modal-body { padding: 22px 24px 18px; }
+.pw-modal-body input {
+  width: 100%; padding: 10px 14px; border: 1px solid var(--border);
+  border-radius: 6px; font-family: inherit; font-size: 1rem;
+  text-align: center; letter-spacing: 2px;
+}
+.pw-modal-body input:focus { outline: 2px solid var(--green); outline-offset: -1px; border-color: var(--green); }
+.pw-error { color: var(--red); font-size: .82rem; margin-top: 8px; min-height: 1.2em; }
+.pw-modal-footer {
+  display: flex; gap: 10px; justify-content: center;
+  padding: 14px 18px; border-top: 1px solid var(--surface-3);
+}
+.pw-modal-footer button {
+  padding: 8px 22px; border-radius: 6px; font-family: inherit;
+  font-size: .88rem; font-weight: 600; cursor: pointer; border: none;
+}
+.pw-modal-footer .btn-pw-cancel { background: var(--surface-2); color: var(--text-secondary); }
+.pw-modal-footer .btn-pw-cancel:hover { background: var(--surface-3); }
+.pw-modal-footer .btn-pw-unlock { background: var(--green); color: var(--navy); }
+.pw-modal-footer .btn-pw-unlock:hover { background: var(--green-bright); }
+
+/* Lock icon on edit-restricted elements when locked */
+.locked-badge {
+  display: inline-block; font-size: .7rem; background: rgba(255,255,255,.2);
+  padding: 2px 8px; border-radius: 4px; margin-left: 8px;
+  vertical-align: middle; opacity: .7;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .container { padding: 10px; }
@@ -425,6 +472,7 @@ tbody tr.category-row td {
     <span style="flex:1"></span>
     <button class="undo-btn" id="undoBtn" onclick="undoLastChange()" disabled title="Undo last change">&#8630; Undo</button>
     <button onclick="saveAllDefaults()" style="background:#fff;color:var(--navy)">&#128190; Save All Changes</button>
+    <span class="locked-badge" id="lockBadge">&#128274; Locked</span>
   </div>
 
   <!-- Table -->
@@ -494,6 +542,24 @@ tbody tr.category-row td {
   </div>
 </div>
 
+<!-- Password Gate -->
+<div class="pw-overlay" id="pwOverlay" onclick="if(event.target===this)closePwModal()">
+  <div class="pw-modal">
+    <div class="pw-modal-header">
+      &#128274; Editing Locked
+      <span class="pw-subtitle">Enter the admin password to make changes</span>
+    </div>
+    <div class="pw-modal-body">
+      <input type="password" id="pwInput" placeholder="Password" autocomplete="off">
+      <div class="pw-error" id="pwError"></div>
+    </div>
+    <div class="pw-modal-footer">
+      <button class="btn-pw-cancel" onclick="closePwModal()">Cancel</button>
+      <button class="btn-pw-unlock" onclick="checkPassword()">Unlock</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -502,6 +568,69 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 const SUPPLIERS = ['IDI', 'RIS', 'Cameron Ashley', 'Lowes', 'Material & Product'];
 const SUPPLIER_LABELS = { 'IDI': 'IDI', 'RIS': 'RIS', 'Cameron Ashley': 'Cam. Ashley', 'Lowes': "Lowe's", 'Material & Product': 'Misc' };
+
+// ── Password gate ──
+const EDIT_PW_HASH = '8e6d129fea140bc3fb58de8564693b1be8bd9d1ebf2a05aeaea3407c72c3a0fd';
+let editUnlocked = false;
+let pendingEditAction = null;  // callback to run after unlock
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function requireEditAccess(callback) {
+  if (editUnlocked) { callback(); return; }
+  pendingEditAction = callback;
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwError').textContent = '';
+  document.getElementById('pwOverlay').classList.add('open');
+  document.getElementById('pwInput').focus();
+}
+
+async function checkPassword() {
+  const pw = document.getElementById('pwInput').value;
+  if (!pw) { document.getElementById('pwError').textContent = 'Please enter a password.'; return; }
+  const hash = await sha256(pw);
+  if (hash === EDIT_PW_HASH) {
+    editUnlocked = true;
+    try { sessionStorage.setItem('koala_pricing_unlocked', '1'); } catch(e) {}
+    closePwModal();
+    showToast('Editing unlocked ✓');
+    updateLockUI();
+    if (pendingEditAction) { pendingEditAction(); pendingEditAction = null; }
+  } else {
+    document.getElementById('pwError').textContent = 'Incorrect password. Try again.';
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwInput').focus();
+  }
+}
+
+function closePwModal() {
+  document.getElementById('pwOverlay').classList.remove('open');
+  pendingEditAction = null;
+}
+
+function updateLockUI() {
+  // Show/hide lock badge on bulk bar
+  const lockBadge = document.getElementById('lockBadge');
+  if (lockBadge) lockBadge.style.display = editUnlocked ? 'none' : '';
+}
+
+// Check sessionStorage on load
+(function() {
+  try { if (sessionStorage.getItem('koala_pricing_unlocked') === '1') editUnlocked = true; } catch(e) {}
+})();
+
+// Handle Enter key in password modal
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && document.getElementById('pwOverlay').classList.contains('open')) {
+    checkPassword();
+  }
+  if (e.key === 'Escape' && document.getElementById('pwOverlay').classList.contains('open')) {
+    closePwModal();
+  }
+});
 
 let commonItems = [];
 let supplierProducts = [];
@@ -556,6 +685,7 @@ async function loadData() {
     updateStats();
     renderTable();
     loadAuditLog();
+    updateLockUI();
   } catch (e) {
     document.getElementById('loadingMsg').innerHTML = '&#9888; Failed to load data. Check connection.';
     console.error(e);
@@ -767,6 +897,7 @@ function renderTable() {
 
 // ── Select source (with undo tracking) ──
 function selectSource(itemId, supplier, price, coverage, priceSqft) {
+  if (!editUnlocked) { requireEditAccess(() => selectSource(itemId, supplier, price, coverage, priceSqft)); return; }
   // Save previous state for undo
   const item = commonItems.find(i => i.id === itemId);
   const prevState = pendingChanges[itemId] ? { ...pendingChanges[itemId] } : null;
@@ -827,6 +958,7 @@ function undoLastChange() {
 
 // ── Bulk set source ──
 function bulkSetSource() {
+  if (!editUnlocked) { requireEditAccess(() => bulkSetSource()); return; }
   const cat = document.getElementById('bulkCategory').value;
   const supplier = document.getElementById('bulkSupplier').value;
   let count = 0;
@@ -880,6 +1012,7 @@ function bulkSetSource() {
 
 // ── Save all changes (with audit log) ──
 async function saveAllDefaults() {
+  if (!editUnlocked) { requireEditAccess(() => saveAllDefaults()); return; }
   const ids = Object.keys(pendingChanges);
   if (!ids.length) { showToast('No changes to save'); return; }
 
@@ -1044,6 +1177,7 @@ function showToast(msg) {
 let editingProductId = null;  // pricing_products.id
 
 function openEditModal(prodId, productType, supplier, price, coverage) {
+  if (!editUnlocked) { requireEditAccess(() => openEditModal(prodId, productType, supplier, price, coverage)); return; }
   editingProductId = prodId;
   document.getElementById('editProductName').textContent = `${productType} — ${SUPPLIER_LABELS[supplier] || supplier}`;
   document.getElementById('editSupplier').value = SUPPLIER_LABELS[supplier] || supplier;

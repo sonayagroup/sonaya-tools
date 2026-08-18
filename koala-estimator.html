@@ -1080,18 +1080,27 @@ async function loadPricingFromSupabase() {
     items.forEach(ci => { typeCount[ci.product_type] = (typeCount[ci.product_type] || 0) + 1; });
     const seen = new Set();
     allPricingItems = [];
+    // Build a normKey->MISC_CATALOG name lookup for friendly name matching
+    const miscByNorm = {};
+    MISC_CATALOG.forEach(mc => { miscByNorm[normKey(mc.name)] = mc.name; });
+    const addedNorm = new Set();
     items.forEach(ci => {
-      // If multiple items share the same product_type, use product_name to distinguish
-      const name = typeCount[ci.product_type] > 1 ? ci.product_name : ci.product_type;
-      const lc = name.toLowerCase();
-      if (!seen.has(lc)) {
+      const rawName = typeCount[ci.product_type] > 1 ? ci.product_name : ci.product_type;
+      const nk = normKey(rawName);
+      // Prefer the friendly MISC_CATALOG name if it matches
+      const friendlyName = miscByNorm[nk] || rawName;
+      const lc = friendlyName.toLowerCase();
+      if (!seen.has(lc) && !addedNorm.has(nk)) {
         seen.add(lc);
-        allPricingItems.push({ name, price: parseFloat(ci.unit_price) || 0 });
+        addedNorm.add(nk);
+        allPricingItems.push({ name: friendlyName, price: parseFloat(ci.unit_price) || 0 });
       }
     });
     // Add MISC_CATALOG items not already covered by Supabase
     MISC_CATALOG.forEach(mc => {
-      if (!seen.has(mc.name.toLowerCase())) {
+      const nk = normKey(mc.name);
+      if (!seen.has(mc.name.toLowerCase()) && !addedNorm.has(nk)) {
+        addedNorm.add(nk);
         allPricingItems.push({ name: mc.name, price: mc.price });
       }
     });

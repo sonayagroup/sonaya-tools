@@ -1027,7 +1027,7 @@ let pricingLoaded = false;
 async function loadPricingFromSupabase() {
   try {
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/common_items?select=category,product_type,unit_price,coverage_sqft,price_per_sqft&order=sort_order`,
+      `${SUPABASE_URL}/rest/v1/common_items?select=category,product_type,product_name,unit_price,coverage_sqft,price_per_sqft&order=sort_order`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1062,9 +1062,11 @@ async function loadPricingFromSupabase() {
     const miscItems = items.filter(i => ['Material', 'SPF Supplies', 'Tools/PPE'].includes(i.category));
     MISC_CATALOG.forEach(mc => {
       const key = normKey(mc.name);
-      // Try exact normalized match first
+      // Try exact normalized match on product_type
       let ci = miscItems.find(i => normKey(i.product_type) === key);
-      // Fallback: check if one contains the other
+      // Try product_name contains (more specific — e.g. "70 Watt Solar Fan" → "70-WATT SOLAR FANS")
+      if (!ci) ci = miscItems.find(i => normKey(i.product_name).includes(key) || key.includes(normKey(i.product_name)));
+      // Fallback: product_type contains
       if (!ci) ci = miscItems.find(i => normKey(i.product_type).includes(key) || key.includes(normKey(i.product_type)));
       if (ci) {
         const p = parseFloat(ci.unit_price);
@@ -1073,10 +1075,14 @@ async function loadPricingFromSupabase() {
     });
 
     // Build autocomplete list from ALL common_items + MISC_CATALOG
+    // Group by product_type to detect duplicates (e.g. 30W vs 70W Solar Fan)
+    const typeCount = {};
+    items.forEach(ci => { typeCount[ci.product_type] = (typeCount[ci.product_type] || 0) + 1; });
     const seen = new Set();
     allPricingItems = [];
     items.forEach(ci => {
-      const name = ci.product_type;
+      // If multiple items share the same product_type, use product_name to distinguish
+      const name = typeCount[ci.product_type] > 1 ? ci.product_name : ci.product_type;
       const lc = name.toLowerCase();
       if (!seen.has(lc)) {
         seen.add(lc);

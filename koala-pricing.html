@@ -86,6 +86,13 @@ header {
   font-size: 1.2rem; cursor: pointer; padding: 0 4px; line-height: 1;
 }
 .howto-banner .dismiss-btn:hover { color: #fff; }
+.howto-banner.collapsed { padding: 10px 20px; cursor: pointer; align-items: center; }
+.howto-banner.collapsed .howto-body p,
+.howto-banner.collapsed .howto-body .howto-steps,
+.howto-banner.collapsed .dismiss-btn { display: none; }
+.howto-banner.collapsed h3 { margin-bottom: 0; }
+.howto-banner.collapsed .howto-expand { display: inline; }
+.howto-expand { display: none; font-size: .8rem; opacity: .7; margin-left: 8px; font-weight: 400; }
 
 /* ── Filter bar ── */
 .filter-bar {
@@ -347,10 +354,10 @@ tbody tr.category-row td {
 <div class="container">
 
   <!-- How-to banner -->
-  <div class="howto-banner" id="howtoBanner">
+  <div class="howto-banner" id="howtoBanner" onclick="toggleHowto(event)">
     <div class="howto-icon">&#128218;</div>
     <div class="howto-body">
-      <h3>How to Update Prices</h3>
+      <h3>How to Update Prices <span class="howto-expand">(click to expand)</span></h3>
       <p>This page shows your common materials alongside prices from each supplier (IDI, RIS, Cameron Ashley, Lowe's, and Misc).</p>
       <div class="howto-steps">
         <strong>1.</strong> Hover over any supplier price and click <strong>"Use"</strong> to select that supplier for an item.<br>
@@ -996,12 +1003,19 @@ function toggleAudit() {
 }
 
 // ── How-to banner ──
+function toggleHowto(e) {
+  const banner = document.getElementById('howtoBanner');
+  if (!banner.classList.contains('collapsed')) return; // only expand on click when collapsed
+  banner.classList.remove('collapsed');
+  try { localStorage.removeItem('koala_pricing_howto'); } catch(e) {}
+}
 function dismissHowto() {
-  document.getElementById('howtoBanner').style.display = 'none';
+  const banner = document.getElementById('howtoBanner');
+  banner.classList.add('collapsed');
   try { localStorage.setItem('koala_pricing_howto', '1'); } catch(e) {}
 }
 (function() {
-  try { if (localStorage.getItem('koala_pricing_howto')) document.getElementById('howtoBanner').style.display = 'none'; } catch(e) {}
+  try { if (localStorage.getItem('koala_pricing_howto')) document.getElementById('howtoBanner').classList.add('collapsed'); } catch(e) {}
 })();
 
 // ── Utilities ──

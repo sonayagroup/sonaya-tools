@@ -279,6 +279,49 @@ tbody tr.category-row td {
 .audit-action.price-change { background: #fff3e0; color: #e65100; }
 .audit-action.bulk-change { background: #f3e5f5; color: #7b1fa2; }
 .audit-action.undo { background: #fce4ec; color: #c62828; }
+.audit-action.price-edit { background: #e8f5e9; color: #2e7d32; }
+
+/* ── Edit Price Modal ── */
+.edit-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.4); z-index: 500;
+  align-items: center; justify-content: center;
+}
+.edit-overlay.open { display: flex; }
+.edit-modal {
+  background: var(--surface); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); width: 380px; max-width: 90vw;
+  overflow: hidden;
+}
+.edit-modal-header {
+  background: var(--navy); color: #fff;
+  padding: 14px 18px; font-weight: 700; font-size: .95rem;
+}
+.edit-modal-header span { font-weight: 400; opacity: .7; font-size: .82rem; display: block; margin-top: 2px; }
+.edit-modal-body { padding: 18px; }
+.edit-modal-body label {
+  display: block; font-size: .82rem; font-weight: 600;
+  color: var(--text-secondary); margin-bottom: 4px; margin-top: 12px;
+}
+.edit-modal-body label:first-child { margin-top: 0; }
+.edit-modal-body input {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: 6px; font-family: inherit; font-size: .95rem;
+}
+.edit-modal-body input:focus { outline: 2px solid var(--green); outline-offset: -1px; border-color: var(--green); }
+.edit-modal-footer {
+  display: flex; gap: 10px; justify-content: flex-end;
+  padding: 14px 18px; border-top: 1px solid var(--surface-3);
+}
+.edit-modal-footer button {
+  padding: 7px 18px; border-radius: 6px; font-family: inherit;
+  font-size: .85rem; font-weight: 600; cursor: pointer; border: none;
+}
+.edit-modal-footer .btn-cancel { background: var(--surface-2); color: var(--text-secondary); }
+.edit-modal-footer .btn-cancel:hover { background: var(--surface-3); }
+.edit-modal-footer .btn-save { background: var(--green); color: var(--navy); }
+.edit-modal-footer .btn-save:hover { background: var(--green-bright); }
+.edit-hint { font-size: .75rem; color: var(--text-muted); margin-top: 14px; line-height: 1.4; }
 
 /* Responsive */
 @media (max-width: 900px) {
@@ -295,12 +338,7 @@ tbody tr.category-row td {
 <body>
 
 <header>
-  <!-- Inline SVG logo so it never breaks -->
-  <svg class="logo" viewBox="0 0 200 50" xmlns="http://www.w3.org/2000/svg">
-    <rect width="200" height="50" rx="6" fill="rgba(255,255,255,.12)"/>
-    <text x="100" y="32" text-anchor="middle" fill="#95C93D" font-family="'Alegreya Sans',sans-serif" font-size="22" font-weight="800">KOALA</text>
-    <text x="100" y="46" text-anchor="middle" fill="rgba(255,255,255,.7)" font-family="'Alegreya Sans',sans-serif" font-size="8" font-weight="600" letter-spacing="2">INSULATION</text>
-  </svg>
+  <img class="logo" src="https://imagedelivery.net/uX8LTtWSHgeVJ6eG75QgxQ/koalainsulation.com/2024/06/Logo.png/w=200,h=140" alt="Koala Insulation">
   <div class="header-title">Materials Pricing <span>Koala Insulation of New Mexico</span></div>
   <a class="header-btn header-btn-back" href="koala-estimator.html">&#128736; Estimator</a>
   <a class="header-btn header-btn-back" href="koala-estimates.html">&#128269; Estimates</a>
@@ -319,6 +357,7 @@ tbody tr.category-row td {
         <strong>2.</strong> Or use <strong>Bulk Set Source</strong> above the table to set all items in a category at once.<br>
         <strong>3.</strong> Click <strong>"Save All Changes"</strong> to write your selections to the database.<br>
         <strong>4.</strong> The estimator automatically pulls the saved prices when building quotes.<br>
+        Need to update a supplier's price? <strong>Double-click</strong> any price cell to edit it.<br>
         Made a mistake? Click <strong>"Undo"</strong> before saving to revert your last change.
       </div>
     </div>
@@ -421,6 +460,29 @@ tbody tr.category-row td {
         </thead>
         <tbody id="auditTbody"></tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Price Modal -->
+<div class="edit-overlay" id="editOverlay" onclick="if(event.target===this)closeEditModal()">
+  <div class="edit-modal">
+    <div class="edit-modal-header">
+      Edit Supplier Price
+      <span id="editProductName"></span>
+    </div>
+    <div class="edit-modal-body">
+      <label>Supplier</label>
+      <input type="text" id="editSupplier" readonly style="background:var(--surface-2);color:var(--text-muted)">
+      <label>Unit Price ($)</label>
+      <input type="number" id="editPrice" step="0.01" min="0" placeholder="0.00">
+      <label>Coverage (sq ft)</label>
+      <input type="number" id="editCoverage" step="0.01" min="0" placeholder="0">
+      <div class="edit-hint">This updates the supplier's price in the database. If this supplier is currently selected as the source for this item, the estimator will use the new price.</div>
+    </div>
+    <div class="edit-modal-footer">
+      <button class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+      <button class="btn-save" onclick="saveEditedPrice()">Save Price</button>
     </div>
   </div>
 </div>
@@ -680,10 +742,10 @@ function renderTable() {
         if (isSelected) cls.push('selected');
         if (isLowest) cls.push('lowest-price');
         if (isHighest) cls.push('highest-price');
-        html += `<td class="${cls.join(' ')}">`;
+        html += `<td class="${cls.join(' ')}" ondblclick="openEditModal('${prod.id}','${esc(item.product_type)}','${sup}',${prod.unit_price},${prod.coverage_sqft || 0})" title="Double-click to edit price">`;
         html += `<span class="price-val">$${fmt(prod.unit_price)}</span>`;
         if (prod.coverage_sqft > 0) html += `<span class="price-sqft">${prod.coverage_sqft} sf</span>`;
-        html += `<button class="select-btn" onclick="selectSource('${item.id}','${sup}',${prod.unit_price},${prod.coverage_sqft || 0},${prod.price_per_sqft || 0})">${isSelected ? '✓' : 'Use'}</button>`;
+        html += `<button class="select-btn" onclick="event.stopPropagation();selectSource('${item.id}','${sup}',${prod.unit_price},${prod.coverage_sqft || 0},${prod.price_per_sqft || 0})">${isSelected ? '✓' : 'Use'}</button>`;
         html += `</td>`;
       } else if (prod) {
         html += `<td class="price-cell no-price">avail</td>`;
@@ -899,6 +961,7 @@ async function loadAuditLog() {
       let actionCls = 'source-change';
       let actionLabel = 'Source';
       if (e.action === 'price-change') { actionCls = 'price-change'; actionLabel = 'Price'; }
+      if (e.action === 'price-edit') { actionCls = 'price-edit'; actionLabel = 'Edit'; }
       if (e.action === 'bulk-change') { actionCls = 'bulk-change'; actionLabel = 'Bulk'; }
       if (e.action === 'undo') { actionCls = 'undo'; actionLabel = 'Undo'; }
 
@@ -964,6 +1027,110 @@ function showToast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove('show'), 2500);
 }
+
+// ── Edit supplier price ──
+let editingProductId = null;  // pricing_products.id
+
+function openEditModal(prodId, productType, supplier, price, coverage) {
+  editingProductId = prodId;
+  document.getElementById('editProductName').textContent = `${productType} — ${SUPPLIER_LABELS[supplier] || supplier}`;
+  document.getElementById('editSupplier').value = SUPPLIER_LABELS[supplier] || supplier;
+  document.getElementById('editPrice').value = price;
+  document.getElementById('editCoverage').value = coverage || '';
+  document.getElementById('editOverlay').classList.add('open');
+  document.getElementById('editPrice').focus();
+  document.getElementById('editPrice').select();
+}
+
+function closeEditModal() {
+  document.getElementById('editOverlay').classList.remove('open');
+  editingProductId = null;
+}
+
+async function saveEditedPrice() {
+  if (!editingProductId) return;
+  const newPrice = parseFloat(document.getElementById('editPrice').value);
+  const newCoverage = parseFloat(document.getElementById('editCoverage').value) || 0;
+
+  if (isNaN(newPrice) || newPrice < 0) {
+    showToast('Please enter a valid price');
+    return;
+  }
+
+  // Find original product to get old values
+  const origProd = supplierProducts.find(p => p.id === editingProductId);
+  if (!origProd) { showToast('Product not found'); return; }
+
+  const oldPrice = origProd.unit_price;
+  const oldCoverage = origProd.coverage_sqft;
+  const priceSqft = newCoverage > 0 ? newPrice / newCoverage : 0;
+
+  showToast('Saving price...');
+
+  // Update pricing_products table
+  const patchData = {
+    unit_price: newPrice,
+    coverage_sqft: newCoverage || null,
+    price_per_sqft: priceSqft || null
+  };
+  const ok = await sbPatch('pricing_products', editingProductId, patchData);
+
+  if (!ok) {
+    showToast('Failed to save — check connection');
+    return;
+  }
+
+  // Log to audit
+  try {
+    await sbInsert('pricing_audit_log', {
+      product_type: origProd.product_type,
+      action: 'price-edit',
+      old_source: origProd.supplier,
+      new_source: origProd.supplier,
+      old_price: oldPrice,
+      new_price: newPrice,
+      old_coverage: oldCoverage,
+      new_coverage: newCoverage || null
+    });
+  } catch (e) { console.warn('Audit log failed:', e); }
+
+  // Update local data
+  origProd.unit_price = newPrice;
+  origProd.coverage_sqft = newCoverage || origProd.coverage_sqft;
+  origProd.price_per_sqft = priceSqft;
+
+  // If this supplier is currently selected for any common item, update that too
+  for (const ci of commonItems) {
+    const src = pendingChanges[ci.id]?.default_source ?? ci.default_source;
+    if (src === origProd.supplier) {
+      const matches = findSupplierMatches(ci);
+      const prods = matches[origProd.supplier] || [];
+      const match = prods.find(p => p.id === editingProductId);
+      if (match) {
+        // Update common_items if this is the active source
+        const ciPatch = { unit_price: newPrice, coverage_sqft: newCoverage || ci.coverage_sqft, updated_at: new Date().toISOString() };
+        await sbPatch('common_items', ci.id, ciPatch);
+        Object.assign(ci, ciPatch);
+      }
+    }
+  }
+
+  closeEditModal();
+  updateStats();
+  renderTable();
+  loadAuditLog();
+  showToast(`Updated ${origProd.supplier} price for ${origProd.product_type} to $${fmt(newPrice)}`);
+}
+
+// Handle Enter key in edit modal
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && document.getElementById('editOverlay').classList.contains('open')) {
+    saveEditedPrice();
+  }
+  if (e.key === 'Escape' && document.getElementById('editOverlay').classList.contains('open')) {
+    closeEditModal();
+  }
+});
 
 // Init
 loadData();

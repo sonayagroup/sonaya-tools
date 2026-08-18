@@ -370,6 +370,25 @@ body.customer-mode .customer-total-box { display: block; }
 .header-btn-pricing { background: rgba(255,255,255,.15); color: #fff; }
 .header-btn-pricing:hover { background: rgba(255,255,255,.25); }
 
+/* ── Misc Autocomplete ────────────── */
+.misc-ac-wrap { position: relative; display: inline-block; }
+.misc-ac-wrap input[type="text"] {
+  width: 210px; padding: 4px 8px; font-size: .85rem; border: 1px solid #ccc;
+  border-radius: 4px; font-family: inherit;
+}
+.misc-ac-dropdown {
+  position: absolute; top: 100%; left: 0; z-index: 200;
+  background: #fff; border: 1px solid #ccc; border-radius: 4px;
+  max-height: 220px; overflow-y: auto; width: 300px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15); display: none;
+}
+.misc-ac-option {
+  padding: 6px 10px; cursor: pointer; font-size: .85rem;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.misc-ac-option:hover { background: #e8f0fe; }
+.misc-ac-price { color: #888; font-size: .8rem; margin-left: 8px; white-space: nowrap; }
+
 /* ── Email Panel ───────────────────── */
 .email-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,.4);
@@ -943,6 +962,7 @@ const SPF_TYPES = [
 const MISC_CATALOG = [
   { name: '30 Watt Gable Fan', price: 370 },
   { name: '30 Watt Solar Fan', price: 340 },
+  { name: '70 Watt Solar Fan', price: 659 },
   { name: 'Attic Fresh', price: 20 },
   { name: 'Attic Hatch Cover', price: 65 },
   { name: 'Attic Stairs Insulation Cover', price: 20.99 },
@@ -971,10 +991,10 @@ const MISC_CATALOG = [
 ];
 
 const JOB_AUTO_SUPPLIES = {
-  attic:     [{ idx: 10, qty: 2 }, { idx: 16, qty: 1 }, { idx: 5, qty: 20 }],
-  densepack: [{ idx: 12, qty: 1 }],
-  netblow:   [{ idx: 12, qty: 1 }],
-  removal:   [{ idx: 8, qty: 1 }, { idx: 18, qty: 10 }, { idx: 14, qty: 4 }],
+  attic:     [{ name: 'Foam Sealant', qty: 2 }, { name: 'Poly Sheeting', qty: 1 }, { name: 'Baffles', qty: 20 }],
+  densepack: [{ name: 'Insulweb (cellulose)', qty: 1 }],
+  netblow:   [{ name: 'Insulweb (cellulose)', qty: 1 }],
+  removal:   [{ name: 'Dumpster', qty: 1 }, { name: 'Removal Bags', qty: 10 }, { name: 'N95 Mask', qty: 4 }],
 };
 
 const TRIP_RATE_PER_MILE = 1.75;
@@ -991,6 +1011,15 @@ function normKey(s) {
     .replace(/\bunfaced\b/gi, 'uf')
     .replace(/\s+/g, '')
     .replace(/[^a-z0-9.]/g, '');
+}
+
+// Combined item list for Misc Supplies autocomplete
+// Starts with MISC_CATALOG; augmented with Supabase common_items after load
+let allPricingItems = MISC_CATALOG.map(m => ({ name: m.name, price: m.price }));
+
+function escHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 let pricingLoaded = false;
@@ -1042,6 +1071,26 @@ async function loadPricingFromSupabase() {
         if (p > 0) mc.price = p;
       }
     });
+
+    // Build autocomplete list from ALL common_items + MISC_CATALOG
+    const seen = new Set();
+    allPricingItems = [];
+    items.forEach(ci => {
+      const name = ci.product_type;
+      const lc = name.toLowerCase();
+      if (!seen.has(lc)) {
+        seen.add(lc);
+        allPricingItems.push({ name, price: parseFloat(ci.unit_price) || 0 });
+      }
+    });
+    // Add MISC_CATALOG items not already covered by Supabase
+    MISC_CATALOG.forEach(mc => {
+      if (!seen.has(mc.name.toLowerCase())) {
+        allPricingItems.push({ name: mc.name, price: mc.price });
+      }
+    });
+    allPricingItems.sort((a, b) => a.name.localeCompare(b.name));
+    console.log('[Pricing] Autocomplete list: ' + allPricingItems.length + ' items');
 
     pricingLoaded = true;
     console.log('[Pricing] Loaded live prices from Supabase (' + items.length + ' items)');
@@ -1327,26 +1376,65 @@ function addLabor() {
   recalc();
 }
 
-function addMisc(presetIdx, presetQty, autoTag) {
+function addMisc(presetName, presetQty, autoTag) {
   const opt = getOpt(); const p = optPrefixFor(opt); const id = nextId++;
   opt.rows.misc.push({ id, auto: !!autoTag });
   const tr = document.createElement('tr'); tr.id = p + 'ms-' + id;
   if (autoTag) tr.dataset.auto = '1';
-  const selHtml = optionsHtml(MISC_CATALOG, 'name');
   tr.innerHTML = `
-    <td><select onchange="onMiscSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}ms-sel">${selHtml}</select>${autoTag ? '<span class="auto-badge">Auto</span>' : ''}</td>
+    <td><div class="misc-ac-wrap"><input type="text" class="${p}ms-name" data-id="${id}" placeholder="Type to search..."
+         oninput="filterMiscAC('${p}',${id})" onfocus="filterMiscAC('${p}',${id})" autocomplete="off">
+      <div class="misc-ac-dropdown" data-id="${id}"></div></div>${autoTag ? '<span class="auto-badge">Auto</span>' : ''}</td>
     <td><input type="number" value="${presetQty || 1}" min="0" class="${p}ms-qty" data-id="${id}" oninput="recalc()"></td>
     <td class="cost-col"><input type="number" value="0" min="0" step="0.01" class="${p}ms-price" data-id="${id}" oninput="recalc()" style="width:80px;text-align:right;font-size:.85rem"></td>
     <td class="num cost ${p}ms-cost cost-col" data-id="${id}">$0.00</td>
     <td><button class="btn-remove" onclick="removeRow('misc','${p}ms-${id}',${id})">&#10005;</button></td>`;
   $(p + 'miscBody').appendChild(tr);
 
-  // Pre-select if preset
-  if (presetIdx !== undefined && presetIdx !== null) {
-    const sel = tr.querySelector('select');
-    sel.value = presetIdx;
-    onMiscSelect(p, id);
+  // Close dropdown on blur (delay lets mousedown fire first)
+  const nameInput = tr.querySelector(`.${CSS.escape(p)}ms-name`);
+  nameInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      const dd = tr.querySelector('.misc-ac-dropdown');
+      if (dd) dd.style.display = 'none';
+    }, 150);
+  });
+
+  // Pre-fill if preset name given
+  if (presetName) {
+    nameInput.value = presetName;
+    const item = allPricingItems.find(i => i.name === presetName) || MISC_CATALOG.find(m => m.name === presetName);
+    if (item) {
+      const priceInput = tr.querySelector(`.${CSS.escape(p)}ms-price`);
+      if (priceInput) priceInput.value = item.price;
+    }
   }
+  recalc();
+}
+
+function filterMiscAC(p, id) {
+  const input = document.querySelector(`.${CSS.escape(p)}ms-name[data-id="${id}"]`);
+  if (!input) return;
+  const dd = input.closest('.misc-ac-wrap').querySelector('.misc-ac-dropdown');
+  const q = input.value.toLowerCase().trim();
+  const items = q ? allPricingItems.filter(item => item.name.toLowerCase().includes(q)) : allPricingItems;
+  if (items.length === 0) { dd.style.display = 'none'; return; }
+  dd.innerHTML = items.slice(0, 20).map(item =>
+    `<div class="misc-ac-option" data-name="${escHtml(item.name)}" data-price="${item.price}"
+       onmousedown="selectMiscAC('${p}',${id},this)">${escHtml(item.name)}<span class="misc-ac-price">$${item.price.toFixed(2)}</span></div>`
+  ).join('');
+  dd.style.display = 'block';
+}
+
+function selectMiscAC(p, id, el) {
+  const name = el.dataset.name;
+  const price = parseFloat(el.dataset.price) || 0;
+  const input = document.querySelector(`.${CSS.escape(p)}ms-name[data-id="${id}"]`);
+  const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${id}"]`);
+  if (input) input.value = name;
+  if (priceInput) priceInput.value = price;
+  const dd = input.closest('.misc-ac-wrap').querySelector('.misc-ac-dropdown');
+  if (dd) dd.style.display = 'none';
   recalc();
 }
 
@@ -1382,7 +1470,7 @@ function onJobTypeChange() {
   // Add new auto supplies to active option
   if (jobType && JOB_AUTO_SUPPLIES[jobType]) {
     JOB_AUTO_SUPPLIES[jobType].forEach(s => {
-      addMisc(s.idx, s.qty, true);
+      addMisc(s.name, s.qty, true);
     });
   }
   recalc();
@@ -1401,13 +1489,7 @@ function onBattSelect(p, id) {
 }
 
 function onMiscSelect(p, id) {
-  const sel = document.querySelector(`.${CSS.escape(p)}ms-sel[data-id="${id}"]`);
-  const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${id}"]`);
-  if (sel && sel.value !== '' && priceInput) {
-    priceInput.value = MISC_CATALOG[parseInt(sel.value)].price;
-  } else if (priceInput) {
-    priceInput.value = 0;
-  }
+  // Legacy — autocomplete handles this now via selectMiscAC
 }
 
 // ─── AUTO-CALCULATION ENGINE ────────────────────────────────────────────────
@@ -1737,12 +1819,12 @@ function calcOption(opt) {
   // Misc — use the editable price input (may be overridden by user)
   const miscIds = opt.rows.misc.map(m => m.id);
   miscIds.forEach(id => {
-    const sel = document.querySelector(`.${CSS.escape(p)}ms-sel[data-id="${id}"]`);
+    const nameInput = document.querySelector(`.${CSS.escape(p)}ms-name[data-id="${id}"]`);
     const qty = parseFloat(document.querySelector(`.${CSS.escape(p)}ms-qty[data-id="${id}"]`)?.value) || 0;
     const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${id}"]`);
     const unitPrice = parseFloat(priceInput?.value) || 0;
     const costEl = document.querySelector(`.${CSS.escape(p)}ms-cost[data-id="${id}"]`);
-    if (sel && sel.value !== '') {
+    if (nameInput && nameInput.value.trim() !== '') {
       const cost = qty * unitPrice;
       if (costEl) costEl.textContent = fmt(cost);
       totalMisc += cost;
@@ -1937,11 +2019,11 @@ function serializeForm() {
     });
 
     opt.rows.misc.forEach(m => {
-      const sel = document.querySelector(`.${CSS.escape(p)}ms-sel[data-id="${m.id}"]`);
+      const nameInput = document.querySelector(`.${CSS.escape(p)}ms-name[data-id="${m.id}"]`);
       const qty = document.querySelector(`.${CSS.escape(p)}ms-qty[data-id="${m.id}"]`);
       const price = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${m.id}"]`);
       optData.misc.push({
-        item: sel?.value || '', qty: qty?.value || '1',
+        itemName: nameInput?.value || '', qty: qty?.value || '1',
         price: price?.value || '0', auto: m.auto || false
       });
     });
@@ -2053,10 +2135,16 @@ function deserializeForm(data) {
 
     // Misc rows
     (optData.misc || []).forEach(row => {
-      addMisc(row.item !== '' ? parseInt(row.item) : undefined, parseInt(row.qty) || 1, row.auto);
+      let itemName = row.itemName || '';
+      // Backward compat: old saves stored index in row.item
+      if (!itemName && row.item !== '' && row.item !== undefined) {
+        const idx = parseInt(row.item);
+        if (!isNaN(idx) && MISC_CATALOG[idx]) itemName = MISC_CATALOG[idx].name;
+      }
+      addMisc(itemName || undefined, parseInt(row.qty) || 1, row.auto);
       const lastMisc = opt.rows.misc[opt.rows.misc.length - 1];
       const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${lastMisc.id}"]`);
-      if (priceInput) priceInput.value = row.price;
+      if (priceInput && row.price) priceInput.value = row.price;
     });
   });
 
@@ -2250,11 +2338,11 @@ function getEmailMaterialsList() {
   // Misc
   const miscIds = opt.rows.misc.map(m => m.id);
   miscIds.forEach(id => {
-    const sel = document.querySelector(`.${CSS.escape(p)}ms-sel[data-id="${id}"]`);
+    const nameInput = document.querySelector(`.${CSS.escape(p)}ms-name[data-id="${id}"]`);
     const qty = document.querySelector(`.${CSS.escape(p)}ms-qty[data-id="${id}"]`);
-    if (sel && sel.value !== '' && qty) {
+    if (nameInput && nameInput.value.trim() !== '' && qty) {
       const count = parseFloat(qty.value) || 0;
-      if (count > 0) materials.push(count + ' ' + sel.options[sel.selectedIndex].text);
+      if (count > 0) materials.push(count + ' ' + nameInput.value.trim());
     }
   });
 

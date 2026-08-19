@@ -121,7 +121,7 @@ body.customer-mode .line-items select {
   color: var(--text-secondary); margin-bottom: 4px;
   text-transform: uppercase; letter-spacing: .03em;
 }
-input[type="text"], input[type="number"], select, textarea {
+input[type="text"], input[type="number"], input[type="tel"], input[type="email"], select, textarea {
   width: 100%; padding: 8px 10px;
   border: 1px solid var(--border); border-radius: 6px;
   font-size: .95rem; font-family: inherit; transition: border-color .15s;
@@ -136,6 +136,18 @@ input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
 .row { display: flex; gap: 10px; }
 .row > .field { flex: 1; }
+/* Area rows (ceiling/wall with location) */
+.area-section { margin-bottom: 8px; }
+.area-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.area-section-header label { font-weight: 600; font-size: .82rem; text-transform: uppercase; letter-spacing: .03em; color: var(--navy); }
+.area-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.area-row input[type="number"] { flex: 1; }
+.area-row select { width: 120px; flex: none; }
+.area-row .area-remove { background: none; border: none; color: #b00; font-size: 1.1rem; cursor: pointer; padding: 4px 6px; opacity: .5; transition: opacity .15s; line-height: 1; }
+.area-row .area-remove:hover { opacity: 1; }
+.add-area-btn { background: none; border: 1px dashed var(--border); border-radius: 6px; padding: 5px 12px; font-size: .8rem; color: var(--navy); cursor: pointer; opacity: .7; transition: opacity .15s; }
+.add-area-btn:hover { opacity: 1; background: rgba(4,57,104,.04); }
+.area-total { font-size: .78rem; color: #666; margin-top: 2px; font-weight: 500; }
 
 /* ── Line items table ────────────────── */
 .line-items { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: .88rem; }
@@ -765,8 +777,22 @@ body.customer-mode .customer-total-box { display: block; }
         </div>
       </div>
       <div class="row">
-        <div class="field"><label>Ceiling Area (sq ft)</label><input type="number" id="ceilingSqft" placeholder="e.g. 1200" oninput="recalc()"></div>
-        <div class="field"><label>Wall Area (sq ft)</label><input type="number" id="wallSqft" placeholder="e.g. 800" oninput="recalc()"></div>
+        <div class="field area-section">
+          <div class="area-section-header">
+            <label>Ceiling Area (sq ft)</label>
+            <button type="button" class="add-area-btn" onclick="addAreaRow('ceiling')">+ Add Area</button>
+          </div>
+          <div id="ceilingAreaRows"></div>
+          <div class="area-total" id="ceilingAreaTotal"></div>
+        </div>
+        <div class="field area-section">
+          <div class="area-section-header">
+            <label>Wall Area (sq ft)</label>
+            <button type="button" class="add-area-btn" onclick="addAreaRow('wall')">+ Add Area</button>
+          </div>
+          <div id="wallAreaRows"></div>
+          <div class="area-total" id="wallAreaTotal"></div>
+        </div>
       </div>
     </div>
 
@@ -1511,14 +1537,77 @@ function onMiscSelect(p, id) {
 
 // ─── AUTO-CALCULATION ENGINE ────────────────────────────────────────────────
 
+// ─── AREA ROWS (Ceiling / Wall with location) ────────────────────────────
+let areaRowCounter = 0;
+const LOCATION_OPTIONS = ['House', 'Garage', 'Addition', 'Other'];
+
+function addAreaRow(type, sqft, location) {
+  areaRowCounter++;
+  const id = 'area_' + areaRowCounter;
+  const container = $(type + 'AreaRows');
+  const row = document.createElement('div');
+  row.className = 'area-row';
+  row.id = id;
+  const opts = LOCATION_OPTIONS.map(l => '<option' + (l === (location || 'House') ? ' selected' : '') + '>' + l + '</option>').join('');
+  row.innerHTML = '<input type="number" placeholder="sq ft" value="' + (sqft || '') + '" oninput="updateAreaTotals();recalc()">' +
+    '<select onchange="updateAreaTotals()">' + opts + '</select>' +
+    '<button type="button" class="area-remove" onclick="removeAreaRow(\'' + id + '\',\'' + type + '\')" title="Remove">&times;</button>';
+  container.appendChild(row);
+  updateAreaTotals();
+  return id;
+}
+
+function removeAreaRow(id, type) {
+  const row = document.getElementById(id);
+  if (row) row.remove();
+  // Ensure at least one row remains
+  const container = $(type + 'AreaRows');
+  if (!container.children.length) addAreaRow(type);
+  updateAreaTotals();
+  recalc();
+}
+
+function getAreaData(type) {
+  const container = $(type + 'AreaRows');
+  if (!container) return [];
+  const rows = [];
+  for (const row of container.children) {
+    const inp = row.querySelector('input[type="number"]');
+    const sel = row.querySelector('select');
+    rows.push({ sqft: parseFloat(inp?.value) || 0, location: sel?.value || 'House' });
+  }
+  return rows;
+}
+
+function getAreaTotal(type) {
+  return getAreaData(type).reduce((sum, r) => sum + r.sqft, 0);
+}
+
+function updateAreaTotals() {
+  const cTotal = getAreaTotal('ceiling');
+  const wTotal = getAreaTotal('wall');
+  const cEl = $('ceilingAreaTotal');
+  const wEl = $('wallAreaTotal');
+  const cRows = getAreaData('ceiling');
+  const wRows = getAreaData('wall');
+  if (cEl) cEl.textContent = cRows.length > 1 ? 'Total: ' + cTotal.toLocaleString() + ' sq ft' : '';
+  if (wEl) wEl.textContent = wRows.length > 1 ? 'Total: ' + wTotal.toLocaleString() + ' sq ft' : '';
+}
+
+// Initialize with one row each on load
+function initAreaRows() {
+  if (!$('ceilingAreaRows').children.length) addAreaRow('ceiling');
+  if (!$('wallAreaRows').children.length) addAreaRow('wall');
+}
+
 function getJobContext() {
   const jobType = $('jobType').value;
   const targetRRaw = $('targetR').value;
   const rVal = targetRRaw ? parseInt(targetRRaw.replace('R-', '')) : 0;
   const depth = $('framingDepth').value;
   const spacing = $('studSpacing').value;
-  const ceilingArea = parseFloat($('ceilingSqft').value) || 0;
-  const wallArea = parseFloat($('wallSqft').value) || 0;
+  const ceilingArea = getAreaTotal('ceiling');
+  const wallArea = getAreaTotal('wall');
   const isAttic = jobType === 'attic';
   const isWall = jobType === 'densepack' || jobType === 'netblow';
   const area = isAttic ? ceilingArea : (isWall ? wallArea : 0);
@@ -1920,8 +2009,8 @@ function recalc() {
   $('sumRoyalty').textContent = fmt(royaltyAmt);
   $('sumGrossProfit').textContent = fmt(grossProfit);
 
-  // Per sq ft (uses ceiling + wall area from Job Details if available)
-  const sqft = (parseFloat($('ceilingSqft').value) || 0) + (parseFloat($('wallSqft').value) || 0);
+  // Per sq ft (uses ceiling + wall area totals from Job Details)
+  const sqft = getAreaTotal('ceiling') + getAreaTotal('wall');
   $('costPerSqft').textContent = sqft > 0 ? '$' + (c.totalJobCost / sqft).toFixed(2) : '—';
   $('sellPerSqft').textContent = sqft > 0 ? '$' + (customerPrice / sqft).toFixed(2) : '—';
 
@@ -1976,8 +2065,8 @@ function serializeForm() {
     targetR: $('targetR').value,
     framingDepth: $('framingDepth').value,
     studSpacing: $('studSpacing').value,
-    ceilingSqft: $('ceilingSqft').value,
-    wallSqft: $('wallSqft').value,
+    ceilingAreas: getAreaData('ceiling'),
+    wallAreas: getAreaData('wall'),
     margin: $('marginInput').value,
     royalty: $('royaltyInput').value,
     notes: $('notes').value,
@@ -2072,8 +2161,20 @@ function deserializeForm(data) {
   $('targetR').value = data.targetR || '';
   $('framingDepth').value = data.framingDepth || '';
   $('studSpacing').value = data.studSpacing || '';
-  $('ceilingSqft').value = data.ceilingSqft || '';
-  $('wallSqft').value = data.wallSqft || '';
+  // Restore area rows
+  $('ceilingAreaRows').innerHTML = '';
+  $('wallAreaRows').innerHTML = '';
+  if (data.ceilingAreas && data.ceilingAreas.length) {
+    data.ceilingAreas.forEach(a => addAreaRow('ceiling', a.sqft || 0, a.location));
+  } else {
+    // Legacy: single value
+    addAreaRow('ceiling', data.ceilingSqft || '');
+  }
+  if (data.wallAreas && data.wallAreas.length) {
+    data.wallAreas.forEach(a => addAreaRow('wall', a.sqft || 0, a.location));
+  } else {
+    addAreaRow('wall', data.wallSqft || '');
+  }
   $('marginInput').value = data.margin || '50';
   $('royaltyInput').value = data.royalty || '5';
   $('notes').value = data.notes || '';
@@ -2530,6 +2631,7 @@ function copyEmailPlainText() {
 
 // ─── INIT ───────────────────────────────────────────────────────────────────
 
+initAreaRows();
 createOption('Option 1');
 addLabor();
 recalc();

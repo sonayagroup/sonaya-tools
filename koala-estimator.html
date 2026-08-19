@@ -141,8 +141,9 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
 .area-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .area-section-header label { font-weight: 600; font-size: .82rem; text-transform: uppercase; letter-spacing: .03em; color: var(--navy); }
 .area-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
-.area-row input[type="number"] { flex: 1; }
-.area-row select { width: 120px; flex: none; }
+.area-row input[type="number"] { flex: 1; min-width: 0; }
+.area-row select.area-loc { width: 110px; flex: none; }
+.area-row select.area-rval { width: 80px; flex: none; font-size: .85rem; }
 .area-row .area-remove { background: none; border: none; color: #b00; font-size: 1.1rem; cursor: pointer; padding: 4px 6px; opacity: .5; transition: opacity .15s; line-height: 1; }
 .area-row .area-remove:hover { opacity: 1; }
 .add-area-btn { background: none; border: 1px dashed var(--border); border-radius: 6px; padding: 5px 12px; font-size: .8rem; color: var(--navy); cursor: pointer; opacity: .7; transition: opacity .15s; }
@@ -1537,20 +1538,23 @@ function onMiscSelect(p, id) {
 
 // ─── AUTO-CALCULATION ENGINE ────────────────────────────────────────────────
 
-// ─── AREA ROWS (Ceiling / Wall with location) ────────────────────────────
+// ─── AREA ROWS (Ceiling / Wall with location + optional R-value) ──────────
 let areaRowCounter = 0;
 const LOCATION_OPTIONS = ['House', 'Garage', 'Addition', 'Other'];
+const R_VALUE_OPTIONS = ['','R-10','R-11','R-13','R-14','R-15','R-19','R-21','R-22','R-23','R-24','R-25','R-26','R-30','R-31','R-34','R-38','R-39','R-40','R-42','R-44','R-48','R-49','R-60'];
 
-function addAreaRow(type, sqft, location) {
+function addAreaRow(type, sqft, location, rValue) {
   areaRowCounter++;
   const id = 'area_' + areaRowCounter;
   const container = $(type + 'AreaRows');
   const row = document.createElement('div');
   row.className = 'area-row';
   row.id = id;
-  const opts = LOCATION_OPTIONS.map(l => '<option' + (l === (location || 'House') ? ' selected' : '') + '>' + l + '</option>').join('');
+  const locOpts = LOCATION_OPTIONS.map(l => '<option' + (l === (location || 'House') ? ' selected' : '') + '>' + l + '</option>').join('');
+  const rOpts = R_VALUE_OPTIONS.map(r => '<option value="' + r + '"' + (r === (rValue || '') ? ' selected' : '') + '>' + (r || 'Default') + '</option>').join('');
   row.innerHTML = '<input type="number" placeholder="sq ft" value="' + (sqft || '') + '" oninput="updateAreaTotals();recalc()">' +
-    '<select onchange="updateAreaTotals()">' + opts + '</select>' +
+    '<select class="area-loc" onchange="updateAreaTotals()">' + locOpts + '</select>' +
+    '<select class="area-rval" onchange="recalc()" title="R-Value (leave as Default to use global)">' + rOpts + '</select>' +
     '<button type="button" class="area-remove" onclick="removeAreaRow(\'' + id + '\',\'' + type + '\')" title="Remove">&times;</button>';
   container.appendChild(row);
   updateAreaTotals();
@@ -1573,8 +1577,11 @@ function getAreaData(type) {
   const rows = [];
   for (const row of container.children) {
     const inp = row.querySelector('input[type="number"]');
-    const sel = row.querySelector('select');
-    rows.push({ sqft: parseFloat(inp?.value) || 0, location: sel?.value || 'House' });
+    const locSel = row.querySelector('select.area-loc');
+    const rSel = row.querySelector('select.area-rval');
+    const rRaw = rSel?.value || '';
+    const rVal = rRaw ? parseInt(rRaw.replace('R-', '')) : 0;
+    rows.push({ sqft: parseFloat(inp?.value) || 0, location: locSel?.value || 'House', rValue: rRaw, rVal });
   }
   return rows;
 }
@@ -1606,12 +1613,14 @@ function getJobContext() {
   const rVal = targetRRaw ? parseInt(targetRRaw.replace('R-', '')) : 0;
   const depth = $('framingDepth').value;
   const spacing = $('studSpacing').value;
-  const ceilingArea = getAreaTotal('ceiling');
-  const wallArea = getAreaTotal('wall');
+  const ceilingAreas = getAreaData('ceiling');
+  const wallAreas = getAreaData('wall');
+  const ceilingArea = ceilingAreas.reduce((s, r) => s + r.sqft, 0);
+  const wallArea = wallAreas.reduce((s, r) => s + r.sqft, 0);
   const isAttic = jobType === 'attic';
   const isWall = jobType === 'densepack' || jobType === 'netblow';
   const area = isAttic ? ceilingArea : (isWall ? wallArea : 0);
-  return { jobType, rVal, depth, spacing, ceilingArea, wallArea, isAttic, isWall, area };
+  return { jobType, rVal, depth, spacing, ceilingArea, wallArea, ceilingAreas, wallAreas, isAttic, isWall, area };
 }
 
 // Find nearest R-value in a coverage chart (attic object with R-value keys)
@@ -1636,19 +1645,13 @@ function findNearestAtticCoverage(atticChart, targetR) {
   return null;
 }
 
-// Look up coverage (sq ft per bag) for a given blow-in material index
-function getBlowInCoverage(materialIdx) {
-  const ctx = getJobContext();
-  if (!ctx.rVal || !ctx.area) return null;
-
-  let sqftPerBag = null;
-  let note = '';
-  let rUsed = ctx.rVal;
-  let isExact = true;
+// Look up coverage for a single area segment at a specific R-value
+function getCoverageForSegment(materialIdx, rVal, ctx) {
+  let sqftPerBag = null, note = '', rUsed = rVal, isExact = true;
 
   if (materialIdx === 0) { // Cellulose
     if (ctx.isAttic) {
-      const match = findNearestAtticCoverage(CELLULOSE_COVERAGE.attic, ctx.rVal);
+      const match = findNearestAtticCoverage(CELLULOSE_COVERAGE.attic, rVal);
       if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; }
     } else if (ctx.isWall && ctx.depth && ctx.spacing) {
       const wallData = CELLULOSE_COVERAGE.wall[ctx.depth];
@@ -1660,36 +1663,76 @@ function getBlowInCoverage(materialIdx) {
     }
   } else if (materialIdx === 1) { // L77
     if (ctx.isAttic) {
-      const match = findNearestAtticCoverage(L77_COVERAGE.attic, ctx.rVal);
+      const match = findNearestAtticCoverage(L77_COVERAGE.attic, rVal);
       if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; }
     } else if (ctx.isWall && ctx.depth) {
-      const key = ctx.depth + '-' + ctx.rVal;
-      sqftPerBag = L77_COVERAGE.wall[key] || null;
+      sqftPerBag = L77_COVERAGE.wall[ctx.depth + '-' + rVal] || null;
     }
   } else if (materialIdx === 2) { // Havelock Wool
     if (ctx.isAttic) {
-      const match = findNearestAtticCoverage(HAVELOCK_COVERAGE.attic, ctx.rVal);
+      const match = findNearestAtticCoverage(HAVELOCK_COVERAGE.attic, rVal);
       if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; }
     } else if (ctx.isWall && ctx.depth) {
-      const key = ctx.depth + '-' + ctx.rVal;
-      sqftPerBag = HAVELOCK_COVERAGE.wall[key] || null;
+      sqftPerBag = HAVELOCK_COVERAGE.wall[ctx.depth + '-' + rVal] || null;
     }
   } else if (materialIdx === 3) { // JM Climate Pro
     if (ctx.isAttic) {
-      const match = findNearestAtticCoverage(CLIMATEPRO_COVERAGE.attic, ctx.rVal);
+      const match = findNearestAtticCoverage(CLIMATEPRO_COVERAGE.attic, rVal);
       if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; }
     } else if (ctx.isWall && ctx.depth) {
-      const key = ctx.depth + '-' + ctx.rVal;
-      sqftPerBag = CLIMATEPRO_COVERAGE.wall[key] || null;
+      sqftPerBag = CLIMATEPRO_COVERAGE.wall[ctx.depth + '-' + rVal] || null;
+    }
+  }
+  return sqftPerBag ? { sqftPerBag, rUsed, isExact, note } : null;
+}
+
+// Look up coverage (sq ft per bag) for a given blow-in material index
+// Handles per-area R-value overrides — computes bags per segment then sums
+function getBlowInCoverage(materialIdx) {
+  const ctx = getJobContext();
+  if (!ctx.area) return null;
+
+  // Determine which area rows to use
+  const areaRows = ctx.isAttic ? ctx.ceilingAreas : (ctx.isWall ? ctx.wallAreas : []);
+  if (!areaRows.length) return null;
+
+  // Check if any row has an R-value (per-row or global)
+  const hasAnyR = areaRows.some(a => a.rVal || ctx.rVal);
+  if (!hasAnyR) return null;
+
+  let totalBags = 0, totalArea = 0;
+  const notes = [];
+  let lastSqftPerBag = null, lastRUsed = ctx.rVal, allExact = true;
+
+  for (const aRow of areaRows) {
+    if (!aRow.sqft) continue;
+    const effectiveR = aRow.rVal || ctx.rVal;
+    if (!effectiveR) continue;
+
+    const seg = getCoverageForSegment(materialIdx, effectiveR, ctx);
+    if (!seg) continue;
+
+    const segBags = Math.ceil(aRow.sqft / seg.sqftPerBag);
+    totalBags += segBags;
+    totalArea += aRow.sqft;
+    lastSqftPerBag = seg.sqftPerBag;
+    lastRUsed = seg.rUsed;
+    if (!seg.isExact) allExact = false;
+
+    // Build per-segment note when there are multiple areas with different R-values
+    if (areaRows.filter(a => a.sqft).length > 1) {
+      let segNote = `${aRow.location}: ${aRow.sqft.toLocaleString()} sf @ R-${effectiveR}`;
+      if (!seg.isExact) segNote += ` (using R-${seg.rUsed})`;
+      segNote += ` = ${segBags} bags`;
+      notes.push(segNote);
+    } else {
+      if (seg.note) notes.push(seg.note);
+      if (!seg.isExact) notes.push(`Using R-${seg.rUsed} coverage (nearest to R-${effectiveR})`);
     }
   }
 
-  if (sqftPerBag) {
-    const bags = Math.ceil(ctx.area / sqftPerBag);
-    if (!isExact) {
-      note = (note ? note + '; ' : '') + `Using R-${rUsed} coverage (nearest to R-${ctx.rVal})`;
-    }
-    return { sqftPerBag, bags, area: ctx.area, note, rUsed, isExact };
+  if (totalBags > 0) {
+    return { sqftPerBag: lastSqftPerBag, bags: totalBags, area: totalArea, note: notes.join('; '), rUsed: lastRUsed, isExact: allExact };
   }
   return null;
 }
@@ -2165,13 +2208,13 @@ function deserializeForm(data) {
   $('ceilingAreaRows').innerHTML = '';
   $('wallAreaRows').innerHTML = '';
   if (data.ceilingAreas && data.ceilingAreas.length) {
-    data.ceilingAreas.forEach(a => addAreaRow('ceiling', a.sqft || 0, a.location));
+    data.ceilingAreas.forEach(a => addAreaRow('ceiling', a.sqft || 0, a.location, a.rValue || ''));
   } else {
     // Legacy: single value
     addAreaRow('ceiling', data.ceilingSqft || '');
   }
   if (data.wallAreas && data.wallAreas.length) {
-    data.wallAreas.forEach(a => addAreaRow('wall', a.sqft || 0, a.location));
+    data.wallAreas.forEach(a => addAreaRow('wall', a.sqft || 0, a.location, a.rValue || ''));
   } else {
     addAreaRow('wall', data.wallSqft || '');
   }

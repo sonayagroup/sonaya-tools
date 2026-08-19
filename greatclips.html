@@ -50,6 +50,7 @@ tbody tr.clickrow{cursor:pointer}
 .recap-q label{display:block;font-weight:700;color:var(--blue-dk);font-size:13.5px;margin-bottom:7px}
 .recap-q textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:7px;padding:9px 10px;font:inherit;font-size:13px;resize:vertical;background:#fcfdfe}
 .recap-q textarea:focus{outline:none;border-color:var(--blue);background:#fff}
+.recap-missing{border-color:var(--red)!important;box-shadow:0 0 0 2px rgba(220,53,69,.18)!important}
 .recap-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:6px 0 14px}
 .recap-bar input{border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px}
 .oos-wrap{margin:2px 0 20px}
@@ -773,8 +774,17 @@ function renderRecap(){
 }
 $("#recapWeek").onchange=renderRecap;
 $("#recapSave").onclick=()=>{
-  const id=current,wk=$("#recapWeek").value;if(!wk){alert("Pick a week-ending date");return;}
-  const p={salon:id,week:wk,areaManager:"",updatedBy:""};
+      const id=current,wk=$("#recapWeek").value;if(!wk){alert("Pick a week-ending date");return;}
+      // --- validate all fields are filled ---
+      document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));
+      const missing=[];
+      const labels={actions:"Actionable items",floorhours:"Floor hours actions",schedules:"Schedules up to date"};
+      ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(!el.value.trim()){missing.push(labels[k]);el.classList.add('recap-missing');}});
+      document.querySelectorAll('#oosSection textarea[data-oos]').forEach(t=>{if(!t.value.trim()){missing.push((t.dataset.cat==="kpi"?"KPI explanation":"Stylist flag")+": "+t.dataset.key);t.classList.add('recap-missing');}});
+      document.querySelectorAll('#oosSection select[data-yn]').forEach(s=>{if(!s.value){const lbl=(s.dataset.cat==="qc"?"Quality Connection":"REACH")+": "+s.dataset.key;missing.push(lbl);s.classList.add('recap-missing');}});
+      if(missing.length){const first=document.querySelector('.recap-missing');if(first)first.scrollIntoView({behavior:'smooth',block:'center'});alert("Please fill out all fields before saving.\n\nMissing:\n\u2022 "+missing.join("\n\u2022 "));return;}
+      // --- end validation ---
+      const p={salon:id,week:wk,areaManager:"",updatedBy:""};
   ["actions","floorhours","schedules"].forEach(k=>p[k]=$("#q_"+k).value);
   const oos=collectOOS();p.cphdays=oos.cphdays;p.stylistflags=oos.stylistflags;p.quality=oos.quality;p.reach=oos.reach;
   const m=$("#recapMsg");m.textContent="Saving…";m.style.color="var(--muted)";

@@ -982,12 +982,12 @@ function renderPM(){
     else if(s==='due-soon')items=items.filter(p=>p.next_due&&daysUntil(p.next_due)>=0&&daysUntil(p.next_due)<=7);
     else if(s==='upcoming')items=items.filter(p=>p.next_due&&daysUntil(p.next_due)>7);
     $('#pm-table').innerHTML=items.length===0?'<div class="empty"><p>No PM tasks found</p></div>':
-    `<table><thead><tr><th>Task</th><th>Equipment</th><th>Location</th><th>Frequency</th><th>Last Done</th><th>Next Due</th><th>Assigned</th><th></th></tr></thead><tbody>
+    `<table><thead><tr><th>Task</th><th>Equipment</th><th>Location</th><th>Vendor</th><th>Frequency</th><th>Last Done</th><th>Next Due</th><th>Assigned</th><th></th></tr></thead><tbody>
     ${items.map(p=>{
       const d=p.next_due?daysUntil(p.next_due):null;
       const cls=d!==null&&d<0?'pm-overdue':d!==null&&d<=7?'pm-due-soon':'';
       const dueBadge=d!==null?(d<0?`<span class="badge badge-emergency">${Math.abs(d)}d overdue</span>`:d<=7?`<span class="badge badge-medium">${d}d</span>`:`<span class="badge badge-completed">${d}d</span>`):'—';
-      return `<tr class="${cls}"><td><strong>${p.task_name}</strong></td><td>${eqName(p.equipment_id)}</td><td>${locName(p.location_id)}</td><td>Every ${p.frequency_days}d</td><td>${formatDate(p.last_completed)}</td><td>${dueBadge}</td><td>${teamName(p.assigned_to)}</td><td>
+      return `<tr class="${cls}"><td><strong>${p.task_name}</strong></td><td>${eqName(p.equipment_id)}</td><td>${locName(p.location_id)}</td><td>${vendName(p.vendor_id)}</td><td>Every ${p.frequency_days}d</td><td>${formatDate(p.last_completed)}</td><td>${dueBadge}</td><td>${teamName(p.assigned_to)}</td><td>
         <button class="btn btn-sm btn-secondary" onclick="completePM('${p.id}',${p.frequency_days})">✓ Done</button>
         <button class="btn-icon btn-sm" onclick="openPMForm('${p.id}')">✏️</button>
         <button class="btn-icon btn-sm" onclick="deletePM('${p.id}')">🗑️</button>
@@ -1012,6 +1012,10 @@ window.openPMForm = function(id){
         <div class="form-group"><label>Assigned To</label><select id="m-assign">${teamOptions(p.assigned_to)}</select></div>
       </div>
       <div class="form-row">
+        <div class="form-group"><label>Vendor</label><select id="m-vendor">${vendOptions(p.vendor_id)}</select></div>
+        <div class="form-group"><label></label></div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label>Last Completed</label><input type="date" id="m-last" value="${p.last_completed||''}"></div>
         <div class="form-group"><label>Next Due</label><input type="date" id="m-next" value="${p.next_due||''}"></div>
       </div>
@@ -1020,7 +1024,7 @@ window.openPMForm = function(id){
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePM('${id||''}')">Save</button></div>`);
 };
 window.savePM = async function(id){
-  const row={task_name:$('#m-task').value,location_id:$('#m-loc').value||null,equipment_id:$('#m-eq').value||null,frequency_days:parseInt($('#m-freq').value)||30,assigned_to:$('#m-assign').value||null,last_completed:$('#m-last').value||null,next_due:$('#m-next').value||null,description:$('#m-desc').value||null,is_active:true,updated_at:new Date().toISOString()};
+  const row={task_name:$('#m-task').value,location_id:$('#m-loc').value||null,equipment_id:$('#m-eq').value||null,frequency_days:parseInt($('#m-freq').value)||30,assigned_to:$('#m-assign').value||null,vendor_id:$('#m-vendor').value||null,last_completed:$('#m-last').value||null,next_due:$('#m-next').value||null,description:$('#m-desc').value||null,is_active:true,updated_at:new Date().toISOString()};
   if(!row.task_name||!row.location_id){toast('Task name and Location are required','error');return;}
   if(await upsert('dt_pm_schedules',row,id||undefined)){closeModal();await load('dt_pm_schedules','next_due',true);render();}
 };

@@ -111,7 +111,7 @@ tbody tr.clickrow{cursor:pointer}
 <section class="panel active" id="portfolio">
   <div class="modebar">
     <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
-    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="ytd">YTD</button></span>
+    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="ytd">YTD</button></span>
     <span id="portModeHint" style="font-size:12px;color:var(--muted)"></span>
   </div>
   <div class="kpis" id="portKpis"></div>
@@ -224,7 +224,6 @@ tbody tr.clickrow{cursor:pointer}
       <option value="waitOver15Pct">Wait &gt;15 %</option>
       <option value="custGrowthPct">Cust Growth %</option>
     </select>
-    <span style="font-size:12.5px;color:var(--muted)">for the salon selected above,.</span>
   </div>
   <div class="card"><div class="chart-box tall"><canvas id="cTrend"></canvas></div>
     <div class="legend-note" id="trendNote"></div></div>
@@ -236,8 +235,6 @@ tbody tr.clickrow{cursor:pointer}
   <div class="recap-bar">
     <span style="font-size:12.5px;color:var(--muted)">Week ending</span>
     <input type="date" id="recapWeek">
-
-
     <button class="btn" id="recapSave">Save recap</button>
     <span class="savemsg" id="recapMsg"></span>
   </div>
@@ -281,7 +278,7 @@ async function loadGoogleData(){
   ]);
   GRATE={};let newest="";
   ratR.forEach(r=>{GRATE[r.salon_id]=[Number(r.rating),r.review_count];if(r.updated_at>newest)newest=r.updated_at;});
-  GRATE_ASOF=newest?new Date(newest).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"\u2014";
+  GRATE_ASOF=newest?new Date(newest).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
   GREVIEWS={};
   revR.forEach(r=>{const sid=r.salon_id;if(!GREVIEWS[sid])GREVIEWS[sid]=[];
     if(GREVIEWS[sid].length<5)GREVIEWS[sid].push([r.reviewer_name,r.stars,r.relative_date||"",r.review_text||""]);});
@@ -332,6 +329,7 @@ function ytdYear(){return DATES.length?DATES[0].slice(0,4):String(new Date().get
 function computeYTD(){
   const yr=ytdYear(),prefix=yr+"-";
   const sids=Object.keys(DATA.salons||{});
+  // per-salon accumulators: {sid: {sales,cust,paySum,hcSum,cphSum,prodSum,waitSum,w15Sum,cgSum,sgSum,days,monthly:{YYYY-MM:{sales,cust,paySum,cphSum,days}}}}
   const acc={};sids.forEach(id=>{acc[id]={sales:0,svcSales:0,prodSales:0,cust:0,paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,days:0,monthly:{}};});
   Object.keys(DATA.days||{}).sort().forEach(d=>{
     if(!d.startsWith(prefix))return;
@@ -344,11 +342,49 @@ function computeYTD(){
       const m=a.monthly[mo];m.sales+=s[4]||0;m.cust+=s[5]||0;if(typeof s[6]==="number"){m.paySum+=s[6];m.cphSum+=s[8];m.days++;}
     });
   });
+  // Build SAL-like rows for portfolio table: [sid, name, svcSales, prodSales, totalSales, cust, avgPayroll, avgHC, avgCPH, avgProdvity, avgWait, avgW15, avgCG, avgSG]
   const rows=[];
   sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
     rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,a.paySum/n,a.hcSum/n,a.cphSum/n,a.prodSum/n,a.waitSum/n,a.w15Sum/n,a.cgSum/n,a.sgSum/n]);
   });
   return {rows,acc,year:yr};
+}
+// --- WTD (Week-to-Date) aggregation — GC weeks run Sat–Fri ---
+function gcWeekStart(dateStr){
+  // Given a date string YYYY-MM-DD, return the Saturday that starts this GC week
+  const d=new Date(dateStr+"T12:00:00");const dow=d.getDay(); // 0=Sun..6=Sat
+  const diff=dow>=6?0:(dow+1); // Sat=0 back, Sun=1 back, Mon=2 back, etc.
+  d.setDate(d.getDate()-diff);
+  return d.toISOString().slice(0,10);
+}
+function computeWTD(){
+  // Find the most recent date in data
+  const latest=DATES[0]; // DATES is sorted descending
+  if(!latest)return {rows:[],weekStart:"",weekEnd:"",daysInWeek:0};
+  const wkStart=gcWeekStart(latest);
+  // Collect all dates in this week (from wkStart up to latest)
+  const sids=Object.keys(DATA.salons||{});
+  const acc={};sids.forEach(id=>{acc[id]={sales:0,svcSales:0,prodSales:0,cust:0,paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,cashOS:0,days:0};});
+  let daysInWeek=0;
+  Object.keys(DATA.days||{}).sort().forEach(d=>{
+    if(d<wkStart||d>latest)return;
+    daysInWeek=Math.max(daysInWeek,(DATA.days[d].SAL||[]).length>0?daysInWeek+1:daysInWeek);
+    (DATA.days[d].SAL||[]).forEach(s=>{
+      const id=String(s[0]);if(!acc[id])return;const a=acc[id];
+      a.sales+=s[4]||0;a.svcSales+=s[2]||0;a.prodSales+=s[3]||0;a.cust+=s[5]||0;
+      if(typeof s[6]==="number"){a.paySum+=s[6];a.hcSum+=s[7];a.cphSum+=s[8];a.prodSum+=s[9];a.waitSum+=s[10];a.w15Sum+=s[11];a.cgSum+=s[12];a.sgSum+=s[13];a.cashOS+=(s[14]||0);a.days++;}
+    });
+  });
+  // Count unique dates with data
+  const weekDates=Object.keys(DATA.days||{}).filter(d=>d>=wkStart&&d<=latest&&(DATA.days[d].SAL||[]).length>0).sort();
+  daysInWeek=weekDates.length;
+  const rows=[];
+  sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
+    rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,a.paySum/n,a.hcSum/n,a.cphSum/n,a.prodSum/n,a.waitSum/n,a.w15Sum/n,a.cgSum/n,a.sgSum/n,a.cashOS]);
+  });
+  // Compute the Friday end of this week
+  const wkEndD=new Date(wkStart+"T12:00:00");wkEndD.setDate(wkEndD.getDate()+6);
+  return {rows,acc,weekStart:wkStart,weekEnd:wkEndD.toISOString().slice(0,10),daysInWeek,weekDates};
 }
 // --- Supabase recaps (read + upsert) ---
 function supaHeaders(extra){return Object.assign({apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},extra||{});}
@@ -368,7 +404,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
   t.classList.add("active");$("#"+t.dataset.t).classList.add("active");window.scrollTo({top:0});
   if(t.dataset.t==="trends")loadTrend();
-if(t.dataset.t==="recap")renderRecap();
+  if(t.dataset.t==="recap")renderRecap();
 });
 
 function opt(sel,val,txt){const o=document.createElement("option");o.value=val;o.textContent=txt;sel.appendChild(o);}
@@ -422,12 +458,14 @@ function kpi(m,v){ if(v===null||v===undefined||v==="")return"";
   return""; }
 function kcolor(m,v){const c=kpi(m,v);return c==="kg"?GREEN:c==="ky"?AMBER:c==="kr"?RED:BLUE;}
 
-// GOOGLE RATINGS (snapshot; re-pull to refresh)
-function grate(id){const g=GRATE[id];if(!g)return"—";return g[0].toFixed(1)+" ("+g[1]+")";}
+// GOOGLE RATINGS + REVIEWS (loaded from Supabase — see loadGoogleData())
+function grate(id){const g=GRATE[id];if(!g)return'<span class="sub">—</span>';
+  const r=g[0],col=r>=4.3?GREEN:(r>=4.0?AMBER:RED);
+  return `<span style="color:${col};font-weight:600">★ ${r.toFixed(1)}</span> <span class="sub">(${g[1].toLocaleString()})</span>`;}
 function renderReviews(id){
   const host=$("#revList"); if(!host)return;
   const list=GREVIEWS[id]||[];
-  $("#revHint").textContent=list.length?("Snapshot of recent reviews · captured "+GRATE_ASOF):"No reviews captured for this salon.";
+  $("#revHint").textContent=list.length?("Recent Google reviews · updated "+GRATE_ASOF):"No reviews captured for this salon.";
   host.innerHTML=list.map(r=>{const st="★".repeat(r[1])+"☆".repeat(5-r[1]);
     return '<div class="rev-item"><div class="rev-top"><span class="rev-name">'+esc(r[0])+'</span><span class="rev-stars">'+st+'</span><span class="rev-date">'+esc(r[2])+'</span></div><div class="rev-text">'+esc(r[3])+'</div></div>';}).join("");
 }
@@ -441,6 +479,7 @@ document.querySelectorAll("#portModeToggle button").forEach(b=>b.onclick=()=>{
 });
 function renderPort(){
   if(portMode==="ytd")return renderPortYTD();
+  if(portMode==="wtd")return renderPortWTD();
   const SAL=DAY.SAL||[];
   $("#portModeHint").textContent=curDate?fmtDate(curDate):"";
   $("#portTitle").textContent="All salons — "+(curDate?fmtDate(curDate):"no day selected")+"  · click a row to open its detail";
@@ -459,32 +498,56 @@ function renderPort(){
       <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderRed();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
-  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${(t.pay/t.n).toFixed(1)}%</td><td colspan="8" class="sub">Google ratings as of ${GRATE_ASOF}</td></tr>`:"";
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${(t.pay/t.n).toFixed(1)}%</td><td colspan="8" class="sub">Google ratings updated ${GRATE_ASOF}</td></tr>`:"";
   $("#hSales").textContent=curDate?fmtDate(curDate):"";
   portCharts(SAL);
 }
 function renderPortYTD(){
   const ytd=computeYTD();const SAL=ytd.rows;const yr=ytd.year;
-  $("#portModeHint").textContent="Jan 1 \u2013 "+fmtDate(DATES[0]||"")+" "+yr;
-  $("#portTitle").textContent="All salons \u2014 YTD "+yr+"  \u00b7 click a row to open its detail";
+  $("#portModeHint").textContent="Jan 1 – "+fmtDate(DATES[0]||"")+" "+yr;
+  $("#portTitle").textContent="All salons — YTD "+yr+"  · click a row to open its detail";
   let t={sales:0,cust:0,pay:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];});
   const over=SAL.filter(s=>s[6]>40).length;
   const totalDays=Object.values(ytd.acc).reduce((a,v)=>Math.max(a,v.days),0);
   $("#portKpis").innerHTML=[["Salons",SAL.length,""],["YTD Sales",money0(t.sales),totalDays+" day(s)"],
-    ["YTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",(t.pay/t.n).toFixed(1)+"%","target \u2264 40%"],
+    ["YTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",(t.pay/t.n).toFixed(1)+"%","target ≤ 40%"],
     ["Over payroll",over+" of "+SAL.length,"avg above 40%"],["Days in data",totalDays,"calendar "+yr]]
     .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
   const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
   const tb=$("#portTable tbody");tb.innerHTML="";
   rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
-    tr.innerHTML=`<td>${s[0]} \u2014 ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
+    tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
       <td class="${kpi('payroll',s[6])}">${s[6].toFixed(1)}%</td><td class="${kpi('avghc',s[7])}">${s[7].toFixed(1)}</td><td class="${kpi('cuts',s[8])}">${s[8].toFixed(1)}</td>
       <td>${money(s[9])}</td><td>${(s[10]||0).toFixed(0)}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
       <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];detMode="ytd";document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x.dataset.mode==="ytd"));$("#detDay").style.display="none";$("#detWeek").style.display="none";$("#detYTD").style.display="";renderDetail();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
-  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${(t.pay/t.n).toFixed(1)}%</td><td colspan="8" class="sub">YTD totals (sales/cust) \u00b7 averages (payroll/HC/CPH/wait/growth)</td></tr>`:"";
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${(t.pay/t.n).toFixed(1)}%</td><td colspan="8" class="sub">YTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth)</td></tr>`:"";
   $("#hSales").textContent="YTD "+yr;
+  portCharts(SAL);
+}
+function renderPortWTD(){
+  const wtd=computeWTD();const SAL=wtd.rows;
+  const label=wtd.weekStart?fmtDate(wtd.weekStart)+" – "+fmtDate(wtd.weekEnd||""):"";
+  $("#portModeHint").textContent=label;
+  $("#portTitle").textContent="All salons — Week to Date ("+wtd.daysInWeek+" day"+(wtd.daysInWeek!==1?"s":"")+")  · click a row to open its detail";
+  let t={sales:0,cust:0,pay:0,os:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];t.os+=(s[14]||0);});
+  const over=SAL.filter(s=>s[6]>40).length, neg=SAL.filter(s=>s[12]<0).length;
+  $("#portKpis").innerHTML=[["Salons",SAL.length,""],["WTD Sales",money0(t.sales),wtd.daysInWeek+" day(s)"],
+    ["WTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",(t.pay/t.n).toFixed(1)+"%","target ≤ 40%"],
+    ["Over payroll",over+" of "+SAL.length,"above 40%"],["Cash Over/Short","$"+t.os.toFixed(2),wtd.daysInWeek+" day(s)"]]
+    .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
+  const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
+  const tb=$("#portTable tbody");tb.innerHTML="";
+  rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
+      <td class="${kpi('payroll',s[6])}">${s[6].toFixed(1)}%</td><td class="${kpi('avghc',s[7])}">${s[7].toFixed(1)}</td><td class="${kpi('cuts',s[8])}">${s[8].toFixed(1)}</td>
+      <td>${money(s[9])}</td><td>${(s[10]||0).toFixed(0)}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
+      <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
+    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderRed();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
+    tb.appendChild(tr);});
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${(t.pay/t.n).toFixed(1)}%</td><td colspan="8" class="sub">WTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth) · ${wtd.daysInWeek} of 7 days</td></tr>`:"";
+  $("#hSales").textContent="WTD "+label;
   portCharts(SAL);
 }
 document.querySelectorAll("#portTable thead th").forEach(th=>th.onclick=()=>{if(th.dataset.k===undefined)return;const k=+th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=(k===0?1:-1);}renderPort();});
@@ -566,8 +629,8 @@ function renderDetailWeek(){
 }
 function renderDetailYTD(){
   const ytd=computeYTD();const yr=ytd.year;const a=ytd.acc[current];
-  $("#detModeHint").textContent="Jan 1 \u2013 "+fmtDate(DATES[0]||"")+" "+yr;
-  $("#detTitle").textContent=(current||"")+" \u2014 "+sName(current)+" \u00b7 YTD "+yr;
+  $("#detModeHint").textContent="Jan 1 – "+fmtDate(DATES[0]||"")+" "+yr;
+  $("#detTitle").textContent=(current||"")+" — "+sName(current)+" · YTD "+yr;
   const k=$("#detKpis");
   if(a&&a.days){const n=a.days;
     k.innerHTML=[
@@ -580,6 +643,7 @@ function renderDetailYTD(){
       ["Avg Cust Growth",(a.cgSum/n).toFixed(1)+"%","YoY"],
       ["Avg Sales Growth",(a.sgSum/n).toFixed(1)+"%","YoY"]
     ].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");
+    // Monthly trend charts
     const mos=Object.keys(a.monthly).sort();
     const mNames=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const mLabels=mos.map(m=>{const mn=+m.split("-")[1];return mNames[mn];});
@@ -591,6 +655,7 @@ function renderDetailYTD(){
     mk("cYtdCust","bar",mLabels,[{label:"Customers",data:mCust,backgroundColor:BLUE}],{});
     mk("cYtdPay","bar",mLabels,[{label:"Payroll %",data:mPay,backgroundColor:mPay.map(v=>kcolor("payroll",v))},{label:"40% target",type:"line",data:mPay.map(()=>40),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{x:v=>v+"%"});
     mk("cYtdCph","bar",mLabels,[{label:"CPH",data:mCph,backgroundColor:mCph.map(v=>kcolor("cuts",v))},{label:"2.0 standard",type:"line",data:mCph.map(()=>2.0),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{});
+    // At a glance
     $("#detYtdList").innerHTML=[["Service Sales",money(a.svcSales)],["Product Sales",money(a.prodSales)],["Total Sales",money(a.sales)],["Customers",a.cust.toLocaleString()],["Avg Productivity ($/floor hr)",money(a.prodSum/n)],["Avg Payroll %",(a.paySum/n).toFixed(1)+"%"],["Avg Wait >15%",(a.w15Sum/n).toFixed(1)+"%"],["Days of data",n]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join("");
   }else{
     k.innerHTML='<div class="banner warn" style="grid-column:1/-1">No YTD data for '+sName(current)+' in '+yr+'.</div>';
@@ -636,7 +701,7 @@ function renderTeam(){
   const cell=(m,v,suf="")=>v===null?`<td class="na">n/a</td>`:`<td class="${kpi(m,v)}">${v.toFixed(1)}${suf}</td>`;
   const rows=(WEEK.EPP&&WEEK.EPP[current])||[];const tb=$("#teamTable tbody");tb.innerHTML="";
   rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td>${r[2]}</td>
-    ${cell("avghc",r[3])}${cell("cuts",r[4])}${cell("stdprod",r[5],"%")}<td>${r[11]!=null?r[11].toFixed(1):"\u2014"}</td>${cell("payroll",r[8],"%")}
+    ${cell("avghc",r[3])}${cell("cuts",r[4])}${cell("stdprod",r[5],"%")}<td>${r[11]!=null?r[11].toFixed(1):"—"}</td>${cell("payroll",r[8],"%")}
     ${cell("newret",r[9],"%")}${cell("repret",r[10],"%")}<td>${money(r[7])}</td></tr>`;});
   $("#teamSummary").innerHTML=rows.length?rows.length+" stylists · colored vs Brand Measures thresholds":(curWeek?"No weekly data for this salon/week.":"No week selected.");
 }
@@ -682,7 +747,7 @@ function renderTrend(series,m,mo){
     const oos=series.filter(x=>b.dir==="max"?x[1]>b.value:x[1]<b.value).length;
     const tag=oos>0?`<span style="color:${RED};font-weight:600">${oos} of ${series.length} day(s) out of standard</span>`
       :`<span style="color:${GREEN};font-weight:600">All ${series.length} day(s) in standard</span>`;
-    $("#trendNote").innerHTML=sName(current)+" \u00b7 "+tag+" ("+b.label+")";
+    $("#trendNote").innerHTML=sName(current)+" · "+tag+" ("+b.label+")";
   }else{
     $("#trendNote").textContent=series&&series.length?series.length+" day(s) for "+sName(current):"No data for "+sName(current)+" this month.";
   }
@@ -768,23 +833,22 @@ function renderRecap(){
   const wk=$("#recapWeek").value||curWeek||lastFriday();$("#recapWeek").value=wk;
   const r=recaps.find(x=>String(x.salonId)===String(id)&&String(x.weekEnding)===String(wk))||{};
   ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(el)el.value=r[k]||"";});
-  
   $("#recapMsg").innerHTML=r.updatedAt?'<span style="color:var(--muted)">last saved '+new Date(r.updatedAt).toLocaleString()+(r.updatedBy?" by "+r.updatedBy:"")+'</span>':"";
   buildOOS(id,wk);
 }
 $("#recapWeek").onchange=renderRecap;
 $("#recapSave").onclick=()=>{
-      const id=current,wk=$("#recapWeek").value;if(!wk){alert("Pick a week-ending date");return;}
-      // --- validate all fields are filled ---
-      document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));
-      const missing=[];
-      const labels={actions:"Actionable items",floorhours:"Floor hours actions",schedules:"Schedules up to date"};
-      ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(!el.value.trim()){missing.push(labels[k]);el.classList.add('recap-missing');}});
-      document.querySelectorAll('#oosSection textarea[data-oos]').forEach(t=>{if(!t.value.trim()){missing.push((t.dataset.cat==="kpi"?"KPI explanation":"Stylist flag")+": "+t.dataset.key);t.classList.add('recap-missing');}});
-      document.querySelectorAll('#oosSection select[data-yn]').forEach(s=>{if(!s.value){const lbl=(s.dataset.cat==="qc"?"Quality Connection":"REACH")+": "+s.dataset.key;missing.push(lbl);s.classList.add('recap-missing');}});
-      if(missing.length){const first=document.querySelector('.recap-missing');if(first)first.scrollIntoView({behavior:'smooth',block:'center'});alert("Please fill out all fields before saving.\n\nMissing:\n\u2022 "+missing.join("\n\u2022 "));return;}
-      // --- end validation ---
-      const p={salon:id,week:wk,areaManager:"",updatedBy:""};
+  const id=current,wk=$("#recapWeek").value;if(!wk){alert("Pick a week-ending date");return;}
+  // --- validate all fields are filled ---
+  document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));
+  const missing=[];
+  const labels={actions:"Actionable items",floorhours:"Floor hours actions",schedules:"Schedules up to date"};
+  ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(!el.value.trim()){missing.push(labels[k]);el.classList.add('recap-missing');}});
+  document.querySelectorAll('#oosSection textarea[data-oos]').forEach(t=>{if(!t.value.trim()){missing.push((t.dataset.cat==="kpi"?"KPI explanation":"Stylist flag")+": "+t.dataset.key);t.classList.add('recap-missing');}});
+  document.querySelectorAll('#oosSection select[data-yn]').forEach(s=>{if(!s.value){const lbl=(s.dataset.cat==="qc"?"Quality Connection":"REACH")+": "+s.dataset.key;missing.push(lbl);s.classList.add('recap-missing');}});
+  if(missing.length){const first=document.querySelector('.recap-missing');if(first)first.scrollIntoView({behavior:'smooth',block:'center'});alert("Please fill out all fields before saving.\n\nMissing:\n• "+missing.join("\n• "));return;}
+  // --- end validation ---
+  const p={salon:id,week:wk,areaManager:"",updatedBy:""};
   ["actions","floorhours","schedules"].forEach(k=>p[k]=$("#q_"+k).value);
   const oos=collectOOS();p.cphdays=oos.cphdays;p.stylistflags=oos.stylistflags;p.quality=oos.quality;p.reach=oos.reach;
   const m=$("#recapMsg");m.textContent="Saving…";m.style.color="var(--muted)";

@@ -1760,29 +1760,17 @@ function getOpsData(dateStr) {
         _real: true,
       };
     } else {
-      const reviewData = findReviewsForStore(s.id);
-      const sampleGross = Math.round(sampleVal(1500, 5000, dateStr, i, 10));
-      const sampleNet = Math.round(sampleGross * 0.96);
-      const sampleTrans = Math.round(sampleVal(100, 400, dateStr, i, 11));
       return {
         storeId: s.id, storeName: s.name, date: dateStr,
-        grossSales: sampleGross,
-        netSales: sampleNet,
-        changePct: +sampleVal(-15, 15, dateStr, i, 3).toFixed(2),
-        transChangePct: null,
-        gca: sampleTrans > 0 ? +(sampleNet / sampleTrans).toFixed(2) : 0,
-        gcaPrior: 0,
-        trans: sampleTrans,
-        laborPct: +sampleVal(20, 30, dateStr, i, 4).toFixed(1),
+        grossSales: null, netSales: null, changePct: null,
+        transChangePct: null, gca: null, gcaPrior: null,
+        trans: null, laborPct: labor ? +labor.laborPct.toFixed(1) : null,
         laborTarget: LABOR_TARGETS[s.id],
         checklistPct: getJoltForStore(s.id, dateStr),
-        googleRating: reviewData ? reviewData.rating : +sampleVal(3.5, 4.8, dateStr, i, 8).toFixed(1),
-        totalReviews: reviewData ? reviewData.totalReviews : Math.round(sampleVal(200, 2500, dateStr, i, 9)),
-        serviceChecks: Math.max(0, Math.round(sampleVal(0, 5, dateStr, i, 6))),
-        sos: findSosForDate(dateStr, s.id),
-        voidsPct: SAMPLE_VOIDS[s.id] || 0.5,
-        refunds: SAMPLE_REFUNDS[s.id] || 0,
-        _real: false,
+        googleRating: null, totalReviews: null,
+        serviceChecks: null, sos: null,
+        voidsPct: null, refunds: null,
+        _real: false, _noData: true,
       };
     }
   });
@@ -1896,7 +1884,7 @@ function getVarianceItems(weekEnd) {
 /* ===== STATE ===== */
 const state = {
   opsView: 'daily',
-  opsDate: getYesterday(),
+  opsDate: getLatestRealDate(),
   opsWeek: null,
   opsStoreFilter: 'all',
   opsSort: { col: 'storeId', dir: 'asc' },
@@ -1914,6 +1902,10 @@ const state = {
 };
 
 function getYesterday() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+function getLatestRealDate() {
+  const dates = Object.keys(dataStore.realSalesDaily).sort().reverse();
+  return dates.length > 0 ? dates[0] : getYesterday();
+}
 
 function getWeekEnding(d) {
   const dt = new Date(d + 'T12:00:00');
@@ -2026,55 +2018,55 @@ function findSCForWeek(weekEndStr, storeId) {
 function renderStoreDetail(data, storeId) {
   const d = data.find(x => x.storeId === storeId);
   if (!d) return;
-  const laborVar = Math.abs(+d.laborPct - d.laborTarget);
-  const laborRating = rateKPI('laborVariance', laborVar);
-  const sosRating = rateKPI('speedAtWindow', d.sos);
-  const voidsRating = rateKPI('voids', d.voidsPct);
+  const laborVar = d.laborPct != null ? Math.abs(+d.laborPct - d.laborTarget) : null;
+  const laborRating = laborVar != null ? rateKPI('laborVariance', laborVar) : {label:'--',cls:'muted'};
+  const sosRating = d.sos != null ? rateKPI('speedAtWindow', d.sos) : {label:'--',cls:'muted'};
+  const voidsRating = d.voidsPct != null ? rateKPI('voids', d.voidsPct) : {label:'--',cls:'muted'};
   const salesRating = state.opsView === 'weekly' ? rateKPI('weeklySales', d.netSales || 0) : { label: '--', cls: '' };
   const container = document.getElementById('storeDetailView');
   container.style.display = 'block';
-  const changeColor = +d.changePct >= 0 ? '#0ca30c' : '#d03b3b';
-  const changeArrow = +d.changePct >= 0 ? '▲' : '▼';
+  const changeColor = d.changePct != null ? (+d.changePct >= 0 ? '#0ca30c' : '#d03b3b') : 'var(--text-muted)';
+  const changeArrow = d.changePct != null ? (+d.changePct >= 0 ? '▲' : '▼') : '';
   container.innerHTML = `<div class="store-detail">
     <h2>${d.storeName} (${d.storeId}) -- Detailed KPIs</h2>
     <div class="store-detail-grid">
       <div class="detail-kpi ${salesRating.cls ? salesRating.cls + '-border' : ''}">
         <div class="detail-label">Gross Sales</div>
-        <div class="detail-value">${fmtDollar(d.grossSales || 0)}</div>
+        <div class="detail-value">${d.grossSales != null ? fmtDollar(d.grossSales) : '--'}</div>
       </div>
       <div class="detail-kpi">
         <div class="detail-label">Net Sales</div>
-        <div class="detail-value">${fmtDollar(d.netSales || 0)}</div>
-        <div class="detail-sub"><span style="color:${changeColor}">${changeArrow} ${(+d.changePct >= 0 ? '+' : '') + (+d.changePct).toFixed(2)}% vs prior year</span></div>
+        <div class="detail-value">${d.netSales != null ? fmtDollar(d.netSales) : '--'}</div>
+        <div class="detail-sub">${d.changePct != null ? '<span style="color:' + changeColor + '">' + changeArrow + ' ' + (+d.changePct >= 0 ? '+' : '') + (+d.changePct).toFixed(2) + '% vs prior year</span>' : '<span style="color:var(--text-muted)">No comp data</span>'}</div>
       </div>
       <div class="detail-kpi">
         <div class="detail-label">GCA (Check)</div>
-        <div class="detail-value">$${(+d.gca).toFixed(2)}</div>
-        <div class="detail-sub">Prior: $${(+d.gcaPrior).toFixed(2)} ${d.gca > d.gcaPrior ? '<span style="color:#0ca30c">▲</span>' : '<span style="color:#d03b3b">▼</span>'}</div>
+        <div class="detail-value">${d.gca != null ? '$' + (+d.gca).toFixed(2) : '--'}</div>
+        <div class="detail-sub">${d.gcaPrior != null && d.gca != null ? 'Prior: $' + (+d.gcaPrior).toFixed(2) + ' ' + (d.gca > d.gcaPrior ? '<span style="color:#0ca30c">▲</span>' : '<span style="color:#d03b3b">▼</span>') : '--'}</div>
       </div>
       <div class="detail-kpi">
         <div class="detail-label">Transactions</div>
-        <div class="detail-value">${d.trans}</div>
+        <div class="detail-value">${d.trans != null ? d.trans : '--'}</div>
       </div>
       <div class="detail-kpi ${laborRating.cls}-border">
         <div class="detail-label">Labor %</div>
-        <div class="detail-value">${(+d.laborPct).toFixed(2)}%</div>
-        <div class="detail-sub">Target: ${d.laborTarget.toFixed(2)}% | Var: ${(laborVar > 0 ? '+' : '') + laborVar.toFixed(2)}% <span class="status-pill ${laborRating.cls}" style="font-size:11px">${laborRating.label}</span></div>
+        <div class="detail-value">${d.laborPct != null ? (+d.laborPct).toFixed(2) + '%' : '--'}</div>
+        <div class="detail-sub">${laborVar != null ? 'Target: ' + d.laborTarget.toFixed(2) + '% | Var: ' + (laborVar > 0 ? '+' : '') + laborVar.toFixed(2) + '% <span class="status-pill ' + laborRating.cls + '" style="font-size:11px">' + laborRating.label + '</span>' : 'No data'}</div>
       </div>
       <div class="detail-kpi ${sosRating.cls}-border">
         <div class="detail-label">Window Speed</div>
-        <div class="detail-value">${d.sos}s</div>
-        <div class="detail-sub"><span class="status-pill ${sosRating.cls}" style="font-size:11px">${sosRating.label}</span></div>
+        <div class="detail-value">${d.sos != null ? d.sos + 's' : '--'}</div>
+        <div class="detail-sub">${d.sos != null ? '<span class="status-pill ' + sosRating.cls + '" style="font-size:11px">' + sosRating.label + '</span>' : 'No data'}</div>
       </div>
       <div class="detail-kpi ${voidsRating.cls}-border">
         <div class="detail-label">Voids %</div>
-        <div class="detail-value">${d.voidsPct}%</div>
-        <div class="detail-sub"><span class="status-pill ${voidsRating.cls}" style="font-size:11px">${voidsRating.label}</span></div>
+        <div class="detail-value">${d.voidsPct != null ? d.voidsPct + '%' : '--'}</div>
+        <div class="detail-sub">${d.voidsPct != null ? '<span class="status-pill ' + voidsRating.cls + '" style="font-size:11px">' + voidsRating.label + '</span>' : 'No data'}</div>
       </div>
-      <div class="detail-kpi ${d.refunds > 10 ? 'critical-border' : 'great-border'}">
+      <div class="detail-kpi ${d.refunds != null && d.refunds > 10 ? 'critical-border' : 'great-border'}">
         <div class="detail-label">Refunds</div>
-        <div class="detail-value">$${d.refunds.toFixed(2)}</div>
-        <div class="detail-sub">${d.refunds > 10 ? '<span style="color:#d03b3b">Above $10</span>' : '<span style="color:#0ca30c">Normal</span>'}</div>
+        <div class="detail-value">${d.refunds != null ? '$' + d.refunds.toFixed(2) : '--'}</div>
+        <div class="detail-sub">${d.refunds != null ? (d.refunds > 10 ? '<span style="color:#d03b3b">Above $10</span>' : '<span style="color:#0ca30c">Normal</span>') : 'No data'}</div>
       </div>
       <div class="detail-kpi">
         <div class="detail-label">Google Rating</div>
@@ -2088,8 +2080,8 @@ function renderStoreDetail(data, storeId) {
       </div>
       <div class="detail-kpi">
         <div class="detail-label">Problem SCs</div>
-        <div class="detail-value">${d.serviceChecks}</div>
-        <div class="detail-sub">${d.serviceChecks === 0 ? '<span style="color:#0ca30c">Clean</span>' : '<span style="color:#d03b3b">Attention</span>'}</div>
+        <div class="detail-value">${d.serviceChecks != null ? d.serviceChecks : '--'}</div>
+        <div class="detail-sub">${d.serviceChecks != null ? (d.serviceChecks === 0 ? '<span style="color:#0ca30c">Clean</span>' : '<span style="color:#d03b3b">Attention</span>') : 'No data'}</div>
       </div>
     </div>
     ${renderStoreReviews(d.storeId)}
@@ -2125,10 +2117,10 @@ function renderStoreReviews(storeId) {
 
 /* ===== HELPER: COMPOSITE SCORE ===== */
 function computeCompositeScore(d) {
-  const laborVar = Math.abs(+d.laborPct - d.laborTarget);
+  const laborVar = (d.laborPct != null) ? Math.abs(+d.laborPct - d.laborTarget) : 0;
   const scores = {
-    sos: rateKPI('speedAtWindow', d.sos),
-    voids: rateKPI('voids', d.voidsPct),
+    sos: rateKPI('speedAtWindow', d.sos != null ? d.sos : 0),
+    voids: rateKPI('voids', d.voidsPct != null ? d.voidsPct : 0),
     labor: rateKPI('laborVariance', laborVar),
   };
   if (state.opsView === 'weekly') scores.sales = rateKPI('weeklySales', d.netSales || 0);
@@ -2141,10 +2133,26 @@ function computeCompositeScore(d) {
 function renderOps() {
   let data = state.opsView === 'weekly' ? getWeeklyOpsData(state.opsWeek) : getOpsData(state.opsDate);
   const hasRealData = data.some(d => d._real);
+  const allNoData = data.every(d => d._noData);
 
   // Connection banner
   const banner = document.getElementById('opsBanner');
-  if (hasRealData) {
+  if (allNoData) {
+    const latestDate = getLatestRealDate();
+    banner.className = 'connection-banner';
+    banner.innerHTML = `<span class="banner-icon">&#9888;</span>
+      <span>No sales data has been pulled for this date. Latest available data is from ${new Date(latestDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}.</span>`;
+    // Clear KPI, table, and charts — no data to render
+    document.getElementById('opsKpiRow').innerHTML = '';
+    document.getElementById('opsTableHead').innerHTML = '';
+    document.getElementById('opsTableBody').innerHTML = `<tr><td colspan="15" style="text-align:center;padding:32px;color:var(--text-muted);font-size:15px;">No data available for this date. Use the date picker to select a date with loaded data.</td></tr>`;
+    ['chartGCA','chartLabor','chartSales','chartRatings'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
+    const detailView = document.getElementById('storeDetailView');
+    if (detailView) detailView.style.display = 'none';
+    const tableWrap = document.getElementById('opsTableWrap');
+    if (tableWrap) tableWrap.style.display = '';
+    return;
+  } else if (hasRealData) {
     const sourceMap = {powerbi:'PowerBI',dayforce:'Dayforce',servicecheck:'ServiceCheck',qbo:'QBO',gbp:'Google Reviews',jolt:'Jolt'};
     const connectedSources = Object.entries(dataStore.sources)
       .filter(([k,v]) => v.connected && ['powerbi','dayforce','servicecheck','qbo','gbp','jolt'].includes(k))
@@ -2173,11 +2181,15 @@ function renderOps() {
   const totalTrans = data.reduce((s,d) => s + (+d.trans || 0), 0);
   const avgGCA = totalTrans > 0 ? (totalNet / totalTrans).toFixed(2) : '0.00';
   const avgChangePct = (data.reduce((s,d) => s + (+d.changePct || 0), 0) / data.length).toFixed(2);
-  const avgLabor = (data.reduce((s,d) => s + +d.laborPct, 0) / data.length).toFixed(2);
+  const laborStores = data.filter(d => d.laborPct != null);
+  const avgLabor = laborStores.length > 0 ? (laborStores.reduce((s,d) => s + +d.laborPct, 0) / laborStores.length).toFixed(2) : '--';
 
-  const totalSC = data.reduce((s,d) => s + d.serviceChecks, 0);
-  const avgSOS = Math.round(data.reduce((s,d) => s + d.sos, 0) / data.length);
-  const avgVoids = (data.reduce((s,d) => s + d.voidsPct, 0) / data.length).toFixed(2);
+  const scStores = data.filter(d => d.serviceChecks != null);
+  const totalSC = scStores.reduce((s,d) => s + d.serviceChecks, 0);
+  const sosStores = data.filter(d => d.sos != null);
+  const avgSOS = sosStores.length > 0 ? Math.round(sosStores.reduce((s,d) => s + d.sos, 0) / sosStores.length) : 0;
+  const voidsStores = data.filter(d => d.voidsPct != null);
+  const avgVoids = voidsStores.length > 0 ? (voidsStores.reduce((s,d) => s + d.voidsPct, 0) / voidsStores.length).toFixed(2) : '0.00';
 
   const joltStores = data.filter(d => d.checklistPct !== null);
   const avgChecklist = joltStores.length > 0 ? Math.round(joltStores.reduce((s,d) => s + d.checklistPct, 0) / joltStores.length) : null;
@@ -2189,7 +2201,7 @@ function renderOps() {
     ${kpiTile('Avg GCA', '$' + avgGCA, null)}
     ${kpiTile('Total Net Sales', fmtDollar(totalNet), null)}
     ${kpiTile('Avg Change %', (+avgChangePct >= 0 ? '+' : '') + avgChangePct + '%', +avgChangePct >= 0 ? 'good' : 'bad')}
-    ${kpiTile('Avg Labor %', avgLabor + '%', +avgLabor > 25 ? 'bad' : 'good')}
+    ${kpiTile('Avg Labor %', avgLabor === '--' ? '--' : avgLabor + '%', avgLabor === '--' ? null : (+avgLabor > 25 ? 'bad' : 'good'))}
     ${avgChecklist !== null ? kpiTile('Jolt %', avgChecklist + '%', avgChecklist >= 95 ? 'good' : (avgChecklist >= 85 ? null : 'bad')) : ''}
     ${kpiTile('Problem SCs', totalSC, totalSC > 10 ? 'bad' : 'good')}
     ${kpiTile('Avg Window', avgSOS + 's', sosR.cls === 'great' || sosR.cls === 'good' ? 'good' : 'bad')}
@@ -2224,19 +2236,20 @@ function renderOps() {
   }).join('')}</tr>`;
 
   document.getElementById('opsTableBody').innerHTML = data.map(d => {
-    const laborVar = +d.laborPct - d.laborTarget;
-    const laborVarAbs = Math.abs(laborVar);
-    const laborR = rateKPI('laborVariance', laborVarAbs);
-    const sosR2 = rateKPI('speedAtWindow', d.sos);
-    const voidsR2 = rateKPI('voids', d.voidsPct);
-    const changeClass = +d.changePct >= 0 ? 'cell-good' : (+d.changePct > -10 ? 'cell-warn' : 'cell-critical');
-    const ratingClass = +d.googleRating >= 4.0 ? 'cell-good' : (+d.googleRating >= 3.5 ? 'cell-warn' : 'cell-critical');
-    const refundClass = d.refunds > 10 ? 'cell-critical' : 'cell-good';
-    const gcaDelta = d.gcaPrior ? (d.gca > d.gcaPrior ? '<span style="color:#0ca30c;font-size:11px"> ▲</span>' : d.gca < d.gcaPrior ? '<span style="color:#d03b3b;font-size:11px"> ▼</span>' : '') : '';
+    const hasData = !d._noData;
+    const laborVar = (d.laborPct != null) ? +d.laborPct - d.laborTarget : null;
+    const laborVarAbs = laborVar != null ? Math.abs(laborVar) : null;
+    const laborR = laborVarAbs != null ? rateKPI('laborVariance', laborVarAbs) : {cls:'muted'};
+    const sosR2 = d.sos != null ? rateKPI('speedAtWindow', d.sos) : {cls:'muted'};
+    const voidsR2 = d.voidsPct != null ? rateKPI('voids', d.voidsPct) : {cls:'muted'};
+    const changeClass = d.changePct != null ? (+d.changePct >= 0 ? 'cell-good' : (+d.changePct > -10 ? 'cell-warn' : 'cell-critical')) : '';
+    const ratingClass = d.googleRating != null ? (+d.googleRating >= 4.0 ? 'cell-good' : (+d.googleRating >= 3.5 ? 'cell-warn' : 'cell-critical')) : '';
+    const refundClass = d.refunds != null ? (d.refunds > 10 ? 'cell-critical' : 'cell-good') : '';
+    const gcaDelta = d.gcaPrior && d.gca != null ? (d.gca > d.gcaPrior ? '<span style="color:#0ca30c;font-size:11px"> ▲</span>' : d.gca < d.gcaPrior ? '<span style="color:#d03b3b;font-size:11px"> ▼</span>' : '') : '';
     const transArrow = d.transChangePct !== undefined && d.transChangePct !== null ? (d.transChangePct >= 0 ? '<span style="color:#0ca30c;font-size:11px"> ▲</span>' : '<span style="color:#d03b3b;font-size:11px"> ▼</span>') : '';
     const checklistClass = d.checklistPct !== null ? (d.checklistPct >= 95 ? 'cell-good' : (d.checklistPct >= 80 ? 'cell-warn' : 'cell-critical')) : '';
-    const laborVarStr = (laborVar >= 0 ? '+' : '') + laborVar.toFixed(2) + '%';
-    const laborVarClass = laborVarAbs <= 0.25 ? 'cell-great' : laborVarAbs <= 0.50 ? 'cell-good' : laborVarAbs <= 1.00 ? 'cell-warn' : 'cell-critical';
+    const laborVarStr = laborVar != null ? (laborVar >= 0 ? '+' : '') + laborVar.toFixed(2) + '%' : '--';
+    const laborVarClass = laborVarAbs != null ? (laborVarAbs <= 0.25 ? 'cell-great' : laborVarAbs <= 0.50 ? 'cell-good' : laborVarAbs <= 1.00 ? 'cell-warn' : 'cell-critical') : '';
     const newRevs = getNewReviews(d.storeId);
     const overallStatus = getOverallStatus(d);
     const cs = computeCompositeScore(d);
@@ -2245,39 +2258,40 @@ function renderOps() {
     const scoreTitle = Object.entries(cs.scores).map(([k,v]) => `${k}: ${v.score} (${v.label})`).join(', ');
     return `<tr>
       <td>${d.storeName} (${d.storeId})</td>
-      <td>${fmtDollar(d.netSales)}</td>
-      <td class="${changeClass}">${(+d.changePct >= 0 ? '+' : '') + (+d.changePct).toFixed(2)}%</td>
-      <td>${d.trans}${transArrow}${d.transChangePct !== undefined && d.transChangePct !== null ? '<span style="font-size:11px;color:' + (d.transChangePct >= 0 ? '#0ca30c' : '#d03b3b') + '"> ' + (d.transChangePct >= 0 ? '+' : '') + d.transChangePct.toFixed(1) + '%</span>' : ''}</td>
-      <td>$${(+d.gca).toFixed(2)}${gcaDelta}</td>
-      <td class="${laborVarClass}" title="Actual: ${(+d.laborPct).toFixed(2)}% | Target: ${d.laborTarget.toFixed(2)}%">${laborVarStr}</td>
+      <td>${d.netSales != null ? fmtDollar(d.netSales) : '--'}</td>
+      <td class="${changeClass}">${d.changePct != null ? (d.changePct >= 0 ? '+' : '') + (+d.changePct).toFixed(2) + '%' : '--'}</td>
+      <td>${d.trans != null ? d.trans : '--'}${transArrow}${d.transChangePct !== undefined && d.transChangePct !== null ? '<span style="font-size:11px;color:' + (d.transChangePct >= 0 ? '#0ca30c' : '#d03b3b') + '"> ' + (d.transChangePct >= 0 ? '+' : '') + d.transChangePct.toFixed(1) + '%</span>' : ''}</td>
+      <td>${d.gca != null ? '$' + (+d.gca).toFixed(2) : '--'}${gcaDelta}</td>
+      <td class="${laborVarClass}" title="${d.laborPct != null ? 'Actual: ' + (+d.laborPct).toFixed(2) + '% | Target: ' + d.laborTarget.toFixed(2) + '%' : 'No data'}">${laborVarStr}</td>
       <td class="${checklistClass}">${d.checklistPct !== null ? Math.round(d.checklistPct) + '%' : '--'}</td>
-      <td class="cell-${sosR2.cls}">${d.sos}</td>
-      <td class="cell-${voidsR2.cls}">${(+d.voidsPct).toFixed(2)}%</td>
-      <td class="${refundClass}">$${d.refunds.toFixed(2)}</td>
+      <td class="cell-${sosR2.cls}">${d.sos != null ? d.sos : '--'}</td>
+      <td class="cell-${voidsR2.cls}">${d.voidsPct != null ? (+d.voidsPct).toFixed(2) + '%' : '--'}</td>
+      <td class="${refundClass}">${d.refunds != null ? '$' + d.refunds.toFixed(2) : '--'}</td>
       <td>${newRevs !== null ? (newRevs > 0 ? '<span style="color:#0ca30c">+' + newRevs + '</span>' : '0') : '--'}</td>
-      <td class="${ratingClass}">${renderStars(+d.googleRating)} ${d.googleRating} <span style="color:var(--text-muted);font-size:11px">(${d.totalReviews ? d.totalReviews.toLocaleString() : '--'})</span></td>
-      <td>${d.serviceChecks}</td>
+      <td class="${ratingClass}">${d.googleRating != null ? renderStars(+d.googleRating) + ' ' + d.googleRating : '--'} <span style="color:var(--text-muted);font-size:11px">(${d.totalReviews ? d.totalReviews.toLocaleString() : '--'})</span></td>
+      <td>${d.serviceChecks != null ? d.serviceChecks : '--'}</td>
       <td title="${scoreTitle}"><span class="score-badge ${scoreCls}">${cs.total}/${cs.maxScore}</span></td>
       <td><span class="status-pill ${overallStatus}"><span class="status-dot ${overallStatus}"></span>${overallStatus === 'good' ? 'On Track' : (overallStatus === 'warn' ? 'Watch' : 'Attention')}</span></td>
     </tr>`;
   }).join('');
 
-  renderBarChart('chartGCA', data.map(d => ({ label: d.storeId, value: +(+d.gca).toFixed(2) })), '$', 'GCA');
-  renderBarChart('chartLabor', data.map(d => ({ label: d.storeId, value: +d.laborPct, target: d.laborTarget })), '%', 'Labor', true);
-  renderDivergingBar('chartSales', data.map(d => ({ label: d.storeId, value: +d.changePct })), '%');
+  renderBarChart('chartGCA', data.map(d => ({ label: d.storeId, value: d.gca != null ? +(+d.gca).toFixed(2) : 0 })), '$', 'GCA');
+  renderBarChart('chartLabor', data.map(d => ({ label: d.storeId, value: d.laborPct != null ? +d.laborPct : 0, target: d.laborTarget })), '%', 'Labor', true);
+  renderDivergingBar('chartSales', data.map(d => ({ label: d.storeId, value: d.changePct != null ? +d.changePct : 0 })), '%');
   renderRatingsChart('chartRatings', data);
 }
 
 function getOverallStatus(d) {
+  if (d._noData) return 'good';
   let score = 0;
-  if (+d.laborPct > d.laborTarget + 3) score += 2;
-  else if (+d.laborPct > d.laborTarget + 1) score += 1;
-  if (+d.changePct < -15) score += 2;
-  else if (+d.changePct < -5) score += 1;
-  if (d.serviceChecks > 3) score += 1;
-  if (+d.googleRating < 3.5) score += 1;
-  if (d.sos > 140) score += 1;
-  if (d.voidsPct > 2) score += 1;
+  if (d.laborPct != null && +d.laborPct > d.laborTarget + 3) score += 2;
+  else if (d.laborPct != null && +d.laborPct > d.laborTarget + 1) score += 1;
+  if (d.changePct != null && +d.changePct < -15) score += 2;
+  else if (d.changePct != null && +d.changePct < -5) score += 1;
+  if (d.serviceChecks != null && d.serviceChecks > 3) score += 1;
+  if (d.googleRating != null && +d.googleRating < 3.5) score += 1;
+  if (d.sos != null && d.sos > 140) score += 1;
+  if (d.voidsPct != null && d.voidsPct > 2) score += 1;
   return score >= 4 ? 'critical' : (score >= 2 ? 'warn' : 'good');
 }
 

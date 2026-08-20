@@ -285,6 +285,9 @@ tbody tr:hover{background:var(--surface-2)}
     <div class="nav-item" data-page="vendors" onclick="navigate('vendors')">
       <span class="icon">🏪</span> Vendors
     </div>
+    <div class="nav-item" data-page="suppliers" onclick="navigate('suppliers')">
+      <span class="icon">🛒</span> Suppliers
+    </div>
     <div class="nav-item" data-page="team" onclick="navigate('team')">
       <span class="icon">👥</span> Team
     </div>
@@ -359,6 +362,8 @@ function toast(msg, type='success'){
   setTimeout(()=>t.remove(),3500);
 }
 function formatDate(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'; }
+function formatTimestamp(ts){ if(!ts) return '—'; const d=new Date(ts); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function daysAgo(ts){ if(!ts) return ''; const diff=Math.floor((Date.now()-new Date(ts).getTime())/(1000*60*60*24)); if(diff===0) return 'Today'; if(diff===1) return '1 day ago'; return diff+' days ago'; }
 function formatCurrency(n){ return n!=null ? '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; }
 function statusBadge(s){ return `<span class="badge badge-${(s||'').replace(/\s/g,'-')}">${(s||'—').replace(/_/g,' ')}</span>`; }
 function priorityBadge(p){ return `<span class="badge badge-${p||'medium'}">${p||'medium'}</span>`; }
@@ -387,6 +392,7 @@ async function loadAll(){
     load('dt_equipment_categories','sort_order',true),
     load('dt_photos','uploaded_at',false),
     load('dt_notification_recipients','name',true),
+    load('dt_suppliers','company_name',true),
     load('dt_wo_receipts','created_at',false),
   ]);
 }
@@ -428,7 +434,7 @@ function navigate(page){
   render();
 }
 function render(){
-  const pages = {dashboard:renderDashboard,'work-orders':renderWorkOrders,equipment:renderEquipment,hvac:renderHVAC,'pm-schedules':renderPM,locations:renderLocations,vendors:renderVendors,team:renderTeam,logs:renderLogs,costs:renderCosts,receipts:renderReceipts,settings:renderSettings};
+  const pages = {dashboard:renderDashboard,'work-orders':renderWorkOrders,equipment:renderEquipment,hvac:renderHVAC,'pm-schedules':renderPM,locations:renderLocations,vendors:renderVendors,suppliers:renderSuppliers,team:renderTeam,logs:renderLogs,costs:renderCosts,receipts:renderReceipts,settings:renderSettings};
   (pages[currentPage]||renderDashboard)();
 }
 
@@ -677,12 +683,22 @@ function renderWorkOrders(){
   $('#topbar-actions').innerHTML='<button class="btn btn-primary" onclick="openWOForm()">+ New Work Order</button>';
   const wo = cache.dt_work_orders||[];
   const filt = { status:'', location:'', priority:'' };
+  let woSort = { col:'created_at', dir:'desc' };
   function draw(items){
     const tbl = document.getElementById('wo-table');
     if(!tbl)return;
-    tbl.innerHTML = items.length===0?'<div class="empty"><p>No work orders found</p></div>':
-    `<table><thead><tr><th>WO#</th><th>Title</th><th>Location</th><th>Equipment</th><th>Priority</th><th>Status</th><th>Assigned</th><th>Due</th><th></th></tr></thead><tbody>
-    ${items.map(w=>`<tr>
+    // Sort items
+    const sorted = [...items].sort((a,b)=>{
+      let va=a[woSort.col], vb=b[woSort.col];
+      if(woSort.col==='created_at'||woSort.col==='due_date'){ va=va||''; vb=vb||''; }
+      if(va<vb) return woSort.dir==='asc'?-1:1;
+      if(va>vb) return woSort.dir==='asc'?1:-1;
+      return 0;
+    });
+    const arrow = c => woSort.col===c ? (woSort.dir==='asc'?' ▲':' ▼') : '';
+    tbl.innerHTML = sorted.length===0?'<div class="empty"><p>No work orders found</p></div>':
+    `<table><thead><tr><th>WO#</th><th>Title</th><th>Location</th><th>Equipment</th><th>Priority</th><th>Status</th><th>Assigned</th><th class="sortable" onclick="window._woSortBy('due_date')" style="cursor:pointer">Due${arrow('due_date')}</th><th class="sortable" onclick="window._woSortBy('created_at')" style="cursor:pointer">Added${arrow('created_at')}</th><th></th></tr></thead><tbody>
+    ${sorted.map(w=>`<tr>
       <td><strong>${w.wo_number}</strong></td>
       <td class="truncate"><a href="#" class="wo-title-link" onclick="event.preventDefault();openWOForm('${w.id}')">${w.title}</a></td>
       <td>${locName(w.location_id)}</td>
@@ -691,6 +707,7 @@ function renderWorkOrders(){
       <td>${statusBadge(w.status)}</td>
       <td>${teamName(w.assigned_to)}</td>
       <td>${formatDate(w.due_date)}</td>
+      <td><span title="${formatTimestamp(w.created_at)}">${daysAgo(w.created_at)}</span></td>
       <td>
         <button class="btn-icon btn-sm" onclick="openWOForm('${w.id}')" title="Edit">✏️</button>
         <button class="btn-icon btn-sm" onclick="deleteWO('${w.id}')" title="Delete">🗑️</button>
@@ -715,6 +732,7 @@ function renderWorkOrders(){
     </div>
     <div class="card"><div class="card-body"><div class="table-scroll" id="wo-table"></div></div></div>`;
   draw(wo);
+  window._woSortBy = function(col){ if(woSort.col===col) woSort.dir=woSort.dir==='asc'?'desc':'asc'; else { woSort.col=col; woSort.dir=col==='created_at'?'desc':'asc'; } applyFilters(); };
   ['f-status','f-prio','f-loc','f-search'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener(id==='f-search'?'input':'change',applyFilters)});
 }
 window.openWOForm = function(id){
@@ -1123,6 +1141,52 @@ window.saveVend = async function(id){
   if(await upsert('dt_vendors',row,id||undefined)){closeModal();await load('dt_vendors','company_name',true);render();}
 };
 window.deleteVend = async function(id){if(await remove('dt_vendors',id)){await load('dt_vendors','company_name',true);render();}};
+
+// ===== SUPPLIERS =====
+function renderSuppliers(){
+  $('#page-title').textContent='Suppliers';
+  $('#topbar-actions').innerHTML='<button class="btn btn-primary" onclick="openSupplierForm()">+ Add Supplier</button>';
+  const s = cache.dt_suppliers||[];
+  $('#content').innerHTML=`<div class="card"><div class="card-body"><div class="table-scroll">
+    ${s.length===0?'<div class="empty"><div class="icon">🛒</div><p>No suppliers yet. Add your parts and supplies vendors.</p><button class="btn btn-primary" onclick="openSupplierForm()">+ Add Supplier</button></div>':
+    `<table><thead><tr><th>Company</th><th>Account #</th><th>Rep</th><th>Phone</th><th>Email</th><th>Categories</th><th>Payment Terms</th><th>Website</th><th></th></tr></thead><tbody>
+    ${s.map(x=>`<tr><td><strong>${x.company_name}</strong></td><td>${x.account_number||'—'}</td><td>${x.account_rep_name||'—'}</td><td>${x.account_rep_phone||'—'}</td><td>${x.account_rep_email||'—'}</td><td>${x.categories||'—'}</td><td>${x.payment_terms||'—'}</td><td>${x.website?`<a href="${x.website.startsWith('http')?x.website:'https://'+x.website}" target="_blank">Visit</a>`:'—'}</td><td><button class="btn-icon btn-sm" onclick="openSupplierForm('${x.id}')">✏️</button><button class="btn-icon btn-sm" onclick="deleteSupplier('${x.id}')">🗑️</button></td></tr>`).join('')}</tbody></table>`}
+  </div></div></div>`;
+}
+window.openSupplierForm = function(id){
+  const s = id?(cache.dt_suppliers||[]).find(x=>x.id===id):{};
+  openModal(`
+    <div class="modal-header"><h3>${id?'Edit':'Add'} Supplier</h3><button class="btn-icon" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label>Company Name*</label><input id="m-sname" value="${s.company_name||''}"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Website</label><input id="m-sweb" value="${s.website||''}" placeholder="e.g. grainger.com"></div>
+        <div class="form-group"><label>Login URL</label><input id="m-slogin" value="${s.login_url||''}" placeholder="e.g. login.grainger.com"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Account Number</label><input id="m-sacct" value="${s.account_number||''}"></div>
+        <div class="form-group"><label>Categories</label><input id="m-scat" value="${s.categories||''}" placeholder="e.g. HVAC Parts, Plumbing"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Account Rep Name</label><input id="m-srep" value="${s.account_rep_name||''}"></div>
+        <div class="form-group"><label>Rep Phone</label><input id="m-srphone" value="${s.account_rep_phone||''}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Rep Email</label><input id="m-sremail" value="${s.account_rep_email||''}"></div>
+        <div class="form-group"><label>Payment Terms</label><select id="m-sterms"><option value="">—</option>${['Net 15','Net 30','Net 60','COD','Credit Card','PO / Invoice','Prepaid'].map(t=>`<option ${s.payment_terms===t?'selected':''} value="${t}">${t}</option>`).join('')}</select></div>
+      </div>
+      <div class="form-group"><label>Shipping Info</label><input id="m-sship" value="${s.shipping_info||''}" placeholder="e.g. Free over $50, 2-day delivery"></div>
+      <div class="form-group"><label>Contract Details</label><textarea id="m-scontract">${s.contract_details||''}</textarea></div>
+      <div class="form-group"><label>Notes</label><textarea id="m-snotes">${s.notes||''}</textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveSupplier('${id||''}')">Save</button></div>`);
+};
+window.saveSupplier = async function(id){
+  const row={company_name:$('#m-sname').value,website:$('#m-sweb').value||null,login_url:$('#m-slogin').value||null,account_number:$('#m-sacct').value||null,categories:$('#m-scat').value||null,account_rep_name:$('#m-srep').value||null,account_rep_phone:$('#m-srphone').value||null,account_rep_email:$('#m-sremail').value||null,payment_terms:$('#m-sterms').value||null,shipping_info:$('#m-sship').value||null,contract_details:$('#m-scontract').value||null,notes:$('#m-snotes').value||null,is_active:true,updated_at:new Date().toISOString()};
+  if(!row.company_name){toast('Company name is required','error');return;}
+  if(await upsert('dt_suppliers',row,id||undefined)){closeModal();await load('dt_suppliers','company_name',true);render();}
+};
+window.deleteSupplier = async function(id){if(await remove('dt_suppliers',id)){await load('dt_suppliers','company_name',true);render();}};
 
 // ===== TEAM =====
 function renderTeam(){

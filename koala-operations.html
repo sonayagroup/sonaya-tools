@@ -164,8 +164,18 @@ body {
 .view-toggle button + button { border-left: 1px solid var(--gridline); }
 .view-toggle button.active { background: var(--brand-teal); color: #fff; }
 .view-toggle button:disabled { opacity: .35; cursor: not-allowed; }
+.date-range-custom { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--text-secondary); }
+.date-range-custom input[type="date"] { padding: 5px 8px; border: 1px solid var(--gridline); border-radius: var(--radius-sm); background: var(--surface-card); color: var(--text-primary); font-size: 13px; font-family: inherit; }
+.apply-btn { background: var(--brand-teal); color: #fff; border: none; border-radius: var(--radius-sm); padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.apply-btn:hover { opacity: .9; }
+.apply-btn:disabled { opacity: .5; cursor: not-allowed; }
+.live-status { margin-top: 8px; font-size: 13px; color: var(--text-muted); font-style: italic; }
+.live-status.error { color: var(--delta-down-bad); font-style: normal; }
 .callout-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
 .callout { background: var(--brand-teal-light); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.callout-clickable { cursor: pointer; transition: box-shadow .15s, transform .15s; }
+.callout-clickable:hover { box-shadow: 0 2px 10px rgba(0,0,0,.12); transform: translateY(-1px); }
+.callout-clickable::after { content: "View jobs \2192"; display: block; font-size: 11px; font-weight: 600; color: var(--brand-teal); margin-top: 6px; }
 .callout .callout-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-bottom: 4px; }
 .callout .callout-value { font-size: 20px; font-weight: 700; color: var(--brand-teal); }
 .flag-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
@@ -174,6 +184,19 @@ body {
 .flag-item .flag-title { font-weight: 600; font-size: 13.5px; margin-bottom: 3px; }
 .flag-item .flag-body { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
 .app-footer { text-align: center; padding: 20px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 20px; }
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(11,11,11,0.55); z-index: 100; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+.modal-backdrop.open { display: flex; }
+.modal-card { background: var(--surface-card); border-radius: var(--radius); box-shadow: 0 10px 40px rgba(0,0,0,.3); width: 100%; max-width: 920px; max-height: calc(100vh - 80px); display: flex; flex-direction: column; }
+.modal-body .store-table { font-size: 12.5px; }
+.modal-body .store-table td:first-child { white-space: normal; max-width: 220px; }
+.modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--border); }
+.modal-header h3 { margin: 0 0 4px 0; font-size: 16px; }
+.modal-header p { margin: 0; font-size: 12.5px; color: var(--text-muted); }
+.modal-close-btn { background: none; border: none; font-size: 20px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm); }
+.modal-close-btn:hover { background: var(--surface-page); color: var(--text-primary); }
+.modal-body { padding: 14px 22px 22px; overflow-y: auto; }
+.modal-footer-note { padding: 12px 22px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); }
+.modal-status { padding: 30px 22px; text-align: center; font-size: 13px; color: var(--text-muted); }
 svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, sans-serif; }
 .bar-value-label { fill: var(--text-primary); font-weight: 600; }
 </style>
@@ -266,7 +289,17 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <button data-range="7d">7D</button>
         <button data-range="30d" class="active">30D</button>
         <button data-range="90d">90D</button>
+        <button data-range="week">This Week</button>
+        <button data-range="month">This Month</button>
+        <button data-range="quarter">This Quarter</button>
+        <button data-range="year">This Year</button>
+        <button data-range="custom">Custom</button>
       </div>
+      <div class="date-range-custom" id="revSourceCustomRow" style="display:none;">
+        <input type="date" id="revSourceFromInput"> <span>to</span> <input type="date" id="revSourceThroughInput">
+        <button id="revSourceApplyBtn" class="apply-btn">Apply</button>
+      </div>
+      <div id="revSourceLiveStatus" class="live-status" style="display:none;"></div>
     </div>
     <div class="kpi-summary" id="revenueBySourceKpiRow"></div>
     <div class="charts-grid">
@@ -296,8 +329,23 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="kpi-summary" id="revenueKpiRow"></div>
     <div class="section-title">Month-to-Date Financials <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— from ServiceMinder invoices, Aug 1–20, 2026, a proxy for real-time revenue until QuickBooks is reconnected to the right company. Budgeted vs the 2026 annual plan (flat &divide; 12).</span></div>
     <div class="callout-row" id="mtdFinancialsRow"></div>
-    <div class="section-title">Revenue Pacing <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year.</span></div>
+    <div class="section-title">Revenue Pacing <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year. Click "On the Books" to see which jobs are included.</span></div>
+    <div class="controls">
+      <div class="view-toggle" id="revPacingRangeToggle">
+        <button data-range="week">This Week</button>
+        <button data-range="month">This Month</button>
+        <button data-range="quarter">This Quarter</button>
+        <button data-range="year">This Year</button>
+        <button data-range="custom">Custom</button>
+      </div>
+      <div class="date-range-custom" id="revPacingCustomRow" style="display:none;">
+        <input type="date" id="revPacingFromInput"> <span>to</span> <input type="date" id="revPacingThroughInput">
+        <button id="revPacingApplyBtn" class="apply-btn">Apply</button>
+      </div>
+      <div id="revPacingLiveStatus" class="live-status" style="display:none;"></div>
+    </div>
     <div class="callout-row" id="pacingRow"></div>
+    <div class="callout-row" id="pacingCustomRow" style="display:none;"></div>
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Booked Revenue Trend</h3>
@@ -387,6 +435,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <button data-month="apr">Apr</button>
         <button data-month="may">May</button>
         <button data-month="jun" class="active">Jun</button>
+        <button data-month="ytd">YTD</button>
       </div>
     </div>
     <div class="kpi-summary" id="finKpiRow"></div>
@@ -424,7 +473,72 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   Koala Insulation Dashboard &mdash; Patel Insulation LLC &mdash; ServiceMinder live, QuickBooks pending &mdash; tools.sonayagroup.com
 </footer>
 
+<div class="modal-backdrop" id="onBooksModalBackdrop" onclick="if(event.target===this) closeOnTheBooksModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="onBooksModalTitle">
+    <div class="modal-header">
+      <div>
+        <h3 id="onBooksModalTitle">On the Books — Jobs Included</h3>
+        <p id="onBooksModalSubtitle">Accepted, Scheduled, or Invoiced proposals not yet marked Complete</p>
+      </div>
+      <button class="modal-close-btn" onclick="closeOnTheBooksModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="onBooksModalBody"></div>
+    <div class="modal-footer-note" id="onBooksModalFooter"></div>
+  </div>
+</div>
+
 <script>
+/* ---------------- Live ServiceMinder data (Supabase Edge Function) ---------------- */
+// The serviceminder-revenue Edge Function proxies ServiceMinder's Download API so this static
+// dashboard can query arbitrary date ranges instead of only the fixed presets baked into dataStore
+// below. This key is Supabase's public "anon" key — safe to embed client-side; it authenticates to
+// the Edge Function's own JWT check, not to ServiceMinder (the real ServiceMinder API key lives only
+// as a server-side Supabase secret, never sent to the browser). The Edge Function itself needs the
+// SERVICEMINDER_API_KEY / SERVICEMINDER_USER_ID secrets set on the Supabase project before any of
+// this will return real data — until then, live calls fail gracefully with a clear error message
+// and the affected section falls back to its last-known static figures.
+const SM_EDGE_BASE = 'https://vcukhvjwsuaqxgqzotwb.supabase.co/functions/v1/serviceminder-revenue';
+const SM_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
+
+async function callSMEdge(params) {
+  const qs = new URLSearchParams(params).toString();
+  const resp = await fetch(`${SM_EDGE_BASE}?${qs}`, { headers: { Authorization: `Bearer ${SM_ANON_KEY}` } });
+  let body;
+  try { body = await resp.json(); } catch (e) { throw new Error('Unexpected response from the live data service.'); }
+  if (!resp.ok || body.error) throw new Error(body.error || `Live data request failed (HTTP ${resp.status}).`);
+  return body;
+}
+
+// "Today" for calendar-period math (This Week / This Month / etc.) is fixed to match the rest of
+// this static-snapshot dashboard, which was last refreshed 2026-08-20.
+const TODAY_ISO = '2026-08-20';
+function isoDate(d) { return d.toISOString().slice(0, 10); }
+function fmtShortDate(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }); }
+
+/* Calendar-period presets (as opposed to the rolling 7d/30d/90d windows already baked into
+   dataStore): This Week (Mon-today), This Month (1st-today), This Quarter (quarter-start-today),
+   This Year (Jan 1-today). Returns {from, through, label} in the shape callSMEdge expects. */
+function computePresetRange(preset) {
+  const today = new Date(TODAY_ISO + 'T00:00:00Z');
+  const y = today.getUTCFullYear(), m = today.getUTCMonth(), d = today.getUTCDate();
+  let from, label;
+  if (preset === 'week') {
+    const mondayOffset = (today.getUTCDay() + 6) % 7; // days since Monday, Sun counted as 6
+    from = new Date(Date.UTC(y, m, d - mondayOffset));
+    label = `Week of ${fmtShortDate(from)}–${fmtShortDate(today)}`;
+  } else if (preset === 'month') {
+    from = new Date(Date.UTC(y, m, 1));
+    label = `${fmtShortDate(from)}–${fmtShortDate(today)}`;
+  } else if (preset === 'quarter') {
+    from = new Date(Date.UTC(y, Math.floor(m / 3) * 3, 1));
+    label = `Q${Math.floor(m / 3) + 1} ${y}: ${fmtShortDate(from)}–${fmtShortDate(today)}`;
+  } else { // 'year'
+    from = new Date(Date.UTC(y, 0, 1));
+    label = `${y} YTD: ${fmtShortDate(from)}–${fmtShortDate(today)}`;
+  }
+  return { from: isoDate(from), through: TODAY_ISO, label };
+}
+
 /* ---------------- Sample dataStore (to be replaced by live pulls) ---------------- */
 const dataStore = {
   lastUpdated: '2026-08-20T12:00:00',
@@ -447,7 +561,7 @@ const dataStore = {
     leads30d: 109, appts30d: 28, estimatesSent30d: 111,
     openProposals: 75, openProposalsValue: 1384616,
     acceptedAllTime: 150,
-    backlogJobs: 178, backlogValue: 1256275,
+    backlogJobs: 179, backlogValue: 1257724,
   },
   funnelTrend: (() => {
     const days = 14, out = [];
@@ -527,13 +641,62 @@ const dataStore = {
     // i.e. won but not yet marked Complete), pulled from a full ServiceMinder proposal history, 2026-08-20
     // snapshot. Same figure/definition as funnel.backlogValue and pipeline.backlogValue, so all three tabs
     // now agree on this number.
-    onTheBooksValue: 1256275.08, onTheBooksCount: 178,
+    onTheBooksValue: 1257724.08, onTheBooksCount: 179,
     // Budget targets from Pranav's 2026 Budget.xlsx (Total Income line, $2,850,000 annual). The file has no
     // monthly/quarterly breakout, so monthly and quarterly targets here are a flat pro-ration (annual/12,
     // annual/4) — a simplification worth revisiting if the business has meaningful seasonality.
     annualRevenueBudget: 2850000, quarterlyRevenueBudget: 712500,
     mtdRevenueBudget: 237500, mtdCollectedBudget: 237500,
   },
+  // Static fallback for the "On the Books" drill-down modal, pulled 2026-08-20 from the same full-history
+  // ServiceMinder Proposals snapshot as revenue.onTheBooksValue/onTheBooksCount above (Status in Accepted/
+  // Scheduled/Invoiced), sorted by value descending. The modal tries a live pull via the Edge Function first
+  // (report=onthebooks) and falls back to this list if the live call fails (e.g. server secrets not yet set).
+  // Only the top 40 by value are itemized here to keep the file lean; onTheBooksJobsRest summarizes the tail.
+  // Fields: [customer, service, value, status, date (accepted, or created if never accepted), owner/rep].
+  onTheBooksJobs: [
+    ['Avid Hotel (Hospitality Management Services)', 'B2B New Installation', 129995, 'Invoiced', '2025-08-19', 'Ericka Olvera'],
+    ['Amit Bhakta', 'Residential New Installation', 57140, 'Accepted', '2025-04-01', 'Alejandra Guerrero'],
+    ['Francisco Lumbi', 'B2B New Installation', 50802, 'Invoiced', '2025-08-07', 'Mark Aragon'],
+    ['Mario Day', 'Residential Retrofit', 48995, 'Accepted', '2024-08-15', ''],
+    ['Tidal Wave Auto Spa (Project Builders)', 'B2B New Installation', 45931, 'Scheduled', '2026-08-05', 'Frank Emanuel'],
+    ['Paula Jones / Dron Jones', 'Residential New Installation', 30383, 'Scheduled', '2025-10-03', 'Mark Aragon'],
+    ['Little Residence', 'B2B New Installation', 30128, 'Accepted', '2026-08-07', 'Jacob Martin'],
+    ['Christopher Gregory', 'Residential New Installation', 24850, 'Invoiced', '2025-05-19', 'Ivan Marquez'],
+    ['Dustie Shryock', 'Residential New Installation', 22495, 'Accepted', '2025-06-03', 'Mike Jones'],
+    ['Amy Nowell', 'Residential New Installation', 21020, 'Invoiced', '2026-07-30', 'Gabriel Espinosa'],
+    ['Steven Booth', 'Residential Retrofit', 19891, 'Scheduled', '2026-08-14', 'Gabriel Espinosa'],
+    ['Reid Residence', 'B2B New Installation', 17950, 'Invoiced', '2025-09-23', 'Mark Aragon'],
+    ['Parmenides Orpinel', 'Residential New Installation', 16325, 'Scheduled', '2026-07-31', 'Frank Emanuel'],
+    ['Backdoor Construction', 'B2B New Installation', 16185, 'Accepted', '2025-05-22', 'Ericka Olvera'],
+    ['James Blankenship', 'Residential Retrofit', 15919, 'Accepted', '2026-07-20', 'Gabriel Espinosa'],
+    ['Luis Lacquer', 'Residential Retrofit', 15050, 'Accepted', '2024-02-22', ''],
+    ['Modconn LLC', 'Residential Retrofit', 14450, 'Accepted', '2024-06-10', ''],
+    ['Damacio Page', 'B2B Retrofit', 13990, 'Accepted', '2025-07-01', 'Jacob Martin'],
+    ['Connected Construction', 'B2B New Installation', 12995, 'Invoiced', '2025-05-06', 'Alejandra Guerrero'],
+    ['James Armijo', 'Residential Retrofit', 12679, 'Scheduled', '2026-08-11', 'Gabriel Espinosa'],
+    ['David Herman', 'Residential Retrofit', 11823, 'Accepted', '2024-06-07', ''],
+    ['Adam Pehrson', 'Residential Retrofit', 11540, 'Accepted', '2024-05-09', ''],
+    ['Gabriel Griego', 'Residential Retrofit', 11400, 'Accepted', '2023-02-21', ''],
+    ['Danny Richardson', 'Residential Retrofit', 11374, 'Scheduled', '2026-08-18', 'Mike Jones'],
+    ['Drew Garcia', 'Residential New Installation', 11349, 'Accepted', '2026-01-09', 'Christopher Williams'],
+    ['Leef Crawford', 'Residential Retrofit', 11290, 'Accepted', '2025-01-07', ''],
+    ['Andrew Sanchez', 'Residential Retrofit', 11105, 'Invoiced', '2025-02-07', 'Jacob Martin'],
+    ['Sullivan (Mesa Del Sol)', 'B2B New Installation', 11050, 'Invoiced', '2025-11-05', 'Jacob Martin'],
+    ['RJS Construction Services', 'B2B New Installation', 10719, 'Invoiced', '2025-03-19', 'Ericka Olvera'],
+    ['6821 Quivira', 'B2B New Installation', 10355, 'Scheduled', '2026-08-04', 'Gabriel Espinosa'],
+    ['Leslie Watson', 'Residential Retrofit', 10011, 'Scheduled', '2026-06-23', 'Gabriel Espinosa'],
+    ['Stephen Gnerich', 'Residential Retrofit', 9770, 'Scheduled', '2026-08-19', 'Gabriel Espinosa'],
+    ['Steve Anderson', 'Residential New Installation', 9715, 'Accepted', '2025-11-11', 'Christopher Williams'],
+    ['Michael Labrake', 'Residential Retrofit', 9500, 'Accepted', '2025-01-27', ''],
+    ['Steven Warren', 'Residential Retrofit', 9134, 'Accepted', '2024-08-21', ''],
+    ['Christopher Quarles', 'Residential Retrofit', 8770, 'Scheduled', '2026-08-10', 'Frank Emanuel'],
+    ['2127 Rail Line', 'B2B New Installation', 8602, 'Scheduled', '2026-07-22', 'Mark Aragon'],
+    ['Murphy Residence', 'B2B New Installation', 8229, 'Invoiced', '2026-08-05', 'Mark Aragon'],
+    ['Mike Waller', 'Residential Retrofit', 8200, 'Accepted', '2023-05-25', ''],
+    ['Ed White', 'B2B New Installation', 8111, 'Accepted', '2025-07-23', 'Mike Jones'],
+  ],
+  onTheBooksJobsRest: { count: 139, value: 438504.93 },
   revenueTrend: [
     { month: 'Mar', revenue: 318400 }, { month: 'Apr', revenue: 356900 }, { month: 'May', revenue: 389100 },
     { month: 'Jun', revenue: 421700 }, { month: 'Jul', revenue: 447300 }, { month: 'Aug', revenue: 402200 },
@@ -578,7 +741,7 @@ const dataStore = {
   // backlogJobs/backlogValue refreshed 2026-08-20 alongside funnel.backlogJobs — same Proposals-Kind pull, same
   // definition (Status in Accepted/Scheduled/Invoiced), so this figure now matches the Revenue tab's "On the
   // Books" pacing figure instead of diverging from it.
-  pipeline: { openEstimates: 75, pipelineValue: 1384616, apptsNext7: 29, backlogJobs: 178, backlogValue: 1256275 },
+  pipeline: { openEstimates: 75, pipelineValue: 1384616, apptsNext7: 29, backlogJobs: 179, backlogValue: 1257724 },
   upcomingAppts: [
     { date: 'Thu Aug 20, 8:00a',  customer: 'Amy Nowell',                           rep: 'Jorge Gonzalez',          type: 'Residential New Installation' },
     { date: 'Thu Aug 20, 8:00a',  customer: 'Murphy Residence — Twilight Homes',    rep: 'Mark Jr. Aragon',         type: 'B2B New Installation' },
@@ -698,9 +861,11 @@ function calloutTile(label, value, budget) {
 }
 
 /* Variant of calloutTile that takes a plain sub-line instead of a budget comparison (e.g. a count, or "no
-   period target applies"). */
-function calloutTileInfo(label, value, subText) {
-  return `<div class="callout"><div class="callout-label">${label}</div><div class="callout-value">${value}</div><div class="kpi-delta neutral" style="opacity:.75;">${subText}</div></div>`;
+   period target applies"). Pass onClick (a JS expression string, e.g. an onclick handler body) to make the
+   tile a clickable drill-down — used by "On the Books" to show which jobs are included. */
+function calloutTileInfo(label, value, subText, onClick) {
+  const clickAttrs = onClick ? ` class="callout callout-clickable" onclick="${onClick}" role="button" tabindex="0"` : ' class="callout"';
+  return `<div${clickAttrs}><div class="callout-label">${label}</div><div class="callout-value">${value}</div><div class="kpi-delta neutral" style="opacity:.75;">${subText}</div></div>`;
 }
 
 /* Pace sentiment: compares "% of target reached" to "% of the period elapsed". Ahead of or on pace -> good;
@@ -901,15 +1066,155 @@ function renderRevenueTab() {
       { target: r.quarterlyRevenueBudget, actual: r.qtdInvoiced, sentiment: paceSentiment(qtdPct, QTD_ELAPSED_PCT) }),
     calloutTile('YTD Revenue', fmtMoneyCompact(r.ytdInvoiced),
       { target: r.annualRevenueBudget, actual: r.ytdInvoiced, sentiment: paceSentiment(ytdPct, YTD_ELAPSED_PCT) }),
-    calloutTileInfo('On the Books', fmtMoneyCompact(r.onTheBooksValue), r.onTheBooksCount + ' accepted proposals, not yet complete'),
+    calloutTileInfo('On the Books', fmtMoneyCompact(r.onTheBooksValue), r.onTheBooksCount + ' accepted proposals, not yet complete', 'openOnTheBooksModal()'),
     calloutTile('Projected Year-End', fmtMoneyCompact(projectedYearEnd),
       { target: r.annualRevenueBudget, actual: projectedYearEnd, sentiment: paceSentiment(projectedPct, 100) }),
   ].join('');
+
+  // Custom date-range pacing tile (This Week/Month/Quarter/Year/Custom) — populated live via the Edge
+  // Function's report=pacing when the user picks a range; hidden otherwise.
+  const customRowEl = document.getElementById('pacingCustomRow');
+  const statusEl = document.getElementById('revPacingLiveStatus');
+  if (revPacingCustom) {
+    customRowEl.style.display = 'grid';
+    if (revPacingCustom.loading) {
+      statusEl.textContent = `Loading live ServiceMinder data for ${revPacingCustom.label}…`;
+      statusEl.className = 'live-status';
+      statusEl.style.display = 'block';
+      customRowEl.innerHTML = '';
+    } else if (revPacingCustom.error) {
+      statusEl.textContent = `Live data unavailable: ${revPacingCustom.error}`;
+      statusEl.className = 'live-status error';
+      statusEl.style.display = 'block';
+      customRowEl.innerHTML = '';
+    } else {
+      statusEl.style.display = 'none';
+      const rangeDays = Math.round((new Date(revPacingCustom.through) - new Date(revPacingCustom.from)) / 86400000) + 1;
+      const proratedBudget = r.annualRevenueBudget * (rangeDays / 365);
+      const pct = 100 * revPacingCustom.revenue / proratedBudget;
+      const elapsedPct = 100 * rangeDays / rangeDays; // the range is, by definition, fully "elapsed" once chosen
+      customRowEl.innerHTML = [
+        calloutTile(`${revPacingCustom.label} Revenue`, fmtMoneyCompact(revPacingCustom.revenue),
+          { target: proratedBudget, actual: revPacingCustom.revenue, sentiment: paceSentiment(pct, elapsedPct) }),
+        calloutTileInfo('Invoices in Range', revPacingCustom.invoiceCount, revPacingCustom.contactCount + ' distinct customers'),
+        calloutTileInfo('Prorated Budget', fmtMoneyCompact(proratedBudget), `${rangeDays} days &times; annual budget &divide; 365`),
+      ].join('');
+    }
+  } else {
+    customRowEl.style.display = 'none';
+    statusEl.style.display = 'none';
+  }
 
   renderLineChart('chartRevenueTrend', [
     { name: 'Revenue', color: 'var(--brand-teal)', points: dataStore.revenueTrend.map(d => ({ x: d.month, y: d.revenue, label: d.month })) },
   ]);
 }
+let revPacingCustom = null;
+
+async function loadLivePacingRange(key, from, through, label) {
+  revPacingCustom = { label, from, through, loading: true };
+  renderRevenueTab();
+  try {
+    const result = await callSMEdge({ report: 'pacing', from, through });
+    revPacingCustom = { label, from, through, loading: false, revenue: result.revenue, invoiceCount: result.invoiceCount, contactCount: result.contactCount };
+  } catch (err) {
+    revPacingCustom = { label, from, through, loading: false, error: err.message };
+  }
+  renderRevenueTab();
+}
+
+/* ---------------- On the Books drill-down modal ---------------- */
+/* Shows which jobs make up the "On the Books" figure (Status: Accepted, Scheduled, or Invoiced).
+   Tries a live pull from the Edge Function first (always the full, current list); if that's unavailable
+   (e.g. the ServiceMinder secrets aren't configured on the server yet) it falls back to the static
+   dataStore.onTheBooksJobs snapshot (top 40 by value, pulled 2026-08-20) with a note on how many more exist. */
+function openOnTheBooksModal() {
+  document.getElementById('onBooksModalBackdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  renderOnTheBooksModalLoading();
+  loadOnTheBooksModalData();
+}
+
+function closeOnTheBooksModal() {
+  document.getElementById('onBooksModalBackdrop').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('onBooksModalBackdrop').classList.contains('open')) {
+    closeOnTheBooksModal();
+  }
+});
+
+function renderOnTheBooksModalLoading() {
+  document.getElementById('onBooksModalBody').innerHTML = `<div class="modal-status">Loading live job list from ServiceMinder&hellip;</div>`;
+  document.getElementById('onBooksModalFooter').innerHTML = '';
+}
+
+async function loadOnTheBooksModalData() {
+  try {
+    const result = await callSMEdge({ report: 'onthebooks' });
+    if (!document.getElementById('onBooksModalBackdrop').classList.contains('open')) return; // closed while loading
+    const jobs = (result.jobs || []).map(j => [j.name, j.service, j.value, j.status, j.acceptedDate, j.owner]);
+    renderOnTheBooksModalTable(jobs, { source: 'live', count: result.count, totalValue: result.totalValue });
+  } catch (err) {
+    if (!document.getElementById('onBooksModalBackdrop').classList.contains('open')) return;
+    const r = dataStore.revenue, rest = dataStore.onTheBooksJobsRest;
+    renderOnTheBooksModalTable(dataStore.onTheBooksJobs, { source: 'static', count: r.onTheBooksCount, totalValue: r.onTheBooksValue, restCount: rest.count, restValue: rest.value, error: err.message });
+  }
+}
+
+function renderOnTheBooksModalTable(jobs, meta) {
+  const rows = jobs.map(j => {
+    const [name, service, value, status, date, owner] = j;
+    return `<tr>
+      <td>${name || '&mdash;'}</td>
+      <td>${service || '&mdash;'}</td>
+      <td style="text-align:right;">${fmtMoney(value)}</td>
+      <td><span class="status-pill">${status || '&mdash;'}</span></td>
+      <td>${date || '&mdash;'}</td>
+      <td>${owner || '<span style="color:var(--text-muted);">&mdash;</span>'}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('onBooksModalBody').innerHTML = `
+    <div class="store-table-wrap" style="margin-bottom:0;">
+      <table class="store-table">
+        <thead><tr><th>Customer</th><th>Service</th><th style="text-align:right;">Value</th><th>Status</th><th>Date</th><th>Rep</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6">No jobs found.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  const footerEl = document.getElementById('onBooksModalFooter');
+  if (meta.source === 'live') {
+    footerEl.innerHTML = `Live from ServiceMinder just now &mdash; all ${meta.count} jobs shown, totaling ${fmtMoney(meta.totalValue)}.`;
+  } else {
+    const moreLine = meta.restCount ? ` Showing the top ${jobs.length} by value; ${meta.restCount} more not itemized here total ${fmtMoney(meta.restValue)}.` : '';
+    footerEl.innerHTML = `Live pull unavailable (server credentials not configured yet), showing a snapshot from 2026-08-20 &mdash; ${meta.count} jobs, ${fmtMoney(meta.totalValue)} total.${moreLine}`;
+  }
+}
+
+document.querySelectorAll('#revPacingRangeToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const preset = btn.dataset.range;
+    document.querySelectorAll('#revPacingRangeToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const customRow = document.getElementById('revPacingCustomRow');
+    if (preset === 'custom') {
+      customRow.style.display = 'flex';
+      return; // wait for Apply
+    }
+    customRow.style.display = 'none';
+    const { from, through, label } = computePresetRange(preset);
+    loadLivePacingRange(preset, from, through, label);
+  });
+});
+
+document.getElementById('revPacingApplyBtn').addEventListener('click', () => {
+  const from = document.getElementById('revPacingFromInput').value;
+  const through = document.getElementById('revPacingThroughInput').value;
+  if (!from || !through) return;
+  if (from > through) { alert('The start date must be on or before the end date.'); return; }
+  loadLivePacingRange('custom', from, through, `${from} – ${through}`);
+});
 // Elapsed-time constants as of the Aug 20, 2026 data pull: MTD = 20/31 days of August; QTD = 51/92 days of
 // Q3 (Jul 1 - Sep 30); YTD = 232/365 days of 2026.
 const MTD_ELAPSED_PCT = 100 * 20 / 31;
@@ -938,33 +1243,52 @@ function renderLeadSourcesTab() {
     return `<tr><td>${s.source}</td><td>${s.leads}</td><td>${fmtPct(pct)}</td></tr>`;
   }).join('');
 
-  const revRange = dataStore.revenueBySourceByRange[revSourceRange];
-  const revSources = [...revRange.sources].sort((a, b) => b.revenue - a.revenue);
+  const revRange = dataStore.revenueBySourceByRange[revSourceRange] || { label: '—', sources: [] };
+
+  const statusEl = document.getElementById('revSourceLiveStatus');
+  if (revRange.loading) {
+    statusEl.textContent = `Loading live ServiceMinder data for ${revRange.label}…`;
+    statusEl.className = 'live-status';
+    statusEl.style.display = 'block';
+  } else if (revRange.error) {
+    statusEl.textContent = `Live data unavailable: ${revRange.error}`;
+    statusEl.className = 'live-status error';
+    statusEl.style.display = 'block';
+  } else {
+    statusEl.style.display = 'none';
+  }
+
+  const revSources = [...(revRange.sources || [])].sort((a, b) => b.revenue - a.revenue);
   const totalAttributedRevenue = revSources.reduce((a, s) => a + s.revenue, 0);
   const totalAttributedContacts = revSources.reduce((a, s) => a + s.contacts, 0);
-  const topRevSource = revSources[0];
-  const rangeLabel = { '7d': '7d', '30d': '30d', '90d': '90d' }[revSourceRange];
+  const topRevSource = revSources[0] || { source: '—', revenue: 0 };
+  const isFixedPreset = ['7d', '30d', '90d'].includes(revSourceRange);
 
   document.getElementById('revenueBySourceKpiRow').innerHTML = [
-    kpiTile(`Attributed Revenue (${rangeLabel})`, fmtMoneyCompact(totalAttributedRevenue)),
+    kpiTile(`Attributed Revenue (${revRange.label})`, fmtMoneyCompact(totalAttributedRevenue)),
     kpiTile('Revenue-Attributed Contacts', totalAttributedContacts),
-    kpiTile('Top Revenue Source', topRevSource.source, fmtMoneyCompact(topRevSource.revenue), 'good'),
-    kpiTile('Revenue / Attributed Contact', fmtMoney(totalAttributedRevenue / totalAttributedContacts)),
+    kpiTile('Top Revenue Source', topRevSource.source, topRevSource.revenue ? fmtMoneyCompact(topRevSource.revenue) : null, 'good'),
+    kpiTile('Revenue / Attributed Contact', totalAttributedContacts ? fmtMoney(totalAttributedRevenue / totalAttributedContacts) : '—'),
   ].join('');
 
-  renderBarChart('chartRevenueBySource', revSources.map((s, i) => ({ label: s.source.split(' ')[0], value: s.revenue, color: `var(--cat-${(i % 8) + 1})` })));
+  renderBarChart('chartRevenueBySource', revSources.length
+    ? revSources.map((s, i) => ({ label: s.source.split(' ')[0], value: s.revenue, color: `var(--cat-${(i % 8) + 1})` }))
+    : [{ label: 'No data', value: 0, color: 'var(--cat-1)' }]);
 
-  document.getElementById('revenueBySourceTbody').innerHTML = revSources.map(s => {
+  document.getElementById('revenueBySourceTbody').innerHTML = revSources.length ? revSources.map(s => {
     const avgPerInvoice = s.invoices > 0 ? fmtMoney(s.revenue / s.invoices) : '&mdash;';
     return `<tr><td>${s.source}</td><td>${s.contacts}</td><td>${s.invoices}</td><td>${fmtMoney(s.revenue)}</td><td>${avgPerInvoice}</td></tr>`;
-  }).join('');
+  }).join('') : `<tr><td colspan="5" style="color:var(--text-muted);text-align:center;">${revRange.loading ? 'Loading…' : 'No data for this range'}</td></tr>`;
 
   document.getElementById('revenueBySourceSubtitle').textContent = `${revRange.label} — invoiced revenue attributed to source`;
   document.getElementById('revenueBySourceTableTitle').textContent = `Revenue by Source Detail (${revRange.label})`;
   const compareNote = revSourceRange === '30d'
     ? ` — a different, smaller base than the 100 total leads above, which counts every new contact in the same 30-day window regardless of whether they've bought yet.`
     : '. Note: the "Leads by Source" volume section above is a fixed 30-day window and does not change with this toggle.';
-  document.getElementById('revSourceBannerText').textContent = `From ServiceMinder's "Revenue by Lead Source" report (Reports > Revenue by Lead Source), Invoice mode, ${revRange.label} window. This counts the ${totalAttributedContacts} contacts with invoiced revenue in the window${compareNote}`;
+  const sourceDesc = isFixedPreset
+    ? `From ServiceMinder's "Revenue by Lead Source" report (Reports > Revenue by Lead Source), Invoice mode, ${revRange.label} window.`
+    : `Live pull from ServiceMinder's invoices Download API for ${revRange.label}, grouped by Lead Source (same methodology as the 7D/30D/90D report, validated to the penny).`;
+  document.getElementById('revSourceBannerText').textContent = `${sourceDesc} This counts the ${totalAttributedContacts} contacts with invoiced revenue in the window${compareNote}`;
 }
 
 /* ---------------- Render: Reps tab ---------------- */
@@ -1025,9 +1349,32 @@ let repRevenueRange = '30d';
 const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
 const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
 
+/* Synthetic "YTD" entry: sums every real monthly P&L on file (Jan-Jun 2026 — Jul is omitted since no
+   report has been provided for it, matching how the trend chart already treats missing months). This is
+   explicitly a sum of the individual monthly statements, NOT a QuickBooks-native cumulative report — see
+   the critical flag below on why those two don't currently agree (a $189.5K unreconciled gap through May). */
+function computeYtdSummary() {
+  const months = dataStore.financial.months;
+  const presentMonths = dataStore.financial.monthOrder.filter(m => months[m]);
+  const sum = (key) => presentMonths.reduce((a, m) => a + months[m][key], 0);
+  const revenue = sum('revenue'), cogs = sum('cogs'), grossProfit = sum('grossProfit'), opex = sum('opex'), netIncome = sum('netIncome');
+  const bucketKeys = ['materials', 'fieldLabor', 'vehicleFuel', 'marketing', 'admin'];
+  const buckets = Object.fromEntries(bucketKeys.map(k => [k, presentMonths.reduce((a, m) => a + months[m].buckets[k], 0)]));
+  const firstLabel = months[presentMonths[0]].label.split(' ')[0];
+  const lastLabel = months[presentMonths[presentMonths.length - 1]].label.split(' ')[0];
+  return {
+    label: `${firstLabel}–${lastLabel} 2026 YTD — sum of monthly P&Ls`,
+    revenue, cogs, grossProfit,
+    grossMargin: revenue ? (grossProfit / revenue * 100) : 0,
+    opex, netIncome,
+    netMargin: revenue ? (netIncome / revenue * 100) : 0,
+    buckets,
+  };
+}
+
 function renderFinancialTab() {
   const months = dataStore.financial.months;
-  const f = months[finMonth];
+  const f = finMonth === 'ytd' ? computeYtdSummary() : months[finMonth];
   const bucketLabels = { materials: 'Materials', fieldLabor: 'Field Labor', vehicleFuel: 'Vehicle & Fuel', marketing: 'Marketing / Lead Gen', admin: 'Admin & Overhead' };
 
   // Flags
@@ -1105,13 +1452,50 @@ document.querySelectorAll('#finMonthToggle button').forEach(btn => {
   });
 });
 
+/* Live fetch for lead-source revenue, used by the This Week/Month/Quarter/Year/Custom buttons (the
+   7D/30D/90D presets stay instant/static — no network call needed). Populates a "live" slot in
+   dataStore.revenueBySourceByRange so the existing render code works unchanged. */
+async function loadLiveLeadSourceRange(key, from, through, label) {
+  dataStore.revenueBySourceByRange[key] = { label, sources: [], loading: true };
+  revSourceRange = key;
+  renderLeadSourcesTab();
+  try {
+    const result = await callSMEdge({ report: 'leadsource', from, through });
+    dataStore.revenueBySourceByRange[key] = { label, sources: result.sources || [], loading: false };
+  } catch (err) {
+    dataStore.revenueBySourceByRange[key] = { label, sources: [], loading: false, error: err.message };
+  }
+  if (revSourceRange === key) renderLeadSourcesTab();
+}
+
 document.querySelectorAll('#revSourceRangeToggle button').forEach(btn => {
   btn.addEventListener('click', () => {
+    const preset = btn.dataset.range;
     document.querySelectorAll('#revSourceRangeToggle button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    revSourceRange = btn.dataset.range;
-    renderLeadSourcesTab();
+    const customRow = document.getElementById('revSourceCustomRow');
+    if (preset === 'custom') {
+      customRow.style.display = 'flex';
+      return; // wait for the Apply button
+    }
+    customRow.style.display = 'none';
+    if (['7d', '30d', '90d'].includes(preset)) {
+      revSourceRange = preset;
+      renderLeadSourcesTab();
+      return;
+    }
+    const { from, through, label } = computePresetRange(preset);
+    loadLiveLeadSourceRange(preset, from, through, label);
   });
+});
+
+document.getElementById('revSourceApplyBtn').addEventListener('click', () => {
+  const from = document.getElementById('revSourceFromInput').value;
+  const through = document.getElementById('revSourceThroughInput').value;
+  if (!from || !through) return;
+  if (from > through) { alert('The start date must be on or before the end date.'); return; }
+  const label = `${from} – ${through}`;
+  loadLiveLeadSourceRange('custom', from, through, label);
 });
 
 document.querySelectorAll('#repRevenueRangeToggle button').forEach(btn => {

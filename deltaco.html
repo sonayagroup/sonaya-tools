@@ -504,11 +504,70 @@ body {
   float: right; background: none; border: none; font-size: 24px;
   color: var(--text-muted); cursor: pointer; padding: 4px;
 }
+/* Photo upload */
+.inspect-photos-section { margin-top: 16px; }
+.inspect-photos-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+.photo-upload-area {
+  border: 2px dashed var(--border); border-radius: var(--radius); padding: 20px;
+  text-align: center; cursor: pointer; transition: border-color var(--transition);
+  background: var(--surface-page);
+}
+.photo-upload-area:hover { border-color: var(--brand-red); }
+.photo-upload-area input[type="file"] { display: none; }
+.photo-upload-icon { font-size: 32px; margin-bottom: 8px; }
+.photo-upload-text { font-size: 13px; color: var(--text-muted); }
+.photo-previews {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px; margin-top: 12px;
+}
+.photo-preview {
+  position: relative; border-radius: var(--radius-sm); overflow: hidden;
+  aspect-ratio: 1; background: var(--surface-page);
+}
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.photo-preview .remove-photo {
+  position: absolute; top: 4px; right: 4px; width: 24px; height: 24px;
+  border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff;
+  border: none; font-size: 14px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; line-height: 1;
+}
+/* Email success overlay */
+.inspect-success-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  z-index: 160; display: flex; align-items: center; justify-content: center;
+}
+.inspect-success-card {
+  background: var(--surface-card); border-radius: var(--radius);
+  padding: 24px; max-width: 400px; width: 90%; text-align: center;
+  animation: slideUp 200ms ease;
+}
+.inspect-success-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--status-good); }
+.inspect-success-card p { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; }
+.inspect-success-card .email-btn {
+  display: inline-block; padding: 12px 24px; background: var(--brand-red); color: #fff;
+  border: none; border-radius: var(--radius); font-size: 15px; font-weight: 600;
+  cursor: pointer; text-decoration: none; margin-bottom: 8px; width: 100%;
+}
+.inspect-success-card .email-btn:hover { opacity: 0.9; }
+.inspect-success-card .close-btn {
+  display: block; padding: 10px; background: none; border: 1px solid var(--border);
+  border-radius: var(--radius); font-size: 14px; color: var(--text-secondary);
+  cursor: pointer; width: 100%; margin-top: 8px;
+}
+/* Detail photos */
+.detail-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 12px; }
+.detail-photos img { width: 100%; border-radius: var(--radius-sm); cursor: pointer; }
+.photo-lightbox {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 200;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.photo-lightbox img { max-width: 95%; max-height: 95%; object-fit: contain; }
 @media (max-width: 600px) {
   .inspect-container { padding: 12px 8px; }
   .inspect-toggle button { padding: 8px 12px; }
   .tab-bar { overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
   .tab-btn { padding: 12px 14px; font-size: 13px; }
+  .photo-previews { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
 }
 </style>
 </head>
@@ -956,6 +1015,16 @@ body {
         <textarea id="inspectActions" placeholder="What needs to be addressed..."></textarea>
         <label>Additional Comments</label>
         <textarea id="inspectComments" placeholder="Any other observations..."></textarea>
+      </div>
+
+      <div class="inspect-photos-section">
+        <h3>Photos</h3>
+        <div class="photo-upload-area" id="photoUploadArea" onclick="document.getElementById('photoFileInput').click()">
+          <input type="file" id="photoFileInput" accept="image/*" multiple capture="environment" onchange="handlePhotoSelect(event)">
+          <div class="photo-upload-icon">&#128247;</div>
+          <div class="photo-upload-text">Tap to take a photo or choose from gallery</div>
+        </div>
+        <div class="photo-previews" id="photoPreviews"></div>
       </div>
 
       <button class="inspect-submit" id="inspectSubmit">Submit Visit</button>
@@ -4317,10 +4386,19 @@ async function submitInspection() {
     });
     if (!itemRes.ok) throw new Error('Failed to save items: ' + itemRes.status);
 
-    showInspectToast('Visit saved successfully!');
+    // Upload photos if any
+    if (pendingPhotos.length > 0) {
+      btn.textContent = 'Uploading photos...';
+      await uploadPhotosToSupabase(inspection.id);
+    }
+
+    // Show success overlay with email option
+    showSuccessOverlay(body, score, storeId);
 
     // Reset form
     inspectState.responses = {};
+    pendingPhotos.length = 0;
+    renderPhotoPreviews();
     document.getElementById('inspectMIC').value = '';
     document.getElementById('inspectActions').value = '';
     document.getElementById('inspectComments').value = '';
@@ -4385,12 +4463,14 @@ async function loadInspectHistory() {
 
 async function showInspectDetail(inspId) {
   try {
-    const [inspRes, itemsRes] = await Promise.all([
+    const [inspRes, itemsRes, photosRes] = await Promise.all([
       sbFetch('dt_store_inspections?id=eq.' + inspId),
       sbFetch('dt_inspection_items?inspection_id=eq.' + inspId + '&order=category,item_key'),
+      sbFetch('dt_inspection_photos?inspection_id=eq.' + inspId + '&order=created_at'),
     ]);
     const [insp] = await inspRes.json();
     const items = await itemsRes.json();
+    const photos = await photosRes.json();
     if (!insp) return;
 
     const store = STORES.find(s => s.id === String(insp.store_id));
@@ -4429,12 +4509,148 @@ async function showInspectDetail(inspId) {
       ${insp.mic_name ? '<div style="margin-top:16px;"><strong style="font-size:13px;">MIC:</strong> <span style="font-size:13px;">' + insp.mic_name + '</span></div>' : ''}
       ${insp.action_steps ? '<div style="margin-top:8px;"><strong style="font-size:13px;">Action Steps:</strong><p style="font-size:13px;color:var(--text-secondary);margin-top:4px;white-space:pre-wrap;">' + insp.action_steps + '</p></div>' : ''}
       ${insp.additional_comments ? '<div style="margin-top:8px;"><strong style="font-size:13px;">Comments:</strong><p style="font-size:13px;color:var(--text-secondary);margin-top:4px;white-space:pre-wrap;">' + insp.additional_comments + '</p></div>' : ''}
+      ${photos.length > 0 ? '<div style="margin-top:16px;"><strong style="font-size:13px;">Photos (' + photos.length + '):</strong><div class="detail-photos">' + photos.map(p => '<img src="' + getPhotoPublicUrl(p.file_path) + '" alt="' + (p.file_name || 'Photo') + '" onclick="openPhotoLightbox(this.src)">').join('') + '</div></div>' : ''}
     </div>`;
     document.body.appendChild(overlay);
   } catch (e) {
     console.error(e);
     showInspectToast('Failed to load visit details');
   }
+}
+
+// --- Photo upload ---
+const pendingPhotos = []; // { file, previewUrl }
+
+function handlePhotoSelect(e) {
+  const files = Array.from(e.target.files || []);
+  files.forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const previewUrl = URL.createObjectURL(file);
+    pendingPhotos.push({ file, previewUrl });
+  });
+  renderPhotoPreviews();
+  e.target.value = ''; // allow re-selecting same file
+}
+
+function renderPhotoPreviews() {
+  const container = document.getElementById('photoPreviews');
+  container.innerHTML = pendingPhotos.map((p, i) =>
+    `<div class="photo-preview">
+      <img src="${p.previewUrl}" alt="Photo ${i + 1}">
+      <button class="remove-photo" onclick="removePhoto(${i})">&times;</button>
+    </div>`
+  ).join('');
+}
+
+function removePhoto(idx) {
+  URL.revokeObjectURL(pendingPhotos[idx].previewUrl);
+  pendingPhotos.splice(idx, 1);
+  renderPhotoPreviews();
+}
+
+async function uploadPhotosToSupabase(inspectionId) {
+  const uploaded = [];
+  for (const p of pendingPhotos) {
+    const ext = p.file.name.split('.').pop() || 'jpg';
+    const path = inspectionId + '/' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+    const res = await fetch(SUPABASE_URL + '/storage/v1/object/inspection-photos/' + path, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': p.file.type,
+      },
+      body: p.file,
+    });
+    if (res.ok) {
+      uploaded.push({ file_path: path, file_name: p.file.name });
+    }
+  }
+  // Save photo records to dt_inspection_photos
+  if (uploaded.length > 0) {
+    const rows = uploaded.map(u => ({
+      inspection_id: inspectionId,
+      file_path: u.file_path,
+      file_name: u.file_name,
+    }));
+    await sbFetch('dt_inspection_photos', {
+      method: 'POST',
+      body: JSON.stringify(rows),
+    });
+  }
+  return uploaded;
+}
+
+function getPhotoPublicUrl(filePath) {
+  return SUPABASE_URL + '/storage/v1/object/public/inspection-photos/' + filePath;
+}
+
+// --- Email to GM ---
+function getGmEmail(storeId) {
+  return storeId + '@sonayagroup.com';
+}
+
+function buildEmailBody(inspection, score, storeId) {
+  const store = STORES.find(s => s.id === String(storeId));
+  const storeName = store ? store.name + ' (' + store.id + ')' : 'Store ' + storeId;
+  const pct = score.max > 0 ? Math.round(score.earned / score.max * 100) : 0;
+  const date = inspection.inspection_date;
+
+  let body = 'STORE VISIT CHECKLIST REPORT\n';
+  body += '============================\n\n';
+  body += 'Store: ' + storeName + '\n';
+  body += 'Date: ' + date + '\n';
+  body += 'Inspector: ' + inspection.inspector_name + '\n';
+  body += 'Overall Score: ' + score.earned + '/' + score.max + ' (' + pct + '%)\n\n';
+
+  INSPECT_CHECKLIST.forEach(cat => {
+    const cs = score.catScores[cat.category];
+    const catPct = cs.max > 0 ? Math.round(cs.earned / cs.max * 100) : 0;
+    body += cat.title.toUpperCase() + ': ' + cs.earned + '/' + cs.max + ' (' + catPct + '%)\n';
+    cat.items.forEach(item => {
+      const val = inspectState.responses[item.key];
+      const mark = val === true ? '[YES]' : val === false ? '[NO]' : '[--]';
+      body += '  ' + mark + ' ' + item.text + ' (' + item.pts + 'pts)\n';
+    });
+    body += '\n';
+  });
+
+  if (inspection.mic_name) body += 'MIC: ' + inspection.mic_name + '\n';
+  if (inspection.action_steps) body += '\nAction Steps:\n' + inspection.action_steps + '\n';
+  if (inspection.additional_comments) body += '\nComments:\n' + inspection.additional_comments + '\n';
+
+  return body;
+}
+
+function showSuccessOverlay(inspection, score, storeId) {
+  const store = STORES.find(s => s.id === String(storeId));
+  const storeName = store ? store.name : 'Store ' + storeId;
+  const gmEmail = getGmEmail(storeId);
+  const pct = score.max > 0 ? Math.round(score.earned / score.max * 100) : 0;
+  const subject = encodeURIComponent('Store Visit Report - ' + storeName + ' - ' + inspection.inspection_date);
+  const emailBody = encodeURIComponent(buildEmailBody(inspection, score, storeId));
+  const mailtoUrl = 'mailto:' + gmEmail + '?subject=' + subject + '&body=' + emailBody;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'inspect-success-overlay';
+  overlay.innerHTML = `<div class="inspect-success-card">
+    <h3>Visit Saved!</h3>
+    <p>${storeName} &mdash; ${pct}% (${score.earned}/${score.max})</p>
+    <a class="email-btn" href="${mailtoUrl}" onclick="setTimeout(() => this.closest('.inspect-success-overlay').remove(), 500)">
+      Email Report to GM (${gmEmail})
+    </a>
+    <button class="close-btn" onclick="this.closest('.inspect-success-overlay').remove()">Done</button>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+// Lightbox for photos in detail view
+function openPhotoLightbox(src) {
+  const lb = document.createElement('div');
+  lb.className = 'photo-lightbox';
+  lb.onclick = () => lb.remove();
+  lb.innerHTML = '<img src="' + src + '">';
+  document.body.appendChild(lb);
 }
 
 function initInspections() {

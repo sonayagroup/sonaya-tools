@@ -394,6 +394,7 @@ async function loadAll(){
     load('dt_notification_recipients','name',true),
     load('dt_suppliers','company_name',true),
     load('dt_wo_receipts','created_at',false),
+    load('dt_wo_assignees','created_at',false),
   ]);
 }
 async function upsert(table, row, id){
@@ -418,6 +419,9 @@ function locStore(id){ const l=(cache.dt_locations||[]).find(l=>l.id===id); retu
 function eqName(id){ return (cache.dt_equipment||[]).find(e=>e.id===id)?.name || '—'; }
 function vendName(id){ return (cache.dt_vendors||[]).find(v=>v.id===id)?.company_name || '—'; }
 function teamName(id){ return (cache.dt_team_members||[]).find(t=>t.id===id)?.name || '—'; }
+function woAssignees(woId){ return (cache.dt_wo_assignees||[]).filter(a=>a.work_order_id===woId).map(a=>a.team_member_id); }
+function woAssigneeNames(woId){ const ids=woAssignees(woId); if(!ids.length) return '—'; return ids.map(id=>teamName(id)).join(', '); }
+function teamCheckboxes(woId){ const sel=woAssignees(woId); return (cache.dt_team_members||[]).filter(t=>t.is_active).map(t=>`<label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer"><input type="checkbox" class="wo-assignee-cb" value="${t.id}" ${sel.includes(t.id)?'checked':''}> ${t.name}</label>`).join(''); }
 function catName(id){ return (cache.dt_equipment_categories||[]).find(c=>c.id===id)?.name || '—'; }
 function locOptions(sel=''){ return '<option value="">Select location</option>'+(cache.dt_locations||[]).filter(l=>l.is_active).map(l=>`<option value="${l.id}" ${l.id===sel?'selected':''}>#${l.store_number} — ${l.name}</option>`).join(''); }
 function eqOptions(sel='',locId=''){ let eq=cache.dt_equipment||[]; if(locId)eq=eq.filter(e=>e.location_id===locId); return '<option value="">Select equipment</option>'+eq.map(e=>`<option value="${e.id}" ${e.id===sel?'selected':''}>${e.name} (${locStore(e.location_id)})</option>`).join(''); }
@@ -620,10 +624,15 @@ function renderDashboard(){
 
   $('#content').innerHTML = `
     <div class="stats-row">
-      <div class="stat-tile ${emergWO.length?'urgent':''}">
+      <div class="stat-tile">
         <span class="label">Open Work Orders</span>
         <span class="value">${openWO.length}</span>
-        <span class="sub">${emergWO.length} emergency</span>
+        <span class="sub">${openWO.length - emergWO.length} non-emergency</span>
+      </div>
+      <div class="stat-tile ${emergWO.length?'urgent':''}">
+        <span class="label">Emergency</span>
+        <span class="value">${emergWO.length}</span>
+        <span class="sub">${emergWO.length?'needs attention':'all clear'}</span>
       </div>
       <div class="stat-tile ${overduePM.length?'urgent':''}">
         <span class="label">PM Overdue</span>
@@ -705,7 +714,7 @@ function renderWorkOrders(){
       <td>${eqName(w.equipment_id)}</td>
       <td>${priorityBadge(w.priority)}</td>
       <td>${statusBadge(w.status)}</td>
-      <td>${teamName(w.assigned_to)}</td>
+      <td>${woAssigneeNames(w.id)}</td>
       <td>${formatDate(w.due_date)}</td>
       <td><span title="${formatTimestamp(w.created_at)}">${daysAgo(w.created_at)}</span></td>
       <td>
@@ -754,7 +763,7 @@ window.openWOForm = function(id){
         <div class="form-group"><label>Due Date</label><input type="date" id="m-due" value="${w.due_date||''}"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Assigned To</label><select id="m-assign">${teamOptions(w.assigned_to)}</select></div>
+        <div class="form-group"><label>Assigned To</label><div id="m-assignees" style="border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;max-height:140px;overflow-y:auto">${teamCheckboxes(id||'')}</div></div>
         <div class="form-group"><label>Vendor</label><select id="m-vendor">${vendOptions(w.vendor_id)}</select></div>
       </div>
       <div class="form-group"><label>Requested By</label><select id="m-reqby">${teamOptions(w.requested_by)}</select></div>
@@ -769,22 +778,31 @@ window.openWOForm = function(id){
     </div>`);
 };
 window.saveWO = async function(id){
+  const assigneeIds=[...document.querySelectorAll('.wo-assignee-cb:checked')].map(cb=>cb.value);
   const row = {
     title:$('#m-title').value, location_id:$('#m-loc').value||null, equipment_id:$('#m-eq').value||null,
     priority:$('#m-prio').value, category:$('#m-cat').value||null, status:$('#m-status').value,
-    due_date:$('#m-due').value||null, assigned_to:$('#m-assign').value||null, vendor_id:$('#m-vendor').value||null,
+    due_date:$('#m-due').value||null, assigned_to:assigneeIds[0]||null, vendor_id:$('#m-vendor').value||null,
     requested_by:$('#m-reqby').value||null, description:$('#m-desc').value||null, updated_at:new Date().toISOString()
   };
   if(id){ row.resolution_notes=$('#m-res')?.value||null; if(row.status==='completed'&&!row.completed_at)row.completed_at=new Date().toISOString(); }
   if(!row.title||!row.location_id){toast('Title and Location are required','error');return;}
   const isNew=!id;
   if(await upsert('dt_work_orders',row,id||undefined)){
+    // Sync assignees in junction table
+    const woId = id || (cache.dt_work_orders||[]).find(w=>w.title===row.title&&w.location_id===row.location_id)?.id;
+    if(woId){
+      await sb.from('dt_wo_assignees').delete().eq('work_order_id',woId);
+      if(assigneeIds.length){
+        await sb.from('dt_wo_assignees').insert(assigneeIds.map(tid=>({work_order_id:woId,team_member_id:tid})));
+      }
+    }
     closeModal();
-    await load('dt_work_orders','created_at',false);
+    await Promise.all([load('dt_work_orders','created_at',false),load('dt_wo_assignees','created_at',false)]);
     render();
     if(isNew){
-      // Send notification for new work orders
-      const enriched={...row,location_name:locStore(row.location_id),equipment_name:eqName(row.equipment_id),assigned_name:teamName(row.assigned_to)};
+      const assigneeNames=assigneeIds.map(id=>teamName(id)).join(', ');
+      const enriched={...row,location_name:locStore(row.location_id),equipment_name:eqName(row.equipment_id),assigned_name:assigneeNames};
       notifyNewWorkOrder(enriched);
     }
   }

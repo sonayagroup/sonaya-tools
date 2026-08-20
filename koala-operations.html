@@ -294,8 +294,10 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       <span>Live data from ServiceMinder appointments/proposals — 30-day window Jul 22–Aug 20, 2026. Lead source breakdown has moved to the Lead Sources tab.</span>
     </div>
     <div class="kpi-summary" id="revenueKpiRow"></div>
-    <div class="section-title">Month-to-Date Financials <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— from ServiceMinder invoices, Aug 1–20, 2026, a proxy until QuickBooks is connected. Budget targets pending.</span></div>
+    <div class="section-title">Month-to-Date Financials <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— from ServiceMinder invoices, Aug 1–20, 2026, a proxy for real-time revenue until QuickBooks is reconnected to the right company. Budgeted vs the 2026 annual plan (flat &divide; 12).</span></div>
     <div class="callout-row" id="mtdFinancialsRow"></div>
+    <div class="section-title">Revenue Pacing <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year.</span></div>
+    <div class="callout-row" id="pacingRow"></div>
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Booked Revenue Trend</h3>
@@ -436,11 +438,16 @@ const dataStore = {
   // "Appointments" here means ServiceMinder Appointment records specifically (evaluations, installs, call-backs, etc.)
   // pulled via the Download API — this may undercount if reps track sales visits as personal calendar blocks that
   // aren't entered as formal Appointment records.
+  // openProposals/backlogJobs refreshed 2026-08-20 from a full-history Proposals Kind pull (all proposals
+  // regardless of creation date, current status snapshot): Status="Open" = open proposals; Status in
+  // ["Accepted","Scheduled","Invoiced"] = backlog (won, not yet marked Complete). This replaces the prior
+  // manually-pulled backlog figure with one sourced the same way as the Revenue tab's "On the Books" pacing
+  // figure, so the two now agree.
   funnel: {
     leads30d: 109, appts30d: 28, estimatesSent30d: 111,
-    openProposals: 76, openProposalsValue: 1402536,
+    openProposals: 75, openProposalsValue: 1384616,
     acceptedAllTime: 150,
-    backlogJobs: 387, backlogValue: 517290,
+    backlogJobs: 178, backlogValue: 1256275,
   },
   funnelTrend: (() => {
     const days = 14, out = [];
@@ -508,11 +515,24 @@ const dataStore = {
     { category: 'Partner', shortLabel: 'Partner', count: 1 },
   ],
   revenue: {
-    booked30d: 232652, revenuePerLead30d: 2134, openPipelineValue: 1402536, acceptedAllTime: 150,
-    // MTD financials pulled from ServiceMinder invoices Kind, Aug 1–20 2026 (33 invoices). Proxy for
-    // true accounting revenue until QuickBooks is connected. Budget fields are null until Pranav supplies targets.
-    mtdInvoiced: 116704.08, mtdCollected: 85296.15, mtdOutstanding: 36842.06, mtdInvoiceCount: 33,
-    mtdRevenueBudget: null, mtdCollectedBudget: null, onTheBooksBudget: null,
+    booked30d: 232652, revenuePerLead30d: 2134, openPipelineValue: 1384616, acceptedAllTime: 150,
+    // MTD/QTD/YTD financials refreshed 2026-08-20 from ServiceMinder invoices Kind (Subtotal summed,
+    // excluding Voided). Proxy for true accounting revenue until QuickBooks is reconnected to Patel
+    // Insulation LLC (it's currently linked to the wrong company, Patel DT LLC — see Financial Snapshot tab).
+    // mtdCollected/mtdOutstanding approximate cash basis as mtdInvoiced minus each invoice's Balance Due.
+    mtdInvoiced: 121385.97, mtdCollected: 81061.99, mtdOutstanding: 40323.98, mtdInvoiceCount: 34,
+    qtdInvoiced: 499747.90, qtdInvoiceCount: 83, // Q3 (Jul 1 - Sep 30) to date: Jul 1 - Aug 20, 2026
+    ytdInvoiced: 1803514.10, ytdInvoiceCount: 364, // Jan 1 - Aug 20, 2026
+    // "On the Books" = accepted proposals not yet completed (Status: Accepted, Scheduled, or Invoiced —
+    // i.e. won but not yet marked Complete), pulled from a full ServiceMinder proposal history, 2026-08-20
+    // snapshot. Same figure/definition as funnel.backlogValue and pipeline.backlogValue, so all three tabs
+    // now agree on this number.
+    onTheBooksValue: 1256275.08, onTheBooksCount: 178,
+    // Budget targets from Pranav's 2026 Budget.xlsx (Total Income line, $2,850,000 annual). The file has no
+    // monthly/quarterly breakout, so monthly and quarterly targets here are a flat pro-ration (annual/12,
+    // annual/4) — a simplification worth revisiting if the business has meaningful seasonality.
+    annualRevenueBudget: 2850000, quarterlyRevenueBudget: 712500,
+    mtdRevenueBudget: 237500, mtdCollectedBudget: 237500,
   },
   revenueTrend: [
     { month: 'Mar', revenue: 318400 }, { month: 'Apr', revenue: 356900 }, { month: 'May', revenue: 389100 },
@@ -555,7 +575,10 @@ const dataStore = {
       ],
     },
   },
-  pipeline: { openEstimates: 76, pipelineValue: 1402536, apptsNext7: 29, backlogJobs: 387, backlogValue: 517290 },
+  // backlogJobs/backlogValue refreshed 2026-08-20 alongside funnel.backlogJobs — same Proposals-Kind pull, same
+  // definition (Status in Accepted/Scheduled/Invoiced), so this figure now matches the Revenue tab's "On the
+  // Books" pacing figure instead of diverging from it.
+  pipeline: { openEstimates: 75, pipelineValue: 1384616, apptsNext7: 29, backlogJobs: 178, backlogValue: 1256275 },
   upcomingAppts: [
     { date: 'Thu Aug 20, 8:00a',  customer: 'Amy Nowell',                           rep: 'Jorge Gonzalez',          type: 'Residential New Installation' },
     { date: 'Thu Aug 20, 8:00a',  customer: 'Murphy Residence — Twilight Homes',    rep: 'Mark Jr. Aragon',         type: 'B2B New Installation' },
@@ -672,6 +695,23 @@ function calloutTile(label, value, budget) {
     budgetHtml = `<div class="kpi-delta neutral" style="opacity:.6;">vs budget: pending</div>`;
   }
   return `<div class="callout"><div class="callout-label">${label}</div><div class="callout-value">${value}</div>${budgetHtml}</div>`;
+}
+
+/* Variant of calloutTile that takes a plain sub-line instead of a budget comparison (e.g. a count, or "no
+   period target applies"). */
+function calloutTileInfo(label, value, subText) {
+  return `<div class="callout"><div class="callout-label">${label}</div><div class="callout-value">${value}</div><div class="kpi-delta neutral" style="opacity:.75;">${subText}</div></div>`;
+}
+
+/* Pace sentiment: compares "% of target reached" to "% of the period elapsed". Ahead of or on pace -> good;
+   modestly behind -> neutral; meaningfully behind -> bad. Used for the Revenue Pacing row, where actual/
+   projected revenue is checked against how much of the month/quarter/year has already gone by. */
+function paceSentiment(actualPct, elapsedPct) {
+  if (!elapsedPct) return 'neutral';
+  const ratio = actualPct / elapsedPct;
+  if (ratio >= 1) return 'good';
+  if (ratio >= 0.85) return 'neutral';
+  return 'bad';
 }
 
 function svgOpen(W, H) { return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:auto;">`; }
@@ -843,17 +883,38 @@ function renderRevenueTab() {
 
   document.getElementById('mtdFinancialsRow').innerHTML = [
     calloutTile('MTD Revenue (Invoiced)', fmtMoneyCompact(r.mtdInvoiced),
-      r.mtdRevenueBudget != null ? { target: r.mtdRevenueBudget, actual: r.mtdInvoiced } : null),
+      { target: r.mtdRevenueBudget, actual: r.mtdInvoiced, sentiment: paceSentiment(100 * r.mtdInvoiced / r.mtdRevenueBudget, MTD_ELAPSED_PCT) }),
     calloutTile('MTD Collected', fmtMoneyCompact(r.mtdCollected),
-      r.mtdCollectedBudget != null ? { target: r.mtdCollectedBudget, actual: r.mtdCollected } : null),
-    calloutTile('On the Books (Backlog)', fmtMoneyCompact(dataStore.pipeline.backlogValue) + ' &middot; ' + dataStore.pipeline.backlogJobs + ' jobs',
-      r.onTheBooksBudget != null ? { target: r.onTheBooksBudget, actual: dataStore.pipeline.backlogValue } : null),
+      { target: r.mtdCollectedBudget, actual: r.mtdCollected, sentiment: paceSentiment(100 * r.mtdCollected / r.mtdCollectedBudget, MTD_ELAPSED_PCT) }),
+    calloutTileInfo('MTD Outstanding', fmtMoneyCompact(r.mtdOutstanding), r.mtdInvoiceCount + ' invoices this month'),
+  ].join('');
+
+  // Revenue Pacing: real-time actual (ServiceMinder proxy) + on-the-books (accepted, not-yet-completed
+  // proposals) vs the 2026 budget. Elapsed-% constants are as of the Aug 20, 2026 data pull (see top-of-file
+  // note on the static-snapshot architecture) — Q3 runs Jul 1-Sep 30 (92 days), the year is 365 days.
+  const qtdPct = 100 * r.qtdInvoiced / r.quarterlyRevenueBudget;
+  const ytdPct = 100 * r.ytdInvoiced / r.annualRevenueBudget;
+  const projectedYearEnd = r.ytdInvoiced + r.onTheBooksValue;
+  const projectedPct = 100 * projectedYearEnd / r.annualRevenueBudget;
+  document.getElementById('pacingRow').innerHTML = [
+    calloutTile('QTD Revenue (Q3)', fmtMoneyCompact(r.qtdInvoiced),
+      { target: r.quarterlyRevenueBudget, actual: r.qtdInvoiced, sentiment: paceSentiment(qtdPct, QTD_ELAPSED_PCT) }),
+    calloutTile('YTD Revenue', fmtMoneyCompact(r.ytdInvoiced),
+      { target: r.annualRevenueBudget, actual: r.ytdInvoiced, sentiment: paceSentiment(ytdPct, YTD_ELAPSED_PCT) }),
+    calloutTileInfo('On the Books', fmtMoneyCompact(r.onTheBooksValue), r.onTheBooksCount + ' accepted proposals, not yet complete'),
+    calloutTile('Projected Year-End', fmtMoneyCompact(projectedYearEnd),
+      { target: r.annualRevenueBudget, actual: projectedYearEnd, sentiment: paceSentiment(projectedPct, 100) }),
   ].join('');
 
   renderLineChart('chartRevenueTrend', [
     { name: 'Revenue', color: 'var(--brand-teal)', points: dataStore.revenueTrend.map(d => ({ x: d.month, y: d.revenue, label: d.month })) },
   ]);
 }
+// Elapsed-time constants as of the Aug 20, 2026 data pull: MTD = 20/31 days of August; QTD = 51/92 days of
+// Q3 (Jul 1 - Sep 30); YTD = 232/365 days of 2026.
+const MTD_ELAPSED_PCT = 100 * 20 / 31;
+const QTD_ELAPSED_PCT = 100 * 51 / 92;
+const YTD_ELAPSED_PCT = 100 * 232 / 365;
 
 /* ---------------- Render: Lead Sources tab ---------------- */
 function renderLeadSourcesTab() {
@@ -942,7 +1003,7 @@ function renderPipelineTab() {
     kpiTile('Open Estimates', p.openEstimates),
     kpiTile('Estimate $ in Pipeline', fmtMoneyCompact(p.pipelineValue)),
     kpiTile('Appointments — Next 7 Days', p.apptsNext7),
-    kpiTile('Job Backlog (Won, Unscheduled)', p.backlogJobs + ' jobs', fmtMoneyCompact(p.backlogValue), 'good'),
+    kpiTile('Job Backlog (Accepted, Not Yet Complete)', p.backlogJobs + ' jobs', fmtMoneyCompact(p.backlogValue), 'good'),
   ].join('');
 
   document.getElementById('upcomingTbody').innerHTML = dataStore.upcomingAppts.map(a =>

@@ -150,6 +150,7 @@ body {
 .store-table tbody tr:last-child td { border-bottom: none; }
 .store-table tbody tr:hover td { background: var(--surface-page); }
 .section-title { font-size: 15px; font-weight: 700; margin: 28px 0 12px; }
+.section-title-sub { font-size: 12px; font-weight: 400; color: var(--text-muted); }
 .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; }
 .status-pill.good { background: var(--status-good-bg); color: var(--status-good); }
 .status-pill.ok { background: var(--status-ok-bg); color: var(--status-ok); }
@@ -197,6 +198,13 @@ body {
 .modal-body { padding: 14px 22px 22px; overflow-y: auto; }
 .modal-footer-note { padding: 12px 22px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); }
 .modal-status { padding: 30px 22px; text-align: center; font-size: 13px; color: var(--text-muted); }
+.pipeline-row { display: flex; align-items: stretch; gap: 6px; margin-bottom: 22px; flex-wrap: wrap; }
+.pipeline-tile { flex: 1 1 108px; min-width: 108px; border: 1px solid var(--border); border-left: 4px solid var(--cat-1); border-radius: var(--radius-sm); padding: 10px 12px; cursor: pointer; transition: box-shadow .15s, transform .15s; }
+.pipeline-tile:hover { box-shadow: 0 2px 10px rgba(0,0,0,.12); transform: translateY(-1px); }
+.pipeline-tile .pt-count { font-size: 22px; font-weight: 700; line-height: 1.1; }
+.pipeline-tile .pt-label { font-size: 11px; color: var(--text-secondary); margin-top: 3px; line-height: 1.3; }
+.pipeline-arrow { display: flex; align-items: center; color: var(--text-muted); font-size: 15px; padding: 0 1px; flex: 0 0 auto; }
+.pipeline-divider { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .5px; padding: 0 10px; flex: 0 0 auto; border-left: 1px dashed var(--border); border-right: 1px dashed var(--border); margin: 0 4px; }
 svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, sans-serif; }
 .bar-value-label { fill: var(--text-primary); font-weight: 600; }
 </style>
@@ -227,6 +235,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   <button class="tab-btn" data-tab="reps">Sales Rep Performance</button>
   <button class="tab-btn" data-tab="pipeline">Pipeline &amp; Scheduling</button>
   <button class="tab-btn" data-tab="financial">Financial Snapshot</button>
+  <button class="tab-btn" data-tab="crm">CRM Pipeline</button>
 </nav>
 
 <!-- TAB 1: SALES FUNNEL -->
@@ -469,6 +478,34 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   </div>
 </div>
 
+<!-- TAB: CRM PIPELINE -->
+<div class="tab-content" id="tab-crm">
+  <div class="container">
+    <div class="connection-banner" id="crmBanner">
+      <span class="banner-icon">&#9432;</span>
+      <span>Static snapshot from the "Sales &amp; Operations" Trello board (JSON export), pulled 2026-08-20 — 317 active cards across prospecting and estimating. Not a live connection yet; refreshes when a new export is provided, or automatically once Trello workspace access is set up. No dollar values are tracked on this board, so this is a volume/aging view, not revenue-weighted.</span>
+    </div>
+    <div class="kpi-summary" id="crmKpiRow"></div>
+
+    <div class="section-title">Prospecting Pipeline <span class="section-title-sub">— building the relationship, before plans arrive</span></div>
+    <div class="pipeline-row" id="crmProspectRow"></div>
+
+    <div class="section-title">Estimating Pipeline <span class="section-title-sub">— once plans are in hand for a specific project</span></div>
+    <div class="pipeline-row" id="crmEstimateRow"></div>
+
+    <div class="section-title">Pipeline Health</div>
+    <div class="flag-list" id="crmFlagList"></div>
+
+    <div class="section-title">Activity by Rep <span class="section-title-sub">— cards touched, cross-referenced with closed ServiceMinder revenue</span></div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="crmRepTable">
+        <thead><tr><th>Rep</th><th>Prospecting Cards</th><th>Estimating Cards</th><th>Total</th><th>ServiceMinder Revenue (30d)</th></tr></thead>
+        <tbody id="crmRepTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <footer class="app-footer">
   Koala Insulation Dashboard &mdash; Patel Insulation LLC &mdash; ServiceMinder live, QuickBooks pending &mdash; tools.sonayagroup.com
 </footer>
@@ -484,6 +521,20 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     </div>
     <div class="modal-body" id="onBooksModalBody"></div>
     <div class="modal-footer-note" id="onBooksModalFooter"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="crmStageModalBackdrop" onclick="if(event.target===this) closeCrmStageModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="crmStageModalTitle">
+    <div class="modal-header">
+      <div>
+        <h3 id="crmStageModalTitle">Stage — Cards</h3>
+        <p id="crmStageModalSubtitle">From the Sales &amp; Operations Trello board</p>
+      </div>
+      <button class="modal-close-btn" onclick="closeCrmStageModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="crmStageModalBody"></div>
+    <div class="modal-footer-note" id="crmStageModalFooter"></div>
   </div>
 </div>
 
@@ -812,6 +863,341 @@ const dataStore = {
     { level: 'ok', title: 'May expenses included an $18,298 payroll credit',
       body: 'A negative "Vacation Pay" line (–$18,298, i.e. a reversal/credit) reduced May’s expenses and flattered that month’s margin somewhat versus a typical month.' },
   ],
+  // CRM Pipeline tab: static snapshot from the "Sales & Operations" Trello board, JSON export
+  // pulled 2026-08-20 (board id 616745e5519f9748795dccc2). Not a live connection — the Trello
+  // connector currently authenticated to this workspace doesn't have access to the workspace this
+  // board lives in (confirmed via direct API test, 2026-08-20); refresh by re-exporting the board
+  // (Board menu > Print, export, and share > Export as JSON) or once workspace access is granted.
+  // No dollar values exist anywhere on this board (Custom Fields isn't enabled, nothing in card
+  // text) — this is a card-volume/aging view of the pipeline, not revenue-weighted. Excludes
+  // archived lists and non-sales lists that happen to still be open (Completed = crew bonus
+  // payouts, not closed deals; Operations/Recruiting/Maintenance/Warehouse Renovations = internal
+  // ops lists, not part of the sales pipeline).
+  // Card fields: [customer/company, Trello list (stage), assigned rep(s) comma-joined, due date
+  // (ISO, null if none), due complete, days since last card activity as of 2026-08-20].
+  crm: {
+    exportedAt: '2026-08-20',
+    boardUrl: 'https://trello.com/b/hmnPkB84/sales-operations',
+    cards: [
+    ['Professional Contracting Builders','Prospecting List','Frank Emanuel',null,false,135],
+    ['Enterprise Builders','Prospecting List','Frank Emanuel',null,false,133],
+    ['Anchor Built Construction','Prospecting List','',null,false,126],
+    ['Klinger Construction','Prospecting List','',null,false,126],
+    ['Jaynes','Prospecting List','',null,false,124],
+    ['Rich Construction','Prospecting List','Mike Jones, Frank Emanuel',null,false,117],
+    ['Pavilion Construction','Prospecting List','Frank Emanuel','2026-03-13',false,117],
+    ['Trinity Construction','Prospecting List','',null,false,117],
+    ['Prestige Industries','Prospecting List','Frank Emanuel',null,false,110],
+    ['Hart Construction','Prospecting List','Frank Emanuel','2026-03-06',false,110],
+    ['Corrales Construction LLC','Prospecting List','Gabriel Espinosa',null,false,106],
+    ['Hawk Construction Services','Prospecting List','',null,false,106],
+    ['Bradbury Stamm','Prospecting List','',null,false,106],
+    ['Richmond American Homes','Prospecting List','Mike Jones',null,false,103],
+    ['Pulte Homes','Prospecting List','Mike Jones',null,false,92],
+    ['Mechenbier Construction INC','Prospecting List','Frank Emanuel',null,false,85],
+    ['Lee Micheals Homes','Prospecting List','Mike Jones',null,false,82],
+    ['Weis Builders','Prospecting List','Frank Emanuel',null,false,79],
+    ['Wilger Enterprises','Prospecting List','',null,false,68],
+    ['Jubilee Development','Prospecting List','Frank Emanuel','2026-06-30',true,50],
+    ['Red Mesa Restoration','Prospecting List','Mike Jones',null,false,14],
+    ['Trinity Homes','Prospecting 1st Contact','',null,false,160],
+    ['Crestline Building Corp','Prospecting 1st Contact','',null,false,160],
+    ['Cordova Contracting and devolopment','Prospecting 1st Contact','',null,false,160],
+    ['KT Homes','Prospecting 1st Contact','',null,false,160],
+    ['Dream Catcher Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,125],
+    ['AAA Restoration & Construction Services','Prospecting 1st Contact','Gabriel Espinosa',null,false,120],
+    ['Harwood Construction Solutions','Prospecting 1st Contact','Gabriel Espinosa',null,false,118],
+    ['Tierra Concepts','Prospecting 1st Contact','Gabriel Espinosa',null,false,118],
+    ['Precision Craft Log & Timber Homes','Prospecting 1st Contact','Gabriel Espinosa',null,false,117],
+    ['James Barb Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,113],
+    ['Vineyard Homes','Prospecting 1st Contact','Gabriel Espinosa',null,false,107],
+    ['New Haven Homes','Prospecting 1st Contact','Gabriel Espinosa',null,false,107],
+    ['On the Level Builders','Prospecting 1st Contact','Gabriel Espinosa',null,false,107],
+    ['Sutton Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,107],
+    ['Next Generation Contracting','Prospecting 1st Contact','Gabriel Espinosa',null,false,105],
+    ['BC Custom Homes LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,98],
+    ['AJ\'s Professional Contracting, LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,97],
+    ['CJV Builder LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,93],
+    ['Bokay Construction Management Inc.','Prospecting 1st Contact','Gabriel Espinosa',null,false,93],
+    ['Forestar','Prospecting 1st Contact','Gabriel Espinosa',null,false,91],
+    ['Fair and Square, LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,91],
+    ['Fellowship Homes','Prospecting 1st Contact','Gabriel Espinosa',null,false,91],
+    ['Hale & Sun Construction Inc.','Prospecting 1st Contact','Gabriel Espinosa',null,false,89],
+    ['Kimo Constructors, Inc.','Prospecting 1st Contact','Gabriel Espinosa',null,false,84],
+    ['Luxury Design Builders','Prospecting 1st Contact','Gabriel Espinosa',null,false,79],
+    ['Los Trigos Builders LLC Synergy Builders','Prospecting 1st Contact','Gabriel Espinosa',null,false,79],
+    ['Las Ventanas Homes','Prospecting 1st Contact','Gabriel Espinosa','2026-01-13',true,79],
+    ['K.W.K Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,79],
+    ['New Mexico Contracting Co.','Prospecting 1st Contact','Gabriel Espinosa',null,false,78],
+    ['Big Art Building Corp.','Prospecting 1st Contact','Gabriel Espinosa',null,false,77],
+    ['Mark V Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,77],
+    ['M-Art Building Company LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,77],
+    ['Whispering Pines Company, Inc.','Prospecting 1st Contact','Gabriel Espinosa',null,false,72],
+    ['Sandoval Residential Homes LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,72],
+    ['Alliance General Contracting','Prospecting 1st Contact','Gabriel Espinosa',null,false,70],
+    ['Jorgensen Builders, MJ Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,70],
+    ['Freemans Finest','Prospecting 1st Contact','Gabriel Espinosa',null,false,69],
+    ['Sun Valley Custom Homes','Prospecting 1st Contact','Gabriel Espinosa',null,false,69],
+    ['Infinity Builders','Prospecting 1st Contact','Mike Jones',null,false,69],
+    ['RVC Inc.','Prospecting 1st Contact','Gabriel Espinosa',null,false,62],
+    ['Hughes Builders, LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,62],
+    ['TLC / Spear D Construction','Prospecting 1st Contact','',null,false,62],
+    ['Modern Design + Construction Inc.','Prospecting 1st Contact','Gabriel Espinosa',null,false,61],
+    ['Albuquerque Plumbing Heating & Cooling','Prospecting 1st Contact','Gabriel Espinosa',null,false,57],
+    ['High Desert Architecture','Prospecting 1st Contact','Gabriel Espinosa',null,false,55],
+    ['North Bar Industries','Prospecting 1st Contact','Gabriel Espinosa',null,false,54],
+    ['Catanach Enterprises Inc.','Prospecting 1st Contact','Gabriel Espinosa',null,false,54],
+    ['Always Construction Services & General Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,54],
+    ['Casa De Avila Builders LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,50],
+    ['TJT Group','Prospecting 1st Contact','Gabriel Espinosa',null,false,50],
+    ['Waszak Enterprises','Prospecting 1st Contact','Gabriel Espinosa',null,false,47],
+    ['Tierra Builders','Prospecting 1st Contact','Gabriel Espinosa',null,false,44],
+    ['Apple Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,42],
+    ['Powerhouse Contracting','Prospecting 1st Contact','Mike Jones',null,false,41],
+    ['Cielo Construction LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,36],
+    ['Project Builders','Prospecting 1st Contact','Gabriel Espinosa, Frank Emanuel',null,false,36],
+    ['Sivage Homes','Prospecting 1st Contact','Mike Jones',null,false,35],
+    ['Fadraga General Contractors','Prospecting 1st Contact','Mike Jones',null,false,33],
+    ['Bealhen Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,30],
+    ['Happy Homes Lath Plaster And Roofing','Prospecting 1st Contact','Gabriel Espinosa',null,false,29],
+    ['Twins Contractors','Prospecting 1st Contact','Gabriel Espinosa',null,false,27],
+    ['Longhorn Construction','Prospecting 1st Contact','Gabriel Espinosa',null,false,27],
+    ['Modcon Construction, LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,23],
+    ['B4 Construction LLC','Prospecting 1st Contact','Gabriel Espinosa',null,false,14],
+    ['Jade Enterprises','Prospecting 1st Contact','Mike Jones',null,false,14],
+    ['Prestigous Industries','Prospecting 1st Contact','Gabriel Espinosa',null,false,13],
+    ['ProSteel Inc.','Prospecting 1st Contact','Gabriel Espinosa',null,false,2],
+    ['Cresent Custom Homes','Prospecting 2nd Contact','',null,false,160],
+    ['Clemens Custom Homes','Prospecting 2nd Contact','',null,false,160],
+    ['Soledad Roybal','Prospecting 2nd Contact','Gabriel Espinosa, Mike Jones',null,false,105],
+    ['3D Construct','Prospecting 2nd Contact','Gabriel Espinosa',null,false,105],
+    ['Troyer Homes','Prospecting 2nd Contact','Mike Jones',null,false,103],
+    ['B & R Construction Co','Prospecting 2nd Contact','Gabriel Espinosa',null,false,89],
+    ['Amreston Homes','Prospecting 2nd Contact','Mike Jones',null,false,82],
+    ['G.J. Gardner. Homes','Prospecting 2nd Contact','Gabriel Espinosa',null,false,78],
+    ['Castillo Construction & Management','Prospecting 2nd Contact','Gabriel Espinosa',null,false,78],
+    ['Bear Restoration','Prospecting 2nd Contact','Gabriel Espinosa',null,false,76],
+    ['John Mark Custom Homes','Prospecting 2nd Contact','Gabriel Espinosa',null,false,76],
+    ['Quality Builders','Prospecting 2nd Contact','Gabriel Espinosa',null,false,69],
+    ['J G Maduena Homes Inc.','Prospecting 2nd Contact','Gabriel Espinosa',null,false,69],
+    ['Lambert Construction','Prospecting 2nd Contact','Gabriel Espinosa',null,false,69],
+    ['Hunter Builders','Prospecting 2nd Contact','Gabriel Espinosa',null,false,69],
+    ['K.M. Skelly','Prospecting 2nd Contact','Mike Jones',null,false,69],
+    ['Diego Handcrafted Homes','Prospecting 2nd Contact','Gabriel Espinosa',null,false,69],
+    ['Homes By Joe Boyden','Prospecting 2nd Contact','Mike Jones',null,false,68],
+    ['Clay Custom Homes','Prospecting 2nd Contact','Gabriel Espinosa',null,false,63],
+    ['Bee Creek Builders','Prospecting 2nd Contact','Gabriel Espinosa',null,false,63],
+    ['Standard Construction','Prospecting 2nd Contact','Gabriel Espinosa',null,false,63],
+    ['Homes by Kim Brooks','Prospecting 2nd Contact','Gabriel Espinosa',null,false,55],
+    ['Annex General Contracting + Designs, INnc.','Prospecting 2nd Contact','Gabriel Espinosa',null,false,54],
+    ['Global Package Solutions','Prospecting 2nd Contact','Gabriel Espinosa',null,false,54],
+    ['Bain Cochran Construction LLC','Prospecting 2nd Contact','Gabriel Espinosa',null,false,51],
+    ['Picasso Builders','Prospecting 2nd Contact','Mike Jones',null,false,43],
+    ['Sol Housing','Prospecting 2nd Contact','Gabriel Espinosa',null,false,37],
+    ['Wolf Corporation','Prospecting 2nd Contact','Gabriel Espinosa',null,false,36],
+    ['Arete Homes of Santa Fe','Prospecting 2nd Contact','Gabriel Espinosa',null,false,35],
+    ['Palo Santo Designs','Prospecting 2nd Contact','Mike Jones',null,false,33],
+    ['Modulus Design','Prospecting 2nd Contact','Gabriel Espinosa',null,false,28],
+    ['Native Son Builders','Prospecting 2nd Contact','Gabriel Espinosa',null,false,27],
+    ['Boulevard Homes','Prospecting 2nd Contact','Gabriel Espinosa',null,false,27],
+    ['Habitation Inc.','Prospecting 2nd Contact','Gabriel Espinosa',null,false,23],
+    ['Tanglewood Construction','Prospecting 2nd Contact','Mike Jones',null,false,14],
+    ['JTJ Group - Raylee Homes','Prospecting 2nd Contact','Mike Jones',null,false,14],
+    ['Vistabella Homes','Prospecting 3rd Contact','',null,false,160],
+    ['LGI Homes','Prospecting 3rd Contact','Mike Jones',null,false,78],
+    ['Stillbrook Homes','Prospecting 3rd Contact','Mike Jones',null,false,68],
+    ['Abrazo Homes','Prospecting 3rd Contact','Mike Jones',null,false,68],
+    ['JM Evans Construction','Prospecting 3rd Contact','Gabriel Espinosa',null,false,55],
+    ['Prull Custom Builders','Prospecting 3rd Contact','Gabriel Espinosa',null,false,42],
+    ['Home for Life','Prospecting 3rd Contact','Gabriel Espinosa',null,false,36],
+    ['Woods Design Build','Prospecting 3rd Contact','Gabriel Espinosa','2026-06-17',false,2],
+    ['Casa Bella Construction','Prospecting 3rd Contact','Gabriel Espinosa',null,false,2],
+    ['Henderson Construction','Prospecting On Hold','Mike Jones',null,false,69],
+    ['Konstruckt Construction','Prospecting On Hold','Mike Jones',null,false,69],
+    ['Westway Homes','Prospecting On Hold','Mike Jones',null,false,55],
+    ['AmeriSpec Inspection Service','Dead Prospecting List','Mike Jones',null,false,218],
+    ['Adobe Village Construction','Dead Prospecting List','Mike Jones',null,false,205],
+    ['4BM Construction','Dead Prospecting List','Mike Jones',null,false,205],
+    ['DR Horton','Dead Prospecting List','Mike Jones',null,false,189],
+    ['Alfaro Custom Homes','Dead Prospecting List','',null,false,160],
+    ['John Mark Custom Homes','Dead Prospecting List','',null,false,160],
+    ['Home Modification Solutions, LLC','Dead Prospecting List','Gabriel Espinosa',null,false,125],
+    ['2 Vet\'s Construction LLC','Dead Prospecting List','Gabriel Espinosa',null,false,124],
+    ['Santa Fe R&R Inc','Dead Prospecting List','Gabriel Espinosa',null,false,124],
+    ['Monarch Construction','Dead Prospecting List','Mike Jones',null,false,110],
+    ['Sun Mountain Construction Inc.','Dead Prospecting List','Gabriel Espinosa',null,false,106],
+    ['Reese Custom Builders, Inc','Dead Prospecting List','Gabriel Espinosa',null,false,104],
+    ['Enduro Contracting Inc.','Dead Prospecting List','Gabriel Espinosa',null,false,92],
+    ['Enchanted Spaces, LLC','Dead Prospecting List','Gabriel Espinosa',null,false,92],
+    ['Green Star Homes and Ronovation','Dead Prospecting List','Gabriel Espinosa',null,false,89],
+    ['Prime Luxury Design','Dead Prospecting List','Mike Jones',null,false,84],
+    ['Enchantment Construction','Dead Prospecting List','Gabriel Espinosa',null,false,70],
+    ['Sunshine Plumbing','Dead Prospecting List','Gabriel Espinosa',null,false,57],
+    ['Leverage Development','Dead Prospecting List','Gabriel Espinosa',null,false,57],
+    ['Storm Construction & Remodeling','Dead Prospecting List','Mike Jones',null,false,13],
+    ['Insight Construction','Prospect Won','Mike Jones',null,false,196],
+    ['Zachary & Sons Construction','Prospect Won','Gabriel Espinosa',null,false,75],
+    ['Lowe-Bo Homes','Prospect Won','Gabriel Espinosa',null,false,71],
+    ['Tractor Supply - Espanola','Plans Received','Frank Emanuel','2026-08-26',false,14],
+    ['Tractor Supply - Moriarty','Plans Received','Frank Emanuel','2026-08-25',false,12],
+    ['Santa Ana Star Casino-Rush 505','Plans Received','Frank Emanuel','2026-08-25',false,12],
+    ['Sawmill (LOT J)','Plans Received','Mark Aragon','2026-08-29',false,8],
+    ['Roswell Mountain view middle school','Plans Received','Frank Emanuel','2026-09-08',false,5],
+    ['UNMH Children\'s Psychiatric Center Education HVAC Upgrades','Plans Received','Mark Aragon','2026-09-04',false,1],
+    ['ALLSUP\'S ROSWELL, NM','Plans Received','Mark Aragon, Frank Emanuel','2026-08-28',false,1],
+    ['Picasso Builders - Chris Martinez','Takeoff In Process','',null,false,29],
+    ['Picasso Builders - Nash Martinez','Takeoff In Process','',null,false,29],
+    ['Hinkle Income Properties','Takeoff In Process','Gabriel Espinosa',null,false,0],
+    ['Crow Addition','Estimate Completed','Gabriel Espinosa',null,true,111],
+    ['Thomas Romero Residence','Estimate Completed','Gabriel Espinosa','2026-04-30',true,111],
+    ['NAPA BernCo','Estimate Completed','Mike Jones','2026-04-24',true,111],
+    ['Tru Hotel TNJ Group','Estimate Completed','Mark Aragon','2026-04-09',true,111],
+    ['Bernalillo Fire Station #1 SDV Construction','Estimate Completed','Mike Jones',null,true,111],
+    ['Apartments & Condominiums Project in Silver City, NM. (Cornerstone)','Estimate Completed','Mark Aragon','2026-04-06',true,111],
+    ['3 Comanche LN White Rock, NM','Estimate Completed','Mark Aragon','2026-04-07',true,111],
+    ['Vargas Residence','Estimate Completed','Mark Aragon','2026-04-10',true,111],
+    ['Moore\'s RV Park - White Sands Construction','Estimate Completed','Mike Jones',null,true,111],
+    ['Jersey Mike\'s','Estimate Completed','',null,true,111],
+    ['Thomas Residence - Engelman Construction','Estimate Completed','Mike Jones',null,true,111],
+    ['Jonathan and Jordan Ortiz','Estimate Completed','Mike Jones',null,true,111],
+    ['Hyundai and Nissan Santa Fe Dealerships: Thermal Insulation','Estimate Completed','Mark Aragon','2026-03-24',true,111],
+    ['Rayburn Residence (Lowe-Bo homes)','Estimate Completed','','2026-03-20',true,111],
+    ['Yasmin Khan','Estimate Completed','Mike Jones',null,true,111],
+    ['Village of Tularosa - White Sands Construction','Estimate Completed','Mike Jones',null,true,111],
+    ['Martinez residence (LB Construction)','Estimate Completed','','2026-03-05',true,111],
+    ['Pulte Homes (Pulte Group)','Estimate Completed','Mike Jones','2026-03-03',true,111],
+    ['10 Camino Feloniz','Estimate Completed','Mike Jones','2026-03-20',true,111],
+    ['Katie Seals Metal building (CJ Construction)','Estimate Completed','',null,true,111],
+    ['NMSU Artesia Office Building Replacement','Estimate Completed','','2026-02-25',true,111],
+    ['Tim Glick- Cerro Pelon','Estimate Completed','Mark Aragon','2026-05-06',true,111],
+    ['Scott Thompson','Estimate Completed','Mike Jones',null,true,111],
+    ['Maverik #5461 (Hatch, NM) (Parkway construction)','Estimate Completed','Mike Jones',null,true,111],
+    ['Walmart #5166.241 Deming, NM (Tri State Const)','Estimate Completed','','2026-02-09',true,111],
+    ['New Operations Facility at Tashiro Phase 2 (HB Construction)','Estimate Completed','Mark Aragon','2026-02-10',true,111],
+    ['Alan Larranga (Larranga Construction)','Estimate Completed','Mike Jones',null,true,111],
+    ['Chavez Residnce DBA Centurion Enterprises LLC','Estimate Completed','',null,true,111],
+    ['UNM Comprehensive Cancer Center','Estimate Completed','Frank Emanuel','2026-05-06',true,106],
+    ['AriesPlan (Twilight Homes)','Estimate Completed','Mark Aragon','2026-04-29',true,106],
+    ['Jason Firth','Estimate Completed','Mike Jones','2026-01-22',true,106],
+    ['The Pueblo of Sandia - Public Works','Estimate Completed','','2026-02-02',true,106],
+    ['Christine Melgaard (19670 NM-126 Jemez Springs, NM)','Estimate Completed','',null,true,106],
+    ['Hobbs - Valvoline Instant Oil Change (white sands const)','Estimate Completed','Mike Jones','2026-01-28',true,106],
+    ['Ron Varela RidgeTop Roofing Inc','Estimate Completed','Mike Jones','2026-01-27',true,106],
+    ['Juan Chavez, House','Estimate Completed','',null,true,106],
+    ['Gilly Padilla 914 palmas altas RR','Estimate Completed','','2026-01-31',true,106],
+    ['ITB for Extra space self storage # 1786- Rio Rancho NM (Triad Retail Construction Inc. )','Estimate Completed','Mark Aragon','2025-12-15',true,106],
+    ['Ryan Kuehl (Rak Construction)','Estimate Completed','Mark Aragon','2025-12-05',true,106],
+    ['Ron Larry Rodriguez','Estimate Completed','Mark Aragon','2025-12-05',true,106],
+    ['Kevin Wolfe 505-677-5043 wolfeke8@hotmail.com','Estimate Completed','Mark Aragon','2026-09-11',true,106],
+    ['Alamogordo - Fairgrounds WS Shell Building (White Sands Const)','Estimate Completed','Mark Aragon','2026-01-15',true,106],
+    ['Wismann Casita','Estimate Completed','Mark Aragon','2025-12-05',true,106],
+    ['The Ortiz Family (George Ortiz) 6151 Pasilla RD NE, Rio Rancho','Estimate Completed','Mark Aragon','2025-12-05',true,106],
+    ['1008 Cottonwood (Twilight Homes)','Estimate Completed','Mark Aragon','2026-05-06',true,106],
+    ['Kim Hogan 480-580-7147','Estimate Completed','Mark Aragon','2025-12-12',true,106],
+    ['RJS Construction - Hoopes Garage Remodel','Estimate Completed','Jacob Martin','2026-01-05',true,106],
+    ['Scott Norman (Bosque Acres)','Estimate Completed','Mark Aragon','2025-12-05',true,106],
+    ['AutoZone NM10057 - Rio Rancho, NM 2206 O’Day Road | Pearland, Texas 77581 Triad Retail Construction Office: 281.485.4700 | Fax: 281.485.7722','Estimate Completed','Mark Aragon','2025-12-26',true,106],
+    ['JKM LLC Properties - Precision Builders','Estimate Completed','Mike Jones','2026-03-25',true,106],
+    ['Dan C. Trigg Memorial Hospital','Estimate Completed','Frank Emanuel','2026-04-21',true,106],
+    ['Veterans Event Center Addition','Estimate Completed','Gabriel Espinosa, Frank Emanuel','2026-04-24',true,106],
+    ['Joseph Sanchez (Quonset Hut)','Estimate Completed','Gabriel Espinosa','2026-05-15',true,96],
+    ['Santa Fe Magistrate Court (Valdez Park) - DIVISION 07 - THERMAL AND MOISTURE PROTECTION','Estimate Completed','Mark Aragon, Frank Emanuel',null,true,93],
+    ['UNM BBRP Milk Bank','Estimate Completed','Frank Emanuel',null,true,92],
+    ['Sullivan B Elevation/ smaller footprint','Estimate Completed','Gabriel Espinosa','2026-05-27',true,79],
+    ['Blake Residence Creekside Trail Sandia Park NM 87047','Estimate Completed','Mark Aragon, Gabriel Espinosa','2026-06-08',true,78],
+    ['6816 Quivira (Twilight Homes)','Estimate Completed','Mark Aragon',null,true,71],
+    ['Home2 (Albuquerque)','Estimate Completed','Frank Emanuel, Mark Aragon',null,true,71],
+    ['Gemza Residence (Lowe-Bo)','Estimate Completed','Gabriel Espinosa','2026-05-19',true,71],
+    ['251 Valle Encantado (Troyer Homes)','Estimate Completed','Gabriel Espinosa, Mike Jones',null,true,71],
+    ['Leslie/Berry Residence (Lowe-Bo Homes)','Estimate Completed','Mark Aragon, Gabriel Espinosa','2026-04-24',true,71],
+    ['Heyborne Residence New Home Build','Estimate Completed','Mike Jones','2026-05-27',true,71],
+    ['THE GUTIERREZ RESIDENCE','Estimate Completed','Mark Aragon, Mike Jones',null,true,71],
+    ['GMCS Thoreau High School','Estimate Completed','Frank Emanuel',null,true,71],
+    ['Belen Custom Home','Estimate Completed','Gabriel Espinosa, Mark Aragon','2026-06-10',true,70],
+    ['Blea Residence','Estimate Completed','Gabriel Espinosa',null,true,68],
+    ['San Jon Municipal Schools (new school) San Jon, NM','Estimate Completed','Frank Emanuel',null,true,68],
+    ['Taos Pueblo Education Center and Library','Estimate Completed','Frank Emanuel',null,true,61],
+    ['RJS Construction','Estimate Completed','',null,true,61],
+    ['Joseph Custom Homes','Estimate Completed','',null,true,61],
+    ['Pueblo of Acoma Housing Authority','Estimate Completed','Frank Emanuel',null,true,61],
+    ['6813 Quivira (Twilight Homes)','Estimate Completed','Mark Aragon','2026-06-22',true,57],
+    ['Mares Residence (Connected Construction)','Estimate Completed','Gabriel Espinosa','2027-06-01',true,55],
+    ['Dutch Bros - Santa Fe, NM','Estimate Completed','Frank Emanuel','2026-06-30',true,50],
+    ['Bernalillo County Fire Station No 1','Estimate Completed','Mark Aragon, Frank Emanuel','2026-06-25',true,50],
+    ['Westway Homes 2818','Estimate Completed','Mike Jones',null,true,49],
+    ['Westway Homes 1878','Estimate Completed','Mike Jones',null,true,49],
+    ['Cochran Residence 439 Sedillo Road','Estimate Completed','Gabriel Espinosa',null,true,48],
+    ['Stanley Mount','Estimate Completed','Gabriel Espinosa',null,true,43],
+    ['200 Lomas - Renovation - DIVISION 07 - THERMAL AND MOISTURE PROTECTION','Estimate Completed','Mark Aragon, Frank Emanuel','2026-07-08',true,42],
+    ['Santa Fe Opera Apprentice Housing - DIVISION 07 - THERMAL AND MOISTURE PROTECTION','Estimate Completed','Mark Aragon, Frank Emanuel','2026-07-07',true,42],
+    ['1926 Jonson (Twilight Homes)','Estimate Completed','Gabriel Espinosa','2026-07-09',true,41],
+    ['Sherwood Rounds White rock NM (Twilight Homes)','Estimate Completed','Jacob Martin, Mark Aragon','2026-07-06',true,37],
+    ['Brett Beaty','Estimate Completed','Gabriel Espinosa',null,true,37],
+    ['2132 Okeeffe (twilight homes)','Estimate Completed','Mark Aragon','2026-07-13',true,36],
+    ['22 Los Pecos Lp (Lowe-Bo)','Estimate Completed','Mike Jones',null,true,34],
+    ['2117 Rail Line (Twilight Homes)','Estimate Completed','Frank Emanuel','2026-07-16',true,34],
+    ['2127 Rail Line (Twilight Homes)','Estimate Completed','Mark Aragon','2026-07-17',true,34],
+    ['1914 Pena (Twilight Homes)','Estimate Completed','Mark Aragon','2026-07-17',true,34],
+    ['6821 Quivira (Twilight Homes)','Estimate Completed','Gabriel Espinosa','2026-07-17',true,33],
+    ['Box Residence (Cielo Construction)','Estimate Completed','Gabriel Espinosa',null,true,33],
+    ['Church of Scientology','Estimate Completed','Mark Aragon, Frank Emanuel','2026-07-21',true,29],
+    ['Panda Express','Estimate Completed','Mike Jones','2026-07-21',true,29],
+    ['NM Dept. of Public Safety ABQ Metropolitan Complex','Estimate Completed','Frank Emanuel, Mark Aragon','2026-07-23',true,28],
+    ['The Buddhist Temple of New Mexico','Estimate Completed','Frank Emanuel, Michelle Gonzalez',null,true,24],
+    ['APS Chaparral Middle School Replacement','Estimate Completed','Frank Emanuel, Mark Aragon','2026-07-28',true,23],
+    ['Prasad Garage (Modern Dwellings)','Estimate Completed','Mark Aragon','2026-07-16',true,23],
+    ['2127 Rail Line Rd (Twilight homes)','Estimate Completed','',null,true,23],
+    ['Casa Herrera (Cielo Construction)','Estimate Completed','Gabriel Espinosa',null,true,22],
+    ['Southwest Capitol Bank: Thermal & Moisture Protection','Estimate Completed','Mark Aragon, Frank Emanuel','2026-07-29',true,21],
+    ['Graceland + Silver','Estimate Completed','Mike Jones','2026-07-31',true,14],
+    ['Hale Residence','Estimate Completed','Gabriel Espinosa','2026-08-07',true,12],
+    ['Wingstop - Espanola','Estimate Completed','Mark Aragon, Frank Emanuel','2026-08-13',true,12],
+    ['Circle K - Albuquerque, NM','Estimate Completed','Mark Aragon, Frank Emanuel','2026-08-12',true,12],
+    ['Mora County Complex Tenant Improvements: Thermal Insulation','Estimate Completed','Frank Emanuel',null,true,12],
+    ['Loretto Inn and Spa Renovation Phase 2 and 3','Estimate Completed','Mark Aragon, Frank Emanuel',null,true,12],
+    ['32 Via Del Caballo (RJS)','Estimate Completed','Gabriel Espinosa',null,true,7],
+    ['LOWE-BO Homes RFP for Goss Residence, Marron Family Easement Plat Lot 4, Sandia Park 87047','Estimate Completed','Gabriel Espinosa, Mark Aragon','2026-08-14',true,6],
+    ['Circle K - Albuquerque (Snow Vista)','Estimate Completed','Mark Aragon','2026-08-11',true,6],
+    ['Clovis Racetrack & Casino','Estimate Completed','Mark Aragon, Frank Emanuel','2026-08-13',true,5],
+    ['Echo Suites (TNJ Group)','Estimate Completed','',null,true,2],
+    ['Central Desert Behavioral Hospital-Rio Rancho 2026: Thermal Insulation','Estimate Completed','Frank Emanuel','2026-08-14',true,2],
+    ['Project Wonder','Estimate Completed','Frank Emanuel','2026-08-18',true,1],
+    ['6701 Quivira (Twilight Homes)','Estimate Completed','Frank Emanuel','2026-08-19',true,0],
+    ['Fire / Police Station Project in Los Alamos, NM.','Estimate Lost','Mike Jones',null,true,106],
+    ['Maverik #792 (Rio Communities) Parkway Construction','Estimate Lost','Mark Aragon','2026-01-09',true,106],
+    ['Gonzales Residence (Candelaria Homes)','Estimate Lost','Mark Aragon, Jacob Martin','2026-04-22',true,106],
+    ['First Baptist Church - White Sands','Estimate Lost','Mike Jones',null,true,106],
+    ['Williams Residence','Estimate Lost','Mark Aragon, Mike Jones','2026-01-27',true,106],
+    ['David Toledo(New Construction.)','Estimate Lost','Mark Aragon','2025-11-12',true,106],
+    ['Albuquerque Rehabilitation Hospital (Parkway Const)','Estimate Lost','Mark Aragon','2025-11-27',true,106],
+    ['Domino\'s TI - Store #8260 (Alamogordo, NM)','Estimate Lost','Mike Jones',null,true,106],
+    ['Damacio Page- 609 2nd St','Estimate Lost','Mark Aragon, Jacob Martin','2025-11-12',true,106],
+    ['Alejandro Ruiz Senior center. (SDV CONSTRUCTION)','Estimate Lost','Mark Aragon','2025-12-05',true,106],
+    ['Brandon Spitali(360) 391-0133 3484 US-60 | Quemado, NM 87829','Estimate Lost','Mark Aragon','2025-11-12',true,106],
+    ['Marriott (Taos)','Estimate Lost','Frank Emanuel, Mark Aragon',null,true,63],
+    ['Candelaria Homes- Sean Jariwala Residence.','Estimate Won','Mark Aragon','2025-08-07',true,133],
+    ['2113 Rail Line (Twilight Homes)','Estimate Won','Mark Aragon','2026-04-09',true,106],
+    ['King Addition Current (CJ Construction)','Estimate Won','Mark Aragon','2025-12-22',true,106],
+    ['5829 Diebenkorn Twilight homes','Estimate Won','Gabriel Espinosa','2026-04-15',true,106],
+    ['Cerrito Rojo Bids- Jody R','Estimate Won','Mark Aragon',null,true,106],
+    ['Dye Residence (Keefer Rader)','Estimate Won','','2026-03-20',true,106],
+    ['Paula Jones (complete Remodel)','Estimate Won','Mark Aragon, Jacob Martin','2025-09-08',true,106],
+    ['Mesa Del Sol 2125 DeKooning Twilight Construction','Estimate Won','',null,true,106],
+    ['Perez Garage (Connected Construction)','Estimate Won','','2026-03-27',true,106],
+    ['1930 Jonson (Twilight Homes)','Estimate Won','Mark Aragon, Frank Emanuel','2026-03-07',true,106],
+    ['Cerro Del Norte _ 2044 Calle Sombra (Sutton Residence)','Estimate Won','Mark Aragon','2026-03-07',true,106],
+    ['Little Residence- Connected.','Estimate Won','Jacob Martin','2025-07-28',true,106],
+    ['Connected Construction(Adams residence) ($67,000)','Estimate Won','','2025-04-09',true,106],
+    ['Hotel Flora','Estimate Won','Mark Aragon, Gabriel Espinosa','2026-04-10',true,85],
+    ['Churchill Residence','Estimate Won','Gabriel Espinosa',null,true,77],
+    ['Parachuri Residence','Estimate Won','Gabriel Espinosa','2026-05-07',true,76],
+    ['Bolinger Residence /Addition','Estimate Won','Gabriel Espinosa','2026-05-15',true,76],
+    ['Rohrlich Residence Addition/Residence','Estimate Won','Mark Aragon, Gabriel Espinosa','2026-04-17',true,76],
+    ['80 Sierra Azul (Amy Nowell)','Estimate Won','Gabriel Espinosa',null,true,13],
+    ['Tidal Wave Auto Spa','Estimate Won','Frank Emanuel, Gabriel Espinosa','2026-07-22',true,13],
+    ['Murphy Builders Gallup','Estimate Won','Gabriel Espinosa, Frank Emanuel',null,false,0],
+    ],
+  },
 };
 
 /* ---------------- Theme ---------------- */
@@ -1507,6 +1893,160 @@ document.querySelectorAll('#repRevenueRangeToggle button').forEach(btn => {
   });
 });
 
+/* ---------------- CRM Pipeline (Trello) ---------------- */
+const CRM_PROSPECT_ACTIVE = ['Prospecting List', 'Prospecting 1st Contact', 'Prospecting 2nd Contact', 'Prospecting 3rd Contact'];
+const CRM_PROSPECT_OUTCOMES = ['Prospecting On Hold', 'Dead Prospecting List', 'Prospect Won'];
+const CRM_ESTIMATE_ACTIVE = ['Plans Received', 'Takeoff In Process', 'Estimate Completed'];
+const CRM_ESTIMATE_OUTCOMES = ['Estimate Lost', 'Estimate Won'];
+const CRM_ACTIVE_STAGES = new Set([...CRM_PROSPECT_ACTIVE, ...CRM_ESTIMATE_ACTIVE]);
+// [name, list, members, due, dueComplete, daysStale]
+const CRM_COL = { NAME: 0, LIST: 1, MEMBERS: 2, DUE: 3, DUE_COMPLETE: 4, STALE: 5 };
+const CRM_STAGE_META = {
+  'Prospecting List':        { accent: 'var(--cat-1)' },
+  'Prospecting 1st Contact': { accent: 'var(--cat-1)' },
+  'Prospecting 2nd Contact': { accent: 'var(--cat-1)' },
+  'Prospecting 3rd Contact': { accent: 'var(--cat-1)' },
+  'Prospecting On Hold':     { accent: 'var(--status-warn)', bg: 'var(--status-warn-bg)' },
+  'Dead Prospecting List':   { accent: 'var(--status-critical)', bg: 'var(--status-critical-bg)' },
+  'Prospect Won':            { accent: 'var(--status-good)', bg: 'var(--status-good-bg)' },
+  'Plans Received':          { accent: 'var(--cat-4)' },
+  'Takeoff In Process':      { accent: 'var(--cat-4)' },
+  'Estimate Completed':      { accent: 'var(--cat-4)' },
+  'Estimate Lost':           { accent: 'var(--status-critical)', bg: 'var(--status-critical-bg)' },
+  'Estimate Won':            { accent: 'var(--status-good)', bg: 'var(--status-good-bg)' },
+};
+
+function crmStageCounts() {
+  const counts = {};
+  dataStore.crm.cards.forEach(c => { counts[c[CRM_COL.LIST]] = (counts[c[CRM_COL.LIST]] || 0) + 1; });
+  return counts;
+}
+
+function pipelineTile(stageName, count) {
+  const meta = CRM_STAGE_META[stageName] || { accent: 'var(--cat-1)' };
+  const bg = meta.bg ? `background:${meta.bg};` : '';
+  const safeStage = stageName.replace(/'/g, "\\'");
+  return `<div class="pipeline-tile" style="border-left-color:${meta.accent};${bg}" onclick="openCrmStageModal('${safeStage}')" role="button" tabindex="0">
+    <div class="pt-count">${count}</div>
+    <div class="pt-label">${stageName}</div>
+  </div>`;
+}
+
+function renderPipelineRow(containerId, activeStages, outcomeStages, counts) {
+  let html = '';
+  activeStages.forEach((s, i) => {
+    html += pipelineTile(s, counts[s] || 0);
+    if (i < activeStages.length - 1) html += `<div class="pipeline-arrow">&rarr;</div>`;
+  });
+  html += `<div class="pipeline-divider"><span>then</span></div>`;
+  outcomeStages.forEach(s => { html += pipelineTile(s, counts[s] || 0); });
+  document.getElementById(containerId).innerHTML = html;
+}
+
+function renderCrmTab() {
+  const cards = dataStore.crm.cards;
+  const counts = crmStageCounts();
+
+  renderPipelineRow('crmProspectRow', CRM_PROSPECT_ACTIVE, CRM_PROSPECT_OUTCOMES, counts);
+  renderPipelineRow('crmEstimateRow', CRM_ESTIMATE_ACTIVE, CRM_ESTIMATE_OUTCOMES, counts);
+
+  // KPIs
+  const activeProspects = CRM_PROSPECT_ACTIVE.reduce((s, l) => s + (counts[l] || 0), 0) + (counts['Prospecting On Hold'] || 0);
+  const activeEstimates = CRM_ESTIMATE_ACTIVE.reduce((s, l) => s + (counts[l] || 0), 0);
+  const won = counts['Estimate Won'] || 0, lost = counts['Estimate Lost'] || 0;
+  const winRate = (won + lost) ? 100 * won / (won + lost) : null;
+  const activeCards = cards.filter(c => CRM_ACTIVE_STAGES.has(c[CRM_COL.LIST]));
+  const stale90 = activeCards.filter(c => (c[CRM_COL.STALE] || 0) >= 90).length;
+  const stale90Pct = activeCards.length ? 100 * stale90 / activeCards.length : 0;
+
+  document.getElementById('crmKpiRow').innerHTML = [
+    kpiTile('Active Prospects', activeProspects, 'Prospecting List → 3rd Contact + On Hold', 'neutral'),
+    kpiTile('Active Estimates', activeEstimates, 'Plans Received → Estimate Completed', 'neutral'),
+    kpiTile('Estimate Win Rate', winRate !== null ? fmtPct(winRate) : '—', `${won} won · ${lost} lost (all-time)`, winRate >= 50 ? 'good' : 'bad'),
+    kpiTile('Stale 90+ Days', `${stale90} (${Math.round(stale90Pct)}%)`, 'of active pipeline, no card activity in 90+ days', stale90Pct > 30 ? 'bad' : 'neutral'),
+  ].join('');
+
+  // Pipeline health flags
+  const stalest = activeCards.slice().sort((a, b) => (b[CRM_COL.STALE] || 0) - (a[CRM_COL.STALE] || 0)).slice(0, 6);
+  const stalestLines = stalest.map(c => `${c[CRM_COL.NAME]} (${c[CRM_COL.LIST]}, ${c[CRM_COL.STALE]}d, ${c[CRM_COL.MEMBERS] || 'unassigned'})`).join('; ');
+  const unassignedEstimates = cards.filter(c => CRM_ESTIMATE_ACTIVE.includes(c[CRM_COL.LIST]) && !c[CRM_COL.MEMBERS]);
+
+  const flags = [];
+  if (stale90Pct > 0) {
+    flags.push({
+      level: stale90Pct > 30 ? 'warn' : 'ok',
+      title: `${stale90} active cards (${Math.round(stale90Pct)}%) haven’t been touched in 90+ days`,
+      body: `Oldest: ${stalestLines}.`,
+    });
+  }
+  if (unassignedEstimates.length) {
+    flags.push({
+      level: 'warn',
+      title: `${unassignedEstimates.length} active estimate card${unassignedEstimates.length === 1 ? '' : 's'} ha${unassignedEstimates.length === 1 ? 's' : 've'} no rep assigned`,
+      body: unassignedEstimates.slice(0, 8).map(c => `${c[CRM_COL.NAME]} (${c[CRM_COL.LIST]})`).join('; ') + (unassignedEstimates.length > 8 ? `, +${unassignedEstimates.length - 8} more` : '') + '.',
+    });
+  }
+  document.getElementById('crmFlagList').innerHTML = flags.map(fl => `
+    <div class="flag-item">
+      <span class="status-pill ${FLAG_PILL[fl.level]}">${FLAG_ICON[fl.level]}</span>
+      <div><div class="flag-title">${fl.title}</div><div class="flag-body">${fl.body}</div></div>
+    </div>`).join('') || '<div class="flag-item"><span class="status-pill good">&#10003;</span><div><div class="flag-title">No issues flagged</div></div></div>';
+
+  // Rep activity table, cross-referenced with ServiceMinder 30d revenue (dataStore.reps)
+  const repRevenue = {};
+  (dataStore.reps || []).forEach(r => { repRevenue[r.name] = r.revenue30d; });
+  const repProspect = {}, repEstimate = {};
+  cards.forEach(c => {
+    const members = c[CRM_COL.MEMBERS] ? c[CRM_COL.MEMBERS].split(', ') : [];
+    const isProspect = CRM_PROSPECT_ACTIVE.includes(c[CRM_COL.LIST]) || CRM_PROSPECT_OUTCOMES.includes(c[CRM_COL.LIST]);
+    members.forEach(m => {
+      if (isProspect) repProspect[m] = (repProspect[m] || 0) + 1;
+      else repEstimate[m] = (repEstimate[m] || 0) + 1;
+    });
+  });
+  const allReps = [...new Set([...Object.keys(repProspect), ...Object.keys(repEstimate)])]
+    .sort((a, b) => ((repProspect[b] || 0) + (repEstimate[b] || 0)) - ((repProspect[a] || 0) + (repEstimate[a] || 0)));
+  document.getElementById('crmRepTbody').innerHTML = allReps.map(rep => {
+    const p = repProspect[rep] || 0, e = repEstimate[rep] || 0;
+    const rev = repRevenue[rep];
+    return `<tr><td>${rep}</td><td>${p}</td><td>${e}</td><td>${p + e}</td><td>${rev !== undefined ? fmtMoney(rev) : '<span style="color:var(--text-muted);">not in ServiceMinder 30d</span>'}</td></tr>`;
+  }).join('');
+}
+
+function openCrmStageModal(stageName) {
+  const cards = dataStore.crm.cards.filter(c => c[CRM_COL.LIST] === stageName);
+  document.getElementById('crmStageModalTitle').textContent = `${stageName} — ${cards.length} card${cards.length === 1 ? '' : 's'}`;
+  document.getElementById('crmStageModalSubtitle').textContent = 'From the Sales & Operations Trello board (snapshot 2026-08-20)';
+  const sorted = cards.slice().sort((a, b) => (b[CRM_COL.STALE] || 0) - (a[CRM_COL.STALE] || 0));
+  const rows = sorted.map(c => `<tr>
+    <td>${c[CRM_COL.NAME]}</td>
+    <td>${c[CRM_COL.MEMBERS] || '<span style="color:var(--text-muted);">unassigned</span>'}</td>
+    <td>${c[CRM_COL.STALE] != null ? c[CRM_COL.STALE] + 'd ago' : '—'}</td>
+    <td>${c[CRM_COL.DUE] || '—'}</td>
+  </tr>`).join('');
+  document.getElementById('crmStageModalBody').innerHTML = `
+    <div class="store-table-wrap" style="margin-bottom:0;">
+      <table class="store-table">
+        <thead><tr><th>Card</th><th>Rep(s)</th><th>Last Activity</th><th>Due</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4">No cards in this stage.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  document.getElementById('crmStageModalFooter').innerHTML = 'Static snapshot, not live — see the CRM Pipeline tab banner for how to refresh.';
+  document.getElementById('crmStageModalBackdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCrmStageModal() {
+  document.getElementById('crmStageModalBackdrop').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('crmStageModalBackdrop').classList.contains('open')) {
+    closeCrmStageModal();
+  }
+});
+
 /* ---------------- Init ---------------- */
 function renderAll() {
   renderFunnelTab();
@@ -1515,6 +2055,7 @@ function renderAll() {
   renderRepsTab();
   renderPipelineTab();
   renderFinancialTab();
+  renderCrmTab();
 }
 renderAll();
 </script>

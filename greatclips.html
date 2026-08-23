@@ -121,7 +121,7 @@ tbody tr.clickrow{cursor:pointer}
     </tr></thead><tbody></tbody><tfoot></tfoot></table>
   </div>
   <div class="grid g2">
-    <div class="card"><h3>Total Sales by Salon</h3><div class="hint" id="hSales"></div><div class="chart-box tall"><canvas id="cSales"></canvas></div></div>
+    <div class="card"><h3>Total Customers by Salon</h3><div class="hint" id="hSales"></div><div class="chart-box tall"><canvas id="cSales"></canvas></div></div>
     <div class="card"><h3>Payroll % vs 40% Target</h3><div class="hint">Red = over target</div><div class="chart-box tall"><canvas id="cPay"></canvas></div></div>
   </div>
 </section>
@@ -157,12 +157,7 @@ tbody tr.clickrow{cursor:pointer}
   </div>
 
   <div id="detWeek" style="display:none">
-    <div class="card tbl-scroll" style="margin-bottom:16px">
-      <table id="styWeekTable"><thead><tr>
-        <th>Stylist</th><th>Floor Hrs</th><th>Cust</th><th>Avg HC</th><th>CPH</th><th>Std Prod %</th><th>Payroll %</th><th>New Ret %</th><th>Repeat Ret %</th><th>Prod'vity</th>
-      </tr></thead><tbody></tbody></table>
-      <div class="legend-note">Weekly per-stylist performance (Sat–Fri). Cells colored by KPI thresholds. <span class="na">n/a</span> = too few eligible customers for a return rate.</div>
-    </div>
+    <div class="legend-note" style="margin-bottom:12px">Per-stylist weekly performance now lives in the Employee Performance card below (with Week/Month/YTD/Custom ranges) — it's the same weekly_epp data, shown once instead of twice.</div>
     <div class="grid g2">
       <div class="card"><h3>Weekly wait &amp; pace</h3><div class="hint" id="detWeekWaitHint"></div><ul class="mini-list" id="detWeekWait"></ul></div>
       <div class="card"><h3>At a glance</h3><div class="hint">Weekly totals</div><ul class="mini-list" id="detWeekList"></ul></div>
@@ -622,8 +617,8 @@ function renderPortWTD(){
 }
 document.querySelectorAll("#portTable thead th").forEach(th=>th.onclick=()=>{if(th.dataset.k===undefined)return;const k=+th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=(k===0?1:-1);}renderPort();});
 function portCharts(SAL){
-  const bs=[...SAL].sort((a,b)=>b[4]-a[4]);
-  mk("cSales","bar",bs.map(s=>s[0]),[{label:"Total sales",data:bs.map(s=>s[4]),backgroundColor:BLUE}],{indexAxis:"y",x:v=>"$"+v});
+  const bs=[...SAL].sort((a,b)=>b[5]-a[5]);
+  mk("cSales","bar",bs.map(s=>s[0]),[{label:"Total customers",data:bs.map(s=>s[5]),backgroundColor:BLUE}],{indexAxis:"y",x:v=>v});
   const bp=[...SAL].sort((a,b)=>b[6]-a[6]);
   mk("cPay","bar",bp.map(s=>s[0]),[{label:"Payroll %",data:bp.map(s=>s[6]),backgroundColor:bp.map(s=>kcolor("payroll",s[6]))},
     {label:"Target 40%",type:"line",data:bp.map(()=>40),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{indexAxis:"y",x:v=>v+"%"});
@@ -684,14 +679,7 @@ function renderDetailWeek(){
       ["Cash Over/Short",(typeof g("overShort")==="number"?'<span class="'+(g("overShort")<0?'down':'up')+'">'+(g("overShort")<0?'−':'+')+'$'+Math.abs(g("overShort")).toFixed(2)+'</span>':'—'),"vs expected drawer"]
     ].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");}
   else k.innerHTML='<div class="banner warn" style="grid-column:1/-1">No Weekly Salon Summary stored for '+sName(current)+(curWeek?(" for the week ending "+fmtDate(curWeek)):"")+" yet. It fills in after Saturday's pull.</div>";
-  // weekly stylist table (from weekly EPP)
-  const cell=(m,v,suf="")=>v===null||v===undefined?`<td class="na">n/a</td>`:`<td class="${kpi(m,v)}">${(typeof v==="number"?v.toFixed(1):v)}${suf}</td>`;
-  const rows=(WEEK.EPP&&WEEK.EPP[current])||[];const tb=$("#styWeekTable tbody");tb.innerHTML="";
-  rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${(typeof r[1]==="number"?r[1].toFixed(2):r[1])}</td><td>${r[2]}</td>
-    ${cell("avghc",r[3])}${cell("cuts",r[4])}${cell("stdprod",r[5],"%")}${cell("payroll",r[8],"%")}
-    ${cell("newret",r[9],"%")}${cell("repret",r[10],"%")}<td>${money(r[7])}</td></tr>`;});
-  if(!rows.length)tb.innerHTML=`<tr><td colspan="10" class="sub" style="text-align:center;padding:16px">No weekly stylist data for this salon/week.</td></tr>`;
-  // weekly wait & pace + at-a-glance
+  // weekly wait & pace + at-a-glance (per-stylist weekly breakdown now shown once, in the Employee Performance card)
   const g=w?(m=>w[WS[m]]):(()=>undefined);const mo=v=>typeof v==="number"?money(v):"—";
   $("#detWeekWaitHint").textContent=curWeek?("week ending "+fmtDate(curWeek)):"";
   $("#detWeekWait").innerHTML=w?[["Avg wait",num(g("avgWait"),0)+" min"],["Wait > 15 min",num(g("waitOver15Pct"))+"%"],["Avg min between waiting cust",num(g("avgMinBtwn"))],["Floor hours",num(g("floorHours"),2)],["Floor hours growth",(typeof g("floorHoursGrowth")==="number"?g("floorHoursGrowth").toFixed(2):"—")]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):'<li><span class="k">—</span></li>';

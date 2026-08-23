@@ -559,11 +559,14 @@ function renderPort(){
   const SAL=DAY.SAL||[];
   $("#portModeHint").textContent=curDate?fmtDate(curDate):"";
   $("#portTitle").textContent="All salons — "+(curDate?fmtDate(curDate):"no day selected")+"  · click a row to open its detail";
-  let t={sales:0,cust:0,pay:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];});
-  const over=SAL.filter(s=>s[6]>40).length, neg=SAL.filter(s=>s[12]<0).length;
-  $("#portKpis").innerHTML=[["Salons",SAL.length,""],["Total Sales",money0(t.sales),"selected day"],
+  let t={sales:0,cust:0,pay:0,cg:0,sg:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];t.cg+=s[12];t.sg+=s[13];});
+  const over=SAL.filter(s=>s[6]>40).length;
+  const avgCg=t.cg/t.n,avgSg=t.sg/t.n;
+  $("#portKpis").innerHTML=[["Total Sales",money0(t.sales),"selected day"],
     ["Customers",t.cust.toLocaleString(),""],["Avg Payroll %",(t.pay/t.n).toFixed(1)+"%","target ≤ 40%"],
-    ["Over payroll",over+" of "+SAL.length,"above 40%"],["Neg. cust growth",neg+" of "+SAL.length,"YoY"]]
+    ["Over payroll",over+" of "+SAL.length,"above 40%"],
+    ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
+    ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
     .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
   const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
   const tb=$("#portTable tbody");tb.innerHTML="";
@@ -582,12 +585,15 @@ function renderPortYTD(){
   const ytd=computeYTD();const SAL=ytd.rows;const yr=ytd.year;
   $("#portModeHint").textContent="Jan 1 – "+fmtDate(DATES[0]||"")+" "+yr;
   $("#portTitle").textContent="All salons — YTD "+yr+"  · click a row to open its detail";
-  let t={sales:0,cust:0,pay:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];});
+  let t={sales:0,cust:0,pay:0,cg:0,sg:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];t.cg+=s[12];t.sg+=s[13];});
   const over=SAL.filter(s=>s[6]>40).length;
   const totalDays=Object.values(ytd.acc).reduce((a,v)=>Math.max(a,v.days),0);
-  $("#portKpis").innerHTML=[["Salons",SAL.length,""],["YTD Sales",money0(t.sales),totalDays+" day(s)"],
+  const avgCg=t.cg/t.n,avgSg=t.sg/t.n;
+  $("#portKpis").innerHTML=[["YTD Sales",money0(t.sales),totalDays+" day(s)"],
     ["YTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",(t.pay/t.n).toFixed(1)+"%","target ≤ 40%"],
-    ["Over payroll",over+" of "+SAL.length,"avg above 40%"],["Days in data",totalDays,"calendar "+yr]]
+    ["Over payroll",over+" of "+SAL.length,"avg above 40%"],
+    ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
+    ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
     .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
   const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
   const tb=$("#portTable tbody");tb.innerHTML="";
@@ -607,11 +613,14 @@ function renderPortWTD(){
   const label=wtd.weekStart?fmtDate(wtd.weekStart)+" – "+fmtDate(wtd.weekEnd||""):"";
   $("#portModeHint").textContent=label;
   $("#portTitle").textContent="All salons — Week to Date ("+wtd.daysInWeek+" day"+(wtd.daysInWeek!==1?"s":"")+")  · click a row to open its detail";
-  let t={sales:0,cust:0,pay:0,os:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];t.os+=(s[14]||0);});
-  const over=SAL.filter(s=>s[6]>40).length, neg=SAL.filter(s=>s[12]<0).length;
-  $("#portKpis").innerHTML=[["Salons",SAL.length,""],["WTD Sales",money0(t.sales),wtd.daysInWeek+" day(s)"],
+  let t={sales:0,cust:0,pay:0,cg:0,sg:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.pay+=s[6];t.cg+=s[12];t.sg+=s[13];});
+  const over=SAL.filter(s=>s[6]>40).length;
+  const avgCg=t.cg/t.n,avgSg=t.sg/t.n;
+  $("#portKpis").innerHTML=[["WTD Sales",money0(t.sales),wtd.daysInWeek+" day(s)"],
     ["WTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",(t.pay/t.n).toFixed(1)+"%","target ≤ 40%"],
-    ["Over payroll",over+" of "+SAL.length,"above 40%"],["Cash Over/Short","$"+t.os.toFixed(2),wtd.daysInWeek+" day(s)"]]
+    ["Over payroll",over+" of "+SAL.length,"above 40%"],
+    ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
+    ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
     .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
   const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
   const tb=$("#portTable tbody");tb.innerHTML="";

@@ -119,7 +119,7 @@ tbody tr.clickrow{cursor:pointer}
   <div class="card tbl-scroll" style="margin-bottom:18px">
     <table id="portTable"><thead><tr>
       <th data-k="0">Salon</th><th data-k="4">Total Sales</th><th data-k="5">Cust</th><th data-k="6">Payroll %</th>
-      <th data-k="7">Avg HC</th><th data-k="8">CPH</th><th data-k="9">Prod'vity</th><th data-k="10">Avg Wait</th>
+      <th data-k="7">Avg HC</th><th data-k="8">CPH</th><th title="Overall health score (1-5) from payroll %, CPH, avg HC time, wait &gt;15%, and customer growth vs. targets">Health</th><th data-k="10">Avg Wait</th>
       <th data-k="11">Wait&gt;15%</th><th data-k="12">Cust Gr%</th><th data-k="13">Sales Gr%</th><th class="gcol" title="Live Google rating (snapshot)">Google ★</th>
     </tr></thead><tbody></tbody><tfoot></tfoot></table>
   </div>
@@ -148,8 +148,8 @@ tbody tr.clickrow{cursor:pointer}
   <div id="detDay">
     <div class="card tbl-scroll" style="margin-bottom:16px">
       <table id="styTable"><thead><tr>
-        <th>Stylist</th><th>Floor Hrs</th><th>Payroll %</th><th>CPH</th><th>Service $</th><th>Svc Disc $</th><th>Disc %</th>
-        <th>Stnd Prod %</th><th>Cust</th><th>Avg HC</th><th>Productivity</th><th>Avg Min Btwn</th>
+        <th>Stylist</th><th>Floor Hrs</th><th>Admin</th><th>Close</th><th>Payroll %</th><th>CPH</th><th>Service $</th><th>Svc Disc $</th><th>Disc %</th>
+        <th>Stnd Prod %</th><th>Cust</th><th>Avg HC</th><th>Avg Min Btwn</th>
       </tr></thead><tbody></tbody><tfoot></tfoot></table>
       <div class="legend-note">Cells colored by KPI thresholds — <span class="kg">&nbsp;green&nbsp;</span> on target, <span class="ky">&nbsp;yellow&nbsp;</span> watch, <span class="kr">&nbsp;red&nbsp;</span> below (payroll, CPH, std prod %, avg HC).</div>
     </div>
@@ -294,10 +294,10 @@ async function supaFetchAll(table,orderCol){
   }return all;
 }
 async function loadData(){
-  const[dSal,dSty,dWait,wSal,wEpp]=await Promise.all([
+  const[dSal,dSty,dWait,wSal,wEpp,dRed]=await Promise.all([
     supaFetchAll("daily_salon","date"),supaFetchAll("daily_stylist","date"),
     supaFetchAll("daily_wait","date"),supaFetchAll("weekly_salon","week_ending"),
-    supaFetchAll("weekly_epp","week_ending")]);
+    supaFetchAll("weekly_epp","week_ending"),supaFetchAll("daily_redflag","date")]);
   const salons={},salonAm={},datesSet=new Set(),weeksSet=new Set(),days={},weeklies={};
   dSal.forEach(r=>{const d=r.date,sid=String(r.salon_id);datesSet.add(d);
     salons[sid]=r.salon_name;salonAm[sid]=SALON_AM[sid]||"";
@@ -305,7 +305,7 @@ async function loadData(){
     days[d].SAL.push([sid,r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.payroll_pct,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.cust_growth_pct,r.sales_growth_pct,r.cash_over_short]);});
   dSty.forEach(r=>{const d=r.date,sid=String(r.salon_id);
     if(!days[d])days[d]={SAL:[],STY:{},WAIT:{}};if(!days[d].STY[sid])days[d].STY[sid]=[];
-    days[d].STY[sid].push([r.stylist_name,r.floor_hrs,r.payroll_pct,r.cph,r.service_sales,r.svc_disc,r.disc_pct,r.std_prod_pct,r.cust,r.avg_hc,r.prodvity,r.avg_min_btwn]);});
+    days[d].STY[sid].push([r.stylist_name,r.floor_hrs,r.payroll_pct,r.cph,r.service_sales,r.svc_disc,r.disc_pct,r.std_prod_pct,r.cust,r.avg_hc,r.prodvity,r.avg_min_btwn,r.admin_hrs,r.close_hrs]);});
   dWait.forEach(r=>{const d=r.date,sid=String(r.salon_id);
     if(!days[d])days[d]={SAL:[],STY:{},WAIT:{}};
     days[d].WAIT[sid]=[r.b1_lte10,r.b2_10_15,r.b3_15_20,r.b4_20_25,r.b5_25_30,r.b6_30_40,r.b7_40plus];});
@@ -316,8 +316,34 @@ async function loadData(){
     if(!weeklies[wk])weeklies[wk]={EPP:{},REDF:{},WSAL:{}};
     if(!weeklies[wk].EPP[sid])weeklies[wk].EPP[sid]=[];
     weeklies[wk].EPP[sid].push([r.stylist_name,r.floor_hrs,r.cust,r.avg_hc,r.cph,r.std_prod_pct,r.svc_disc_pct,r.prodvity,r.payroll_pct,r.new_ret_pct,r.rep_ret_pct,r.avg_min_btwn]);});
+  // daily_redflag is per-day/per-stylist; the Red Flags tab is weekly, so roll each day
+  // up into the GC week (Sat–Fri) it falls in, keyed the same way weekly_salon is
+  // (week_ending = the Friday). Short Cuts / Long Svc have no source column yet, so
+  // those two are always 0 ("—" on the table) until that data is tracked.
+  const redAcc={};
+  dRed.forEach(r=>{
+    const d=r.date,sid=String(r.salon_id),wk=weekEndingFor(d);
+    weeksSet.add(wk);
+    if(!redAcc[wk])redAcc[wk]={};
+    if(!redAcc[wk][sid])redAcc[wk][sid]={};
+    const nm=r.stylist_name;
+    if(!redAcc[wk][sid][nm])redAcc[wk][sid][nm]={discPctSum:0,discPctN:0,discDollars:0,chgCount:0,chgDollars:0,redosDollars:0,voidedDollars:0,refundDollars:0};
+    const a=redAcc[wk][sid][nm];
+    if(typeof r.svc_disc_pct==="number"){a.discPctSum+=r.svc_disc_pct;a.discPctN++;}
+    a.discDollars+=r.svc_disc_dollars||0;a.chgCount+=r.changed_inv_count||0;a.chgDollars+=r.changed_dollars||0;
+    a.redosDollars+=r.redos_dollars||0;a.voidedDollars+=r.voided_dollars||0;a.refundDollars+=r.refund_dollars||0;
+  });
+  Object.keys(redAcc).forEach(wk=>{
+    if(!weeklies[wk])weeklies[wk]={EPP:{},REDF:{},WSAL:{}};
+    Object.keys(redAcc[wk]).forEach(sid=>{
+      weeklies[wk].REDF[sid]=Object.keys(redAcc[wk][sid]).map(nm=>{const a=redAcc[wk][sid][nm];
+        return [nm,a.discPctN?a.discPctSum/a.discPctN:0,a.discDollars,a.chgCount,a.chgDollars,a.redosDollars,a.voidedDollars,a.refundDollars,0,0];});
+    });
+  });
   DATA={dates:[...datesSet],weeks:[...weeksSet],salons,salonAm,days,weeklies};return DATA;
 }
+// Given a date string YYYY-MM-DD, return the GC week's Friday end-date (week_ending key)
+function weekEndingFor(dateStr){const s=gcWeekStart(dateStr);const d=new Date(s+"T12:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);}
 // SAL row (DailySalon minus 'date') metric -> column index, for client-side trends
 const SALIDX={serviceSales:2,productSales:3,totalSales:4,cust:5,payrollPct:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,custGrowthPct:12,salesGrowthPct:13};
 function dTrend(salon,metric){const idx=SALIDX[metric];if(idx==null)return [];const out=[];
@@ -458,6 +484,17 @@ function kpi(m,v){ if(v===null||v===undefined||v==="")return"";
   return""; }
 function kcolor(m,v){const c=kpi(m,v);return c==="kg"?GREEN:c==="ky"?AMBER:c==="kr"?RED:BLUE;}
 
+// HEALTH SCORE (Portfolio) — 1-5 scale rolling up payroll %, CPH, avg HC, wait >15%, and cust growth
+function healthScore(s){
+  const checks=[kpi('payroll',s[6]),kpi('cuts',s[8]),kpi('avghc',s[7]),kpi('wait15',s[11]),kpi('custgrowth',s[12])];
+  let pts=0,n=0;checks.forEach(c=>{if(!c)return;n++;pts+=c==="kg"?1:(c==="ky"?0.5:0);});
+  if(!n)return null;
+  return Math.max(1,Math.min(5,Math.round(1+(pts/n)*4)));
+}
+function healthCell(s){const sc=healthScore(s);if(sc==null)return'<td class="na">n/a</td>';
+  const col=sc>=4?GREEN:sc>=3?AMBER:RED;
+  return `<td><span style="display:inline-block;min-width:28px;padding:2px 9px;border-radius:12px;font-weight:700;color:#fff;background:${col}">${sc}/5</span></td>`;}
+
 // GOOGLE RATINGS + REVIEWS (loaded from Supabase — see loadGoogleData())
 function grate(id){const g=GRATE[id];if(!g)return'<span class="sub">—</span>';
   const r=g[0],col=r>=4.3?GREEN:(r>=4.0?AMBER:RED);
@@ -494,7 +531,7 @@ function renderPort(){
   rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
     tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
       <td class="${kpi('payroll',s[6])}">${s[6].toFixed(1)}%</td><td class="${kpi('avghc',s[7])}">${s[7].toFixed(1)}</td><td class="${kpi('cuts',s[8])}">${s[8].toFixed(1)}</td>
-      <td>${money(s[9])}</td><td>${s[10]}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
+      ${healthCell(s)}<td>${s[10]}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
       <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderRed();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
@@ -518,7 +555,7 @@ function renderPortYTD(){
   rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
     tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
       <td class="${kpi('payroll',s[6])}">${s[6].toFixed(1)}%</td><td class="${kpi('avghc',s[7])}">${s[7].toFixed(1)}</td><td class="${kpi('cuts',s[8])}">${s[8].toFixed(1)}</td>
-      <td>${money(s[9])}</td><td>${(s[10]||0).toFixed(0)}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
+      ${healthCell(s)}<td>${(s[10]||0).toFixed(0)}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
       <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];detMode="ytd";document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x.dataset.mode==="ytd"));$("#detDay").style.display="none";$("#detWeek").style.display="none";$("#detYTD").style.display="";renderDetail();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
@@ -542,7 +579,7 @@ function renderPortWTD(){
   rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
     tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
       <td class="${kpi('payroll',s[6])}">${s[6].toFixed(1)}%</td><td class="${kpi('avghc',s[7])}">${s[7].toFixed(1)}</td><td class="${kpi('cuts',s[8])}">${s[8].toFixed(1)}</td>
-      <td>${money(s[9])}</td><td>${(s[10]||0).toFixed(0)}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
+      ${healthCell(s)}<td>${(s[10]||0).toFixed(0)}</td><td class="${kpi('wait15',s[11])}">${s[11].toFixed(1)}%</td>
       <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderRed();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
@@ -588,11 +625,11 @@ function renderDetailDay(){
     ["Cash Over/Short",(typeof s[14]==="number"?'<span class="'+(s[14]<0?'down':'up')+'">'+(s[14]<0?'−':'+')+'$'+Math.abs(s[14]).toFixed(2)+'</span>':'—'),"vs expected drawer"]].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");}
   else k.innerHTML="";
   const rows=(DAY.STY&&DAY.STY[current])||[];const tb=$("#styTable tbody");tb.innerHTML="";let svc=0,disc=0,cust=0;
-  rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td class="${kpi('payroll',r[2])}">${r[2].toFixed(1)}%</td>
+  rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td>${typeof r[12]==="number"?r[12].toFixed(2):"—"}</td><td>${typeof r[13]==="number"?r[13].toFixed(2):"—"}</td><td class="${kpi('payroll',r[2])}">${r[2].toFixed(1)}%</td>
     <td class="${kpi('cuts',r[3])}">${r[3].toFixed(1)}</td><td>${money(r[4])}</td><td>${money(r[5])}</td><td>${r[6].toFixed(1)}%</td>
-    <td class="${kpi('stdprod',r[7])}">${r[7].toFixed(1)}%</td><td>${r[8]}</td><td class="${kpi('avghc',r[9])}">${r[9].toFixed(1)}</td><td>${money(r[10])}</td><td>${r[11].toFixed(1)}</td></tr>`;
+    <td class="${kpi('stdprod',r[7])}">${r[7].toFixed(1)}%</td><td>${r[8]}</td><td class="${kpi('avghc',r[9])}">${r[9].toFixed(1)}</td><td>${r[11].toFixed(1)}</td></tr>`;
     svc+=r[4];disc+=r[5];cust+=r[8];});
-  $("#styTable tfoot").innerHTML=s?`<tr><td>Totals / Avg</td><td></td><td>${s[6].toFixed(1)}%</td><td>${s[8].toFixed(1)}</td><td>${money(svc)}</td><td>${money(disc)}</td><td></td><td></td><td>${cust}</td><td>${s[7].toFixed(1)}</td><td>${money(s[9])}</td><td></td></tr>`:"";
+  $("#styTable tfoot").innerHTML=s?`<tr><td>Totals / Avg</td><td></td><td></td><td></td><td>${s[6].toFixed(1)}%</td><td>${s[8].toFixed(1)}</td><td>${money(svc)}</td><td>${money(disc)}</td><td></td><td></td><td>${cust}</td><td>${s[7].toFixed(1)}</td><td></td></tr>`:"";
   const w=(DAY.WAIT&&DAY.WAIT[current])||[0,0,0,0,0,0,0];const tot=w.reduce((a,b)=>a+b,0)||1;
   mkWait(w,tot);
   $("#detList").innerHTML=s?[["Service Sales",money(s[2])],["Product Sales",money(s[3])],["Total Sales",money(s[4])],["Customers",s[5]],["Productivity ($/floor hr)",money(s[9])],["Payroll %",s[6].toFixed(1)+"%"],["Avg wait",s[10]+" min"],["Wait > 15 min",s[11].toFixed(1)+"%"]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):"";
@@ -651,9 +688,9 @@ function renderDetailYTD(){
     const mCust=mos.map(m=>a.monthly[m].cust);
     const mPay=mos.map(m=>a.monthly[m].days?a.monthly[m].paySum/a.monthly[m].days:0);
     const mCph=mos.map(m=>a.monthly[m].days?a.monthly[m].cphSum/a.monthly[m].days:0);
-    mk("cYtdSales","bar",mLabels,[{label:"Sales",data:mSales,backgroundColor:BLUE}],{x:v=>"$"+v});
+    mk("cYtdSales","bar",mLabels,[{label:"Sales",data:mSales,backgroundColor:BLUE}],{y:v=>"$"+v});
     mk("cYtdCust","bar",mLabels,[{label:"Customers",data:mCust,backgroundColor:BLUE}],{});
-    mk("cYtdPay","bar",mLabels,[{label:"Payroll %",data:mPay,backgroundColor:mPay.map(v=>kcolor("payroll",v))},{label:"40% target",type:"line",data:mPay.map(()=>40),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{x:v=>v+"%"});
+    mk("cYtdPay","bar",mLabels,[{label:"Payroll %",data:mPay,backgroundColor:mPay.map(v=>kcolor("payroll",v))},{label:"40% target",type:"line",data:mPay.map(()=>40),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{y:v=>v+"%"});
     mk("cYtdCph","bar",mLabels,[{label:"CPH",data:mCph,backgroundColor:mCph.map(v=>kcolor("cuts",v))},{label:"2.0 standard",type:"line",data:mCph.map(()=>2.0),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{});
     // At a glance
     $("#detYtdList").innerHTML=[["Service Sales",money(a.svcSales)],["Product Sales",money(a.prodSales)],["Total Sales",money(a.sales)],["Customers",a.cust.toLocaleString()],["Avg Productivity ($/floor hr)",money(a.prodSum/n)],["Avg Payroll %",(a.paySum/n).toFixed(1)+"%"],["Avg Wait >15%",(a.w15Sum/n).toFixed(1)+"%"],["Days of data",n]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join("");

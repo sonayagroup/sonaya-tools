@@ -345,7 +345,7 @@ async function loadData(){
 // Given a date string YYYY-MM-DD, return the GC week's Friday end-date (week_ending key)
 function weekEndingFor(dateStr){const s=gcWeekStart(dateStr);const d=new Date(s+"T12:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);}
 // SAL row (DailySalon minus 'date') metric -> column index, for client-side trends
-const SALIDX={serviceSales:2,productSales:3,totalSales:4,cust:5,payrollPct:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,custGrowthPct:12,salesGrowthPct:13};
+const SALIDX={serviceSales:2,productSales:3,totalSales:4,cust:5,payrollPct:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,custGrowthPct:12,salesGrowthPct:13,cashOverShort:14};
 function dTrend(salon,metric){const idx=SALIDX[metric];if(idx==null)return [];const out=[];
   Object.keys(DATA.days||{}).sort().forEach(d=>{const sal=((DATA.days[d]||{}).SAL||[]).find(r=>String(r[0])===String(salon));if(sal&&typeof sal[idx]==="number")out.push([d,sal[idx]]);});
   return out;}
@@ -481,6 +481,7 @@ function kpi(m,v){ if(v===null||v===undefined||v==="")return"";
   if(m==="stdprod")return v>5?"kg":(v>=3?"ky":"kr");
   if(m==="newret")return v>=26?"kg":(v>=21?"ky":"kr");
   if(m==="repret")return v>=78?"kg":(v>=72?"ky":"kr");
+  if(m==="cashshort")return v<-10?"kr":"";
   return""; }
 function kcolor(m,v){const c=kpi(m,v);return c==="kg"?GREEN:c==="ky"?AMBER:c==="kr"?RED:BLUE;}
 
@@ -801,7 +802,8 @@ function weekDates(wk){const out=[];if(!wk)return out;const d=new Date(wk+"T00:0
 const DAYKPIS=[
   ["payrollPct","payroll","Payroll %",v=>v.toFixed(1)+"% (over 40% target)"],
   ["cutsHr","cuts","CPH",v=>v.toFixed(1)+" (below 2.0)"],
-  ["waitOver15Pct","wait15","Wait >15%",v=>v.toFixed(1)+"% (≥19%)"]
+  ["waitOver15Pct","wait15","Wait >15%",v=>v.toFixed(1)+"% (≥19%)"],
+  ["cashOverShort","cashshort","Cash Short",v=>"−$"+Math.abs(v).toFixed(2)+" short (over $10 threshold)"]
 ];
 function empRow(cat,name,val){val=val||"";const sel=v=>val===v?" selected":"";
   return '<div class="oos-emp"><span class="nm">'+esc(name)+'</span>'

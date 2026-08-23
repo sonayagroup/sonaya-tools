@@ -174,10 +174,6 @@ tbody tr.clickrow{cursor:pointer}
 
   <div id="detYTD" style="display:none">
     <div class="grid g2">
-      <div class="card"><h3>Monthly Sales</h3><div class="chart-box"><canvas id="cYtdSales"></canvas></div></div>
-      <div class="card"><h3>Monthly Customers</h3><div class="chart-box"><canvas id="cYtdCust"></canvas></div></div>
-    </div>
-    <div class="grid g2" style="margin-top:16px">
       <div class="card"><h3>Monthly Payroll %</h3><div class="chart-box"><canvas id="cYtdPay"></canvas></div></div>
       <div class="card"><h3>Monthly CPH</h3><div class="chart-box"><canvas id="cYtdCph"></canvas></div></div>
     </div>
@@ -192,9 +188,26 @@ tbody tr.clickrow{cursor:pointer}
   <div id="teamSummary" class="legend-note" style="margin-bottom:10px"></div>
   <div class="card tbl-scroll">
     <table id="teamTable"><thead><tr>
-      <th>Stylist</th><th>Floor Hrs</th><th>Cust</th><th>Avg HC</th><th>CPH</th><th>Std Prod %</th><th>Avg Min Btwn</th><th>Payroll %</th><th>New Ret %</th><th>Repeat Ret %</th><th>Prod'vity</th>
+      <th>Stylist</th><th>Floor Hrs</th><th>Cust</th><th>Avg HC</th><th>CPH</th><th>Std Prod %</th><th>Avg Min Btwn</th><th>Payroll %</th><th>New Ret %</th><th>Repeat Ret %</th>
     </tr></thead><tbody></tbody></table>
     <div class="legend-note">Cells colored by KPI thresholds. <span class="na">n/a</span> = too few eligible customers for a return rate.</div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="modebar">
+      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">Attendance</span>
+      <span class="det-mode" id="attModeToggle"><button data-mode="week" class="active">Week</button><button data-mode="month">Month</button><button data-mode="ytd">YTD</button><button data-mode="custom">Custom</button></span>
+      <span id="attCustomRange" style="display:none;margin-left:8px">
+        <input type="date" id="attFrom"> <span style="color:var(--muted);font-size:12px">to</span> <input type="date" id="attTo">
+      </span>
+      <span id="attModeHint" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+    <div class="card tbl-scroll" style="margin-top:10px;box-shadow:none;border:1px solid var(--line)">
+      <table id="attTable"><thead><tr>
+        <th>Stylist</th><th>No-Shows</th><th>Late (&gt;10 min)</th><th>Not Scheduled</th>
+      </tr></thead><tbody></tbody><tfoot></tfoot></table>
+      <div class="legend-note" id="attNote"></div>
+    </div>
   </div>
 </section>
 
@@ -294,21 +307,28 @@ async function supaFetchAll(table,orderCol){
   }return all;
 }
 async function loadData(){
-  const[dSal,dSty,dWait,wSal,wEpp,dRed]=await Promise.all([
+  const[dSal,dSty,dWait,wSal,wEpp,dRed,dAtt]=await Promise.all([
     supaFetchAll("daily_salon","date"),supaFetchAll("daily_stylist","date"),
     supaFetchAll("daily_wait","date"),supaFetchAll("weekly_salon","week_ending"),
-    supaFetchAll("weekly_epp","week_ending"),supaFetchAll("daily_redflag","date")]);
+    supaFetchAll("weekly_epp","week_ending"),supaFetchAll("daily_redflag","date"),
+    supaFetchAll("daily_attendance","date").catch(()=>[])]);
   const salons={},salonAm={},datesSet=new Set(),weeksSet=new Set(),days={},weeklies={};
   dSal.forEach(r=>{const d=r.date,sid=String(r.salon_id);datesSet.add(d);
     salons[sid]=r.salon_name;salonAm[sid]=SALON_AM[sid]||"";
-    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{}};
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};
     days[d].SAL.push([sid,r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.payroll_pct,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.cust_growth_pct,r.sales_growth_pct,r.cash_over_short]);});
   dSty.forEach(r=>{const d=r.date,sid=String(r.salon_id);
-    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{}};if(!days[d].STY[sid])days[d].STY[sid]=[];
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};if(!days[d].STY[sid])days[d].STY[sid]=[];
     days[d].STY[sid].push([r.stylist_name,r.floor_hrs,r.payroll_pct,r.cph,r.service_sales,r.svc_disc,r.disc_pct,r.std_prod_pct,r.cust,r.avg_hc,r.prodvity,r.avg_min_btwn,r.admin_hrs,r.close_hrs]);});
   dWait.forEach(r=>{const d=r.date,sid=String(r.salon_id);
-    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{}};
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};
     days[d].WAIT[sid]=[r.b1_lte10,r.b2_10_15,r.b3_15_20,r.b4_20_25,r.b5_25_30,r.b6_30_40,r.b7_40plus];});
+  // Attendance: no-shows, late (>10 min) arrivals, and unscheduled ("picked up") shifts —
+  // one row per stylist per day, so it rolls up cleanly into week/month/YTD/custom ranges
+  // via computeAttendance() the same way daily_salon rolls up into WTD/YTD.
+  (dAtt||[]).forEach(r=>{const d=r.date,sid=String(r.salon_id);datesSet.add(d);
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};if(!days[d].ATT[sid])days[d].ATT[sid]=[];
+    days[d].ATT[sid].push([r.stylist_name,r.no_show_count||0,r.late_count||0,r.not_scheduled_count||0]);});
   wSal.forEach(r=>{const wk=r.week_ending,sid=String(r.salon_id);weeksSet.add(wk);
     if(!weeklies[wk])weeklies[wk]={EPP:{},REDF:{},WSAL:{}};
     weeklies[wk].WSAL[sid]=[r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.new_cust,r.floor_hours,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.payroll_pct,r.avg_min_btwn,r.voids_pct,r.svc_disc_pct,r.over_short,r.new_ret_pct,r.rep_ret_pct,r.floor_hours_growth,r.cust_growth_pct,r.sales_growth_pct];});
@@ -466,7 +486,7 @@ function updMeta(){$("#hdrMeta").innerHTML="Day <b>"+(curDate?fmtDate(curDate):"
 
 function loadDay(){ DAY=(!curDate?null:(DATA.days&&DATA.days[curDate]))||{SAL:[],STY:{},WAIT:{}};renderAll();updMeta(); }
 function loadWeek(){ WEEK=(!curWeek?null:(DATA.weeklies&&DATA.weeklies[curWeek]))||{EPP:{},REDF:{},WSAL:{}};if(!WEEK.WSAL)WEEK.WSAL={};renderTeam();renderRed();if(detMode==="week")renderDetail();updMeta(); }
-function renderAll(){renderPort();renderDetail();renderReps();}
+function renderAll(){renderPort();renderDetail();renderReps();renderTeam();}
 
 function salById(id){return (DAY.SAL||[]).find(r=>String(r[0])===String(id));}
 function sName(id){return SALONS[id]||id;}
@@ -685,19 +705,15 @@ function renderDetailYTD(){
     const mos=Object.keys(a.monthly).sort();
     const mNames=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const mLabels=mos.map(m=>{const mn=+m.split("-")[1];return mNames[mn];});
-    const mSales=mos.map(m=>a.monthly[m].sales);
-    const mCust=mos.map(m=>a.monthly[m].cust);
     const mPay=mos.map(m=>a.monthly[m].days?a.monthly[m].paySum/a.monthly[m].days:0);
     const mCph=mos.map(m=>a.monthly[m].days?a.monthly[m].cphSum/a.monthly[m].days:0);
-    mk("cYtdSales","bar",mLabels,[{label:"Sales",data:mSales,backgroundColor:BLUE}],{y:v=>"$"+v});
-    mk("cYtdCust","bar",mLabels,[{label:"Customers",data:mCust,backgroundColor:BLUE}],{});
     mk("cYtdPay","bar",mLabels,[{label:"Payroll %",data:mPay,backgroundColor:mPay.map(v=>kcolor("payroll",v))},{label:"40% target",type:"line",data:mPay.map(()=>40),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{y:v=>v+"%"});
     mk("cYtdCph","bar",mLabels,[{label:"CPH",data:mCph,backgroundColor:mCph.map(v=>kcolor("cuts",v))},{label:"2.0 standard",type:"line",data:mCph.map(()=>2.0),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{});
     // At a glance
     $("#detYtdList").innerHTML=[["Service Sales",money(a.svcSales)],["Product Sales",money(a.prodSales)],["Total Sales",money(a.sales)],["Customers",a.cust.toLocaleString()],["Avg Productivity ($/floor hr)",money(a.prodSum/n)],["Avg Payroll %",(a.paySum/n).toFixed(1)+"%"],["Avg Wait >15%",(a.w15Sum/n).toFixed(1)+"%"],["Days of data",n]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join("");
   }else{
     k.innerHTML='<div class="banner warn" style="grid-column:1/-1">No YTD data for '+sName(current)+' in '+yr+'.</div>';
-    ["cYtdSales","cYtdCust","cYtdPay","cYtdCph"].forEach(c=>{if(charts[c])charts[c].destroy();});
+    ["cYtdPay","cYtdCph"].forEach(c=>{if(charts[c])charts[c].destroy();});
     $("#detYtdList").innerHTML="";
   }
 }
@@ -740,9 +756,71 @@ function renderTeam(){
   const rows=(WEEK.EPP&&WEEK.EPP[current])||[];const tb=$("#teamTable tbody");tb.innerHTML="";
   rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td>${r[2]}</td>
     ${cell("avghc",r[3])}${cell("cuts",r[4])}${cell("stdprod",r[5],"%")}<td>${r[11]!=null?r[11].toFixed(1):"—"}</td>${cell("payroll",r[8],"%")}
-    ${cell("newret",r[9],"%")}${cell("repret",r[10],"%")}<td>${money(r[7])}</td></tr>`;});
+    ${cell("newret",r[9],"%")}${cell("repret",r[10],"%")}</tr>`;});
   $("#teamSummary").innerHTML=rows.length?rows.length+" stylists · colored vs Brand Measures thresholds":(curWeek?"No weekly data for this salon/week.":"No week selected.");
+  renderAttendance();
 }
+
+// ATTENDANCE (no-shows, late >10 min, not-scheduled/picked-up shifts) — daily rows rolled
+// up over a chosen range. Ranges: Week (the selected week_ending, Sat-Fri), Month (calendar
+// month of the selected Day), YTD (Jan 1 of that year through the selected Day), Custom (pick).
+let attMode="week";
+function attRange(){
+  if(attMode==="week"){
+    if(!curWeek)return null;
+    const end=new Date(curWeek+"T12:00:00");const start=new Date(end);start.setDate(start.getDate()-6);
+    return {from:start.toISOString().slice(0,10),to:curWeek,label:"week ending "+fmtDate(curWeek)};
+  }
+  if(attMode==="month"){
+    const ref=curDate||DATES[0];if(!ref)return null;
+    const ym=ref.slice(0,7);
+    const first=ym+"-01";
+    const d=new Date(ym+"-01T12:00:00");d.setMonth(d.getMonth()+1);d.setDate(0);
+    const last=d.toISOString().slice(0,10);
+    const mNames=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+    return {from:first,to:last,label:mNames[+ym.split("-")[1]]+" "+ym.split("-")[0]};
+  }
+  if(attMode==="ytd"){
+    const ref=curDate||DATES[0];if(!ref)return null;
+    const yr=ref.slice(0,4);
+    return {from:yr+"-01-01",to:ref,label:yr+" YTD through "+fmtDate(ref)};
+  }
+  // custom
+  const f=$("#attFrom").value,t=$("#attTo").value;
+  if(!f||!t)return null;
+  return {from:f,to:t,label:fmtDate(f)+" – "+fmtDate(t)};
+}
+function computeAttendance(sid,from,to){
+  const acc={};
+  Object.keys(DATA.days||{}).forEach(d=>{
+    if(d<from||d>to)return;
+    ((DATA.days[d].ATT||{})[sid]||[]).forEach(r=>{
+      if(!acc[r[0]])acc[r[0]]={noShow:0,late:0,notSched:0};
+      acc[r[0]].noShow+=r[1]||0;acc[r[0]].late+=r[2]||0;acc[r[0]].notSched+=r[3]||0;
+    });
+  });
+  return Object.keys(acc).sort().map(nm=>[nm,acc[nm].noShow,acc[nm].late,acc[nm].notSched]);
+}
+function renderAttendance(){
+  const range=attRange();
+  const tb=$("#attTable tbody");tb.innerHTML="";
+  if(!range){$("#attModeHint").textContent="";$("#attNote").textContent=attMode==="custom"?"Pick a from/to date above.":"No date selected.";return;}
+  $("#attModeHint").textContent=range.label;
+  const rows=current?computeAttendance(current,range.from,range.to):[];
+  rows.forEach(r=>{
+    const flag=v=>v>0?'class="kr"':"";
+    tb.innerHTML+=`<tr><td>${r[0]}</td><td ${flag(r[1])}>${r[1]}</td><td ${flag(r[2])}>${r[2]}</td><td ${flag(r[3])}>${r[3]}</td></tr>`;
+  });
+  $("#attNote").textContent=rows.length?rows.length+" stylist(s) with attendance data for this range.":"No attendance data ingested yet for this range — daily attendance CSVs feed this table.";
+}
+document.querySelectorAll("#attModeToggle button").forEach(b=>b.onclick=()=>{
+  attMode=b.dataset.mode;
+  document.querySelectorAll("#attModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  $("#attCustomRange").style.display=attMode==="custom"?"":"none";
+  renderAttendance();
+});
+$("#attFrom").onchange=renderAttendance;
+$("#attTo").onchange=renderAttendance;
 
 // RED FLAGS (weekly)
 function renderRed(){

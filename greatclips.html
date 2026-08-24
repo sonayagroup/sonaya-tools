@@ -134,6 +134,14 @@ tbody tr.clickrow{cursor:pointer}
 </section>
 
 <section class="panel" id="detail">
+  <div class="modebar">
+    <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
+    <span class="det-mode" id="detModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="week">Week</button><button data-mode="ytd">YTD</button></span>
+    <span id="detModeHint" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div class="kpis" id="detKpis"></div>
+  <div class="sec-title" id="detTitle"></div>
+
   <div class="card" style="margin-bottom:16px">
     <div class="sec-title" id="teamTitle" style="margin-bottom:2px"></div>
     <div class="modebar">
@@ -147,13 +155,13 @@ tbody tr.clickrow{cursor:pointer}
     <div id="teamSummary" class="legend-note" style="margin-bottom:10px"></div>
     <div class="tbl-scroll">
       <table id="styTable"><thead><tr>
-        <th>Stylist</th><th>Floor Hrs</th><th>Admin</th><th>Close</th><th>Payroll %</th><th>CPH</th><th>Service $</th><th>Svc Disc $</th><th>Disc %</th>
+        <th>Stylist</th><th>Floor Hrs</th><th>Admin</th><th>Close</th><th>Unpaid Breaks #</th><th>Unpaid Breaks Min</th><th>Payroll %</th><th>CPH</th><th>Service $</th><th>Svc Disc $</th><th>Disc %</th>
         <th>Stnd Prod %</th><th>Cust</th><th>Avg HC</th><th>Avg Min Btwn</th>
       </tr></thead><tbody></tbody><tfoot></tfoot></table>
       <table id="teamTable" style="display:none"><thead><tr>
         <th>Stylist</th><th>Floor Hrs</th><th>Cust</th><th>Avg HC</th><th>CPH</th><th>Std Prod %</th><th>Avg Min Btwn</th><th>Payroll %</th><th>New Ret %</th><th>Repeat Ret %</th>
       </tr></thead><tbody></tbody></table>
-      <div class="legend-note" id="dayLegend">Cells colored by KPI thresholds — <span class="kg">&nbsp;green&nbsp;</span> on target, <span class="ky">&nbsp;yellow&nbsp;</span> watch, <span class="kr">&nbsp;red&nbsp;</span> below (payroll, CPH, std prod %, avg HC).</div>
+      <div class="legend-note" id="dayLegend">Cells colored by KPI thresholds — <span class="kg">&nbsp;green&nbsp;</span> on target, <span class="ky">&nbsp;yellow&nbsp;</span> watch, <span class="kr">&nbsp;red&nbsp;</span> below (payroll, CPH, std prod %, avg HC). Unpaid Breaks flagged <span class="kr">&nbsp;red&nbsp;</span> whenever taken (any unpaid break time is worth a look).</div>
       <div class="legend-note" id="teamLegend" style="display:none">Cells colored by KPI thresholds. <span class="na">n/a</span> = too few eligible customers for a return rate. Month/YTD/Custom roll up multiple weeks (rate metrics are floor-hour or customer-count weighted averages, not simple sums).</div>
     </div>
 
@@ -174,14 +182,6 @@ tbody tr.clickrow{cursor:pointer}
       </div>
     </div>
   </div>
-
-  <div class="modebar">
-    <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
-    <span class="det-mode" id="detModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="week">Week</button><button data-mode="ytd">YTD</button></span>
-    <span id="detModeHint" style="font-size:12px;color:var(--muted)"></span>
-  </div>
-  <div class="kpis" id="detKpis"></div>
-  <div class="sec-title" id="detTitle"></div>
 
   <div id="detDay">
     <div class="grid g2">
@@ -325,7 +325,7 @@ async function loadData(){
     days[d].SAL.push([sid,r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.payroll_pct,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.cust_growth_pct,r.sales_growth_pct,r.cash_over_short]);});
   dSty.forEach(r=>{const d=r.date,sid=String(r.salon_id);
     if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};if(!days[d].STY[sid])days[d].STY[sid]=[];
-    days[d].STY[sid].push([r.stylist_name,r.floor_hrs,r.payroll_pct,r.cph,r.service_sales,r.svc_disc,r.disc_pct,r.std_prod_pct,r.cust,r.avg_hc,r.prodvity,r.avg_min_btwn,r.admin_hrs,r.close_hrs]);});
+    days[d].STY[sid].push([r.stylist_name,r.floor_hrs,r.payroll_pct,r.cph,r.service_sales,r.svc_disc,r.disc_pct,r.std_prod_pct,r.cust,r.avg_hc,r.prodvity,r.avg_min_btwn,r.admin_hrs,r.close_hrs,r.unpaid_breaks_count,r.unpaid_breaks_min]);});
   dWait.forEach(r=>{const d=r.date,sid=String(r.salon_id);
     if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};
     days[d].WAIT[sid]=[r.b1_lte10,r.b2_10_15,r.b3_15_20,r.b4_20_25,r.b5_25_30,r.b6_30_40,r.b7_40plus];});
@@ -771,12 +771,15 @@ $("#repsCopy").onclick=()=>{const t=$("#repsText");t.focus();t.select();const do
 let teamMode="day";
 function renderStyDayTable(){
   const s=salById(current);
-  const rows=(DAY.STY&&DAY.STY[current])||[];const tb=$("#styTable tbody");tb.innerHTML="";let svc=0,disc=0,cust=0;
-  rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td>${typeof r[12]==="number"?r[12].toFixed(2):"—"}</td><td>${typeof r[13]==="number"?r[13].toFixed(2):"—"}</td><td class="${kpi('payroll',r[2])}">${r[2].toFixed(1)}%</td>
+  const rows=(DAY.STY&&DAY.STY[current])||[];const tb=$("#styTable tbody");tb.innerHTML="";let svc=0,disc=0,cust=0,ubc=0,ubm=0;
+  rows.forEach(r=>{const hasUb=typeof r[14]==="number"||typeof r[15]==="number";
+    tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td>${typeof r[12]==="number"?r[12].toFixed(2):"—"}</td><td>${typeof r[13]==="number"?r[13].toFixed(2):"—"}</td>
+    <td class="${(r[14]||0)>0?"kr":""}">${typeof r[14]==="number"?r[14]:"—"}</td><td class="${(r[15]||0)>0?"kr":""}">${typeof r[15]==="number"?r[15]:"—"}</td>
+    <td class="${kpi('payroll',r[2])}">${r[2].toFixed(1)}%</td>
     <td class="${kpi('cuts',r[3])}">${r[3].toFixed(1)}</td><td>${money(r[4])}</td><td>${money(r[5])}</td><td>${r[6].toFixed(1)}%</td>
     <td class="${kpi('stdprod',r[7])}">${r[7].toFixed(1)}%</td><td>${r[8]}</td><td class="${kpi('avghc',r[9])}">${r[9].toFixed(1)}</td><td>${r[11].toFixed(1)}</td></tr>`;
-    svc+=r[4];disc+=r[5];cust+=r[8];});
-  $("#styTable tfoot").innerHTML=s?`<tr><td>Totals / Avg</td><td></td><td></td><td></td><td>${s[6].toFixed(1)}%</td><td>${s[8].toFixed(1)}</td><td>${money(svc)}</td><td>${money(disc)}</td><td></td><td></td><td>${cust}</td><td>${s[7].toFixed(1)}</td><td></td></tr>`:"";
+    svc+=r[4];disc+=r[5];cust+=r[8];if(hasUb){ubc+=r[14]||0;ubm+=r[15]||0;}});
+  $("#styTable tfoot").innerHTML=s?`<tr><td>Totals / Avg</td><td></td><td></td><td></td><td>${ubc||""}</td><td>${ubm||""}</td><td>${s[6].toFixed(1)}%</td><td>${s[8].toFixed(1)}</td><td>${money(svc)}</td><td>${money(disc)}</td><td></td><td></td><td>${cust}</td><td>${s[7].toFixed(1)}</td><td></td></tr>`:"";
   return rows.length;
 }
 function teamRange(){

@@ -2834,7 +2834,7 @@ function renderOps() {
   const avgTrans = withData.reduce((s, d) => s + (d.trans || 0), 0) / n;
   const avgTotalNet = withData.reduce((s, d) => s + (d.netSales || 0), 0);
   const avgTotalTrans = withData.reduce((s, d) => s + (d.trans || 0), 0);
-  const avgGCA = avgTotalTrans > 0 ? avgTotalNet / avgTotalTrans : 0;
+  const footGCA = avgTotalTrans > 0 ? avgTotalNet / avgTotalTrans : 0;
   const laborVals = withData.filter(d => d.laborPct != null);
   const avgLaborVar = laborVals.length > 0 ? laborVals.reduce((s, d) => s + (+d.laborPct - d.laborTarget), 0) / laborVals.length : null;
   const joltVals = withData.filter(d => d.checklistPct != null);
@@ -2842,7 +2842,7 @@ function renderOps() {
   const sosVals = withData.filter(d => d.sos != null);
   const avgSosRow = sosVals.length > 0 ? Math.round(sosVals.reduce((s, d) => s + d.sos, 0) / sosVals.length) : null;
   const voidsVals = withData.filter(d => d.voidsPct != null);
-  const avgVoids = voidsVals.length > 0 ? voidsVals.reduce((s, d) => s + +d.voidsPct, 0) / voidsVals.length : null;
+  const footVoids = voidsVals.length > 0 ? voidsVals.reduce((s, d) => s + +d.voidsPct, 0) / voidsVals.length : null;
   const refVals = withData.filter(d => d.refunds != null);
   const avgRef = refVals.length > 0 ? refVals.reduce((s, d) => s + d.refunds, 0) / refVals.length : null;
   const totalNewRevs = withData.reduce((s, d) => { const nr = getNewReviews(d.storeId); return s + (nr || 0); }, 0);
@@ -2857,7 +2857,7 @@ function renderOps() {
   const avgLaborVarClass = avgLaborVar != null ? (Math.abs(avgLaborVar) <= 0.25 ? 'cell-great' : Math.abs(avgLaborVar) <= 0.50 ? 'cell-good' : Math.abs(avgLaborVar) <= 1.00 ? 'cell-warn' : 'cell-critical') : '';
   const avgJoltClass = avgJolt != null ? (avgJolt >= 95 ? 'cell-good' : (avgJolt >= 80 ? 'cell-warn' : 'cell-critical')) : '';
   const avgSosR = avgSosRow != null ? rateKPI('speedAtWindow', avgSosRow) : {cls:'muted'};
-  const avgVoidsR = avgVoids != null ? rateKPI('voids', avgVoids) : {cls:'muted'};
+  const avgVoidsR = footVoids != null ? rateKPI('voids', footVoids) : {cls:'muted'};
   const avgRefClass = avgRef != null ? (avgRef > 10 ? 'cell-critical' : 'cell-good') : '';
   const avgRatingClass = avgRating != null ? (avgRating >= 4.0 ? 'cell-good' : (avgRating >= 3.5 ? 'cell-warn' : 'cell-critical')) : '';
 
@@ -2866,11 +2866,11 @@ function renderOps() {
     <td>${fmtDollar(avgNet)}</td>
     <td class="${avgChangeClass}">${avgChange >= 0 ? '+' : ''}${avgChange.toFixed(2)}%</td>
     <td>${Math.round(avgTrans)}</td>
-    <td>$${avgGCA.toFixed(2)}</td>
+    <td>$${footGCA.toFixed(2)}</td>
     <td class="${avgLaborVarClass}">${avgLaborVar != null ? (avgLaborVar >= 0 ? '+' : '') + avgLaborVar.toFixed(2) + '%' : '--'}</td>
     <td class="${avgJoltClass}">${avgJolt != null ? Math.round(avgJolt) + '%' : '--'}</td>
     <td class="cell-${avgSosR.cls}">${avgSosRow != null ? avgSosRow : '--'}</td>
-    <td class="cell-${avgVoidsR.cls}">${avgVoids != null ? avgVoids.toFixed(2) + '%' : '--'}</td>
+    <td class="cell-${avgVoidsR.cls}">${footVoids != null ? footVoids.toFixed(2) + '%' : '--'}</td>
     <td class="${avgRefClass}">${avgRef != null ? '$' + avgRef.toFixed(2) : '--'}</td>
     <td>${totalNewRevs > 0 ? '+' + totalNewRevs : '0'}</td>
     <td class="${avgRatingClass}">${avgRating != null ? avgRating.toFixed(1) : '--'}</td>

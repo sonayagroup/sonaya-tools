@@ -1048,9 +1048,17 @@ const JOB_AUTO_SUPPLIES = {
   removal:   [{ name: 'Dumpster', qty: 1 }, { name: 'Removal Bags', qty: 10 }, { name: 'N95 Mask', qty: 4 }],
 };
 
-const TRIP_RATE_PER_MILE = 1.75;
-const GENERATOR_FUEL_RATE = 4.00; // $32/day ÷ 8 hrs = $4/hr (from spreadsheet formula)
+const TRIP_RATE_PER_MILE = 2.00;
+const GENERATOR_FUEL_RATE = 4.00;
 const PAYROLL_TAX_RATE = 0.10;
+
+// Default labor rates (loaded from Supabase app_settings, overridable by GM)
+let DEFAULT_LABOR_RATE_1 = 28;    // Installer 1
+let DEFAULT_LABOR_RATE = 25;       // Installer 2+
+let DEFAULT_OT_RATE_1 = 42;       // Installer 1 OT
+let DEFAULT_OT_RATE = 37.50;      // Installer 2+ OT
+let DEFAULT_MOBILIZATION_RATE = 25;
+let TRIP_TIERS = { t50: 175, t75: 250, t100: 325, perMile: 2.00 };
 
 // ─── SUPABASE LIVE PRICING ─────────────────────────────────────────────────
 // Uses SUPABASE_URL and SUPABASE_KEY defined below in the Supabase section
@@ -1176,6 +1184,55 @@ async function loadPricingFromSupabase() {
   }
 }
 
+// ─── Load GM Settings from Supabase ─────────────────────────────────────────
+async function loadAppSettings() {
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/app_settings?select=key,value&limit=50`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    const s = {};
+    rows.forEach(r => { s[r.key] = r.value; });
+    if (s.labor_rate_1) DEFAULT_LABOR_RATE_1 = parseFloat(s.labor_rate_1);
+    if (s.labor_rate) DEFAULT_LABOR_RATE = parseFloat(s.labor_rate);
+    if (s.ot_rate_1) DEFAULT_OT_RATE_1 = parseFloat(s.ot_rate_1);
+    if (s.ot_rate) DEFAULT_OT_RATE = parseFloat(s.ot_rate);
+    if (s.mobilization_rate) DEFAULT_MOBILIZATION_RATE = parseFloat(s.mobilization_rate);
+    if (s.trip_tier_50) TRIP_TIERS.t50 = parseFloat(s.trip_tier_50);
+    if (s.trip_tier_75) TRIP_TIERS.t75 = parseFloat(s.trip_tier_75);
+    if (s.trip_tier_100) TRIP_TIERS.t100 = parseFloat(s.trip_tier_100);
+    if (s.trip_per_mile) { TRIP_TIERS.perMile = parseFloat(s.trip_per_mile); }
+    if (s.payroll_tax_rate) { /* PAYROLL_TAX_RATE is const, but we can shadow */  }
+    // Update the trip dropdown labels with live values
+    updateTripDropdowns();
+    console.log('[Settings] Loaded GM settings from Supabase');
+  } catch (e) {
+    console.warn('[Settings] Could not load app_settings, using defaults:', e.message);
+  }
+}
+
+function updateTripDropdowns() {
+  document.querySelectorAll('select[id$="tripTier"]').forEach(sel => {
+    const opts = sel.options;
+    for (let i = 0; i < opts.length; i++) {
+      if (opts[i].value === '175' || opts[i].value == TRIP_TIERS.t50) {
+        opts[i].value = TRIP_TIERS.t50;
+        opts[i].textContent = `1–50 mi — ABQ Metro & Los Lunas ($${TRIP_TIERS.t50})`;
+      } else if (opts[i].value === '250' || opts[i].value == TRIP_TIERS.t75) {
+        opts[i].value = TRIP_TIERS.t75;
+        opts[i].textContent = `51–75 mi — Santa Fe & Belen ($${TRIP_TIERS.t75})`;
+      } else if (opts[i].value === '325' || opts[i].value == TRIP_TIERS.t100) {
+        opts[i].value = TRIP_TIERS.t100;
+        opts[i].textContent = `76–100 mi — Espanola & Los Alamos ($${TRIP_TIERS.t100})`;
+      } else if (opts[i].value === 'custom') {
+        opts[i].textContent = `101+ mi — $${TRIP_TIERS.perMile.toFixed(2)}/mile round trip`;
+      }
+    }
+  });
+}
+
 // ─── STATE ──────────────────────────────────────────────────────────────────
 
 let nextId = 1;
@@ -1284,10 +1341,10 @@ function buildOptionContainer(opt) {
           <label>Distance Tier</label>
           <select id="${p}tripTier" onchange="onTripTierChange('${p}'); recalc()">
             <option value="0">No Trip Charge</option>
-            <option value="150">1–50 mi — ABQ Metro &amp; Los Lunas ($150)</option>
-            <option value="200">51–75 mi — Santa Fe &amp; Belen ($200)</option>
-            <option value="250">76–100 mi — Espanola &amp; Los Alamos ($250)</option>
-            <option value="custom">101+ mi — $1.75/mile round trip</option>
+            <option value="175">1–50 mi — ABQ Metro &amp; Los Lunas ($175)</option>
+            <option value="250">51–75 mi — Santa Fe &amp; Belen ($250)</option>
+            <option value="325">76–100 mi — Espanola &amp; Los Alamos ($325)</option>
+            <option value="custom">101+ mi — $2.00/mile round trip</option>
           </select>
         </div>
         <div class="field" id="${p}tripMilesField" style="flex:1; display:none">
@@ -1358,10 +1415,13 @@ function buildOptionContainer(opt) {
     <div class="card internal-only">
       <h2><span class="icon">&#128119;</span> Labor</h2>
       <table class="line-items">
-        <thead><tr><th>Hours</th><th>Rate</th><th>OT Hrs</th><th>OT Rate</th><th>Bonus</th><th class="num">Cost</th><th></th></tr></thead>
+        <thead><tr><th style="width:120px"></th><th>Hours</th><th>Rate</th><th>OT Hrs</th><th>OT Rate</th><th>Bonus</th><th class="num">Cost</th><th></th></tr></thead>
         <tbody id="${p}laborBody"></tbody>
       </table>
-      <button class="btn-add" onclick="addLabor()">+ Add Crew</button>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn-add" onclick="addLabor()">+ Add Crew</button>
+        <button class="btn-add" onclick="addMobilization()">+ Add Mobilization</button>
+      </div>
     </div>
 
     <!-- Misc Supplies -->
@@ -1436,20 +1496,30 @@ function addSpf() {
   recalc();
 }
 
-function addLabor() {
+function addLabor(labelOverride, rateOverride, otRateOverride) {
   const opt = getOpt(); const p = optPrefixFor(opt); const id = nextId++;
+  // Determine crew number for default rates
+  const crewNum = opt.rows.labor.filter(r => typeof r === 'number' || (r && r.type !== 'mobilization')).length + 1;
+  const defaultRate = rateOverride != null ? rateOverride : (crewNum === 1 ? DEFAULT_LABOR_RATE_1 : DEFAULT_LABOR_RATE);
+  const defaultOT = otRateOverride != null ? otRateOverride : (crewNum === 1 ? DEFAULT_OT_RATE_1 : DEFAULT_OT_RATE);
+  const label = labelOverride || ('Installer ' + crewNum);
   opt.rows.labor.push(id);
   const tr = document.createElement('tr'); tr.id = p + 'lb-' + id;
   tr.innerHTML = `
+    <td><input type="text" value="${label}" class="${p}lb-label" data-id="${id}" style="width:110px;font-size:.8rem"></td>
     <td><input type="number" value="0" min="0" step="0.5" class="${p}lb-hrs" data-id="${id}" oninput="recalc()" style="width:60px"></td>
-    <td><input type="number" value="25" min="0" step="0.5" class="${p}lb-rate" data-id="${id}" oninput="recalc()" style="width:60px"></td>
+    <td><input type="number" value="${defaultRate}" min="0" step="0.5" class="${p}lb-rate" data-id="${id}" oninput="recalc()" style="width:60px"></td>
     <td><input type="number" value="0" min="0" step="0.5" class="${p}lb-ot" data-id="${id}" oninput="recalc()" style="width:60px"></td>
-    <td><input type="number" value="37.50" min="0" step="0.5" class="${p}lb-otrate" data-id="${id}" oninput="recalc()" style="width:60px"></td>
+    <td><input type="number" value="${defaultOT}" min="0" step="0.5" class="${p}lb-otrate" data-id="${id}" oninput="recalc()" style="width:60px"></td>
     <td><input type="number" value="0" min="0" step="0.01" class="${p}lb-bonus" data-id="${id}" oninput="recalc()" style="width:70px"></td>
     <td class="num cost ${p}lb-cost" data-id="${id}">$0.00</td>
     <td><button class="btn-remove" onclick="removeRow('labor','${p}lb-${id}',${id})">&#10005;</button></td>`;
   $(p + 'laborBody').appendChild(tr);
   recalc();
+}
+
+function addMobilization() {
+  addLabor('Mobilization', DEFAULT_MOBILIZATION_RATE, DEFAULT_MOBILIZATION_RATE * 1.5);
 }
 
 function addMisc(presetName, presetQty, autoTag) {
@@ -2065,7 +2135,7 @@ function calcOption(opt) {
     if (tier === 'custom') {
       // For custom mileage, auto-fill the override field with calculated amount
       const miles = parseFloat($(p + 'tripMiles')?.value) || 0;
-      const calcTrip = miles * TRIP_RATE_PER_MILE;
+      const calcTrip = miles * TRIP_TIERS.perMile;
       $(p + 'tripChargeAmt').value = calcTrip.toFixed(2);
       tripPerVisit = calcTrip;
     } else {
@@ -2230,13 +2300,14 @@ function serializeForm() {
     });
 
     opt.rows.labor.forEach(id => {
+      const label = document.querySelector(`.${CSS.escape(p)}lb-label[data-id="${id}"]`);
       const hrs = document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${id}"]`);
       const rate = document.querySelector(`.${CSS.escape(p)}lb-rate[data-id="${id}"]`);
       const ot = document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${id}"]`);
       const otRate = document.querySelector(`.${CSS.escape(p)}lb-otrate[data-id="${id}"]`);
       const bonus = document.querySelector(`.${CSS.escape(p)}lb-bonus[data-id="${id}"]`);
       optData.labor.push({
-        hrs: hrs?.value || '0', rate: rate?.value || '25',
+        label: label?.value || '', hrs: hrs?.value || '0', rate: rate?.value || '25',
         ot: ot?.value || '0', otRate: otRate?.value || '37.50',
         bonus: bonus?.value || '0'
       });
@@ -2355,13 +2426,15 @@ function deserializeForm(data) {
 
     // Labor rows
     (optData.labor || []).forEach(row => {
-      addLabor();
+      addLabor(row.label || '', parseFloat(row.rate) || DEFAULT_LABOR_RATE, parseFloat(row.otRate) || DEFAULT_OT_RATE);
       const lastId = opt.rows.labor[opt.rows.labor.length - 1];
+      const label = document.querySelector(`.${CSS.escape(p)}lb-label[data-id="${lastId}"]`);
       const hrs = document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${lastId}"]`);
       const rate = document.querySelector(`.${CSS.escape(p)}lb-rate[data-id="${lastId}"]`);
       const ot = document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${lastId}"]`);
       const otRate = document.querySelector(`.${CSS.escape(p)}lb-otrate[data-id="${lastId}"]`);
       const bonus = document.querySelector(`.${CSS.escape(p)}lb-bonus[data-id="${lastId}"]`);
+      if (label) label.value = row.label || '';
       if (hrs) hrs.value = row.hrs;
       if (rate) rate.value = row.rate;
       if (ot) ot.value = row.ot;
@@ -2754,8 +2827,9 @@ createOption('Option 1');
 addLabor();
 recalc();
 
-// Load live pricing from Supabase (updates in background; falls back to built-in prices)
+// Load live pricing and GM settings from Supabase (updates in background)
 loadPricingFromSupabase();
+loadAppSettings();
 
 // Check for estimate ID in URL
 loadEstimateFromUrl();

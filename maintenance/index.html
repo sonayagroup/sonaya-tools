@@ -421,7 +421,7 @@ function vendName(id){ return (cache.dt_vendors||[]).find(v=>v.id===id)?.company
 function teamName(id){ return (cache.dt_team_members||[]).find(t=>t.id===id)?.name || '—'; }
 function woAssignees(woId){ return (cache.dt_wo_assignees||[]).filter(a=>a.work_order_id===woId).map(a=>a.team_member_id); }
 function woAssigneeNames(woId){ const ids=woAssignees(woId); if(!ids.length) return '—'; return ids.map(id=>teamName(id)).join(', '); }
-function teamCheckboxes(woId){ const sel=woAssignees(woId); return (cache.dt_team_members||[]).filter(t=>t.is_active).map(t=>`<label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer"><input type="checkbox" class="wo-assignee-cb" value="${t.id}" ${sel.includes(t.id)?'checked':''}> ${t.name}</label>`).join(''); }
+function teamCheckboxes(woId){ const sel=woAssignees(woId); return (cache.dt_team_members||[]).filter(t=>t.is_active).map(t=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;white-space:nowrap"><input type="checkbox" class="wo-assignee-cb" value="${t.id}" style="flex-shrink:0;width:16px;height:16px" ${sel.includes(t.id)?'checked':''}><span>${t.name}</span></label>`).join(''); }
 function catName(id){ return (cache.dt_equipment_categories||[]).find(c=>c.id===id)?.name || '—'; }
 function locOptions(sel=''){ return '<option value="">Select location</option>'+(cache.dt_locations||[]).filter(l=>l.is_active).map(l=>`<option value="${l.id}" ${l.id===sel?'selected':''}>#${l.store_number} — ${l.name}</option>`).join(''); }
 function eqOptions(sel='',locId=''){ let eq=cache.dt_equipment||[]; if(locId)eq=eq.filter(e=>e.location_id===locId); return '<option value="">Select equipment</option>'+eq.map(e=>`<option value="${e.id}" ${e.id===sel?'selected':''}>${e.name} (${locStore(e.location_id)})</option>`).join(''); }
@@ -763,9 +763,10 @@ window.openWOForm = function(id){
         <div class="form-group"><label>Due Date</label><input type="date" id="m-due" value="${w.due_date||''}"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Assigned To</label><div id="m-assignees" style="border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;max-height:140px;overflow-y:auto">${teamCheckboxes(id||'')}</div></div>
         <div class="form-group"><label>Vendor</label><select id="m-vendor">${vendOptions(w.vendor_id)}</select></div>
+        <div class="form-group"><label></label></div>
       </div>
+      <div class="form-group"><label>Assigned To</label><div id="m-assignees" style="border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;max-height:160px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:4px 24px">${teamCheckboxes(id||'')}</div></div>
       <div class="form-group"><label>Requested By</label><select id="m-reqby">${teamOptions(w.requested_by)}</select></div>
       <div class="form-group"><label>Description</label><textarea id="m-desc">${w.description||''}</textarea></div>
       ${id?`<div class="form-group"><label>Resolution Notes</label><textarea id="m-res">${w.resolution_notes||''}</textarea></div>`:''}

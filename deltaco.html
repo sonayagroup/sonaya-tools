@@ -629,6 +629,7 @@ body {
       <table class="store-table" id="opsTable">
         <thead id="opsTableHead"></thead>
         <tbody id="opsTableBody"></tbody>
+        <tfoot id="opsTableFoot"></tfoot>
       </table>
     </div>
 
@@ -2824,6 +2825,59 @@ function renderOps() {
       <td><span class="status-pill ${overallStatus}"><span class="status-dot ${overallStatus}"></span>${overallStatus === 'good' ? 'On Track' : (overallStatus === 'warn' ? 'Watch' : 'Attention')}</span></td>
     </tr>`;
   }).join('');
+
+  // ===== AVERAGES ROW =====
+  const withData = data.filter(d => !d._noData);
+  const n = withData.length || 1;
+  const avgNet = withData.reduce((s, d) => s + (d.netSales || 0), 0) / n;
+  const avgChange = withData.filter(d => d.changePct != null).reduce((s, d) => s + +d.changePct, 0) / (withData.filter(d => d.changePct != null).length || 1);
+  const avgTrans = withData.reduce((s, d) => s + (d.trans || 0), 0) / n;
+  const totalNet = withData.reduce((s, d) => s + (d.netSales || 0), 0);
+  const totalTrans = withData.reduce((s, d) => s + (d.trans || 0), 0);
+  const avgGCA = totalTrans > 0 ? totalNet / totalTrans : 0;
+  const laborVals = withData.filter(d => d.laborPct != null);
+  const avgLaborVar = laborVals.length > 0 ? laborVals.reduce((s, d) => s + (+d.laborPct - d.laborTarget), 0) / laborVals.length : null;
+  const joltVals = withData.filter(d => d.checklistPct != null);
+  const avgJolt = joltVals.length > 0 ? joltVals.reduce((s, d) => s + d.checklistPct, 0) / joltVals.length : null;
+  const sosVals = withData.filter(d => d.sos != null);
+  const avgSosRow = sosVals.length > 0 ? Math.round(sosVals.reduce((s, d) => s + d.sos, 0) / sosVals.length) : null;
+  const voidsVals = withData.filter(d => d.voidsPct != null);
+  const avgVoids = voidsVals.length > 0 ? voidsVals.reduce((s, d) => s + +d.voidsPct, 0) / voidsVals.length : null;
+  const refVals = withData.filter(d => d.refunds != null);
+  const avgRef = refVals.length > 0 ? refVals.reduce((s, d) => s + d.refunds, 0) / refVals.length : null;
+  const totalNewRevs = withData.reduce((s, d) => { const nr = getNewReviews(d.storeId); return s + (nr || 0); }, 0);
+  const ratingVals = withData.filter(d => d.googleRating != null);
+  const avgRating = ratingVals.length > 0 ? ratingVals.reduce((s, d) => s + +d.googleRating, 0) / ratingVals.length : null;
+  const totalSC = withData.reduce((s, d) => s + (d.serviceChecks || 0), 0);
+  const scoreVals = withData.filter(d => d.compositeScore != null);
+  const avgScore = scoreVals.length > 0 ? Math.round(scoreVals.reduce((s, d) => s + d.compositeScore, 0) / scoreVals.length) : null;
+  const maxScoreVal = scoreVals.length > 0 ? computeCompositeScore(withData[0]).maxScore : 0;
+
+  const avgChangeClass = avgChange >= 0 ? 'cell-good' : (avgChange > -10 ? 'cell-warn' : 'cell-critical');
+  const avgLaborVarClass = avgLaborVar != null ? (Math.abs(avgLaborVar) <= 0.25 ? 'cell-great' : Math.abs(avgLaborVar) <= 0.50 ? 'cell-good' : Math.abs(avgLaborVar) <= 1.00 ? 'cell-warn' : 'cell-critical') : '';
+  const avgJoltClass = avgJolt != null ? (avgJolt >= 95 ? 'cell-good' : (avgJolt >= 80 ? 'cell-warn' : 'cell-critical')) : '';
+  const avgSosR = avgSosRow != null ? rateKPI('speedAtWindow', avgSosRow) : {cls:'muted'};
+  const avgVoidsR = avgVoids != null ? rateKPI('voids', avgVoids) : {cls:'muted'};
+  const avgRefClass = avgRef != null ? (avgRef > 10 ? 'cell-critical' : 'cell-good') : '';
+  const avgRatingClass = avgRating != null ? (avgRating >= 4.0 ? 'cell-good' : (avgRating >= 3.5 ? 'cell-warn' : 'cell-critical')) : '';
+
+  document.getElementById('opsTableFoot').innerHTML = `<tr style="font-weight:700;border-top:2px solid var(--border);background:var(--surface-alt, var(--surface));">
+    <td>Average</td>
+    <td>${fmtDollar(avgNet)}</td>
+    <td class="${avgChangeClass}">${avgChange >= 0 ? '+' : ''}${avgChange.toFixed(2)}%</td>
+    <td>${Math.round(avgTrans)}</td>
+    <td>$${avgGCA.toFixed(2)}</td>
+    <td class="${avgLaborVarClass}">${avgLaborVar != null ? (avgLaborVar >= 0 ? '+' : '') + avgLaborVar.toFixed(2) + '%' : '--'}</td>
+    <td class="${avgJoltClass}">${avgJolt != null ? Math.round(avgJolt) + '%' : '--'}</td>
+    <td class="cell-${avgSosR.cls}">${avgSosRow != null ? avgSosRow : '--'}</td>
+    <td class="cell-${avgVoidsR.cls}">${avgVoids != null ? avgVoids.toFixed(2) + '%' : '--'}</td>
+    <td class="${avgRefClass}">${avgRef != null ? '$' + avgRef.toFixed(2) : '--'}</td>
+    <td>${totalNewRevs > 0 ? '+' + totalNewRevs : '0'}</td>
+    <td class="${avgRatingClass}">${avgRating != null ? avgRating.toFixed(1) : '--'}</td>
+    <td>${totalSC}</td>
+    <td>${avgScore != null ? '<span class="score-badge">' + avgScore + '/' + maxScoreVal + '</span>' : '--'}</td>
+    <td></td>
+  </tr>`;
 
   renderBarChart('chartGCA', data.map(d => ({ label: d.storeId, value: d.gca != null ? +(+d.gca).toFixed(2) : 0 })), '$', 'GCA');
   renderBarChart('chartLabor', data.map(d => ({ label: d.storeId, value: d.laborPct != null ? +d.laborPct : 0, target: d.laborTarget })), '%', 'Labor', true);

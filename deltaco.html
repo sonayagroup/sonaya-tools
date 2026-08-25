@@ -1230,14 +1230,9 @@ body {
         <label>Week ending:</label>
         <select class="control-select" id="recapWeekPicker"></select>
       </div>
-      <div class="control-group">
-        <label>Area:</label>
-        <select class="control-select" id="recapAreaFilter">
-          <option value="all">All Areas</option>
-          <option value="373-001">373-001</option>
-          <option value="373-002">373-002</option>
-        </select>
-      </div>
+      <select class="control-select" id="recapAreaFilter" style="display:none;">
+        <option value="all">All Areas</option>
+      </select>
     </div>
 
     <!-- Overview view -->
@@ -5341,7 +5336,11 @@ function getWedTueWeeks() {
     }
   });
   weeks.sort((a, b) => b.weekEnd.localeCompare(a.weekEnd));
-  return weeks;
+  // Only show completed weeks (Tuesday must have passed)
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().split('T')[0];
+  return weeks.filter(w => w.weekEnd < todayStr);
 }
 
 function getWeekDates(weekEnd) {
@@ -5439,7 +5438,6 @@ function renderRecapOverview() {
 
     rows += '<tr data-store="' + s.id + '">' +
       '<td>' + s.id + ' ' + s.name + '</td>' +
-      '<td>' + s.area + '</td>' +
       '<td>' + flagHtml + '</td>' +
       '<td><span class="recap-status-pill ' + statusCls + '">' + statusLabel + '</span></td>' +
       '<td>' + submitted + '</td>' +
@@ -5456,7 +5454,7 @@ function renderRecapOverview() {
         '<span class="recap-completion-badge ' + badgeCls + '">' + badgeText + '</span>' +
       '</div>' +
       '<table class="recap-overview-table">' +
-        '<thead><tr><th>Store</th><th>Area</th><th>Flagged KPIs</th><th>Recap Status</th><th>Submitted</th></tr></thead>' +
+        '<thead><tr><th>Store</th><th>Flagged KPIs</th><th>Recap Status</th><th>Submitted</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table>' +
     '</div>';
@@ -5546,7 +5544,6 @@ function renderRecapDetail() {
     '<div class="recap-leadership-section">' +
       '<div class="recap-leadership-header">' +
         '<h3>Leadership Comments / Responses</h3>' +
-        '<span class="recap-role-tag">Pranav Patel</span>' +
       '</div>' +
       '<div class="recap-leadership-body">' +
         '<textarea class="recap-textarea" id="recapLeadership" placeholder="Review the DM\u2019s responses and provide feedback, coaching notes, or follow-up items..." style="min-height:80px;">' + escapeHtml(leadershipText) + '</textarea>' +

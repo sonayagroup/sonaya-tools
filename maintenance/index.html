@@ -602,6 +602,87 @@ window.handleReceiptUpload = async function(woId){
 };
 window.deleteReceipt = deleteReceipt;
 
+// ===== KPI METRICS =====
+function renderKPIRow(openWO, emergWO, allWO){
+  const now = Date.now();
+  // --- Avg days open ---
+  function avgAge(arr){ if(!arr.length) return 0; return (arr.reduce((s,w)=>s+Math.floor((now-new Date(w.created_at).getTime())/(864e5)),0)/arr.length).toFixed(1); }
+  const avgAll = avgAge(openWO);
+  const avgEmerg = avgAge(emergWO);
+
+  // --- Aging buckets ---
+  const buckets = {a:0,b:0,c:0,d:0};
+  openWO.forEach(w=>{
+    const age = Math.floor((now-new Date(w.created_at).getTime())/864e5);
+    if(age<=3) buckets.a++;
+    else if(age<=7) buckets.b++;
+    else if(age<=14) buckets.c++;
+    else buckets.d++;
+  });
+
+  // --- Tech workload ---
+  const assignees = cache.dt_wo_assignees||[];
+  const openIds = new Set(openWO.map(w=>w.id));
+  const techCount = {};
+  assignees.filter(a=>openIds.has(a.work_order_id)).forEach(a=>{
+    const name = teamName(a.team_member_id);
+    techCount[name] = (techCount[name]||0)+1;
+  });
+  const unassigned = openWO.filter(w=>!assignees.some(a=>a.work_order_id===w.id)).length;
+  const techEntries = Object.entries(techCount).sort((a,b)=>b[1]-a[1]);
+
+  // --- Opened vs Closed (last 30 days) ---
+  const d30 = now - 30*864e5;
+  const opened30 = allWO.filter(w=>new Date(w.created_at).getTime()>=d30).length;
+  const closed30 = allWO.filter(w=>(w.status==='completed'||w.status==='cancelled')&&w.updated_at&&new Date(w.updated_at).getTime()>=d30).length;
+  const trendDiff = closed30 - opened30;
+  const trendColor = trendDiff>=0 ? 'var(--good)' : 'var(--critical)';
+  const trendLabel = trendDiff>=0 ? 'catching up' : 'falling behind';
+
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px">
+      <div class="card" style="padding:16px 20px">
+        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:8px">Avg Days Open</div>
+        <div style="display:flex;align-items:baseline;gap:12px">
+          <span style="font-size:1.75rem;font-weight:700;letter-spacing:-.02em;color:${Number(avgAll)>7?'var(--critical)':Number(avgAll)>3?'var(--warning)':'var(--good)'}">${avgAll}</span>
+          <span style="font-size:.8rem;color:var(--text-secondary)">days avg</span>
+        </div>
+        <div style="margin-top:6px;font-size:.8rem;color:var(--text-secondary)">Emergency: <strong style="color:${Number(avgEmerg)>3?'var(--critical)':'var(--text-primary)'}">${avgEmerg}d</strong></div>
+      </div>
+
+      <div class="card" style="padding:16px 20px">
+        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:8px">Ticket Aging</div>
+        <div style="display:flex;gap:6px;align-items:end;height:48px">
+          ${[{l:'0–3d',v:buckets.a,c:'var(--good)'},{l:'4–7d',v:buckets.b,c:'var(--warning)'},{l:'8–14d',v:buckets.c,c:'var(--serious)'},{l:'14d+',v:buckets.d,c:'var(--critical)'}].map(b=>{
+            const maxH=44; const h=openWO.length?Math.max(4,b.v/openWO.length*maxH):4;
+            return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;gap:2px">
+              <span style="font-size:.7rem;font-weight:700">${b.v}</span>
+              <div style="width:100%;height:${h}px;background:${b.c};border-radius:3px"></div>
+              <span style="font-size:.65rem;color:var(--text-muted)">${b.l}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="padding:16px 20px">
+        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:8px">Tech Workload</div>
+        <div style="font-size:.8rem;display:flex;flex-direction:column;gap:3px;max-height:72px;overflow-y:auto">
+          ${techEntries.length?techEntries.map(([name,ct])=>`<div style="display:flex;justify-content:space-between"><span>${name}</span><strong>${ct}</strong></div>`).join(''):'<span style="color:var(--text-muted)">No assignments</span>'}
+          ${unassigned?`<div style="display:flex;justify-content:space-between;color:var(--critical)"><span>Unassigned</span><strong>${unassigned}</strong></div>`:''}
+        </div>
+      </div>
+
+      <div class="card" style="padding:16px 20px">
+        <div style="font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:8px">30-Day Trend</div>
+        <div style="display:flex;gap:20px;align-items:baseline">
+          <div><span style="font-size:1.2rem;font-weight:700;color:var(--text-primary)">${opened30}</span><span style="font-size:.75rem;color:var(--text-muted)"> opened</span></div>
+          <div><span style="font-size:1.2rem;font-weight:700;color:var(--text-primary)">${closed30}</span><span style="font-size:.75rem;color:var(--text-muted)"> closed</span></div>
+        </div>
+        <div style="margin-top:6px;font-size:.8rem;font-weight:600;color:${trendColor}">${trendDiff>=0?'+':''}${trendDiff} net — ${trendLabel}</div>
+      </div>
+    </div>`;
+}
+
 // ===== DASHBOARD =====
 function renderDashboard(){
   $('#page-title').textContent='Dashboard';
@@ -650,6 +731,7 @@ function renderDashboard(){
         <span class="sub">${thisMonth.length} line items</span>
       </div>
     </div>
+    ${renderKPIRow(openWO, emergWO, wo)}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
       <div class="card">
         <div class="card-header"><h3>Recent Work Orders</h3><button class="btn btn-sm btn-secondary" onclick="navigate('work-orders')">View All</button></div>

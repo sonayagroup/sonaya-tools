@@ -1622,22 +1622,7 @@ const dataStore = {
         '1364': { laborPct: 28.41, laborHours: 334.09, laborCost: 4961.82 },
         '1391': { laborPct: 22.89, laborHours: 323.84, laborCost: 4795.21 },
       },
-      'FY2026-P12-W3': {
-        totalEmpMeal: { qty: 20, amount: 116.65 },
-        totalMgrMeal: { qty: 39, amount: 374.94 },
-        stores: {
-          '1029': { empMealQty: 1, empMealAmt: 7.75, mgrMealQty: 1, mgrMealAmt: 4.99 },
-          '1056': { empMealQty: 1, empMealAmt: 7.54, mgrMealQty: 3, mgrMealAmt: 29.41 },
-          '1153': { empMealQty: 4, empMealAmt: 23.82, mgrMealQty: 9, mgrMealAmt: 84.72 },
-          '1357': { empMealQty: 1, empMealAmt: 4.90, mgrMealQty: 4, mgrMealAmt: 37.22 },
-          '1391': { empMealQty: 5, empMealAmt: 29.05, mgrMealQty: 3, mgrMealAmt: 25.06 },
-          '726':  { empMealQty: 4, empMealAmt: 23.47, mgrMealQty: 5, mgrMealAmt: 52.98 },
-          '898':  { empMealQty: 0, empMealAmt: 0.00, mgrMealQty: 2, mgrMealAmt: 24.46 },
-          '1187': { empMealQty: 1, empMealAmt: 5.00, mgrMealQty: 4, mgrMealAmt: 43.71 },
-          '1205': { empMealQty: 3, empMealAmt: 15.12, mgrMealQty: 7, mgrMealAmt: 66.40 },
-          '1364': { empMealQty: 0, empMealAmt: 0.00, mgrMealQty: 1, mgrMealAmt: 5.99 },
-        },
-      },
+
     },
     'FY2026-P12-W3': {
       weekEnd: '2026-08-18',
@@ -2439,6 +2424,40 @@ function findSosForDate(dateStr, storeId) {
   }
   return REAL_SOS[storeId] || 120;
 }
+/* Helper: find LP weekly data for a store given a date string */
+function findLPWeeklyForStore(dateStr, storeId) {
+  const lpw = typeof REAL_LOSS_PREVENTION_WEEKLY !== 'undefined' ? REAL_LOSS_PREVENTION_WEEKLY : null;
+  if (!lpw) return null;
+  // Map date to fiscal week: W1=7/30-8/5, W2=8/6-8/12, W3=8/13-8/19, W4=8/20-8/26
+  const d = new Date(dateStr + 'T00:00:00');
+  const weekBounds = [
+    { key: 'FY2026-P12-W1', start: new Date('2026-07-29T00:00:00'), end: new Date('2026-08-05T00:00:00') },
+    { key: 'FY2026-P12-W2', start: new Date('2026-08-06T00:00:00'), end: new Date('2026-08-12T00:00:00') },
+    { key: 'FY2026-P12-W3', start: new Date('2026-08-13T00:00:00'), end: new Date('2026-08-19T00:00:00') },
+    { key: 'FY2026-P12-W4', start: new Date('2026-08-20T00:00:00'), end: new Date('2026-08-26T00:00:00') },
+  ];
+  let wk = null;
+  for (const wb of weekBounds) {
+    if (d >= wb.start && d <= wb.end) { wk = wb.key; break; }
+  }
+  // For week-end dates that are Tuesdays, also check
+  if (!wk) {
+    // Try matching by week-end: W2 ends 8/12, W3 ends 8/19, W4 ends 8/26
+    const endMap = { '2026-08-05': 'FY2026-P12-W1', '2026-08-12': 'FY2026-P12-W2', '2026-08-19': 'FY2026-P12-W3', '2026-08-26': 'FY2026-P12-W4' };
+    wk = endMap[dateStr];
+  }
+  if (!wk || !lpw[wk]) return null;
+  const storeData = lpw[wk].stores ? lpw[wk].stores[storeId] : null;
+  if (!storeData) return null;
+  const gs = storeData.grossSales || 0;
+  return {
+    voidsPct: gs > 0 ? +((storeData.voids / gs) * 100).toFixed(2) : 0,
+    refunds: Math.abs(storeData.refunds || 0),
+    voidsDollar: storeData.voids || 0,
+    grossSales: gs,
+  };
+}
+
 const REAL_VOIDS = {
   '726': 0.12, '898': 0.00, '1029': 0.82, '1056': 0.46, '1153': 0.70,
   '1187': 1.08, '1205': 0.37, '1357': 0.16, '1364': 6.41, '1391': 0.60,
@@ -2490,10 +2509,26 @@ const REAL_MITIGATION = {
       '1205': { empMealQty: 3, empMealAmt: 7.69, mgrMealQty: 5, mgrMealAmt: 60.77 },
       '1364': { empMealQty: 0, empMealAmt: 0.00, mgrMealQty: 3, mgrMealAmt: 16.07 },
     },
+  'FY2026-P12-W3': {
+    totalEmpMeal: { qty: 20, amount: 116.65 },
+    totalMgrMeal: { qty: 39, amount: 374.94 },
+    stores: {
+      '1029': { empMealQty: 1, empMealAmt: 7.75, mgrMealQty: 1, mgrMealAmt: 4.99 },
+      '1056': { empMealQty: 1, empMealAmt: 7.54, mgrMealQty: 3, mgrMealAmt: 29.41 },
+      '1153': { empMealQty: 4, empMealAmt: 23.82, mgrMealQty: 9, mgrMealAmt: 84.72 },
+      '1357': { empMealQty: 1, empMealAmt: 4.90, mgrMealQty: 4, mgrMealAmt: 37.22 },
+      '1391': { empMealQty: 5, empMealAmt: 29.05, mgrMealQty: 3, mgrMealAmt: 25.06 },
+      '726':  { empMealQty: 4, empMealAmt: 23.47, mgrMealQty: 5, mgrMealAmt: 52.98 },
+      '898':  { empMealQty: 0, empMealAmt: 0.00, mgrMealQty: 2, mgrMealAmt: 24.46 },
+      '1187': { empMealQty: 1, empMealAmt: 5.00, mgrMealQty: 4, mgrMealAmt: 43.71 },
+      '1205': { empMealQty: 3, empMealAmt: 15.12, mgrMealQty: 7, mgrMealAmt: 66.40 },
+      '1364': { empMealQty: 0, empMealAmt: 0.00, mgrMealQty: 1, mgrMealAmt: 5.99 },
+    },
+  },
   },
 };
 /* Real Loss Prevention daily (8/5/2026) */
-    const REAL_LOSS_PREVENTION_WEEKLY = {
+const REAL_LOSS_PREVENTION_WEEKLY = {
       'FY2026-P12-W2': {
         groupTotal: { grossSales: 212513.66, trans: 14064, voids: 1542.70, deletes: 12120.81, refunds: -172.51, custDisc: 8314.71, empDisc: 1379.09, vipCoupons: 5419.87, netSales: 197966.25 },
         stores: {
@@ -2631,8 +2666,8 @@ function getOpsData(dateStr) {
         totalReviews: reviewData ? reviewData.totalReviews : null,
         serviceChecks: findSCForStore(dateStr, s.id) ?? 0,
         sos: findSosForDate(dateStr, s.id),
-        voidsPct: SAMPLE_VOIDS[s.id] || 0.5,
-        refunds: SAMPLE_REFUNDS[s.id] || 0,
+        voidsPct: (() => { const lp = findLPWeeklyForStore(dateStr, s.id); return lp ? lp.voidsPct : (SAMPLE_VOIDS[s.id] || 0.5); })(),
+        refunds: (() => { const lp = findLPWeeklyForStore(dateStr, s.id); return lp ? lp.refunds : (SAMPLE_REFUNDS[s.id] || 0); })(),
         _real: true,
       };
     } else {
@@ -2866,9 +2901,13 @@ function getWeeklyOpsData(weekEndStr) {
         googleRating: reviewData ? reviewData.rating : null,
         totalReviews: reviewData ? reviewData.totalReviews : null,
         serviceChecks: findSCForWeek(weekEndStr, s.id) ?? 0,
-        sos: findSosForDate(weekEndStr, s.id),
-        voidsPct: SAMPLE_VOIDS[s.id] || 0.5,
-        refunds: SAMPLE_REFUNDS[s.id] || 0,
+        sos: (() => {
+          let sosSum = 0, sosCount = 0;
+          dates.forEach(d => { const day = REAL_SOS_DAILY[d]; if (day && day[s.id] !== undefined) { sosSum += day[s.id]; sosCount++; } });
+          return sosCount > 0 ? Math.round(sosSum / sosCount) : findSosForDate(weekEndStr, s.id);
+        })(),
+        voidsPct: (() => { const lp = findLPWeeklyForStore(weekEndStr, s.id); return lp ? lp.voidsPct : (SAMPLE_VOIDS[s.id] || 0.5); })(),
+        refunds: (() => { const lp = findLPWeeklyForStore(weekEndStr, s.id); return lp ? lp.refunds : (SAMPLE_REFUNDS[s.id] || 0); })(),
         _real: true, _days: storeDays.length, _totalSales: totalNet,
       };
     } else {
@@ -3056,7 +3095,9 @@ function renderOps() {
   const totalNet = data.reduce((s,d) => s + (+d.netSales || 0), 0);
   const totalTrans = data.reduce((s,d) => s + (+d.trans || 0), 0);
   const avgGCA = totalTrans > 0 ? (totalNet / totalTrans).toFixed(2) : '0.00';
-  const avgChangePct = (data.reduce((s,d) => s + (+d.changePct || 0), 0) / data.length).toFixed(2);
+  const _weightedChangeNum = data.reduce((s,d) => s + ((+d.changePct || 0) * (+d.netSales || 0)), 0);
+  const _weightedChangeDen = data.reduce((s,d) => s + (+d.netSales || 0), 0);
+  const avgChangePct = _weightedChangeDen > 0 ? (_weightedChangeNum / _weightedChangeDen).toFixed(2) : '0.00';
   const laborStores = data.filter(d => d.laborPct != null);
   const avgLabor = laborStores.length > 0 ? (laborStores.reduce((s,d) => s + +d.laborPct, 0) / laborStores.length).toFixed(2) : '--';
 
@@ -3155,7 +3196,9 @@ function renderOps() {
   const withData = data.filter(d => !d._noData);
   const n = withData.length || 1;
   const avgNet = withData.reduce((s, d) => s + (d.netSales || 0), 0) / n;
-  const avgChange = withData.filter(d => d.changePct != null).reduce((s, d) => s + +d.changePct, 0) / (withData.filter(d => d.changePct != null).length || 1);
+  const _ftWN = withData.filter(d => d.changePct != null).reduce((s, d) => s + (+d.changePct * (+d.netSales || 0)), 0);
+  const _ftWD = withData.filter(d => d.changePct != null).reduce((s, d) => s + (+d.netSales || 0), 0);
+  const avgChange = _ftWD > 0 ? _ftWN / _ftWD : 0;
   const avgTrans = withData.reduce((s, d) => s + (d.trans || 0), 0) / n;
   const avgTotalNet = withData.reduce((s, d) => s + (d.netSales || 0), 0);
   const avgTotalTrans = withData.reduce((s, d) => s + (d.trans || 0), 0);
@@ -5341,15 +5384,18 @@ const RECAP_KPI_RULES = [
   { key: 'salesComp', label: 'Sales Comp %', threshold: 0, unit: '%', direction: 'gte',
     desc: 'threshold: \u2265 0%',
     getValue: (storeId, weekDates) => {
-      let totalPct = 0, count = 0;
+      let weightedSum = 0, totalNS = 0;
       weekDates.forEach(d => {
         const day = dataStore.realSalesDaily[d];
         if (day && day[storeId] && day[storeId].changePct !== undefined) {
-          totalPct += day[storeId].changePct;
-          count++;
+          const ns = day[storeId].netSales || 0;
+          weightedSum += day[storeId].changePct * ns;
+          totalNS += ns;
         }
       });
-      return count > 0 ? { value: +(totalPct / count).toFixed(1), display: (totalPct / count).toFixed(1) + '%' } : null;
+      if (totalNS === 0) return null;
+      const wAvg = weightedSum / totalNS;
+      return { value: +wAvg.toFixed(1), display: wAvg.toFixed(1) + '%' };
     },
     isFlagged: (v) => v < 0,
     severity: (v) => v < -10 ? 'critical' : v < -5 ? 'serious' : 'warn'

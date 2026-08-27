@@ -1306,10 +1306,15 @@ function renderTabs() {
     if (options.length > 1) {
       btn.innerHTML += ` <span class="tab-close" onclick="event.stopPropagation(); removeOption(${i})">&#10005;</span>`;
     }
-    btn.onclick = () => switchToOption(i);
+    let clickTimer = null;
+    btn.onclick = () => {
+      if (clickTimer) return;
+      clickTimer = setTimeout(() => { clickTimer = null; switchToOption(i); }, 250);
+    };
     btn.ondblclick = (e) => {
+      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
       e.stopPropagation();
-      const nameSpan = btn.firstChild;
+      e.preventDefault();
       const input = document.createElement('input');
       input.type = 'text';
       input.value = opt.name;

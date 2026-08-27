@@ -282,6 +282,11 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
   text-align: center; margin-top: auto;
 }
 body.customer-mode .customer-total-box { display: block; }
+
+/* Total Job Cost hidden by default, visible on hover */
+.total-job-cost-row { opacity: 0; max-height: 0; overflow: hidden; margin: 0; padding: 0; border: 0; transition: opacity .2s, max-height .2s; }
+#costBreakdown:hover .total-job-cost-row { opacity: 1; max-height: 30px; padding: 3px 0; }
+#costBreakdown:hover hr.total-job-cost-row { max-height: 1px; padding: 0; border-top: 1px solid var(--border); margin: 6px 0; }
 .customer-total-box .total-label {
   font-size: .85rem; text-transform: uppercase;
   letter-spacing: .06em; opacity: .85; margin-bottom: 4px;
@@ -850,11 +855,11 @@ body.customer-mode .customer-total-box { display: block; }
       <hr class="divider">
       <div class="summary-row"><span class="label">Misc Supplies</span><span class="value" id="sumMisc">$0.00</span></div>
       <div class="summary-row"><span class="label">Trip / Fuel</span><span class="value" id="sumTrip">$0.00</span></div>
-      <hr class="divider">
-      <div class="summary-row" style="font-size:.95rem"><span class="label" style="font-weight:700">Total Job Cost</span><span class="value" id="sumTotal" style="color:var(--navy)">$0.00</span></div>
-      <hr class="divider">
+      <hr class="divider total-job-cost-row">
+      <div class="summary-row total-job-cost-row" style="font-size:.95rem"><span class="label" style="font-weight:700">Total Job Cost</span><span class="value" id="sumTotal" style="color:var(--navy)">$0.00</span></div>
+      <hr class="divider total-job-cost-row">
       <div class="summary-row"><span class="label">Royalty (<span id="royaltyPctLabel">5</span>%)</span><span class="value" id="sumRoyalty">$0.00</span></div>
-      <div class="summary-row"><span class="label">Gross Profit (<span id="marginPctLabel">50</span>%)</span><span class="value" id="sumGrossProfit" style="color:var(--green-dark)">$0.00</span></div>
+      <div class="summary-row"><span class="label">Gross Profit</span><span class="value" id="sumGrossProfit" style="color:var(--green-dark)">$0.00</span></div>
     </div>
 
     <!-- Per Sq Ft (internal only) -->
@@ -1128,10 +1133,15 @@ async function loadPricingFromSupabase() {
       // Fallback: product_type contains
       if (!ci) ci = miscItems.find(i => normKey(i.product_type).includes(key) || key.includes(normKey(i.product_type)));
       if (ci) {
-        const p = parseFloat(ci.unit_price);
-        if (p > 0) mc.price = p;
+        const cov = parseFloat(ci.coverage_sqft) || 0;
+        // For "each" items with coverage > 1 (e.g. box of 10 masks), use price_per_sqft as per-unit price
+        if (ci.unit_of_measure === 'each' && cov > 1 && parseFloat(ci.price_per_sqft) > 0) {
+          mc.price = parseFloat(ci.price_per_sqft);
+        } else {
+          const p = parseFloat(ci.unit_price);
+          if (p > 0) mc.price = p;
+        }
         if (ci.unit_of_measure) mc.unit = ci.unit_of_measure;
-        const cov = parseFloat(ci.coverage_sqft);
         if (cov > 1) mc.coverage = cov;
       }
     });
@@ -1157,11 +1167,17 @@ async function loadPricingFromSupabase() {
       if (!seen.has(lc) && !addedDK.has(dk)) {
         seen.add(lc);
         addedDK.add(dk);
+        const covVal = parseFloat(ci.coverage_sqft) || 0;
+        // For "each" items with coverage > 1 (box pricing), use price_per_sqft as per-unit price
+        let itemPrice = parseFloat(ci.unit_price) || 0;
+        if (ci.unit_of_measure === 'each' && covVal > 1 && parseFloat(ci.price_per_sqft) > 0) {
+          itemPrice = parseFloat(ci.price_per_sqft);
+        }
         allPricingItems.push({
           name: friendlyName,
-          price: parseFloat(ci.unit_price) || 0,
+          price: itemPrice,
           unit: ci.unit_of_measure || 'each',
-          coverage: parseFloat(ci.coverage_sqft) || 0
+          coverage: covVal
         });
       }
     });
@@ -2212,7 +2228,6 @@ function recalc() {
   $('marginNote').textContent = margin + '%';
   $('royaltyNote').textContent = royalty + '%';
   $('royaltyPctLabel').textContent = royalty;
-  $('marginPctLabel').textContent = margin;
 
   // Formula: Customer Price = Total Cost / (1 - margin% - royalty%)
   const customerPrice = divisor > 0 ? c.totalJobCost / divisor : 0;

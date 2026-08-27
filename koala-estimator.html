@@ -1338,7 +1338,9 @@ function renderTabs() {
       btn.innerHTML += ` <span class="tab-close" onclick="event.stopPropagation(); removeOption(${i})">&#10005;</span>`;
     }
     let clickTimer = null;
-    btn.onclick = () => {
+    let editing = false;
+    btn.onclick = (e) => {
+      if (editing) { e.stopPropagation(); return; }
       if (clickTimer) return;
       clickTimer = setTimeout(() => { clickTimer = null; switchToOption(i); }, 250);
     };
@@ -1346,11 +1348,14 @@ function renderTabs() {
       if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
       e.stopPropagation();
       e.preventDefault();
+      editing = true;
       const input = document.createElement('input');
       input.type = 'text';
       input.value = opt.name;
       input.style.cssText = 'width:120px;font:inherit;border:1px solid var(--green);border-radius:4px;padding:2px 6px;background:#fff;color:var(--navy);outline:none;';
       const finish = () => {
+        if (!editing) return;
+        editing = false;
         const newName = input.value.trim() || opt.name;
         opt.name = newName;
         renderTabs();
@@ -1358,9 +1363,10 @@ function renderTabs() {
         $('priceLabel').textContent = options[activeOptionIdx].name;
       };
       input.onblur = finish;
-      input.onkeydown = (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); finish(); } if (ev.key === 'Escape') { renderTabs(); } };
+      input.onkeydown = (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); finish(); } if (ev.key === 'Escape') { editing = false; renderTabs(); } };
       input.onkeyup = (ev) => { ev.stopPropagation(); };
       input.onkeypress = (ev) => { ev.stopPropagation(); };
+      input.onclick = (ev) => { ev.stopPropagation(); };
       btn.textContent = '';
       btn.appendChild(input);
       input.focus();

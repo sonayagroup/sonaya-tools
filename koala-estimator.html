@@ -520,6 +520,15 @@ body.customer-mode .customer-total-box { display: block; }
   width: 14px; height: 14px; border: 2px solid #ccc;
   border-radius: 3px; flex-shrink: 0;
 }
+.ep-options-select { margin-bottom: 16px; }
+.ep-options-select h3 { font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--navy); margin: 0 0 8px; }
+.ep-opt-checks { display: flex; flex-wrap: wrap; gap: 8px; }
+.ep-opt-check { display: flex; align-items: center; gap: 6px; font-size: .85rem; cursor: pointer; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); transition: all .15s; }
+.ep-opt-check:hover { border-color: var(--navy); }
+.ep-opt-check input { accent-color: var(--navy); cursor: pointer; }
+.ep-opt-check.checked { background: var(--navy); color: #fff; border-color: var(--navy); }
+.ep-option-block { margin: 12px 0; padding: 12px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); }
+.ep-option-block h4 { margin: 0 0 8px; font-size: .9rem; color: var(--navy); font-weight: 700; }
 .email-panel-footer {
   padding: 14px 20px; border-top: 1px solid var(--border);
   display: flex; gap: 10px; background: var(--surface-2);
@@ -709,6 +718,10 @@ body.customer-mode .customer-total-box { display: block; }
         <div class="ep-row">
           <div class="ep-field"><label>Additional Notes</label><textarea id="epNotes" placeholder="Gate codes, parking, pet info, access notes..." oninput="refreshEmailPreview()"></textarea></div>
         </div>
+      </div>
+      <div class="ep-options-select">
+        <h3>Options to Include</h3>
+        <div id="epOptionCheckboxes"></div>
       </div>
       <div class="ep-preview-label">Email Preview <span class="ep-autofill-tag">Auto-Filled from Estimate</span></div>
       <div class="ep-preview-box">
@@ -2643,6 +2656,25 @@ function openEmailPanel() {
   if (!$('epServiceDate').value) {
     $('epServiceDate').value = new Date().toISOString().split('T')[0];
   }
+  // Build option checkboxes
+  const container = $('epOptionCheckboxes');
+  container.innerHTML = '';
+  container.className = 'ep-opt-checks';
+  options.forEach((opt, i) => {
+    const label = document.createElement('label');
+    label.className = 'ep-opt-check checked';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    cb.value = i;
+    cb.onchange = () => {
+      label.classList.toggle('checked', cb.checked);
+      refreshEmailPreview();
+    };
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(opt.name));
+    container.appendChild(label);
+  });
   refreshEmailPreview();
   $('emailOverlay').classList.add('active');
 }
@@ -2651,9 +2683,7 @@ function closeEmailPanel() {
   $('emailOverlay').classList.remove('active');
 }
 
-function getEmailMaterialsList() {
-  // Gather materials from active option's blow-in, batt, SPF, and misc rows
-  const opt = getOpt();
+function getEmailMaterialsForOption(opt) {
   const p = optPrefixFor(opt);
   const materials = [];
 
@@ -2701,8 +2731,24 @@ function getEmailMaterialsList() {
   return materials.join(', ') || 'None listed';
 }
 
+function getEmailMaterialsList() {
+  return getEmailMaterialsForOption(getOpt());
+}
+
+function getSelectedEmailOptions() {
+  const checks = document.querySelectorAll('#epOptionCheckboxes input[type="checkbox"]:checked');
+  return Array.from(checks).map(cb => parseInt(cb.value)).filter(i => i < options.length);
+}
+
+function getOptionCustomerPrice(opt) {
+  const margin = parseFloat($('margin').value) || 50;
+  const royalty = parseFloat($('royaltyFee').value) || 5;
+  const divisor = 1 - (margin / 100) - (royalty / 100);
+  const c = calcOption(opt);
+  return divisor > 0 ? c.totalJobCost / divisor : 0;
+}
+
 function getCustomerPrice() {
-  // Get displayed customer price from the sidebar
   const el = document.getElementById('totalPrice');
   return el ? el.textContent : '$0.00';
 }
@@ -2725,8 +2771,6 @@ function refreshEmailPreview() {
   const leadSource = $('epLeadSource').value || '';
   const bonus = $('epBonus').value || '';
   const notes = $('epNotes').value || '';
-  const materials = getEmailMaterialsList();
-  const customerPrice = getCustomerPrice();
   const margin = getMarginPercent();
 
   // Format date
@@ -2762,14 +2806,40 @@ function refreshEmailPreview() {
     html += '<div class="ep-notes-box">' + escHtml(notes) + '</div>';
   }
 
-  html += '<div class="ep-sec-label">Materials Needed:</div>';
-  html += '<div class="ep-sec-value">' + escHtml(materials) + '</div>';
+  // Show selected options with materials and prices
+  const selectedIdxs = getSelectedEmailOptions();
+  if (selectedIdxs.length === 0) {
+    html += '<div class="ep-sec-value" style="color:#c62828;font-weight:600">No options selected — check at least one option above.</div>';
+  } else {
+    selectedIdxs.forEach(idx => {
+      const opt = options[idx];
+      const optMaterials = getEmailMaterialsForOption(opt);
+      const optPrice = fmt(getOptionCustomerPrice(opt));
+      if (selectedIdxs.length > 1) {
+        html += '<div class="ep-option-block"><h4>' + escHtml(opt.name) + ' — ' + optPrice + '</h4>';
+        html += '<div class="ep-sec-label">Materials Needed:</div>';
+        html += '<div class="ep-sec-value">' + escHtml(optMaterials) + '</div>';
+        html += '</div>';
+      } else {
+        html += '<div class="ep-sec-label">Materials Needed:</div>';
+        html += '<div class="ep-sec-value">' + escHtml(optMaterials) + '</div>';
+      }
+    });
+  }
 
   html += '<hr>';
   html += '<div class="ep-detail-grid">';
   html += detailRow('Estimator', estimator);
   html += detailRow('Service Address', address);
-  html += '<div class="ep-detail-row"><span class="ep-detail-label">Total Amount</span><span class="ep-detail-value ep-amount">' + customerPrice + '</span></div>';
+  if (selectedIdxs.length <= 1) {
+    const singlePrice = selectedIdxs.length === 1 ? fmt(getOptionCustomerPrice(options[selectedIdxs[0]])) : '$0.00';
+    html += '<div class="ep-detail-row"><span class="ep-detail-label">Total Amount</span><span class="ep-detail-value ep-amount">' + singlePrice + '</span></div>';
+  } else {
+    selectedIdxs.forEach(idx => {
+      const opt = options[idx];
+      html += '<div class="ep-detail-row"><span class="ep-detail-label">' + escHtml(opt.name) + '</span><span class="ep-detail-value ep-amount">' + fmt(getOptionCustomerPrice(opt)) + '</span></div>';
+    });
+  }
   html += detailRow('Installer / Estimated Hours', installerHours);
   html += detailRow('Projected Margin', margin);
   html += detailRow('Lead Source', leadSource);
@@ -2809,8 +2879,6 @@ function copyEmailPlainText() {
   const leadSource = $('epLeadSource').value || '';
   const bonus = $('epBonus').value || '';
   const notes = $('epNotes').value || '';
-  const materials = getEmailMaterialsList();
-  const customerPrice = getCustomerPrice();
   const margin = getMarginPercent();
 
   let formattedDate = '—';
@@ -2834,11 +2902,33 @@ function copyEmailPlainText() {
   if (notes) {
     text += 'Additional Notes:\n' + notes + '\n\n';
   }
-  text += 'Materials Needed:\n' + materials + '\n\n';
+  const selectedIdxs = getSelectedEmailOptions();
+  if (selectedIdxs.length === 0) {
+    text += 'No options selected.\n\n';
+  } else {
+    selectedIdxs.forEach(idx => {
+      const opt = options[idx];
+      const optMaterials = getEmailMaterialsForOption(opt);
+      const optPrice = fmt(getOptionCustomerPrice(opt));
+      if (selectedIdxs.length > 1) {
+        text += opt.name + ' — ' + optPrice + '\n';
+        text += 'Materials Needed: ' + optMaterials + '\n\n';
+      } else {
+        text += 'Materials Needed:\n' + optMaterials + '\n\n';
+      }
+    });
+  }
   text += '──────────────────────────────────\n\n';
   text += 'Estimator: ' + estimator + '\n';
   text += 'Service Address: ' + address + '\n';
-  text += 'Total Amount: ' + customerPrice + '\n';
+  if (selectedIdxs.length <= 1) {
+    const singlePrice = selectedIdxs.length === 1 ? fmt(getOptionCustomerPrice(options[selectedIdxs[0]])) : '$0.00';
+    text += 'Total Amount: ' + singlePrice + '\n';
+  } else {
+    selectedIdxs.forEach(idx => {
+      text += options[idx].name + ': ' + fmt(getOptionCustomerPrice(options[idx])) + '\n';
+    });
+  }
   text += 'Installer / Estimated Hours: ' + installerHours + '\n';
   text += 'Projected Margin: ' + margin + '\n';
   text += 'Lead Source: ' + leadSource + '\n';

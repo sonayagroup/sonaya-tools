@@ -755,6 +755,22 @@ body.customer-mode .customer-total-box { display: block; }
         <div class="field"><label>Phone Number</label><input type="tel" id="custPhone" placeholder="(505) 555-1234"></div>
         <div class="field"><label>Email</label><input type="email" id="custEmail" placeholder="customer@email.com"></div>
       </div>
+      <div class="row">
+        <div class="field"><label>Lead Source</label>
+          <select id="leadSource">
+            <option value="">-- Select --</option>
+            <option value="Angi">Angi</option>
+            <option value="Google">Google</option>
+            <option value="Referral">Referral</option>
+            <option value="Home Depot">Home Depot</option>
+            <option value="Thumbtack">Thumbtack</option>
+            <option value="Facebook">Facebook</option>
+            <option value="Yelp">Yelp</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="field"></div>
+      </div>
     </div>
 
     <!-- Job Details -->
@@ -2323,6 +2339,7 @@ function serializeForm() {
     margin: $('marginInput').value,
     royalty: $('royaltyInput').value,
     notes: $('notes').value,
+    leadSource: $('leadSource').value,
     options: []
   };
 
@@ -2411,6 +2428,7 @@ function deserializeForm(data) {
   $('address').value = data.address || '';
   $('custPhone').value = data.custPhone || '';
   $('custEmail').value = data.custEmail || '';
+  $('leadSource').value = data.leadSource || '';
   $('jobType').value = data.jobType || '';
   $('targetR').value = data.targetR || '';
   $('framingDepth').value = data.framingDepth || '';
@@ -2660,10 +2678,42 @@ async function loadEstimateFromUrl() {
 
 // ─── EMAIL PANEL ─────────────────────────────────────────────────────────────
 
+function getInstallerHoursSummary() {
+  // Gather labor hours across all options
+  const summaryParts = [];
+  options.forEach(opt => {
+    const p = optPrefixFor(opt);
+    let totalHrs = 0;
+    opt.rows.labor.forEach(id => {
+      const hrs = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${id}"]`)?.value) || 0;
+      const ot = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${id}"]`)?.value) || 0;
+      totalHrs += hrs + ot;
+    });
+    if (totalHrs > 0) {
+      if (options.length > 1) {
+        summaryParts.push(opt.name + ': ' + totalHrs + ' hrs');
+      } else {
+        summaryParts.push(totalHrs + ' hrs');
+      }
+    }
+  });
+  return summaryParts.join(', ');
+}
+
 function openEmailPanel() {
   // Auto-fill service date to today
   if (!$('epServiceDate').value) {
     $('epServiceDate').value = new Date().toISOString().split('T')[0];
+  }
+  // Auto-fill Installer / Est. Hours from labor data
+  const hoursSummary = getInstallerHoursSummary();
+  if (hoursSummary && !$('epInstallerHours').value) {
+    $('epInstallerHours').value = hoursSummary;
+  }
+  // Auto-fill Lead Source from main form
+  const leadSrc = $('leadSource').value;
+  if (leadSrc && !$('epLeadSource').value) {
+    $('epLeadSource').value = leadSrc;
   }
   // Build option checkboxes
   const container = $('epOptionCheckboxes');

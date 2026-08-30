@@ -5588,8 +5588,25 @@ const RECAP_QUESTIONS = [
 ];
 
 const RECAP_KPI_RULES = [
-  { key: 'salesComp', label: 'Sales Comp %', threshold: 0, unit: '%', direction: 'gte',
-    desc: 'threshold: \u2265 0%',
+  { key: 'weeklySales', label: 'Weekly Net Sales', unit: '$', direction: 'gte',
+    desc: 'Great: $37,500+ · Good: $30,750+ · NI: $28,501+ · IA: below $28,500',
+    getValue: (storeId, weekDates) => {
+      let totalNS = 0, hasData = false;
+      weekDates.forEach(d => {
+        const day = dataStore.realSalesDaily[d];
+        if (day && day[storeId] && day[storeId].netSales !== undefined) {
+          totalNS += day[storeId].netSales;
+          hasData = true;
+        }
+      });
+      if (!hasData) return null;
+      return { value: totalNS, display: '$' + totalNS.toLocaleString('en-US', { maximumFractionDigits: 0 }) };
+    },
+    isFlagged: (v) => v < 30750,
+    severity: (v) => v < 28500 ? 'critical' : 'warn'
+  },
+  { key: 'salesComp', label: 'Sales Comp %',
+    desc: 'Flagged when weekly comp is negative',
     getValue: (storeId, weekDates) => {
       let weightedSum = 0, totalNS = 0;
       weekDates.forEach(d => {
@@ -5607,10 +5624,9 @@ const RECAP_KPI_RULES = [
     isFlagged: (v) => v < 0,
     severity: (v) => v < -10 ? 'critical' : v < -5 ? 'serious' : 'warn'
   },
-  { key: 'laborVar', label: 'Labor Variance', threshold: 3, unit: '%', direction: 'lte',
-    desc: 'threshold: \u2264 3%',
+  { key: 'laborVar', label: 'Labor % Variance',
+    desc: 'Great: ±0.10% · Good: ≤0.25% · NI: ≤0.50% · IA: >0.50%',
     getValue: (storeId, weekDates) => {
-      // Find the labor week that overlaps with the recap week
       const labor = dataStore.realLaborWeekly;
       if (!labor) return null;
       const weekEnd = weekDates[weekDates.length - 1];
@@ -5624,40 +5640,43 @@ const RECAP_KPI_RULES = [
         const actual = labor[best][storeId];
         const target = LABOR_TARGETS[storeId] || 24;
         const variance = +(actual - target).toFixed(2);
-        return { value: variance, display: (variance >= 0 ? '+' : '') + variance.toFixed(2) + '%' };
+        return { value: Math.abs(variance), display: (variance >= 0 ? '+' : '') + variance.toFixed(2) + '%' };
       }
       return null;
     },
-    isFlagged: (v) => v > 3,
-    severity: (v) => v > 6 ? 'critical' : v > 4.5 ? 'serious' : 'warn'
+    isFlagged: (v) => v > 0.50,
+    severity: (v) => v > 0.50 ? 'critical' : v > 0.25 ? 'serious' : 'warn'
   },
-  { key: 'voids', label: 'Voids %', threshold: 0.75, unit: '%', direction: 'lte',
-    desc: 'threshold: \u2264 0.75%',
-    getValue: (storeId, weekDates) => {
-      // Check if we have voids data in realSalesDaily or other source
-      // For now return null if no voids data available
-      return null;
-    },
-    isFlagged: (v) => v > 0.75,
-    severity: (v) => v > 2 ? 'critical' : v > 1 ? 'serious' : 'warn'
-  },
-  { key: 'foodCost', label: 'Food Cost %', threshold: 24, unit: '%', direction: 'lte',
-    desc: 'threshold: \u2264 24%',
+  { key: 'foodCostVar', label: 'Food Cost Variance',
+    desc: 'Great: <0.25% · Good: ≤0.50% · NI: ≤1% · IA: >1%',
     getValue: (storeId, weekDates) => {
       const fc = dataStore.realFoodCost;
-      if (!fc || !fc.length) return null;
+      if (!fc) return null;
+      // realFoodCost is keyed by date, each value is an array of store entries
       const weekEnd = weekDates[weekDates.length - 1];
-      const entry = fc.find(e => e.storeId === storeId && e.weekEnd === weekEnd);
-      if (entry && entry.actualPct !== undefined) {
-        return { value: entry.actualPct, display: entry.actualPct.toFixed(2) + '%' };
+      // Try exact match first, then check nearby dates (Wed-Tue week may not align with food cost week)
+      let entries = null;
+      for (const dateKey in fc) {
+        const d = new Date(dateKey + 'T12:00:00');
+        const we = new Date(weekEnd + 'T12:00:00');
+        if (Math.abs(d - we) <= 7 * 86400000) {
+          entries = fc[dateKey];
+          break;
+        }
+      }
+      if (!entries || !entries.length) return null;
+      const entry = entries.find(e => String(e.storeId) === String(storeId));
+      if (entry && entry.variancePct !== undefined) {
+        const absVar = Math.abs(entry.variancePct);
+        return { value: absVar, display: (entry.variancePct >= 0 ? '+' : '') + entry.variancePct.toFixed(2) + '%' };
       }
       return null;
     },
-    isFlagged: (v) => v > 24,
-    severity: (v) => v > 28 ? 'critical' : v > 26 ? 'serious' : 'warn'
+    isFlagged: (v) => v > 0.50,
+    severity: (v) => v > 1 ? 'critical' : v > 0.50 ? 'serious' : 'warn'
   },
-  { key: 'sos', label: 'Speed of Service (Window)', threshold: 140, unit: 's', direction: 'lte',
-    desc: 'threshold: \u2264 140s',
+  { key: 'sos', label: 'Speed at Window',
+    desc: 'Great: <110s · Good: ≤120s · NI: ≤140s · IA: >141s',
     getValue: (storeId, weekDates) => {
       const sos = dataStore.REAL_SOS_DAILY || {};
       let total = 0, count = 0;
@@ -5668,7 +5687,6 @@ const RECAP_KPI_RULES = [
         }
       });
       if (count === 0) {
-        // Fallback to REAL_SOS
         const fallback = dataStore.REAL_SOS || {};
         if (fallback[storeId] !== undefined) {
           return { value: fallback[storeId], display: fallback[storeId] + 's' };
@@ -5678,8 +5696,24 @@ const RECAP_KPI_RULES = [
       const avg = Math.round(total / count);
       return { value: avg, display: avg + 's' };
     },
-    isFlagged: (v) => v > 140,
-    severity: (v) => v > 180 ? 'critical' : v > 160 ? 'serious' : 'warn'
+    isFlagged: (v) => v > 120,
+    severity: (v) => v > 141 ? 'critical' : v > 120 ? 'warn' : 'warn'
+  },
+  { key: 'voids', label: 'Overrings / Voids',
+    desc: 'Great: <0.75% · Good: ≤1% · NI: ≤2% · IA: >2%',
+    getValue: (storeId, weekDates) => {
+      // Pull from loss prevention weekly data if available
+      const lp = dataStore.lossPreventionWeekly;
+      if (!lp) return null;
+      const weekEnd = weekDates[weekDates.length - 1];
+      if (lp[weekEnd] && lp[weekEnd][storeId] && lp[weekEnd][storeId].voidsPct !== undefined) {
+        const v = lp[weekEnd][storeId].voidsPct;
+        return { value: v, display: v.toFixed(2) + '%' };
+      }
+      return null;
+    },
+    isFlagged: (v) => v > 1,
+    severity: (v) => v > 2 ? 'critical' : v > 1 ? 'serious' : 'warn'
   },
 ];
 
@@ -5959,7 +5993,7 @@ function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function saveRecap() {
+async function saveRecap() {
   const storeId = recapState.selectedStore;
   const weekEnd = recapState.weekEnd;
   const recap = getRecapData(weekEnd, storeId);
@@ -5980,8 +6014,10 @@ function saveRecap() {
   flags.forEach(f => { if (recap.flags[f.key] && recap.flags[f.key].trim()) filled++; });
   RECAP_QUESTIONS.forEach(q => { if (recap.questions[q.key] && recap.questions[q.key].trim()) filled++; });
 
+  let submittedAt = null;
   if (filled >= totalFields) {
     recap.status = 'complete';
+    submittedAt = new Date().toISOString();
     const now = new Date();
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     recap.submittedAt = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + (now.getHours() >= 12 ? ' PM' : ' AM');
@@ -5989,7 +6025,34 @@ function saveRecap() {
     recap.status = 'partial';
   }
 
-  showRecapToast('Recap saved' + (recap.status === 'complete' ? ' \u2014 Complete!' : ' \u2014 ' + filled + '/' + totalFields + ' fields filled'));
+  // Persist to Supabase
+  const saveBtn = document.getElementById('recapSaveBtn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+  try {
+    const body = {
+      store_id: storeId,
+      week_ending: weekEnd,
+      flags: recap.flags,
+      questions: recap.questions,
+      leadership: recap.leadership || '',
+      status: recap.status,
+      submitted_at: submittedAt,
+      updated_at: new Date().toISOString()
+    };
+    const res = await sbFetch('dt_weekly_recaps', {
+      method: 'POST',
+      prefer: 'return=representation,resolution=merge-duplicates',
+      headers: { 'Prefer': 'return=representation,resolution=merge-duplicates' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('Save failed: ' + res.status);
+    showRecapToast('Recap saved' + (recap.status === 'complete' ? ' — Complete!' : ' — ' + filled + '/' + totalFields + ' fields filled'));
+  } catch (err) {
+    console.error('Recap save error:', err);
+    showRecapToast('Error saving recap — please try again');
+  } finally {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recap'; }
+  }
 }
 
 function showRecapToast(msg) {
@@ -5999,7 +6062,27 @@ function showRecapToast(msg) {
   setTimeout(() => toast.classList.remove('show'), 2500);
 }
 
-function initRecap() {
+async function loadRecapsFromSupabase(weekEnd) {
+  try {
+    const res = await sbFetch('dt_weekly_recaps?week_ending=eq.' + weekEnd);
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!recapState.data[weekEnd]) recapState.data[weekEnd] = {};
+    rows.forEach(row => {
+      recapState.data[weekEnd][row.store_id] = {
+        flags: row.flags || {},
+        questions: row.questions || {},
+        leadership: row.leadership || '',
+        status: row.status || 'pending',
+        submittedAt: row.submitted_at ? new Date(row.submitted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + new Date(row.submitted_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null
+      };
+    });
+  } catch (err) {
+    console.error('Failed to load recaps:', err);
+  }
+}
+
+async function initRecap() {
   const weeks = getWedTueWeeks();
   const picker = document.getElementById('recapWeekPicker');
   if (!picker) return;
@@ -6014,8 +6097,9 @@ function initRecap() {
 
   recapState.weekEnd = weeks.length > 0 ? weeks[0].weekEnd : null;
 
-  picker.addEventListener('change', e => {
+  picker.addEventListener('change', async e => {
     recapState.weekEnd = e.target.value;
+    await loadRecapsFromSupabase(recapState.weekEnd);
     if (recapState.view === 'overview') renderRecapOverview();
     else renderRecapDetail();
   });
@@ -6025,7 +6109,10 @@ function initRecap() {
     if (recapState.view === 'overview') renderRecapOverview();
   });
 
-  if (recapState.weekEnd) renderRecapOverview();
+  if (recapState.weekEnd) {
+    await loadRecapsFromSupabase(recapState.weekEnd);
+    renderRecapOverview();
+  }
 }
 
 </script>

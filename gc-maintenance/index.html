@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<base target="_top">
+<title>Great Clips — Maintenance Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#048667;--blue-dk:#073b3a;--red:#e4002b;--red-dk:#b30020;--green:#089f45;--amber:#e9a049;
+--bg:#f4f7f5;--card:#fff;--line:#e1ece8;--ink:#12302c;--muted:#5f716d;--shadow:0 1px 3px rgba(7,59,58,.08),0 1px 2px rgba(7,59,58,.06);}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Poppins",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:1280px;margin:0 auto;padding:0 18px 60px}
+header{background:linear-gradient(135deg,var(--blue),var(--blue-dk));color:#fff;padding:16px 0 14px;box-shadow:var(--shadow)}
+.hdr-inner{max-width:1280px;margin:0 auto;padding:0 18px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+header h1{font-size:19px;font-weight:700}
+header .sub{font-size:12px;opacity:.85;margin-top:2px}
+.hdr-meta{font-size:12.5px;opacity:.85;margin-left:auto;text-align:right}
+nav.tabs{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
+.tabs-inner{max-width:1280px;margin:0 auto;padding:0 10px;display:flex;flex-wrap:wrap}
+.tab{padding:12px 16px;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;user-select:none;font-size:13.5px}
+.tab:hover{color:var(--blue)}.tab.active{color:var(--blue-dk);border-bottom-color:var(--green)}
+section.panel{display:none;padding-top:20px}section.panel.active{display:block}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:11px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 14px;box-shadow:var(--shadow);cursor:default}
+.kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600}
+.kpi .val{font-size:23px;font-weight:700;margin-top:3px}.kpi .sub{font-size:12px;margin-top:2px;color:var(--muted)}
+.kpi.flagred .val{color:var(--red-dk)}.kpi.flagamber .val{color:#b8790f}
+.grid{display:grid;gap:16px;margin-bottom:18px}.g2{grid-template-columns:repeat(auto-fit,minmax(360px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
+.card h3{font-size:14px;font-weight:700;margin-bottom:2px;color:var(--blue-dk)}.card .hint{font-size:11.5px;color:var(--muted);margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:12.7px}
+th,td{padding:8px 9px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{background:#f0f3f7;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0}
+tbody tr:hover{background:#f7fafd}
+.tbl-scroll{overflow-x:auto}
+.sec-title{font-size:15px;font-weight:700;color:var(--blue-dk);margin:4px 0 10px;display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+select,input[type=text],input[type=date],input[type=number],input[type=email],textarea{
+  font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:#fcfdfe;color:var(--ink)}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--blue)}
+textarea{width:100%;min-height:60px;resize:vertical;font-family:inherit}
+label{font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px}
+.field{margin-bottom:12px}
+.field-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:7px;border:none;font:inherit;font-weight:600;font-size:13px;cursor:pointer;background:var(--blue);color:#fff;transition:background .15s}
+.btn:hover{background:var(--blue-dk)}
+.btn.secondary{background:#fff;color:var(--blue-dk);border:1px solid var(--line)}
+.btn.secondary:hover{background:#f0f3f7}
+.btn.danger{background:var(--red)}.btn.danger:hover{background:var(--red-dk)}
+.btn.small{padding:5px 10px;font-size:12px}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.badge.open{background:#fdecec;color:var(--red-dk)}
+.badge.progress{background:#fef3d0;color:#8a5c00}
+.badge.hold{background:#eef0f2;color:var(--muted)}
+.badge.done{background:#dff5e6;color:#0b6b34}
+.pri-low{color:var(--muted);font-weight:600}
+.pri-medium{color:#8a5c00;font-weight:700}
+.pri-high{color:var(--red-dk);font-weight:700}
+.pri-urgent{background:var(--red);color:#fff;padding:1px 8px;border-radius:20px;font-weight:700;font-size:11px}
+.status-ok{color:#0b6b34;font-weight:700}
+.status-soon{color:#8a5c00;font-weight:700}
+.status-over{color:var(--red-dk);font-weight:700}
+.status-never{color:var(--muted);font-weight:700}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(7,59,58,.45);z-index:100;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px}
+.modal-bg.active{display:flex}
+.modal{background:#fff;border-radius:12px;max-width:640px;width:100%;padding:22px 24px;box-shadow:0 10px 40px rgba(0,0,0,.25);margin-bottom:40px}
+.modal.wide{max-width:900px}
+.modal h2{font-size:16px;color:var(--blue-dk);margin-bottom:16px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
+.close-x{float:right;cursor:pointer;color:var(--muted);font-size:20px;line-height:1}
+.pm-cat{font-weight:700;color:var(--blue-dk);font-size:13px;margin:16px 0 8px;padding-bottom:4px;border-bottom:2px solid var(--line)}
+.pm-item{display:grid;grid-template-columns:1fr 130px 1fr;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.pm-item .lbl{font-size:12.7px;color:var(--ink)}
+.pm-item select{width:100%}
+.pm-item input[type=text]{width:100%}
+.salon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.salon-card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:9px;padding:12px 14px;box-shadow:var(--shadow);cursor:pointer}
+.salon-card:hover{background:#f7fafd}
+.salon-card.ok{border-left-color:var(--green)}
+.salon-card.soon{border-left-color:var(--amber)}
+.salon-card.over{border-left-color:var(--red)}
+.salon-card.never{border-left-color:var(--muted)}
+.salon-card .nm{font-weight:700;font-size:13.5px;color:var(--ink)}
+.salon-card .id{font-size:11px;color:var(--muted);margin-bottom:6px}
+.salon-card .st{font-size:12.5px;margin-top:4px}
+.empty-note{color:var(--muted);font-size:12.7px;padding:14px 4px}
+.footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:26px;line-height:1.7}
+.loading{padding:30px;text-align:center;color:var(--muted)}
+.act-links a{margin-right:10px;font-size:12px;font-weight:600}
+.act-links a.danger{color:var(--red-dk)}
+@media(max-width:640px){.pm-item{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-inner">
+    <div>
+      <h1>Great Clips — Maintenance Dashboard</h1>
+      <div class="sub">Work orders · equipment · vendors · preventative maintenance checklist</div>
+    </div>
+    <div class="hdr-meta" id="hdrMeta">Loading…</div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="tabs-inner">
+    <div class="tab active" data-t="overview">Overview</div>
+    <div class="tab" data-t="workorders">Work Orders</div>
+    <div class="tab" data-t="equipment">Equipment</div>
+    <div class="tab" data-t="vendors">Vendors</div>
+    <div class="tab" data-t="pm">PM Checklist</div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <section class="panel active" id="panel-overview">
+    <div class="kpis" id="ov-kpis"><div class="loading">Loading…</div></div>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Open Work Orders</h3>
+        <div class="hint">Sorted by priority, then due date</div>
+        <div class="tbl-scroll" id="ov-wo">Loading…</div>
+      </div>
+      <div class="card">
+        <h3>Preventative Maintenance — Attention Needed</h3>
+        <div class="hint">Salons overdue or due soon for their twice-yearly checklist</div>
+        <div class="tbl-scroll" id="ov-pm">Loading…</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-workorders">
+    <div class="sec-title">
+      <span>Work Orders</span>
+      <button class="btn" onclick="openWoModal()">+ New Work Order</button>
+    </div>
+    <div class="toolbar">
+      <select id="woFilterSalon"><option value="">All Salons</option></select>
+      <select id="woFilterStatus">
+        <option value="">All Statuses</option>
+        <option>Open</option><option>In Progress</option><option>On Hold</option><option>Completed</option>
+      </select>
+      <select id="woFilterPriority">
+        <option value="">All Priorities</option>
+        <option>Low</option><option>Medium</option><option>High</option><option>Urgent</option>
+      </select>
+    </div>
+    <div class="card"><div class="tbl-scroll" id="wo-table">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-equipment">
+    <div class="sec-title">
+      <span>Equipment</span>
+      <button class="btn" onclick="openEqModal()">+ Add Equipment</button>
+    </div>
+    <div class="toolbar">
+      <select id="eqFilterSalon"><option value="">All Salons</option></select>
+    </div>
+    <div class="card"><div class="tbl-scroll" id="eq-table">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-vendors">
+    <div class="sec-title">
+      <span>Vendor Directory</span>
+      <button class="btn" onclick="openVendModal()">+ Add Vendor</button>
+    </div>
+    <div class="card"><div class="tbl-scroll" id="vend-table">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-pm">
+    <div class="sec-title">
+      <span>Preventative Maintenance Checklist</span>
+      <button class="btn" onclick="openPmModal()">+ New Checklist Visit</button>
+    </div>
+    <div class="hint" style="margin-bottom:14px;color:var(--muted);font-size:12.5px">Due twice a year per salon (every ~6 months). Click a salon to view its checklist history.</div>
+    <div class="salon-grid" id="pm-salon-grid"><div class="loading">Loading…</div></div>
+
+    <div id="pm-history-wrap" style="display:none;margin-top:22px">
+      <div class="sec-title"><span id="pm-history-title">History</span><button class="btn secondary small" onclick="closePmHistory()">Close</button></div>
+      <div class="card"><div class="tbl-scroll" id="pm-history-table"></div></div>
+      <div id="pm-visit-detail" style="margin-top:16px"></div>
+    </div>
+  </section>
+
+  <div class="footer">Great Clips Maintenance Dashboard · data via Supabase · Sonaya Group internal tools</div>
+</div>
+
+<!-- Work Order Modal -->
+<div class="modal-bg" id="woModalBg"><div class="modal">
+  <span class="close-x" onclick="closeModal('woModalBg')">&times;</span>
+  <h2 id="woModalTitle">New Work Order</h2>
+  <input type="hidden" id="woId">
+  <div class="field-row">
+    <div class="field"><label>Salon</label><select id="woSalon"></select></div>
+    <div class="field"><label>Category</label>
+      <select id="woCategory">
+        <option>Plumbing</option><option>Electrical</option><option>Casework & Furniture</option>
+        <option>Chairs</option><option>Flooring</option><option>Paint, Walls & Ceiling</option>
+        <option>Doors</option><option>Washer & Dryer</option><option>HVAC</option><option>Other</option>
+      </select>
+    </div>
+  </div>
+  <div class="field"><label>Title</label><input type="text" id="woTitle" style="width:100%"></div>
+  <div class="field"><label>Description</label><textarea id="woDesc"></textarea></div>
+  <div class="field-row">
+    <div class="field"><label>Priority</label>
+      <select id="woPriority"><option>Low</option><option selected>Medium</option><option>High</option><option>Urgent</option></select>
+    </div>
+    <div class="field"><label>Status</label>
+      <select id="woStatus"><option>Open</option><option>In Progress</option><option>On Hold</option><option>Completed</option></select>
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Vendor</label><select id="woVendor"><option value="">— None —</option></select></div>
+    <div class="field"><label>Assigned To</label><input type="text" id="woAssigned" style="width:100%"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Reported By</label><input type="text" id="woReported" style="width:100%"></div>
+    <div class="field"><label>Due Date</label><input type="date" id="woDue" style="width:100%"></div>
+  </div>
+  <div class="field"><label>Estimated / Actual Cost ($)</label><input type="number" step="0.01" id="woCost" style="width:100%"></div>
+  <div class="field"><label>Notes</label><textarea id="woNotes"></textarea></div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('woModalBg')">Cancel</button>
+    <button class="btn" onclick="saveWo()">Save Work Order</button>
+  </div>
+</div></div>
+
+<!-- Equipment Modal -->
+<div class="modal-bg" id="eqModalBg"><div class="modal">
+  <span class="close-x" onclick="closeModal('eqModalBg')">&times;</span>
+  <h2 id="eqModalTitle">Add Equipment</h2>
+  <input type="hidden" id="eqId">
+  <div class="field-row">
+    <div class="field"><label>Salon</label><select id="eqSalon"></select></div>
+    <div class="field"><label>Category</label>
+      <select id="eqCategory">
+        <option>HVAC</option><option>Water Heater</option><option>Washer/Dryer</option>
+        <option>Hairvac</option><option>Sign / Lighting</option><option>Alarm/Security</option><option>Other</option>
+      </select>
+    </div>
+  </div>
+  <div class="field"><label>Equipment Name / Description</label><input type="text" id="eqName" style="width:100%" placeholder="e.g. Rooftop HVAC Unit 1"></div>
+  <div class="field-row">
+    <div class="field"><label>Install Date</label><input type="date" id="eqInstall" style="width:100%"></div>
+    <div class="field"><label>Last Service Date</label><input type="date" id="eqLastService" style="width:100%"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Service Interval (months)</label><input type="number" id="eqInterval" style="width:100%"></div>
+    <div class="field"><label>Vendor</label><select id="eqVendor"><option value="">— None —</option></select></div>
+  </div>
+  <div class="field"><label>Notes</label><textarea id="eqNotes"></textarea></div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('eqModalBg')">Cancel</button>
+    <button class="btn" onclick="saveEq()">Save Equipment</button>
+  </div>
+</div></div>
+
+<!-- Vendor Modal -->
+<div class="modal-bg" id="vendModalBg"><div class="modal">
+  <span class="close-x" onclick="closeModal('vendModalBg')">&times;</span>
+  <h2 id="vendModalTitle">Add Vendor</h2>
+  <input type="hidden" id="vendId">
+  <div class="field"><label>Vendor / Company Name</label><input type="text" id="vendName" style="width:100%"></div>
+  <div class="field-row">
+    <div class="field"><label>Category</label>
+      <select id="vendCategory">
+        <option>Plumbing</option><option>Electrical</option><option>HVAC</option><option>General Contractor</option>
+        <option>Flooring</option><option>Locksmith</option><option>Signage</option><option>Cleaning</option><option>Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Contact Name</label><input type="text" id="vendContact" style="width:100%"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Phone</label><input type="text" id="vendPhone" style="width:100%"></div>
+    <div class="field"><label>Email</label><input type="email" id="vendEmail" style="width:100%"></div>
+  </div>
+  <div class="field"><label>Notes</label><textarea id="vendNotes"></textarea></div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('vendModalBg')">Cancel</button>
+    <button class="btn" onclick="saveVendor()">Save Vendor</button>
+  </div>
+</div></div>
+
+<!-- PM Checklist Modal -->
+<div class="modal-bg" id="pmModalBg"><div class="modal wide">
+  <span class="close-x" onclick="closeModal('pmModalBg')">&times;</span>
+  <h2>New Preventative Maintenance Checklist Visit</h2>
+  <div class="field-row">
+    <div class="field"><label>Salon</label><select id="pmSalon"></select></div>
+    <div class="field"><label>Visit Date</label><input type="date" id="pmVisitDate" style="width:100%"></div>
+    <div class="field"><label>Technician Name</label><input type="text" id="pmTech" style="width:100%"></div>
+  </div>
+  <div id="pmChecklistBody"></div>
+  <div class="field" style="margin-top:14px"><label>Overall Visit Notes</label><textarea id="pmVisitNotes"></textarea></div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('pmModalBg')">Cancel</button>
+    <button class="btn" onclick="savePmVisit()">Save Checklist</button>
+  </div>
+</div></div>
+
+<script>
+const SUPA_URL="https://vcukhvjwsuaqxgqzotwb.supabase.co";
+const SUPA_KEY=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9","eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30","Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE"].join(".");
+function hdrs(extra){return Object.assign({apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},extra||{});}
+async function sGet(path){const r=await fetch(SUPA_URL+"/rest/v1/"+path,{headers:hdrs()});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sPost(table,body){const r=await fetch(SUPA_URL+"/rest/v1/"+table,{method:"POST",headers:hdrs({"Content-Type":"application/json",Prefer:"return=representation"}),body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sPatch(table,id,body){const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:hdrs({"Content-Type":"application/json",Prefer:"return=representation"}),body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sDelete(table,id){const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"DELETE",headers:hdrs()});if(!r.ok)throw new Error(await r.text());return true;}
+
+// ===== PM checklist template (from Salon Preventative Maintenance Checklist.xlsx) =====
+const PM_TEMPLATE=[
+ {cat:"PLUMBING (Inspect, Clean, Tighten and Replace Washers)",items:[
+   "Shampoo Sinks","Shampoo Stations Faucet","Shampoo Stations Drain Assembly",
+   "Bathroom (ensure all bathroom fixtures are properly working)",
+   "Toilet (ensure proper working order and replace parts as needed)",
+   "Utility Sink","Drain Water Heater (if tankless, run descaler)"]},
+ {cat:"ELECTRICAL",items:[
+   "Switches (ensure all are in working order and replace as needed)",
+   "Electrical Outlets (ensure all are in working order and replace as needed)",
+   "Sign Timer (ensure it is set correctly and proper operation and replace if needed)",
+   "Replace any burnt out light bulbs",
+   "Thermostat (check programming and replace batteries)"]},
+ {cat:"CASEWORK & FURNITURE",items:[
+   "Front Desk (inspect and tighten door and drawers and replace any parts as needed)",
+   "Stylist Stations (inspect and tighten door and drawers and replace any parts as needed)",
+   "Hairvac Cabinet (inspect and tighten door and drawers and replace any parts as needed)",
+   "Product Cabinet (inspect and tighten door and drawers and replace any parts as needed)",
+   "Towel Cabinet (inspect and tighten door and drawers and replace any parts as needed)",
+   "Station Sails (adjust or replace as needed)",
+   "Replace any broken lobby coat hanger hooks",
+   "Adjust product shelves as needed"]},
+ {cat:"CHAIRS",items:[
+   "Stylist Chairs (inspect for proper operation and tighten, replace parts, and lubricate shafts)",
+   "Replace Seat Cushions","Inspect lobby chairs"]},
+ {cat:"FLOORING",items:[
+   "Inspect flooring and replace or repair as needed",
+   "Floor Base (repair or replace as needed)",
+   "Transitions (repair or replace as needed)"]},
+ {cat:"PAINT, WALLS & CEILING",items:[
+   "Patch any walls as needed","Paint / touch up any areas as needed",
+   "Ceiling Grid (inspect and repair or replace ceiling grid and tile as needed)"]},
+ {cat:"DOORS",items:[
+   "Inspect doors and ensure proper operation",
+   "Adjust and replace any door closures as needed",
+   "Check all door handles and hinges and adjust as needed"]},
+ {cat:"WASHER & DRYER",items:[
+   "Ensure proper operation of unit","Clean dryer duct"]},
+ {cat:"OTHER",items:[
+   "Remove brush roller and clean vacuum to ensure it is clog free",
+   "Inspect and replace any door graphics and posters as needed",
+   "Replace safe batteries (9V)",
+   "Check roller shade operation and adjust as needed",
+   "Replace hairvac filter as needed"]}
+];
+
+let SALONS={}; // salon_id -> salon_name
+let VENDORS=[];
+let WORKORDERS=[];
+let EQUIPMENT=[];
+let PM_VISITS=[]; // header rows, each with .items loaded on demand for history detail
+
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtDate(d){if(!d)return "—";const dt=new Date(d+"T00:00:00");return isNaN(dt)?d:dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function salonName(id){return SALONS[id]?SALONS[id]+" #"+id:id;}
+function salonOptionsHtml(sel){
+  return Object.keys(SALONS).sort().map(id=>`<option value="${id}" ${id===sel?"selected":""}>${esc(salonName(id))}</option>`).join("");
+}
+function vendorOptionsHtml(sel){
+  return `<option value="">— None —</option>`+VENDORS.map(v=>`<option value="${v.id}" ${String(v.id)===String(sel)?"selected":""}>${esc(v.name)}</option>`).join("");
+}
+
+// ===== Tabs =====
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll("section.panel").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+  document.getElementById("panel-"+t.dataset.t).classList.add("active");
+}));
+
+function closeModal(id){document.getElementById(id).classList.remove("active");}
+function openModal(id){document.getElementById(id).classList.add("active");}
+
+// ===== Load base data =====
+async function loadSalons(){
+  const rows=await sGet("daily_salon?select=salon_id,salon_name,date&order=date.desc");
+  SALONS={};
+  rows.forEach(r=>{if(!(r.salon_id in SALONS))SALONS[r.salon_id]=r.salon_name;});
+}
+async function loadVendors(){VENDORS=await sGet("gc_maint_vendors?select=*&order=name.asc");}
+async function loadWorkOrders(){WORKORDERS=await sGet("gc_maint_work_orders?select=*&order=created_at.desc");}
+async function loadEquipment(){EQUIPMENT=await sGet("gc_maint_equipment?select=*&order=salon_id.asc");}
+async function loadPmVisits(){PM_VISITS=await sGet("gc_maint_pm_visits?select=*&order=visit_date.desc");}
+
+function fillSalonSelects(){
+  document.querySelectorAll("#woSalon,#eqSalon,#pmSalon").forEach(sel=>{sel.innerHTML=salonOptionsHtml();});
+  const woF=document.getElementById("woFilterSalon"), eqF=document.getElementById("eqFilterSalon");
+  woF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
+  eqF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
+}
+function fillVendorSelects(){
+  document.querySelectorAll("#woVendor,#eqVendor").forEach(sel=>{sel.innerHTML=vendorOptionsHtml();});
+}
+
+// ===== Overview =====
+function renderOverview(){
+  const open=WORKORDERS.filter(w=>w.status!=="Completed");
+  const highOpen=open.filter(w=>w.priority==="High"||w.priority==="Urgent");
+  const pmStatus=computePmStatusAll();
+  const overdue=pmStatus.filter(p=>p.status==="over"||p.status==="never").length;
+  const dueSoon=pmStatus.filter(p=>p.status==="soon").length;
+
+  document.getElementById("ov-kpis").innerHTML=`
+    <div class="kpi ${open.length?'flagamber':''}"><div class="lbl">Open Work Orders</div><div class="val">${open.length}</div><div class="sub">${WORKORDERS.length} total all-time</div></div>
+    <div class="kpi ${highOpen.length?'flagred':''}"><div class="lbl">High / Urgent Open</div><div class="val">${highOpen.length}</div></div>
+    <div class="kpi ${overdue?'flagred':''}"><div class="lbl">PM Checklist Overdue</div><div class="val">${overdue}</div><div class="sub">of ${Object.keys(SALONS).length} salons</div></div>
+    <div class="kpi ${dueSoon?'flagamber':''}"><div class="lbl">PM Due Soon</div><div class="val">${dueSoon}</div><div class="sub">within 30 days</div></div>
+    <div class="kpi"><div class="lbl">Vendors on File</div><div class="val">${VENDORS.length}</div></div>
+    <div class="kpi"><div class="lbl">Equipment Tracked</div><div class="val">${EQUIPMENT.length}</div></div>`;
+
+  const priRank={Urgent:0,High:1,Medium:2,Low:3};
+  const openSorted=[...open].sort((a,b)=>(priRank[a.priority]??9)-(priRank[b.priority]??9)||String(a.due_date||"9999").localeCompare(String(b.due_date||"9999")));
+  document.getElementById("ov-wo").innerHTML= openSorted.length? `<table><thead><tr><th>Salon</th><th>Title</th><th>Priority</th><th>Status</th><th>Due</th></tr></thead><tbody>`+
+    openSorted.slice(0,12).map(w=>`<tr><td>${esc(salonName(w.salon_id))}</td><td>${esc(w.title)}</td><td>${priBadge(w.priority)}</td><td>${statusBadge(w.status)}</td><td>${fmtDate(w.due_date)}</td></tr>`).join("")+`</tbody></table>`
+    : `<div class="empty-note">No open work orders.</div>`;
+
+  const attn=pmStatus.filter(p=>p.status==="over"||p.status==="never"||p.status==="soon").sort((a,b)=>a.status==="over"?-1:1);
+  document.getElementById("ov-pm").innerHTML= attn.length? `<table><thead><tr><th>Salon</th><th>Last Visit</th><th>Status</th></tr></thead><tbody>`+
+    attn.map(p=>`<tr><td>${esc(salonName(p.salon_id))}</td><td>${p.lastVisit?fmtDate(p.lastVisit):"Never recorded"}</td><td>${pmStatusLabel(p.status)}</td></tr>`).join("")+`</tbody></table>`
+    : `<div class="empty-note">All salons up to date.</div>`;
+}
+function priBadge(p){
+  if(p==="Urgent")return `<span class="pri-urgent">Urgent</span>`;
+  if(p==="High")return `<span class="pri-high">High</span>`;
+  if(p==="Medium")return `<span class="pri-medium">Medium</span>`;
+  return `<span class="pri-low">Low</span>`;
+}
+function statusBadge(s){
+  const map={Open:"open","In Progress":"progress","On Hold":"hold",Completed:"done"};
+  return `<span class="badge ${map[s]||'open'}">${esc(s)}</span>`;
+}
+function pmStatusLabel(s){
+  if(s==="over")return `<span class="status-over">Overdue</span>`;
+  if(s==="soon")return `<span class="status-soon">Due Soon</span>`;
+  if(s==="never")return `<span class="status-never">Never Recorded</span>`;
+  return `<span class="status-ok">Up to Date</span>`;
+}
+function computePmStatusAll(){
+  const bySalon={};
+  PM_VISITS.forEach(v=>{if(!bySalon[v.salon_id]||v.visit_date>bySalon[v.salon_id])bySalon[v.salon_id]=v.visit_date;});
+  const today=new Date(todayISO());
+  return Object.keys(SALONS).sort().map(id=>{
+    const last=bySalon[id]||null;
+    if(!last)return{salon_id:id,lastVisit:null,nextDue:null,status:"never"};
+    const nextDue=new Date(last+"T00:00:00"); nextDue.setMonth(nextDue.getMonth()+6);
+    const daysLeft=Math.round((nextDue-today)/86400000);
+    let status="ok"; if(daysLeft<0)status="over"; else if(daysLeft<=30)status="soon";
+    return{salon_id:id,lastVisit:last,nextDue:nextDue.toISOString().slice(0,10),status};
+  });
+}
+
+// ===== Work Orders tab =====
+function renderWorkOrders(){
+  const fS=document.getElementById("woFilterSalon").value;
+  const fSt=document.getElementById("woFilterStatus").value;
+  const fP=document.getElementById("woFilterPriority").value;
+  let rows=[...WORKORDERS];
+  if(fS)rows=rows.filter(w=>w.salon_id===fS);
+  if(fSt)rows=rows.filter(w=>w.status===fSt);
+  if(fP)rows=rows.filter(w=>w.priority===fP);
+  document.getElementById("wo-table").innerHTML= rows.length? `<table><thead><tr>
+    <th>Salon</th><th>Title</th><th>Category</th><th>Priority</th><th>Status</th><th>Vendor</th><th>Due</th><th>Cost</th><th>Actions</th>
+    </tr></thead><tbody>`+rows.map(w=>{
+      const vend=VENDORS.find(v=>String(v.id)===String(w.vendor_id));
+      return `<tr>
+        <td>${esc(salonName(w.salon_id))}</td>
+        <td><b>${esc(w.title)}</b>${w.description?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px">${esc(w.description)}</div>`:""}</td>
+        <td>${esc(w.category||"—")}</td>
+        <td>${priBadge(w.priority)}</td>
+        <td>${statusBadge(w.status)}</td>
+        <td>${vend?esc(vend.name):(w.assigned_to?esc(w.assigned_to):"—")}</td>
+        <td>${fmtDate(w.due_date)}</td>
+        <td>${w.cost!=null?"$"+Number(w.cost).toFixed(2):"—"}</td>
+        <td class="act-links"><a href="#" onclick="editWo(${w.id});return false;">Edit</a><a href="#" class="danger" onclick="deleteWo(${w.id});return false;">Delete</a></td>
+      </tr>`;}).join("")+`</tbody></table>`
+    : `<div class="empty-note">No work orders match these filters.</div>`;
+}
+["woFilterSalon","woFilterStatus","woFilterPriority"].forEach(id=>document.getElementById(id).addEventListener("change",renderWorkOrders));
+
+function openWoModal(){
+  document.getElementById("woModalTitle").textContent="New Work Order";
+  document.getElementById("woId").value="";
+  document.getElementById("woSalon").innerHTML=salonOptionsHtml();
+  document.getElementById("woVendor").innerHTML=vendorOptionsHtml();
+  ["woTitle","woDesc","woAssigned","woReported","woDue","woCost","woNotes"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("woCategory").value="Other";
+  document.getElementById("woPriority").value="Medium";
+  document.getElementById("woStatus").value="Open";
+  openModal("woModalBg");
+}
+function editWo(id){
+  const w=WORKORDERS.find(x=>x.id===id); if(!w)return;
+  document.getElementById("woModalTitle").textContent="Edit Work Order";
+  document.getElementById("woId").value=w.id;
+  document.getElementById("woSalon").innerHTML=salonOptionsHtml(w.salon_id);
+  document.getElementById("woVendor").innerHTML=vendorOptionsHtml(w.vendor_id);
+  document.getElementById("woTitle").value=w.title||"";
+  document.getElementById("woDesc").value=w.description||"";
+  document.getElementById("woCategory").value=w.category||"Other";
+  document.getElementById("woPriority").value=w.priority||"Medium";
+  document.getElementById("woStatus").value=w.status||"Open";
+  document.getElementById("woAssigned").value=w.assigned_to||"";
+  document.getElementById("woReported").value=w.reported_by||"";
+  document.getElementById("woDue").value=w.due_date||"";
+  document.getElementById("woCost").value=w.cost!=null?w.cost:"";
+  document.getElementById("woNotes").value=w.notes||"";
+  openModal("woModalBg");
+}
+async function saveWo(){
+  const id=document.getElementById("woId").value;
+  const status=document.getElementById("woStatus").value;
+  const body={
+    salon_id:document.getElementById("woSalon").value,
+    title:document.getElementById("woTitle").value.trim(),
+    description:document.getElementById("woDesc").value.trim()||null,
+    category:document.getElementById("woCategory").value,
+    priority:document.getElementById("woPriority").value,
+    status,
+    vendor_id:document.getElementById("woVendor").value||null,
+    assigned_to:document.getElementById("woAssigned").value.trim()||null,
+    reported_by:document.getElementById("woReported").value.trim()||null,
+    due_date:document.getElementById("woDue").value||null,
+    cost:document.getElementById("woCost").value?Number(document.getElementById("woCost").value):null,
+    notes:document.getElementById("woNotes").value.trim()||null,
+    updated_at:new Date().toISOString()
+  };
+  if(status==="Completed")body.completed_at=new Date().toISOString();
+  if(!body.title){alert("Title is required.");return;}
+  try{
+    if(id){await sPatch("gc_maint_work_orders",id,body);}
+    else{await sPost("gc_maint_work_orders",body);}
+    closeModal("woModalBg");
+    await loadWorkOrders(); renderWorkOrders(); renderOverview();
+  }catch(e){alert("Save failed: "+e.message);}
+}
+async function deleteWo(id){
+  if(!confirm("Delete this work order?"))return;
+  try{await sDelete("gc_maint_work_orders",id); await loadWorkOrders(); renderWorkOrders(); renderOverview();}
+  catch(e){alert("Delete failed: "+e.message);}
+}
+
+// ===== Equipment tab =====
+function renderEquipment(){
+  const fS=document.getElementById("eqFilterSalon").value;
+  let rows=[...EQUIPMENT]; if(fS)rows=rows.filter(e=>e.salon_id===fS);
+  document.getElementById("eq-table").innerHTML= rows.length? `<table><thead><tr>
+    <th>Salon</th><th>Category</th><th>Name</th><th>Install Date</th><th>Last Service</th><th>Interval</th><th>Vendor</th><th>Actions</th>
+    </tr></thead><tbody>`+rows.map(e=>{
+      const vend=VENDORS.find(v=>String(v.id)===String(e.vendor_id));
+      return `<tr>
+        <td>${esc(salonName(e.salon_id))}</td><td>${esc(e.category)}</td><td>${esc(e.name)}</td>
+        <td>${fmtDate(e.install_date)}</td><td>${fmtDate(e.last_service_date)}</td>
+        <td>${e.service_interval_months?e.service_interval_months+" mo":"—"}</td>
+        <td>${vend?esc(vend.name):"—"}</td>
+        <td class="act-links"><a href="#" onclick="editEq(${e.id});return false;">Edit</a><a href="#" class="danger" onclick="deleteEq(${e.id});return false;">Delete</a></td>
+      </tr>`;}).join("")+`</tbody></table>`
+    : `<div class="empty-note">No equipment recorded${fS?" for this salon":""} yet.</div>`;
+}
+document.getElementById("eqFilterSalon").addEventListener("change",renderEquipment);
+
+function openEqModal(){
+  document.getElementById("eqModalTitle").textContent="Add Equipment";
+  document.getElementById("eqId").value="";
+  document.getElementById("eqSalon").innerHTML=salonOptionsHtml();
+  document.getElementById("eqVendor").innerHTML=vendorOptionsHtml();
+  ["eqName","eqInstall","eqLastService","eqInterval","eqNotes"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("eqCategory").value="HVAC";
+  openModal("eqModalBg");
+}
+function editEq(id){
+  const e=EQUIPMENT.find(x=>x.id===id); if(!e)return;
+  document.getElementById("eqModalTitle").textContent="Edit Equipment";
+  document.getElementById("eqId").value=e.id;
+  document.getElementById("eqSalon").innerHTML=salonOptionsHtml(e.salon_id);
+  document.getElementById("eqVendor").innerHTML=vendorOptionsHtml(e.vendor_id);
+  document.getElementById("eqCategory").value=e.category||"HVAC";
+  document.getElementById("eqName").value=e.name||"";
+  document.getElementById("eqInstall").value=e.install_date||"";
+  document.getElementById("eqLastService").value=e.last_service_date||"";
+  document.getElementById("eqInterval").value=e.service_interval_months||"";
+  document.getElementById("eqNotes").value=e.notes||"";
+  openModal("eqModalBg");
+}
+async function saveEq(){
+  const id=document.getElementById("eqId").value;
+  const body={
+    salon_id:document.getElementById("eqSalon").value,
+    category:document.getElementById("eqCategory").value,
+    name:document.getElementById("eqName").value.trim(),
+    install_date:document.getElementById("eqInstall").value||null,
+    last_service_date:document.getElementById("eqLastService").value||null,
+    service_interval_months:document.getElementById("eqInterval").value?Number(document.getElementById("eqInterval").value):null,
+    vendor_id:document.getElementById("eqVendor").value||null,
+    notes:document.getElementById("eqNotes").value.trim()||null
+  };
+  if(!body.name){alert("Equipment name is required.");return;}
+  try{
+    if(id){await sPatch("gc_maint_equipment",id,body);} else {await sPost("gc_maint_equipment",body);}
+    closeModal("eqModalBg");
+    await loadEquipment(); renderEquipment(); renderOverview();
+  }catch(e){alert("Save failed: "+e.message);}
+}
+async function deleteEq(id){
+  if(!confirm("Delete this equipment record?"))return;
+  try{await sDelete("gc_maint_equipment",id); await loadEquipment(); renderEquipment(); renderOverview();}
+  catch(e){alert("Delete failed: "+e.message);}
+}
+
+// ===== Vendors tab =====
+function renderVendors(){
+  document.getElementById("vend-table").innerHTML= VENDORS.length? `<table><thead><tr>
+    <th>Name</th><th>Category</th><th>Contact</th><th>Phone</th><th>Email</th><th>Notes</th><th>Actions</th>
+    </tr></thead><tbody>`+VENDORS.map(v=>`<tr>
+      <td><b>${esc(v.name)}</b></td><td>${esc(v.category||"—")}</td><td>${esc(v.contact_name||"—")}</td>
+      <td>${esc(v.phone||"—")}</td><td>${v.email?`<a href="mailto:${esc(v.email)}">${esc(v.email)}</a>`:"—"}</td>
+      <td>${esc(v.notes||"—")}</td>
+      <td class="act-links"><a href="#" onclick="editVendor(${v.id});return false;">Edit</a><a href="#" class="danger" onclick="deleteVendor(${v.id});return false;">Delete</a></td>
+    </tr>`).join("")+`</tbody></table>`
+    : `<div class="empty-note">No vendors on file yet.</div>`;
+}
+function openVendModal(){
+  document.getElementById("vendModalTitle").textContent="Add Vendor";
+  document.getElementById("vendId").value="";
+  ["vendName","vendContact","vendPhone","vendEmail","vendNotes"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("vendCategory").value="Plumbing";
+  openModal("vendModalBg");
+}
+function editVendor(id){
+  const v=VENDORS.find(x=>x.id===id); if(!v)return;
+  document.getElementById("vendModalTitle").textContent="Edit Vendor";
+  document.getElementById("vendId").value=v.id;
+  document.getElementById("vendName").value=v.name||"";
+  document.getElementById("vendCategory").value=v.category||"Plumbing";
+  document.getElementById("vendContact").value=v.contact_name||"";
+  document.getElementById("vendPhone").value=v.phone||"";
+  document.getElementById("vendEmail").value=v.email||"";
+  document.getElementById("vendNotes").value=v.notes||"";
+  openModal("vendModalBg");
+}
+async function saveVendor(){
+  const id=document.getElementById("vendId").value;
+  const body={
+    name:document.getElementById("vendName").value.trim(),
+    category:document.getElementById("vendCategory").value,
+    contact_name:document.getElementById("vendContact").value.trim()||null,
+    phone:document.getElementById("vendPhone").value.trim()||null,
+    email:document.getElementById("vendEmail").value.trim()||null,
+    notes:document.getElementById("vendNotes").value.trim()||null
+  };
+  if(!body.name){alert("Vendor name is required.");return;}
+  try{
+    if(id){await sPatch("gc_maint_vendors",id,body);} else {await sPost("gc_maint_vendors",body);}
+    closeModal("vendModalBg");
+    await loadVendors(); renderVendors(); fillVendorSelects(); renderOverview();
+  }catch(e){alert("Save failed: "+e.message);}
+}
+async function deleteVendor(id){
+  if(!confirm("Delete this vendor?"))return;
+  try{await sDelete("gc_maint_vendors",id); await loadVendors(); renderVendors(); fillVendorSelects(); renderOverview();}
+  catch(e){alert("Delete failed: "+e.message);}
+}
+
+// ===== PM Checklist tab =====
+function renderPmGrid(){
+  const statuses=computePmStatusAll();
+  document.getElementById("pm-salon-grid").innerHTML=statuses.map(p=>`
+    <div class="salon-card ${p.status}" onclick="showPmHistory('${p.salon_id}')">
+      <div class="nm">${esc(SALONS[p.salon_id]||p.salon_id)}</div>
+      <div class="id">Salon #${p.salon_id}</div>
+      <div class="st">Last visit: ${p.lastVisit?fmtDate(p.lastVisit):"—"}</div>
+      <div class="st">${pmStatusLabel(p.status)}${p.nextDue?` · next due ${fmtDate(p.nextDue)}`:""}</div>
+    </div>`).join("");
+}
+function openPmModal(){
+  document.getElementById("pmSalon").innerHTML=salonOptionsHtml();
+  document.getElementById("pmVisitDate").value=todayISO();
+  document.getElementById("pmTech").value="";
+  document.getElementById("pmVisitNotes").value="";
+  document.getElementById("pmChecklistBody").innerHTML=PM_TEMPLATE.map((sec,si)=>`
+    <div class="pm-cat">${esc(sec.cat)}</div>
+    ${sec.items.map((it,ii)=>`
+      <div class="pm-item">
+        <div class="lbl">${esc(it)}</div>
+        <select id="pm_insp_${si}_${ii}"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+        <input type="text" id="pm_cmt_${si}_${ii}" placeholder="Comments">
+      </div>`).join("")}
+  `).join("");
+  openModal("pmModalBg");
+}
+async function savePmVisit(){
+  const salon_id=document.getElementById("pmSalon").value;
+  const visit_date=document.getElementById("pmVisitDate").value;
+  const technician_name=document.getElementById("pmTech").value.trim()||null;
+  const notes=document.getElementById("pmVisitNotes").value.trim()||null;
+  if(!visit_date){alert("Visit date is required.");return;}
+  try{
+    const visitRows=await sPost("gc_maint_pm_visits",{salon_id,visit_date,technician_name,notes});
+    const visitId=visitRows[0].id;
+    const items=[];
+    let sort=0;
+    PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{
+      const insp=document.getElementById(`pm_insp_${si}_${ii}`).value||null;
+      const cmt=document.getElementById(`pm_cmt_${si}_${ii}`).value.trim()||null;
+      items.push({visit_id:visitId,category:sec.cat,item_label:it,sort_order:sort++,inspected:insp,comments:cmt});
+    }));
+    await sPost("gc_maint_pm_items",items);
+    closeModal("pmModalBg");
+    await loadPmVisits(); renderPmGrid(); renderOverview();
+  }catch(e){alert("Save failed: "+e.message);}
+}
+async function showPmHistory(salonId){
+  const visits=PM_VISITS.filter(v=>v.salon_id===salonId);
+  document.getElementById("pm-history-title").textContent="History — "+salonName(salonId);
+  document.getElementById("pm-history-table").innerHTML= visits.length? `<table><thead><tr><th>Visit Date</th><th>Technician</th><th>Notes</th><th></th></tr></thead><tbody>`+
+    visits.map(v=>`<tr><td>${fmtDate(v.visit_date)}</td><td>${esc(v.technician_name||"—")}</td><td>${esc(v.notes||"—")}</td><td><a href="#" onclick="showPmVisitDetail(${v.id});return false;">View checklist</a></td></tr>`).join("")+`</tbody></table>`
+    : `<div class="empty-note">No checklist visits recorded for this salon yet.</div>`;
+  document.getElementById("pm-visit-detail").innerHTML="";
+  document.getElementById("pm-history-wrap").style.display="block";
+  document.getElementById("pm-history-wrap").scrollIntoView({behavior:"smooth"});
+}
+function closePmHistory(){document.getElementById("pm-history-wrap").style.display="none";}
+async function showPmVisitDetail(visitId){
+  const items=await sGet("gc_maint_pm_items?select=*&visit_id=eq."+visitId+"&order=sort_order.asc");
+  const byCat={};
+  items.forEach(it=>{(byCat[it.category]=byCat[it.category]||[]).push(it);});
+  document.getElementById("pm-visit-detail").innerHTML=`<div class="card">`+
+    Object.keys(byCat).map(cat=>`<div class="pm-cat">${esc(cat)}</div>`+
+      byCat[cat].map(it=>`<div class="pm-item" style="grid-template-columns:1fr 90px 1fr">
+        <div class="lbl">${esc(it.item_label)}</div>
+        <div>${it.inspected?esc(it.inspected):"—"}</div>
+        <div style="color:var(--muted)">${esc(it.comments||"")}</div>
+      </div>`).join("")
+    ).join("")+`</div>`;
+}
+
+// ===== Init =====
+async function init(){
+  try{
+    await Promise.all([loadSalons(),loadVendors(),loadWorkOrders(),loadEquipment(),loadPmVisits()]);
+    fillSalonSelects(); fillVendorSelects();
+    renderOverview(); renderWorkOrders(); renderEquipment(); renderVendors(); renderPmGrid();
+    document.getElementById("hdrMeta").textContent="Loaded "+new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  }catch(e){
+    document.getElementById("hdrMeta").textContent="Load error";
+    console.error(e);
+    alert("Failed to load dashboard data: "+e.message);
+  }
+}
+init();
+</script>
+</body></html>

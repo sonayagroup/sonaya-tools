@@ -92,10 +92,18 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
 .pm-cat .cnt.done{background:#dff5e6;color:#0b6b34}
 .pm-cat-items{display:none;padding-top:2px}
 .pm-cat-items.open{display:block}
-.pm-item{display:grid;grid-template-columns:1fr 130px 1fr;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.pm-item{padding:10px 0;border-bottom:1px solid var(--line)}
+.pm-item-row{display:grid;grid-template-columns:1fr 130px 1fr;gap:10px;align-items:center}
 .pm-item .lbl{font-size:13.5px;color:var(--ink)}
 .pm-item select{width:100%}
 .pm-item input[type=text]{width:100%}
+.pm-item-photos{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:8px}
+.photo-thumb{position:relative;width:52px;height:52px;border-radius:7px;overflow:hidden;border:1px solid var(--line);flex:0 0 auto}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-thumb .rm{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red-dk,#b3261e);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;cursor:pointer;border:2px solid #fff;touch-action:manipulation}
+.photo-add-btn{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;padding:7px 11px;border:1px dashed var(--blue);border-radius:8px;min-height:36px;touch-action:manipulation;white-space:nowrap}
+.photo-thumbs-view{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.photo-thumbs-view img{width:56px;height:56px;object-fit:cover;border-radius:7px;border:1px solid var(--line)}
 .salon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
 .salon-card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:9px;padding:12px 14px;box-shadow:var(--shadow);cursor:pointer}
 .salon-card:hover{background:#f7fafd}
@@ -112,7 +120,7 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
 .act-links a{margin-right:14px;padding:4px 0;display:inline-block;font-size:12.5px;font-weight:600}
 .act-links a.danger{color:var(--red-dk)}
 @media(max-width:640px){
-  .pm-item{grid-template-columns:1fr;gap:6px}
+  .pm-item-row{grid-template-columns:1fr;gap:6px}
   .field-row{grid-template-columns:1fr}
   .modal-head{padding:14px 12px 12px 16px}
   .modal-body{padding:14px 16px}
@@ -246,6 +254,7 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
   </div>
   <div class="field"><label>Estimated / Actual Cost ($)</label><input type="number" step="0.01" id="woCost" style="width:100%"></div>
   <div class="field"><label>Notes</label><textarea id="woNotes"></textarea></div>
+  <div class="field"><label>Photos</label><div class="pm-item-photos" id="woPhotos"></div></div>
   </div>
   <div class="modal-actions">
     <button class="btn secondary" onclick="closeModal('woModalBg')">Cancel</button>
@@ -345,6 +354,17 @@ async function sGet(path){const r=await fetch(SUPA_URL+"/rest/v1/"+path,{headers
 async function sPost(table,body){const r=await fetch(SUPA_URL+"/rest/v1/"+table,{method:"POST",headers:hdrs({"Content-Type":"application/json",Prefer:"return=representation"}),body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());return r.json();}
 async function sPatch(table,id,body){const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:hdrs({"Content-Type":"application/json",Prefer:"return=representation"}),body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());return r.json();}
 async function sDelete(table,id){const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"DELETE",headers:hdrs()});if(!r.ok)throw new Error(await r.text());return true;}
+async function sUploadFile(bucket,path,file){
+  const r=await fetch(SUPA_URL+"/storage/v1/object/"+bucket+"/"+path,{method:"POST",headers:hdrs({"Content-Type":file.type||"application/octet-stream","x-upsert":"true"}),body:file});
+  if(!r.ok)throw new Error(await r.text());
+  return SUPA_URL+"/storage/v1/object/public/"+bucket+"/"+path;
+}
+async function sDeleteFile(bucket,path){
+  const r=await fetch(SUPA_URL+"/storage/v1/object/"+bucket+"/"+path,{method:"DELETE",headers:hdrs()});
+  if(!r.ok)throw new Error(await r.text());
+  return true;
+}
+function photoExt(file){const parts=(file.name||"").split(".");return parts.length>1?parts.pop().toLowerCase().replace(/[^a-z0-9]/g,""):"jpg";}
 
 // ===== PM checklist template (from Salon Preventative Maintenance Checklist.xlsx) =====
 const PM_TEMPLATE=[
@@ -526,6 +546,46 @@ function renderWorkOrders(){
 }
 ["woFilterSalon","woFilterStatus","woFilterPriority"].forEach(id=>document.getElementById(id).addEventListener("change",renderWorkOrders));
 
+let woStagedPhotos=[];
+let woExistingPhotos=[];
+function woRenderPhotos(){
+  const wrap=document.getElementById("woPhotos");
+  if(!wrap)return;
+  const existingHtml=woExistingPhotos.map(p=>`<div class="photo-thumb"><a href="${p.photo_url}" target="_blank" rel="noopener"><img src="${p.photo_url}"></a><span class="rm" onclick="woDeleteExistingPhoto(${p.id})">&times;</span></div>`).join("");
+  const stagedHtml=woStagedPhotos.map((f,idx)=>`<div class="photo-thumb"><img src="${URL.createObjectURL(f)}"><span class="rm" onclick="woRemoveStagedPhoto(${idx})">&times;</span></div>`).join("");
+  wrap.innerHTML=existingHtml+stagedHtml+
+    `<label class="photo-add-btn" for="woPhotoInput">&#128247; Add photo</label><input type="file" id="woPhotoInput" accept="image/*" multiple style="display:none" onchange="woHandlePhotoSelect(this)">`;
+}
+async function woHandlePhotoSelect(input){
+  const files=Array.from(input.files||[]);
+  input.value="";
+  if(!files.length)return;
+  const woId=document.getElementById("woId").value;
+  if(woId){
+    for(const file of files){
+      try{
+        const path=`wo/${woId}_${Date.now()}_${Math.random().toString(36).slice(2,7)}.${photoExt(file)}`;
+        const url=await sUploadFile("maintenance-photos",path,file);
+        const rows=await sPost("gc_maint_photos",{work_order_id:woId,photo_url:url,storage_path:path});
+        woExistingPhotos.push(rows[0]);
+      }catch(e){alert("Photo upload failed: "+e.message);}
+    }
+  }else{
+    woStagedPhotos.push(...files);
+  }
+  woRenderPhotos();
+}
+function woRemoveStagedPhoto(idx){woStagedPhotos.splice(idx,1);woRenderPhotos();}
+async function woDeleteExistingPhoto(photoId){
+  if(!confirm("Delete this photo?"))return;
+  const photo=woExistingPhotos.find(p=>p.id===photoId);
+  try{
+    await sDelete("gc_maint_photos",photoId);
+    if(photo&&photo.storage_path)sDeleteFile("maintenance-photos",photo.storage_path).catch(()=>{});
+    woExistingPhotos=woExistingPhotos.filter(p=>p.id!==photoId);
+    woRenderPhotos();
+  }catch(e){alert("Delete failed: "+e.message);}
+}
 function openWoModal(){
   document.getElementById("woModalTitle").textContent="New Work Order";
   document.getElementById("woId").value="";
@@ -535,9 +595,10 @@ function openWoModal(){
   document.getElementById("woCategory").value="Other";
   document.getElementById("woPriority").value="Medium";
   document.getElementById("woStatus").value="Open";
+  woStagedPhotos=[]; woExistingPhotos=[]; woRenderPhotos();
   openModal("woModalBg");
 }
-function editWo(id){
+async function editWo(id){
   const w=WORKORDERS.find(x=>x.id===id); if(!w)return;
   document.getElementById("woModalTitle").textContent="Edit Work Order";
   document.getElementById("woId").value=w.id;
@@ -553,7 +614,9 @@ function editWo(id){
   document.getElementById("woDue").value=w.due_date||"";
   document.getElementById("woCost").value=w.cost!=null?w.cost:"";
   document.getElementById("woNotes").value=w.notes||"";
+  woStagedPhotos=[]; woExistingPhotos=[]; woRenderPhotos();
   openModal("woModalBg");
+  try{woExistingPhotos=await sGet("gc_maint_photos?select=*&work_order_id=eq."+id+"&order=created_at.asc"); woRenderPhotos();}catch(e){}
 }
 async function saveWo(){
   const id=document.getElementById("woId").value;
@@ -576,8 +639,22 @@ async function saveWo(){
   if(status==="Completed")body.completed_at=new Date().toISOString();
   if(!body.title){alert("Title is required.");return;}
   try{
+    let woId=id;
     if(id){await sPatch("gc_maint_work_orders",id,body);}
-    else{await sPost("gc_maint_work_orders",body);}
+    else{const rows=await sPost("gc_maint_work_orders",body); woId=rows[0].id;}
+    if(!id&&woStagedPhotos.length){
+      const photoRows=[];
+      for(let f=0; f<woStagedPhotos.length; f++){
+        const file=woStagedPhotos[f];
+        try{
+          const path=`wo/${woId}_${Date.now()}_${f}.${photoExt(file)}`;
+          const url=await sUploadFile("maintenance-photos",path,file);
+          photoRows.push({work_order_id:woId,photo_url:url,storage_path:path});
+        }catch(e){console.error("Photo upload failed",e);}
+      }
+      if(photoRows.length)await sPost("gc_maint_photos",photoRows);
+    }
+    woStagedPhotos=[];
     closeModal("woModalBg");
     await loadWorkOrders(); renderWorkOrders(); renderOverview();
   }catch(e){alert("Save failed: "+e.message);}
@@ -721,6 +798,28 @@ function renderPmGrid(){
     </div>`).join("");
 }
 const PM_DRAFT_KEY="gcPmDraftV1";
+let pmPhotoStaging={};
+function pmRenderPhotoThumbs(si,ii){
+  const wrap=document.getElementById(`pm_photos_${si}_${ii}`);
+  if(!wrap)return;
+  const files=pmPhotoStaging[si+"_"+ii]||[];
+  wrap.innerHTML=files.map((f,idx)=>`<div class="photo-thumb"><img src="${URL.createObjectURL(f)}"><span class="rm" onclick="pmRemovePhoto(${si},${ii},${idx})">&times;</span></div>`).join("")+
+    `<label class="photo-add-btn" for="pm_photo_input_${si}_${ii}">&#128247; Add photo</label><input type="file" id="pm_photo_input_${si}_${ii}" accept="image/*" multiple style="display:none" onchange="pmHandlePhotoSelect(${si},${ii},this)">`;
+}
+function pmHandlePhotoSelect(si,ii,input){
+  const key=si+"_"+ii;
+  if(!pmPhotoStaging[key])pmPhotoStaging[key]=[];
+  pmPhotoStaging[key].push(...Array.from(input.files||[]));
+  input.value="";
+  pmRenderPhotoThumbs(si,ii);
+  pmScheduleDraftSave();
+}
+function pmRemovePhoto(si,ii,idx){
+  const key=si+"_"+ii;
+  if(pmPhotoStaging[key])pmPhotoStaging[key].splice(idx,1);
+  pmRenderPhotoThumbs(si,ii);
+  pmScheduleDraftSave();
+}
 
 function pmToggleCat(si){
   const items=document.getElementById(`pm_cat_items_${si}`);
@@ -823,6 +922,7 @@ function closePmModal(){
 }
 function openPmModal(){
   clearTimeout(pmDraftTimer);
+  pmPhotoStaging={};
   document.getElementById("pmSalon").innerHTML=salonOptionsHtml();
   document.getElementById("pmVisitDate").value=todayISO();
   document.getElementById("pmTech").value="";
@@ -837,9 +937,12 @@ function openPmModal(){
     <div class="pm-cat-items" id="pm_cat_items_${si}">
     ${sec.items.map((it,ii)=>`
       <div class="pm-item">
-        <div class="lbl">${esc(it)}</div>
-        <select id="pm_insp_${si}_${ii}"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
-        <input type="text" id="pm_cmt_${si}_${ii}" placeholder="Comments">
+        <div class="pm-item-row">
+          <div class="lbl">${esc(it)}</div>
+          <select id="pm_insp_${si}_${ii}"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <input type="text" id="pm_cmt_${si}_${ii}" placeholder="Comments">
+        </div>
+        <div class="pm-item-photos" id="pm_photos_${si}_${ii}"></div>
       </div>`).join("")}
     </div>`).join("");
 
@@ -852,6 +955,7 @@ function openPmModal(){
     banner.innerHTML=`<div><b>Unsaved checklist found</b>Saved ${esc(when)} on this device — probably from a dropped connection. Resume where you left off?</div>
       <div style="display:flex;gap:8px"><button class="btn small secondary" onclick="pmDiscardDraft()">Discard</button><button class="btn small" onclick="pmResumeDraft()">Resume</button></div>`;
   }
+  PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>pmRenderPhotoThumbs(si,ii)));
   pmUpdateProgress();
   openModal("pmModalBg");
 }
@@ -869,13 +973,32 @@ async function savePmVisit(){
     const visitRows=await sPost("gc_maint_pm_visits",{salon_id,visit_date,technician_name,notes});
     const visitId=visitRows[0].id;
     const items=[];
+    const itemKeys=[];
     let sort=0;
     PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{
       const insp=document.getElementById(`pm_insp_${si}_${ii}`).value||null;
       const cmt=document.getElementById(`pm_cmt_${si}_${ii}`).value.trim()||null;
       items.push({visit_id:visitId,category:sec.cat,item_label:it,sort_order:sort++,inspected:insp,comments:cmt});
+      itemKeys.push(si+"_"+ii);
     }));
-    await sPost("gc_maint_pm_items",items);
+    const insertedItems=await sPost("gc_maint_pm_items",items);
+    // Upload any staged photos, matched back to their item by insertion order
+    // (a single multi-row INSERT returns rows in the same order as the input array).
+    const photoRows=[];
+    for(let i=0;i<insertedItems.length;i++){
+      const files=pmPhotoStaging[itemKeys[i]];
+      if(!files||!files.length)continue;
+      const itemId=insertedItems[i].id;
+      for(let f=0; f<files.length; f++){
+        try{
+          const path=`pm/${visitId}_${itemId}_${Date.now()}_${f}.${photoExt(files[f])}`;
+          const url=await sUploadFile("maintenance-photos",path,files[f]);
+          photoRows.push({pm_item_id:itemId,photo_url:url,storage_path:path});
+        }catch(e){console.error("Photo upload failed",e);}
+      }
+    }
+    if(photoRows.length)await sPost("gc_maint_photos",photoRows);
+    pmPhotoStaging={};
     pmDiscardDraft();
     closeModal("pmModalBg");
     await loadPmVisits(); renderPmGrid(); renderOverview();
@@ -894,15 +1017,26 @@ async function showPmHistory(salonId){
 function closePmHistory(){document.getElementById("pm-history-wrap").style.display="none";}
 async function showPmVisitDetail(visitId){
   const items=await sGet("gc_maint_pm_items?select=*&visit_id=eq."+visitId+"&order=sort_order.asc");
+  const itemIds=items.map(it=>it.id);
+  let photos=[];
+  if(itemIds.length){try{photos=await sGet("gc_maint_photos?select=*&pm_item_id=in.("+itemIds.join(",")+")");}catch(e){}}
+  const photosByItem={};
+  photos.forEach(p=>{(photosByItem[p.pm_item_id]=photosByItem[p.pm_item_id]||[]).push(p);});
   const byCat={};
   items.forEach(it=>{(byCat[it.category]=byCat[it.category]||[]).push(it);});
   document.getElementById("pm-visit-detail").innerHTML=`<div class="card">`+
     Object.keys(byCat).map(cat=>`<div class="pm-cat">${esc(cat)}</div>`+
-      byCat[cat].map(it=>`<div class="pm-item" style="grid-template-columns:1fr 90px 1fr">
-        <div class="lbl">${esc(it.item_label)}</div>
-        <div>${it.inspected?esc(it.inspected):"—"}</div>
-        <div style="color:var(--muted)">${esc(it.comments||"")}</div>
-      </div>`).join("")
+      byCat[cat].map(it=>{
+        const pics=photosByItem[it.id]||[];
+        const picsHtml=pics.length?`<div class="photo-thumbs-view">${pics.map(p=>`<a href="${p.photo_url}" target="_blank" rel="noopener"><img src="${p.photo_url}"></a>`).join("")}</div>`:"";
+        return `<div class="pm-item">
+        <div class="pm-item-row" style="grid-template-columns:1fr 90px 1fr">
+          <div class="lbl">${esc(it.item_label)}</div>
+          <div>${it.inspected?esc(it.inspected):"—"}</div>
+          <div style="color:var(--muted)">${esc(it.comments||"")}</div>
+        </div>
+        ${picsHtml}
+      </div>`;}).join("")
     ).join("")+`</div>`;
 }
 

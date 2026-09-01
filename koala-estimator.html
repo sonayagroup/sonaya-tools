@@ -1429,6 +1429,76 @@ function buildOptionContainer(opt) {
       </div>
       <span id="${p}marginDisplay" style="color:#666;font-size:.8rem;margin-left:auto">Using global: <span id="${p}marginDisplayVal">50</span>%</span>
     </div>
+    <!-- Job Details Override -->
+    <div class="margin-override-row" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;padding:8px 12px;background:var(--surface-2,#f0f4f8);border-radius:6px;font-size:.85rem">
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--navy);font-weight:600">
+          <input type="checkbox" id="${p}jobDetailsCheck" onchange="toggleJobDetailsOverride('${p}',this.checked); recalc()">
+          Custom Job Details
+        </label>
+        <span id="${p}jobDetailsDisplay" style="color:#666;font-size:.8rem;margin-left:auto">Using global job details</span>
+      </div>
+      <div id="${p}jobDetailsFields" style="display:none">
+        <div class="row" style="margin-bottom:6px">
+          <div class="field" style="flex:2">
+            <label style="font-size:.8rem">Job Type</label>
+            <select id="${p}jobType" onchange="recalc()" style="font-size:.85rem">
+              <option value="">-- Select --</option>
+              <option value="attic">Attic Retrofit</option>
+              <option value="densepack">Dense Pack</option>
+              <option value="netblow">Net &amp; Blow</option>
+              <option value="removal">Removal</option>
+            </select>
+          </div>
+          <div class="field">
+            <label style="font-size:.8rem">Target R-Value</label>
+            <select id="${p}targetR" onchange="recalc()" style="font-size:.85rem">
+              <option value="">--</option>
+              <option>R-10</option><option>R-11</option><option>R-13</option><option>R-14</option><option>R-15</option>
+              <option>R-19</option><option>R-21</option><option>R-22</option><option>R-23</option><option>R-24</option>
+              <option>R-25</option><option>R-26</option><option>R-30</option><option>R-31</option>
+              <option>R-34</option><option>R-38</option><option>R-39</option><option>R-40</option>
+              <option>R-42</option><option>R-44</option><option>R-48</option><option>R-49</option><option>R-60</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-bottom:6px">
+          <div class="field">
+            <label style="font-size:.8rem">Framing Depth</label>
+            <select id="${p}framingDepth" onchange="recalc()" style="font-size:.85rem">
+              <option value="">--</option>
+              <option value="2x4">2x4</option><option value="2x6">2x6</option><option value="2x8">2x8</option>
+              <option value="2x10">2x10</option><option value="2x12">2x12</option>
+            </select>
+          </div>
+          <div class="field">
+            <label style="font-size:.8rem">Stud Spacing</label>
+            <select id="${p}studSpacing" onchange="recalc()" style="font-size:.85rem">
+              <option value="">--</option>
+              <option value="16">16" OC</option><option value="24">24" OC</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field area-section" style="flex:1">
+            <div class="area-section-header">
+              <label style="font-size:.8rem">Ceiling Area (sq ft)</label>
+              <button type="button" class="add-area-btn" onclick="addOptAreaRow('${p}','ceiling')">+ Add</button>
+            </div>
+            <div id="${p}ceilingAreaRows"></div>
+            <div class="area-total" id="${p}ceilingAreaTotal"></div>
+          </div>
+          <div class="field area-section" style="flex:1">
+            <div class="area-section-header">
+              <label style="font-size:.8rem">Wall Area (sq ft)</label>
+              <button type="button" class="add-area-btn" onclick="addOptAreaRow('${p}','wall')">+ Add</button>
+            </div>
+            <div id="${p}wallAreaRows"></div>
+            <div class="area-total" id="${p}wallAreaTotal"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- Trip Charge -->
     <div class="card">
       <h2><span class="icon">&#128663;</span> Trip Charge</h2>
@@ -1554,6 +1624,112 @@ function getOptionMargin(opt) {
     return parseFloat($(p + 'marginOverride').value) || 50;
   }
   return parseFloat($('marginInput').value) || 50;
+}
+
+function toggleJobDetailsOverride(p, checked) {
+  const fields = $(p + 'jobDetailsFields');
+  const display = $(p + 'jobDetailsDisplay');
+  if (checked) {
+    fields.style.display = 'block';
+    display.style.display = 'none';
+    // Init area rows if empty
+    const cRows = $(p + 'ceilingAreaRows');
+    const wRows = $(p + 'wallAreaRows');
+    if (cRows && !cRows.children.length) addOptAreaRow(p, 'ceiling');
+    if (wRows && !wRows.children.length) addOptAreaRow(p, 'wall');
+    // Copy global values as starting point
+    if (!$(p + 'jobType').value) $(p + 'jobType').value = $('jobType').value;
+    if (!$(p + 'targetR').value) $(p + 'targetR').value = $('targetR').value;
+    if (!$(p + 'framingDepth').value) $(p + 'framingDepth').value = $('framingDepth').value;
+    if (!$(p + 'studSpacing').value) $(p + 'studSpacing').value = $('studSpacing').value;
+  } else {
+    fields.style.display = 'none';
+    display.style.display = '';
+  }
+}
+
+function addOptAreaRow(p, type, sqft, location, rValue) {
+  areaRowCounter++;
+  const id = p + 'area_' + areaRowCounter;
+  const container = $(p + type + 'AreaRows');
+  if (!container) return;
+  const row = document.createElement('div');
+  row.className = 'area-row';
+  row.id = id;
+  const locOpts = LOCATION_OPTIONS.map(l => '<option' + (l === (location || 'House') ? ' selected' : '') + '>' + l + '</option>').join('');
+  const rOpts = R_VALUE_OPTIONS.map(r => '<option value="' + r + '"' + (r === (rValue || '') ? ' selected' : '') + '>' + (r || 'Default') + '</option>').join('');
+  row.innerHTML = '<input type="number" placeholder="sq ft" value="' + (sqft || '') + '" oninput="updateOptAreaTotals(\'' + p + '\');recalc()">' +
+    '<select class="area-loc" onchange="updateOptAreaTotals(\'' + p + '\')">' + locOpts + '</select>' +
+    '<select class="area-rval" onchange="recalc()" title="R-Value override">' + rOpts + '</select>' +
+    '<button type="button" class="area-remove" onclick="removeOptAreaRow(\'' + id + '\',\'' + p + '\',\'' + type + '\')" title="Remove">&times;</button>';
+  container.appendChild(row);
+  updateOptAreaTotals(p);
+  return id;
+}
+
+function removeOptAreaRow(id, p, type) {
+  const row = document.getElementById(id);
+  if (row) row.remove();
+  const container = $(p + type + 'AreaRows');
+  if (container && !container.children.length) addOptAreaRow(p, type);
+  updateOptAreaTotals(p);
+  recalc();
+}
+
+function getOptAreaData(p, type) {
+  const container = $(p + type + 'AreaRows');
+  if (!container) return [];
+  const rows = [];
+  for (const row of container.children) {
+    const inp = row.querySelector('input[type="number"]');
+    const locSel = row.querySelector('select.area-loc');
+    const rSel = row.querySelector('select.area-rval');
+    const rRaw = rSel?.value || '';
+    const rVal = rRaw ? parseInt(rRaw.replace('R-', '')) : 0;
+    rows.push({ sqft: parseFloat(inp?.value) || 0, location: locSel?.value || 'House', rValue: rRaw, rVal });
+  }
+  return rows;
+}
+
+function getOptAreaTotal(p, type) {
+  return getOptAreaData(p, type).reduce((sum, r) => sum + r.sqft, 0);
+}
+
+function updateOptAreaTotals(p) {
+  const cTotal = getOptAreaTotal(p, 'ceiling');
+  const wTotal = getOptAreaTotal(p, 'wall');
+  const cEl = $(p + 'ceilingAreaTotal');
+  const wEl = $(p + 'wallAreaTotal');
+  const cRows = getOptAreaData(p, 'ceiling');
+  const wRows = getOptAreaData(p, 'wall');
+  if (cEl) cEl.textContent = cRows.length > 1 ? 'Total: ' + cTotal.toLocaleString() + ' sq ft' : '';
+  if (wEl) wEl.textContent = wRows.length > 1 ? 'Total: ' + wTotal.toLocaleString() + ' sq ft' : '';
+}
+
+function hasJobDetailsOverride(opt) {
+  const p = optPrefixFor(opt);
+  const cb = $(p + 'jobDetailsCheck');
+  return cb && cb.checked;
+}
+
+function getOptionJobContext(opt) {
+  const p = optPrefixFor(opt);
+  if (hasJobDetailsOverride(opt)) {
+    const jobType = $(p + 'jobType').value;
+    const targetRRaw = $(p + 'targetR').value;
+    const rVal = targetRRaw ? parseInt(targetRRaw.replace('R-', '')) : 0;
+    const depth = $(p + 'framingDepth').value;
+    const spacing = $(p + 'studSpacing').value;
+    const ceilingAreas = getOptAreaData(p, 'ceiling');
+    const wallAreas = getOptAreaData(p, 'wall');
+    const ceilingArea = ceilingAreas.reduce((s, r) => s + r.sqft, 0);
+    const wallArea = wallAreas.reduce((s, r) => s + r.sqft, 0);
+    const isAttic = jobType === 'attic';
+    const isWall = jobType === 'densepack' || jobType === 'netblow';
+    const area = isAttic ? ceilingArea : (isWall ? wallArea : 0);
+    return { jobType, rVal, depth, spacing, ceilingArea, wallArea, ceilingAreas, wallAreas, isAttic, isWall, area };
+  }
+  return getJobContext();
 }
 
 // ─── TRIP CHARGE ────────────────────────────────────────────────────────────
@@ -1951,7 +2127,7 @@ function getCoverageForSegment(materialIdx, rVal, ctx) {
 // Look up coverage (sq ft per bag) for a given blow-in material index
 // Handles per-area R-value overrides — computes bags per segment then sums
 function getBlowInCoverage(materialIdx) {
-  const ctx = getJobContext();
+  const ctx = getOptionJobContext(getOpt());
   if (!ctx.area) return null;
 
   // Determine which area rows to use
@@ -2005,7 +2181,7 @@ function updateBlowInCalc() {
   const infoEl = $(p + 'blowCalcInfo');
   if (!infoEl) return;
 
-  const ctx = getJobContext();
+  const ctx = getOptionJobContext(opt);
   if (!ctx.area || !ctx.rVal || (!ctx.isAttic && !ctx.isWall)) {
     infoEl.innerHTML = '';
     return;
@@ -2055,7 +2231,7 @@ function updateBattSuggestions() {
   const sugEl = $(p + 'battSuggestions');
   if (!sugEl) return;
 
-  const ctx = getJobContext();
+  const ctx = getOptionJobContext(opt);
   if (!ctx.rVal) { sugEl.innerHTML = ''; return; }
 
   const spacing = ctx.spacing;
@@ -2118,7 +2294,7 @@ function updateSpfCalc() {
   const infoEl = $(p + 'spfCalcInfo');
   if (!infoEl) return;
 
-  const ctx = getJobContext();
+  const ctx = getOptionJobContext(opt);
   if (!ctx.rVal || !ctx.area) { infoEl.innerHTML = ''; return; }
 
   let msgs = [];
@@ -2321,8 +2497,9 @@ function recalc() {
   $('sumRoyalty').textContent = fmt(royaltyAmt);
   $('sumGrossProfit').textContent = fmt(grossProfit);
 
-  // Per sq ft (uses ceiling + wall area totals from Job Details)
-  const sqft = getAreaTotal('ceiling') + getAreaTotal('wall');
+  // Per sq ft (uses option-level or global area totals)
+  const optCtx = getOptionJobContext(opt);
+  const sqft = optCtx.ceilingArea + optCtx.wallArea;
   $('costPerSqft').textContent = sqft > 0 ? '$' + (c.totalJobCost / sqft).toFixed(2) : '—';
   $('sellPerSqft').textContent = sqft > 0 ? '$' + (customerPrice / sqft).toFixed(2) : '—';
 
@@ -2392,6 +2569,14 @@ function serializeForm() {
       id: opt.id,
       name: opt.name,
       marginOverride: marginCb?.checked ? ($(p + 'marginOverride')?.value || '50') : null,
+      jobDetailsOverride: $(p + 'jobDetailsCheck')?.checked ? {
+        jobType: $(p + 'jobType')?.value || '',
+        targetR: $(p + 'targetR')?.value || '',
+        framingDepth: $(p + 'framingDepth')?.value || '',
+        studSpacing: $(p + 'studSpacing')?.value || '',
+        ceilingAreas: getOptAreaData(p, 'ceiling'),
+        wallAreas: getOptAreaData(p, 'wall')
+      } : null,
       trip: {
         tier: $(p + 'tripTier')?.value || '0',
         miles: $(p + 'tripMiles')?.value || '0',
@@ -2506,6 +2691,26 @@ function deserializeForm(data) {
       if (cb) { cb.checked = true; toggleMarginOverride(p, true); }
       const mi = $(p + 'marginOverride');
       if (mi) mi.value = optData.marginOverride;
+    }
+
+    // Job Details override
+    if (optData.jobDetailsOverride) {
+      const cb = $(p + 'jobDetailsCheck');
+      if (cb) { cb.checked = true; toggleJobDetailsOverride(p, true); }
+      const jd = optData.jobDetailsOverride;
+      if ($(p + 'jobType')) $(p + 'jobType').value = jd.jobType || '';
+      if ($(p + 'targetR')) $(p + 'targetR').value = jd.targetR || '';
+      if ($(p + 'framingDepth')) $(p + 'framingDepth').value = jd.framingDepth || '';
+      if ($(p + 'studSpacing')) $(p + 'studSpacing').value = jd.studSpacing || '';
+      // Clear default area rows and restore saved ones
+      const cContainer = $(p + 'ceilingAreaRows');
+      const wContainer = $(p + 'wallAreaRows');
+      if (cContainer) cContainer.innerHTML = '';
+      if (wContainer) wContainer.innerHTML = '';
+      (jd.ceilingAreas || []).forEach(a => addOptAreaRow(p, 'ceiling', a.sqft || 0, a.location, a.rValue || ''));
+      (jd.wallAreas || []).forEach(a => addOptAreaRow(p, 'wall', a.sqft || 0, a.location, a.rValue || ''));
+      if (cContainer && !cContainer.children.length) addOptAreaRow(p, 'ceiling');
+      if (wContainer && !wContainer.children.length) addOptAreaRow(p, 'wall');
     }
 
     // Trip

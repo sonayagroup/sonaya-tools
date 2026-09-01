@@ -1416,6 +1416,19 @@ function buildOptionContainer(opt) {
   div.id = 'opt-' + opt.id;
   const p = optPrefixFor(opt);
   div.innerHTML = `
+    <!-- Margin Override -->
+    <div class="margin-override-row" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 12px;background:var(--surface-2,#f0f4f8);border-radius:6px;font-size:.85rem">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--navy);font-weight:600">
+        <input type="checkbox" id="${p}marginOverrideCheck" onchange="toggleMarginOverride('${p}',this.checked); recalc()">
+        Custom Margin
+      </label>
+      <div id="${p}marginOverrideFields" style="display:none;align-items:center;gap:6px">
+        <span style="color:#666;font-size:.8rem">GM</span>
+        <input type="number" id="${p}marginOverride" value="50" min="0" max="90" step="1" oninput="recalc()" style="width:58px;text-align:right;padding:3px 4px;border:1px solid var(--border);border-radius:4px;font-size:.85rem">
+        <span style="color:#666;font-size:.8rem">%</span>
+      </div>
+      <span id="${p}marginDisplay" style="color:#666;font-size:.8rem;margin-left:auto">Using global: <span id="${p}marginDisplayVal">50</span>%</span>
+    </div>
     <!-- Trip Charge -->
     <div class="card">
       <h2><span class="icon">&#128663;</span> Trip Charge</h2>
@@ -1521,6 +1534,27 @@ function buildOptionContainer(opt) {
 }
 
 function optPrefixFor(opt) { return 'o' + opt.id + '-'; }
+
+function toggleMarginOverride(p, checked) {
+  const fields = $(p + 'marginOverrideFields');
+  const display = $(p + 'marginDisplay');
+  if (checked) {
+    fields.style.display = 'flex';
+    display.style.display = 'none';
+  } else {
+    fields.style.display = 'none';
+    display.style.display = '';
+  }
+}
+
+function getOptionMargin(opt) {
+  const p = optPrefixFor(opt);
+  const cb = $(p + 'marginOverrideCheck');
+  if (cb && cb.checked) {
+    return parseFloat($(p + 'marginOverride').value) || 50;
+  }
+  return parseFloat($('marginInput').value) || 50;
+}
 
 // ─── TRIP CHARGE ────────────────────────────────────────────────────────────
 
@@ -2249,9 +2283,17 @@ function calcOption(opt) {
 function recalc() {
   const opt = getOpt();
   const c = calcOption(opt);
-  const margin = parseFloat($('marginInput').value) || 50;
+  const margin = getOptionMargin(opt);
   const royalty = parseFloat($('royaltyInput').value) || 0;
   const divisor = 1 - (margin / 100) - (royalty / 100);
+
+  // Update margin display for all options
+  const globalMargin = parseFloat($('marginInput').value) || 50;
+  options.forEach(o => {
+    const pr = optPrefixFor(o);
+    const dispVal = $(pr + 'marginDisplayVal');
+    if (dispVal) dispVal.textContent = globalMargin;
+  });
 
   // Update sidebar
   $('breakdownLabel').textContent = opt.name;
@@ -2288,8 +2330,7 @@ function recalc() {
   const custPrices = $('custOptionPrices');
   custPrices.innerHTML = '';
   options.forEach(o => {
-    const oc = calcOption(o);
-    const cp = divisor > 0 ? oc.totalJobCost / divisor : 0;
+    const cp = getOptionCustomerPrice(o);
     const row = document.createElement('div');
     row.className = 'option-price-row';
     row.innerHTML = `<span class="opt-label">${o.name}</span><span class="opt-price">${fmt(cp)}</span>`;
@@ -2346,9 +2387,11 @@ function serializeForm() {
 
   options.forEach(opt => {
     const p = optPrefixFor(opt);
+    const marginCb = $(p + 'marginOverrideCheck');
     const optData = {
       id: opt.id,
       name: opt.name,
+      marginOverride: marginCb?.checked ? ($(p + 'marginOverride')?.value || '50') : null,
       trip: {
         tier: $(p + 'tripTier')?.value || '0',
         miles: $(p + 'tripMiles')?.value || '0',
@@ -2456,6 +2499,14 @@ function deserializeForm(data) {
   (data.options || []).forEach((optData, idx) => {
     const opt = createOption(optData.name || ('Option ' + (idx + 1)));
     const p = optPrefixFor(opt);
+
+    // Margin override
+    if (optData.marginOverride != null) {
+      const cb = $(p + 'marginOverrideCheck');
+      if (cb) { cb.checked = true; toggleMarginOverride(p, true); }
+      const mi = $(p + 'marginOverride');
+      if (mi) mi.value = optData.marginOverride;
+    }
 
     // Trip
     if (optData.trip) {
@@ -2593,7 +2644,7 @@ async function saveEstimate() {
   try {
     const formData = serializeForm();
     const c = calcOption(getOpt());
-    const margin = parseFloat($('marginInput').value) || 50;
+    const margin = getOptionMargin(getOpt());
     const royalty = parseFloat($('royaltyInput').value) || 0;
     const divisor = 1 - (margin / 100) - (royalty / 100);
     const customerPrice = divisor > 0 ? c.totalJobCost / divisor : 0;
@@ -2801,7 +2852,7 @@ function getSelectedEmailOptions() {
 }
 
 function getOptionCustomerPrice(opt) {
-  const margin = parseFloat($('marginInput').value) || 50;
+  const margin = getOptionMargin(opt);
   const royalty = parseFloat($('royaltyInput').value) || 5;
   const divisor = 1 - (margin / 100) - (royalty / 100);
   const c = calcOption(opt);

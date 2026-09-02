@@ -5404,13 +5404,14 @@ async function submitInspection() {
     if (!itemRes.ok) throw new Error('Failed to save items: ' + itemRes.status);
 
     // Upload photos if any
+    let uploadedPhotos = [];
     if (pendingPhotos.length > 0) {
       btn.textContent = 'Uploading photos...';
-      await uploadPhotosToSupabase(inspection.id);
+      uploadedPhotos = await uploadPhotosToSupabase(inspection.id);
     }
 
-    // Show success overlay with email option
-    showSuccessOverlay(body, score, storeId);
+    // Show success overlay with email option (include photo URLs)
+    showSuccessOverlay(body, score, storeId, uploadedPhotos);
 
     // Reset form
     inspectState.responses = {};
@@ -5607,7 +5608,7 @@ function getGmEmail(storeId) {
   return storeId + '@sonayagroup.com';
 }
 
-function buildEmailBody(inspection, score, storeId) {
+function buildEmailBody(inspection, score, storeId, uploadedPhotos) {
   const store = STORES.find(s => s.id === String(storeId));
   const storeName = store ? store.name + ' (' + store.id + ')' : 'Store ' + storeId;
   const pct = score.max > 0 ? Math.round(score.earned / score.max * 100) : 0;
@@ -5636,16 +5637,24 @@ function buildEmailBody(inspection, score, storeId) {
   if (inspection.action_steps) body += '\nAction Steps:\n' + inspection.action_steps + '\n';
   if (inspection.additional_comments) body += '\nComments:\n' + inspection.additional_comments + '\n';
 
+  // Include photo links if any were uploaded
+  if (uploadedPhotos && uploadedPhotos.length > 0) {
+    body += '\n--- Photos (' + uploadedPhotos.length + ') ---\n';
+    uploadedPhotos.forEach((p, i) => {
+      body += 'Photo ' + (i + 1) + ': ' + getPhotoPublicUrl(p.file_path) + '\n';
+    });
+  }
+
   return body;
 }
 
-function showSuccessOverlay(inspection, score, storeId) {
+function showSuccessOverlay(inspection, score, storeId, uploadedPhotos) {
   const store = STORES.find(s => s.id === String(storeId));
   const storeName = store ? store.name : 'Store ' + storeId;
   const gmEmail = getGmEmail(storeId);
   const pct = score.max > 0 ? Math.round(score.earned / score.max * 100) : 0;
   const subject = encodeURIComponent('Store Visit Report - ' + storeName + ' - ' + inspection.inspection_date);
-  const emailBody = encodeURIComponent(buildEmailBody(inspection, score, storeId));
+  const emailBody = encodeURIComponent(buildEmailBody(inspection, score, storeId, uploadedPhotos || []));
   const mailtoUrl = 'mailto:' + gmEmail + '?subject=' + subject + '&body=' + emailBody;
 
   const overlay = document.createElement('div');

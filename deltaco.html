@@ -735,7 +735,8 @@ body {
   font-size: 14px; font-weight: 500; z-index: 200; opacity: 0;
   transition: opacity 300ms; pointer-events: none;
 }
-.recap-toast.show { opacity: 1; }
+.recap-toast.show { opacity: 1; pointer-events: auto; }
+.recap-toast.error { background: #c62828; font-weight: 600; }
 @media (max-width: 768px) {
   .recap-container { padding: 16px; }
   .recap-store-header { flex-direction: column; align-items: flex-start; }
@@ -6177,52 +6178,95 @@ async function saveRecap() {
   flags.forEach(f => { if (recap.flags[f.key] && recap.flags[f.key].trim()) filled++; });
   RECAP_QUESTIONS.forEach(q => { if (recap.questions[q.key] && recap.questions[q.key].trim()) filled++; });
 
-  let submittedAt = null;
-  if (filled >= totalFields) {
-    recap.status = 'complete';
-    submittedAt = new Date().toISOString();
-    const now = new Date();
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    recap.submittedAt = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + (now.getHours() >= 12 ? ' PM' : ' AM');
-  } else {
-    recap.status = 'partial';
-  }
+  const isComplete = filled >= totalFields;
+  const submittedAt = isComplete ? new Date().toISOString() : null;
 
-  // Persist to Supabase
+  // Persist to Supabase FIRST — only update local state after confirmed save
   const saveBtn = document.getElementById('recapSaveBtn');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
-  try {
-    const body = {
-      store_id: storeId,
-      week_ending: weekEnd,
-      flags: recap.flags,
-      questions: recap.questions,
-      leadership: recap.leadership || '',
-      status: recap.status,
-      submitted_at: submittedAt,
-      updated_at: new Date().toISOString()
-    };
-    const res = await sbFetch('dt_weekly_recaps', {
-      method: 'POST',
-      prefer: 'return=representation,resolution=merge-duplicates',
-      headers: { 'Prefer': 'return=representation,resolution=merge-duplicates' },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error('Save failed: ' + res.status);
-    showRecapToast('Recap saved' + (recap.status === 'complete' ? ' — Complete!' : ' — ' + filled + '/' + totalFields + ' fields filled'));
-  } catch (err) {
-    console.error('Recap save error:', err);
-    showRecapToast('Error saving recap — please try again');
-  } finally {
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recap'; }
+
+  const body = {
+    store_id: storeId,
+    week_ending: weekEnd,
+    flags: recap.flags,
+    questions: recap.questions,
+    leadership: recap.leadership || '',
+    status: isComplete ? 'complete' : 'partial',
+    submitted_at: submittedAt,
+    updated_at: new Date().toISOString()
+  };
+
+  // Retry up to 3 times with increasing delay
+  let saved = false;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      if (attempt > 1) {
+        if (saveBtn) saveBtn.textContent = 'Retrying (' + attempt + '/3)...';
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+      }
+      const res = await sbFetch('dt_weekly_recaps', {
+        method: 'POST',
+        prefer: 'return=representation,resolution=merge-duplicates',
+        headers: { 'Prefer': 'return=representation,resolution=merge-duplicates' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error('Save failed: HTTP ' + res.status);
+      const savedRows = await res.json();
+      if (!savedRows || savedRows.length === 0) throw new Error('Save returned empty — data may not have persisted');
+      saved = true;
+      break;
+    } catch (err) {
+      lastErr = err;
+      console.error('Recap save attempt ' + attempt + ' failed:', err);
+    }
   }
+
+  if (saved) {
+    // Verify by reading back from Supabase
+    let verified = false;
+    try {
+      const vRes = await sbFetch('dt_weekly_recaps?store_id=eq.' + storeId + '&week_ending=eq.' + weekEnd);
+      if (vRes.ok) {
+        const vRows = await vRes.json();
+        verified = vRows.length > 0 && vRows[0].store_id === storeId;
+      }
+    } catch (e) { console.warn('Recap verify read failed:', e); }
+
+    if (verified) {
+      // NOW update local state since save is confirmed
+      recap.status = isComplete ? 'complete' : 'partial';
+      if (isComplete) {
+        const now = new Date();
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        recap.submittedAt = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + (now.getHours() >= 12 ? ' PM' : ' AM');
+      }
+      showRecapToast('Recap saved' + (isComplete ? ' — Complete!' : ' — ' + filled + '/' + totalFields + ' fields filled'), false);
+    } else {
+      // Save appeared to succeed but verify failed — warn user
+      recap.status = isComplete ? 'complete' : 'partial';
+      if (isComplete) {
+        const now = new Date();
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        recap.submittedAt = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + (now.getHours() >= 12 ? ' PM' : ' AM');
+      }
+      showRecapToast('Recap saved but could not verify — please refresh to confirm', true);
+    }
+  } else {
+    // All retries failed — DO NOT update local status
+    console.error('Recap save failed after 3 attempts:', lastErr);
+    showRecapToast('SAVE FAILED after 3 attempts — your data was NOT saved. Please try again.', true);
+  }
+
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recap'; }
 }
 
-function showRecapToast(msg) {
+function showRecapToast(msg, isError) {
   const toast = document.getElementById('recapToast');
   toast.textContent = msg;
+  toast.classList.toggle('error', !!isError);
   toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2500);
+  setTimeout(() => toast.classList.remove('show'), isError ? 7000 : 2500);
 }
 
 async function loadRecapsFromSupabase(weekEnd) {

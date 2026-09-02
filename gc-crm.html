@@ -157,13 +157,14 @@ tbody tr.clickrow{cursor:pointer}
 
 <section class="panel" id="panel-settings">
   <div class="sec-title">Area Manager Users</div>
-  <div class="toolbar">
+  <div class="toolbar" id="userAdminControls" style="display:none">
     <input type="text" id="newUserName" placeholder="Full name">
     <input type="text" id="newUserInitials" placeholder="Initials (e.g. JD)" maxlength="4" style="width:120px">
     <input type="email" id="newUserEmail" placeholder="Email (optional)">
     <select id="newUserRole"><option value="manager">Area Manager</option><option value="admin">Admin</option></select>
     <button class="btn" id="addUserBtn">+ Add user</button>
   </div>
+  <div class="hint" id="usersReadonlyHint" style="color:var(--muted);font-size:12px;margin-bottom:10px">Only an admin can add, remove, or change the role of users.</div>
   <div class="card"><div id="usersList"></div></div>
 </section>
 
@@ -227,7 +228,11 @@ function populateWhoSel(){
   sel.innerHTML = STATE.users.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('');
   if(saved && STATE.users.some(u=>u.id===saved)) sel.value = saved;
   STATE.me = STATE.users.find(u=>u.id===sel.value) || STATE.users[0];
-  sel.addEventListener('change', ()=>{ STATE.me = STATE.users.find(u=>u.id===sel.value); localStorage.setItem('gc_crm_who', sel.value); });
+  sel.addEventListener('change', ()=>{
+    STATE.me = STATE.users.find(u=>u.id===sel.value);
+    localStorage.setItem('gc_crm_who', sel.value);
+    if(document.getElementById('panel-settings').classList.contains('active')) renderUsers();
+  });
 }
 
 async function loadContacts(){
@@ -738,15 +743,22 @@ document.getElementById('addGroupBtn').onclick = async ()=>{
 };
 
 // ---------- Users tab ----------
+// Only an admin (Pranav) may add/remove users or see role-changing controls.
+function isAdmin(){ return STATE.me?.role === 'admin'; }
 async function renderUsers(){
+  const admin = isAdmin();
+  document.getElementById('userAdminControls').style.display = admin ? 'flex' : 'none';
+  document.getElementById('usersReadonlyHint').style.display = admin ? 'none' : 'block';
   const wrap = document.getElementById('usersList');
   wrap.innerHTML = STATE.users.map(u=>`
     <div class="info-row" style="display:flex;justify-content:space-between;align-items:center">
       <div><span class="avatar">${initials(u.name)}</span> &nbsp;<b>${esc(u.name)}</b> <span class="badge">${esc(u.role)}</span> ${u.email?`<span style="color:var(--muted);font-size:12px">${esc(u.email)}</span>`:''}</div>
-      <button class="link-btn" data-uid="${u.id}" style="color:var(--red-dk)">Remove</button>
+      ${admin ? `<button class="link-btn" data-uid="${u.id}" style="color:var(--red-dk)">Remove</button>` : ''}
     </div>`).join('') || '<div class="empty">No users yet.</div>';
+  if(!admin) return;
   wrap.querySelectorAll('[data-uid]').forEach(b=>{
     b.onclick = async ()=>{
+      if(!isAdmin()){ alert('Only an admin can remove users.'); return; }
       if(!confirm('Remove this user? Their past notes/tasks stay, but they will no longer appear as an assignee.')) return;
       await sb.from('gc_crm_users').delete().eq('id', b.dataset.uid);
       await loadAll();
@@ -755,6 +767,7 @@ async function renderUsers(){
   });
 }
 document.getElementById('addUserBtn').onclick = async ()=>{
+  if(!isAdmin()){ alert('Only an admin can add users.'); return; }
   const name = document.getElementById('newUserName').value.trim();
   if(!name){ alert('Name is required'); return; }
   const initialsVal = document.getElementById('newUserInitials').value.trim().toUpperCase() || initials(name);

@@ -4866,10 +4866,15 @@ function computeBreakeven() {
     const cm = (100 - vp) / 100;
     const beExcl = cm > 0 ? fixed / cm : Infinity;
     const beIncl = cm > 0 ? (fixed + corpOH) / cm : Infinity;
+    const weeklyRev = rev / (52/12);
+    const beExclWk = cm > 0 ? (fixed / (52/12)) / cm : Infinity;
+    const beInclWk = cm > 0 ? ((fixed + corpOH) / (52/12)) / cm : Infinity;
     stores[sid] = {
       revPerMonth: rev, varCostPct: vp, contribMarginPct: 100 - vp,
       fixedPerMonth: fixed, breakEvenExclCorp: beExcl,
       breakEvenInclCorp: beIncl, cushionGap: rev - beIncl,
+      weeklyRev: weeklyRev, breakEvenWeekly: beInclWk,
+      cushionGapWeekly: weeklyRev - beInclWk,
     };
   }
 
@@ -4890,7 +4895,7 @@ function renderBreakeven() {
   }
 
   const storeId = state.finStore || 'all';
-  if (subtitleEl) subtitleEl.textContent = `Monthly avg revenue vs break-even (incl. corporate overhead) — ${be.periodLabel}`;
+  if (subtitleEl) subtitleEl.textContent = `Monthly & weekly avg revenue vs break-even (incl. corporate overhead) — ${be.periodLabel}`;
 
   // Build store list
   const storeEntries = storeId !== 'all'
@@ -4898,7 +4903,7 @@ function renderBreakeven() {
     : Object.entries(be.stores);
 
   if (storeEntries.length === 0) {
-    headEl.innerHTML = ''; bodyEl.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);">No break-even data for this store.</td></tr>';
+    headEl.innerHTML = ''; bodyEl.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);">No break-even data for this store.</td></tr>';
     return;
   }
 
@@ -4912,6 +4917,9 @@ function renderBreakeven() {
     <th style="text-align:right;">Avg Revenue/mo</th>
     <th style="text-align:right;">Break-Even/mo</th>
     <th style="text-align:right;">Cushion / (Gap)</th>
+    <th style="text-align:right;">Avg Revenue/wk</th>
+    <th style="text-align:right;">Break-Even/wk</th>
+    <th style="text-align:right;">Weekly Cushion</th>
     <th style="text-align:right;">Contrib Margin %</th>
     <th style="text-align:right;">Variable Cost %</th>
     <th style="text-align:right;">Fixed Cost/mo</th>
@@ -4926,20 +4934,34 @@ function renderBreakeven() {
     const isAbove = s.cushionGap >= 0;
     const cgColor = isAbove ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
     const cgText = (isAbove ? '+' : '') + fmtDollar(s.cushionGap);
+    const wkCgColor = s.cushionGapWeekly >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
+    const wkCgText = (s.cushionGapWeekly >= 0 ? '+' : '') + fmtDollar(s.cushionGapWeekly);
     return `<tr>
       <td>${s.name} (${s.id})</td>
       <td style="text-align:right;">${fmtDollar(s.revPerMonth)}</td>
       <td style="text-align:right;">${fmtDollar(s.breakEvenInclCorp)}</td>
       <td style="text-align:right;${cgColor};font-weight:600;">${cgText}</td>
+      <td style="text-align:right;">${fmtDollar(s.weeklyRev)}</td>
+      <td style="text-align:right;">${fmtDollar(s.breakEvenWeekly)}</td>
+      <td style="text-align:right;${wkCgColor};font-weight:600;">${wkCgText}</td>
       <td style="text-align:right;">${s.contribMarginPct.toFixed(1)}%</td>
       <td style="text-align:right;">${s.varCostPct.toFixed(1)}%</td>
       <td style="text-align:right;">${fmtDollar(s.fixedPerMonth + be.corpOverheadPerStore)}</td>
     </tr>`;
-  }).join('') + `<tr style="background:var(--surface-chart);font-weight:700;">
+  }).join('');
+
+  const totWkRev = sorted.reduce((s, r) => s + r.weeklyRev, 0);
+  const totWkBE = sorted.reduce((s, r) => s + r.breakEvenWeekly, 0);
+  const totWkCG = sorted.reduce((s, r) => s + r.cushionGapWeekly, 0);
+
+  bodyEl.innerHTML += `<tr style="background:var(--surface-chart);font-weight:700;">
     <td>Portfolio (${sorted.length} stores)</td>
     <td style="text-align:right;">${fmtDollar(totRev)}</td>
     <td style="text-align:right;">${fmtDollar(totBE)}</td>
     <td style="text-align:right;${totCG >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'};font-weight:700;">${(totCG >= 0 ? '+' : '') + fmtDollar(totCG)}</td>
+    <td style="text-align:right;">${fmtDollar(totWkRev)}</td>
+    <td style="text-align:right;">${fmtDollar(totWkBE)}</td>
+    <td style="text-align:right;${totWkCG >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'};font-weight:700;">${(totWkCG >= 0 ? '+' : '') + fmtDollar(totWkCG)}</td>
     <td style="text-align:right;">—</td>
     <td style="text-align:right;">—</td>
     <td style="text-align:right;">${fmtDollar(totFixed)}</td>

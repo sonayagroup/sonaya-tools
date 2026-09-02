@@ -18,6 +18,18 @@ header{background:linear-gradient(135deg,var(--blue),var(--blue-dk));color:#fff;
 .hdr-back{font-size:12.5px;color:#fff;opacity:.85;border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:4px 9px}
 .hdr-back:hover{opacity:1;text-decoration:none;background:rgba(255,255,255,.1)}
 .hdr-meta{font-size:12.5px;opacity:.9;margin-left:auto;display:flex;align-items:center;gap:10px}
+.global-search-wrap{position:relative;margin-left:14px}
+.global-search-wrap input{width:230px;font-size:12.5px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.14);color:#fff}
+.global-search-wrap input::placeholder{color:rgba(255,255,255,.75)}
+.global-search-wrap input:focus{outline:none;background:#fff;color:var(--ink)}
+.global-search-results{display:none;position:absolute;top:calc(100% + 4px);left:0;width:320px;max-height:360px;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px rgba(7,59,58,.18);z-index:50}
+.global-search-results.open{display:block}
+.global-search-results .gsr-row{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line);color:var(--ink)}
+.global-search-results .gsr-row:last-child{border-bottom:none}
+.global-search-results .gsr-row:hover{background:var(--bg)}
+.global-search-results .gsr-name{font-weight:600;font-size:13px}
+.global-search-results .gsr-meta{font-size:11.5px;color:var(--muted)}
+.global-search-results .gsr-empty{padding:12px;color:var(--muted);font-size:12.5px}
 .whoami{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);padding:5px 9px;border-radius:8px}
 .whoami select{font-size:12.5px;padding:3px 6px;border-radius:6px;border:1px solid #cfd8e3;background:#fff;color:var(--ink);font-weight:600}
 nav.tabs{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
@@ -116,12 +128,17 @@ tbody tr.clickrow{cursor:pointer}
 <header><div class="hdr-inner">
   <a class="hdr-back" href="https://tools.sonayagroup.com/greatclips.html">← Performance Dashboard</a>
   <span class="hdr-title">Great Clips · Stylist CRM</span>
+  <div class="global-search-wrap">
+    <input type="search" id="globalSearch" placeholder="🔍 Search all contacts…" autocomplete="off">
+    <div id="globalSearchResults" class="global-search-results"></div>
+  </div>
   <div class="hdr-meta">
     <div class="whoami"><label style="opacity:.9">I am:</label><select id="whoSel"></select></div>
   </div>
 </div></header>
 <nav class="tabs"><div class="tabs-inner">
-  <div class="tab active" data-t="contacts">Contacts</div>
+  <div class="tab active" data-t="today">Today</div>
+  <div class="tab" data-t="contacts">Contacts</div>
   <div class="tab" data-t="pipeline">Active Recruit Pipeline</div>
   <div class="tab" data-t="tasks">Tasks</div>
   <div class="tab" data-t="groups">Groups</div>
@@ -129,7 +146,22 @@ tbody tr.clickrow{cursor:pointer}
 </div></nav>
 <div class="wrap">
 
-<section class="panel active" id="panel-contacts">
+<section class="panel active" id="panel-today">
+  <div class="sec-title">Today</div>
+  <div id="todayKpis" class="kpis"></div>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-bottom:10px">Due today &amp; overdue</h3>
+      <div id="todayTasks"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-bottom:10px">Recent activity</h3>
+      <div id="todayActivity"></div>
+    </div>
+  </div>
+</section>
+
+<section class="panel" id="panel-contacts">
   <div id="contactsList"></div>
   <div id="contactDetail" style="display:none"></div>
 </section>
@@ -198,6 +230,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     document.querySelectorAll('section.panel').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
     document.getElementById('panel-'+t.dataset.t).classList.add('active');
+    if(t.dataset.t==='today') renderToday();
     if(t.dataset.t==='pipeline') renderPipeline();
     if(t.dataset.t==='tasks') renderTasks();
     if(t.dataset.t==='groups') renderGroups();
@@ -221,6 +254,8 @@ async function loadAll(){
   populateWhoSel();
   await loadContacts();
   renderContactsList();
+  renderToday();
+  setupGlobalSearch();
 }
 
 function populateWhoSel(){
@@ -252,11 +287,113 @@ async function loadContacts(){
   STATE.contacts = all;
 }
 
+// Jump to a contact from anywhere in the app (Today tab, global search, task
+// links, pipeline board) — switches to the Contacts tab and opens the record.
+function goToContact(id){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('section.panel').forEach(x=>x.classList.remove('active'));
+  document.querySelector('.tab[data-t="contacts"]').classList.add('active');
+  document.getElementById('panel-contacts').classList.add('active');
+  openContact(id);
+}
+
+// ---------- Global header search ----------
+function setupGlobalSearch(){
+  const input = document.getElementById('globalSearch');
+  const results = document.getElementById('globalSearchResults');
+  input.addEventListener('input', ()=>{
+    const q = input.value.trim().toLowerCase();
+    if(!q){ results.classList.remove('open'); results.innerHTML=''; return; }
+    const matches = STATE.contacts.filter(c=>
+      (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q) || (c.email||'').toLowerCase().includes(q)
+    ).slice(0,8);
+    results.innerHTML = matches.length ? matches.map(c=>`
+      <div class="gsr-row" data-id="${c.id}">
+        <div class="gsr-name">${esc(c.name)}</div>
+        <div class="gsr-meta">${esc(c.phone||c.email||'')}</div>
+      </div>`).join('') : '<div class="gsr-empty">No matches</div>';
+    results.classList.add('open');
+    results.querySelectorAll('.gsr-row').forEach(r=>{
+      r.onclick = ()=>{ goToContact(r.dataset.id); results.classList.remove('open'); input.value=''; };
+    });
+  });
+  input.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){ results.classList.remove('open'); input.blur(); } });
+  document.addEventListener('click', (e)=>{ if(!e.target.closest('.global-search-wrap')) results.classList.remove('open'); });
+}
+
+// ---------- Today tab ----------
+async function fetchAllTasksJoined(){
+  const PAGE = 1000; let rows = [], from = 0;
+  while(true){
+    const {data, error} = await sb.from('gc_crm_tasks').select('*, gc_crm_contacts(id,name), assignee:assigned_to(name)').order('due_date').range(from, from+PAGE-1);
+    if(error || !data || !data.length) break;
+    rows = rows.concat(data);
+    if(data.length < PAGE) break;
+    from += PAGE;
+  }
+  return rows;
+}
+
+async function renderToday(){
+  const today = todayISO();
+  const allTasks = await fetchAllTasksJoined();
+  const dueToday = allTasks.filter(t=>!t.completed && t.due_date===today);
+  const overdue = allTasks.filter(t=>!t.completed && t.due_date && t.due_date<today);
+  const weekAgoIso = new Date(Date.now()-7*86400000).toISOString();
+  const newThisWeek = STATE.contacts.filter(c=>c.created_at && c.created_at>=weekAgoIso).length;
+
+  document.getElementById('todayKpis').innerHTML = `
+    <div class="kpi" id="kpiDueToday"><div class="lbl">Due Today</div><div class="val">${dueToday.length}</div></div>
+    <div class="kpi" id="kpiOverdue"><div class="lbl">Overdue</div><div class="val">${overdue.length}</div></div>
+    <div class="kpi"><div class="lbl">New Contacts (7d)</div><div class="val">${newThisWeek}</div></div>
+    <div class="kpi"><div class="lbl">Total Contacts</div><div class="val">${STATE.contacts.length}</div></div>`;
+  const goTasks = (filterVal)=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('section.panel').forEach(x=>x.classList.remove('active'));
+    document.querySelector('.tab[data-t="tasks"]').classList.add('active');
+    document.getElementById('panel-tasks').classList.add('active');
+    document.getElementById('taskFilter').value = filterVal;
+    renderTasks();
+  };
+  document.getElementById('kpiDueToday').onclick = ()=>goTasks('open');
+  document.getElementById('kpiOverdue').onclick = ()=>goTasks('overdue');
+
+  const dueList = dueToday.concat(overdue).slice(0,12);
+  document.getElementById('todayTasks').innerHTML = dueList.length ? dueList.map(t=>{
+    const isOverdue = !t.completed && t.due_date && t.due_date<today;
+    return `<div class="task-row">
+      <span class="ttl">${esc(t.title)} — <a href="javascript:void(0)" class="gotoContact" data-cid="${t.contact_id}">${esc(t.gc_crm_contacts?.name||'—')}</a></span>
+      <span style="font-size:11.5px;color:var(--muted)">${t.assignee?.name?esc(t.assignee.name):''}</span>
+      <span class="due ${isOverdue?'overdue':''}">${t.due_date?fmtDate(t.due_date):''}</span>
+    </div>`;
+  }).join('') : '<div class="empty">Nothing due — all caught up.</div>';
+
+  const {data:recentNotes} = await sb.from('gc_crm_notes').select('*, gc_crm_contacts(id,name), author:author_id(name)').order('created_at', {ascending:false}).limit(12);
+  document.getElementById('todayActivity').innerHTML = (recentNotes||[]).length ? recentNotes.map(n=>`
+    <div class="hist-item"><span class="avatar">${n.author?initials(n.author.name):'?'}</span>
+      <div class="hist-body"><div class="hist-meta"><span>${n.author?esc(n.author.name):'Someone'} on <a href="javascript:void(0)" class="gotoContact" data-cid="${n.contact_id}">${esc(n.gc_crm_contacts?.name||'—')}</a></span><span>${fmtDateTime(n.created_at)}</span></div>
+      <div class="hist-content">${esc((n.body||'').slice(0,140))}${(n.body||'').length>140?'…':''}</div></div></div>`).join('') : '<div class="empty">No recent activity.</div>';
+
+  document.querySelectorAll('#panel-today .gotoContact').forEach(a=>{
+    a.onclick = ()=>goToContact(a.dataset.cid);
+  });
+}
+
 // ---------- Contacts List ----------
+const SORT_GETTERS = {
+  name: c=>(c.name||'').toLowerCase(),
+  phone: c=>(c.phone||''),
+  email: c=>(c.email||'').toLowerCase(),
+  salon: c=>(c.salon_id||''),
+  owner: c=>(STATE.users.find(u=>u.id===c.assigned_to)?.name||'').toLowerCase()
+};
+
 function renderContactsList(){
   const wrap = document.getElementById('contactsList');
   const groupOpts = STATE.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('');
   const ownerOpts = STATE.users.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('');
+  let sortField = 'name', sortDir = 1;
+  const selected = new Set();
   wrap.innerHTML = `
     <div class="toolbar">
       <input type="search" id="contactSearch" placeholder="Search by name, phone, email…" style="min-width:260px">
@@ -265,14 +402,71 @@ function renderContactsList(){
       <button class="btn" id="newContactBtn">+ New Contact</button>
       <span style="margin-left:auto;color:var(--muted);font-size:12.5px" id="contactCount"></span>
     </div>
+    <div class="toolbar" id="bulkBar" style="display:none;background:#eef7f1;border-radius:8px;padding:8px 10px">
+      <span id="bulkCount" style="font-size:12.5px;font-weight:600"></span>
+      <select id="bulkGroupSel"><option value="">+ Add to group…</option>${groupOpts}</select>
+      <select id="bulkOwnerSel"><option value="">Assign to…</option>${ownerOpts}</select>
+      <button class="btn sec" id="bulkExportBtn">Export CSV</button>
+      <button class="link-btn" id="bulkClearBtn" style="margin-left:auto">Clear selection</button>
+    </div>
     <div class="card tbl-scroll"><table><thead><tr>
-      <th></th><th>Name</th><th>Phone</th><th>Email</th><th>Salon</th><th>Groups</th><th>Assigned to</th>
+      <th style="width:26px"><input type="checkbox" id="selectAllContacts"></th><th></th>
+      <th class="sortable" data-sort="name">Name</th>
+      <th class="sortable" data-sort="phone">Phone</th>
+      <th class="sortable" data-sort="email">Email</th>
+      <th class="sortable" data-sort="salon">Salon</th>
+      <th>Groups</th>
+      <th class="sortable" data-sort="owner">Assigned to</th>
     </tr></thead><tbody id="contactsTbody"></tbody></table></div>`;
   document.getElementById('newContactBtn').onclick = ()=>openNewContactModal();
   document.getElementById('contactSearch').addEventListener('input', drawRows);
   document.getElementById('groupFilter').addEventListener('change', drawRows);
   document.getElementById('ownerFilter').addEventListener('change', drawRows);
+  document.querySelectorAll('th.sortable').forEach(th=>{
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', ()=>{
+      if(sortField===th.dataset.sort) sortDir *= -1; else { sortField = th.dataset.sort; sortDir = 1; }
+      drawRows();
+    });
+  });
+  document.getElementById('bulkClearBtn').onclick = ()=>{ selected.clear(); drawRows(); };
+  document.getElementById('bulkExportBtn').onclick = ()=>{
+    const rows = STATE.contacts.filter(c=>selected.has(c.id));
+    const header = ['Name','Phone','Email','Salon','Assigned to'];
+    const csvRows = rows.map(c=>[c.name, c.phone, c.email, c.salon_id, STATE.users.find(u=>u.id===c.assigned_to)?.name||'']
+      .map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));
+    const csv = [header.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'contacts-export.csv';
+    a.click();
+  };
+  document.getElementById('bulkGroupSel').onchange = async (e)=>{
+    const gid = e.target.value;
+    if(!gid) return;
+    for(const cid of selected){
+      await sb.from('gc_crm_contact_groups').upsert({contact_id:cid, group_id:gid}, {onConflict:'contact_id,group_id'}).select();
+    }
+    e.target.value = '';
+    await loadContacts();
+    renderContactsList();
+  };
+  document.getElementById('bulkOwnerSel').onchange = async (e)=>{
+    const uid = e.target.value;
+    if(!uid) return;
+    await sb.from('gc_crm_contacts').update({assigned_to: uid}).in('id', [...selected]);
+    e.target.value = '';
+    await loadContacts();
+    renderContactsList();
+  };
   drawRows();
+
+  function updateBulkBar(){
+    const bar = document.getElementById('bulkBar');
+    if(selected.size){ bar.style.display='flex'; document.getElementById('bulkCount').textContent = selected.size+' selected'; }
+    else bar.style.display='none';
+  }
 
   function drawRows(){
     const q = document.getElementById('contactSearch').value.trim().toLowerCase();
@@ -283,23 +477,46 @@ function renderContactsList(){
     if(gf) rows = rows.filter(c => (c.gc_crm_contact_groups||[]).some(x=>x.group_id===gf));
     if(of==='__unassigned') rows = rows.filter(c => !c.assigned_to);
     else if(of) rows = rows.filter(c => c.assigned_to===of);
+    const getter = SORT_GETTERS[sortField] || SORT_GETTERS.name;
+    rows = rows.slice().sort((a,b)=>{
+      const av=getter(a), bv=getter(b);
+      return (av<bv?-1:av>bv?1:0) * sortDir;
+    });
+    document.querySelectorAll('th.sortable').forEach(th=>{
+      th.textContent = th.textContent.replace(/ [▲▼]$/,'');
+      if(th.dataset.sort===sortField) th.textContent += sortDir===1?' ▲':' ▼';
+    });
     document.getElementById('contactCount').textContent = rows.length + ' contact' + (rows.length===1?'':'s');
     document.getElementById('contactsTbody').innerHTML = rows.map(c=>{
-      const gnames = (c.gc_crm_contact_groups||[]).map(x=>STATE.groups.find(g=>g.id===x.group_id)?.name).filter(Boolean);
+      const cgroups = (c.gc_crm_contact_groups||[]).map(x=>STATE.groups.find(g=>g.id===x.group_id)).filter(Boolean);
       const ownerName = STATE.users.find(u=>u.id===c.assigned_to)?.name;
       return `<tr class="clickrow" data-id="${c.id}">
+        <td><input type="checkbox" class="rowSelect" data-id="${c.id}" ${selected.has(c.id)?'checked':''}></td>
         <td><span class="avatar">${initials(c.name)}</span></td>
         <td>${esc(c.name)}${c.starred?' ★':''}</td>
         <td>${esc(c.phone||'')}</td>
         <td>${esc(c.email||'')}</td>
         <td>${esc(c.salon_id||'')}</td>
-        <td>${gnames.map(n=>`<span class="badge">${esc(n)}</span>`).join('')}</td>
+        <td>${cgroups.map(g=>`<span class="badge" style="${groupBadgeStyle(groupColor(g))}">${esc(g.name)}</span>`).join('')}</td>
         <td>${ownerName?esc(ownerName):''}</td>
       </tr>`;
-    }).join('') || `<tr><td colspan="7" class="empty">No contacts found.</td></tr>`;
+    }).join('') || `<tr><td colspan="8" class="empty">No contacts found.</td></tr>`;
     document.querySelectorAll('#contactsTbody tr.clickrow').forEach(tr=>{
-      tr.addEventListener('click', ()=>openContact(tr.dataset.id));
+      tr.addEventListener('click', (e)=>{ if(e.target.classList.contains('rowSelect')) return; openContact(tr.dataset.id); });
     });
+    document.querySelectorAll('.rowSelect').forEach(cb=>{
+      cb.addEventListener('click', e=>e.stopPropagation());
+      cb.addEventListener('change', ()=>{
+        if(cb.checked) selected.add(cb.dataset.id); else selected.delete(cb.dataset.id);
+        updateBulkBar();
+      });
+    });
+    document.getElementById('selectAllContacts').onchange = (e)=>{
+      if(e.target.checked) rows.forEach(c=>selected.add(c.id));
+      else rows.forEach(c=>selected.delete(c.id));
+      drawRows();
+    };
+    updateBulkBar();
   }
 }
 
@@ -366,13 +583,20 @@ async function openContact(id){
   det.style.display='block';
   det.innerHTML = '<div class="loading">Loading…</div>';
 
-  const [{data:c}, {data:notes}, {data:tasks}, {data:pe}, {data:memberships}] = await Promise.all([
+  const [{data:c}, {data:notes}, {data:tasks}, {data:pe}, {data:memberships}, {data:files}, {data:relsA}, {data:relsB}] = await Promise.all([
     sb.from('gc_crm_contacts').select('*').eq('id', id).single(),
     sb.from('gc_crm_notes').select('*').eq('contact_id', id).order('created_at', {ascending:false}),
     sb.from('gc_crm_tasks').select('*').eq('contact_id', id).order('due_date'),
     sb.from('gc_crm_pipeline_entries').select('*').eq('contact_id', id).maybeSingle(),
-    sb.from('gc_crm_contact_groups').select('group_id').eq('contact_id', id)
+    sb.from('gc_crm_contact_groups').select('group_id').eq('contact_id', id),
+    sb.from('gc_crm_files').select('*').eq('contact_id', id).order('created_at', {ascending:false}),
+    sb.from('gc_crm_contact_relationships').select('*').eq('contact_id', id),
+    sb.from('gc_crm_contact_relationships').select('*').eq('related_contact_id', id)
   ]);
+  const relationships = [
+    ...(relsA||[]).map(r=>({id:r.id, otherId:r.related_contact_id, type:r.relationship_type})),
+    ...(relsB||[]).map(r=>({id:r.id, otherId:r.contact_id, type:r.relationship_type}))
+  ];
   if(!c){ det.innerHTML = '<div class="empty">Contact not found.</div>'; return; }
   await loadSalonOptions(); // warm cache
 
@@ -406,11 +630,15 @@ async function openContact(id){
               <div class="menu" id="attachMenu">
                 <div class="mi" data-a="task">📋 Task</div>
                 <div class="mi" data-a="pipeline">🎯 Active Recruit</div>
+                <div class="mi" data-a="file">📎 File</div>
+                <div class="mi" data-a="relationship">🔗 Relationship</div>
               </div>
             </div>
           </div>
           <div id="attachedTasks"></div>
           <div id="attachedPipeline"></div>
+          <div id="attachedFiles"></div>
+          <div id="attachedRelationships"></div>
         </div>
 
         <div class="card">
@@ -476,6 +704,8 @@ async function openContact(id){
       document.getElementById('attachMenu').classList.remove('open');
       if(mi.dataset.a==='task') openNewTaskModal(id);
       if(mi.dataset.a==='pipeline') attachToPipeline(id);
+      if(mi.dataset.a==='file') openFileUploadModal(id);
+      if(mi.dataset.a==='relationship') openRelationshipModal(id);
     };
   });
 
@@ -497,7 +727,9 @@ async function openContact(id){
   renderGroupChips(myGroupIds, id);
   renderAttachedTasks(tasks||[], id);
   renderAttachedPipeline(pe);
-  renderHistoryFeed(notes||[], tasks||[]);
+  renderAttachedFiles(files||[], id);
+  renderAttachedRelationships(relationships, id);
+  renderHistoryFeed(notes||[], tasks||[], id);
 }
 
 function backToList(){
@@ -508,7 +740,7 @@ function backToList(){
 function renderGroupChips(myGroupIds, contactId){
   const wrap = document.getElementById('groupChips');
   const names = [...myGroupIds].map(gid=>STATE.groups.find(g=>g.id===gid)).filter(Boolean);
-  wrap.innerHTML = names.length ? names.map(g=>`<span class="badge rm" data-gid="${g.id}">${esc(g.name)}</span>`).join('') : '<span style="color:var(--muted);font-size:12.5px">No groups yet</span>';
+  wrap.innerHTML = names.length ? names.map(g=>`<span class="badge rm" data-gid="${g.id}" style="${groupBadgeStyle(groupColor(g))}">${esc(g.name)}</span>`).join('') : '<span style="color:var(--muted);font-size:12.5px">No groups yet</span>';
   wrap.querySelectorAll('.badge.rm').forEach(b=>{
     b.onclick = async ()=>{
       await sb.from('gc_crm_contact_groups').delete().eq('contact_id', contactId).eq('group_id', b.dataset.gid);
@@ -590,7 +822,90 @@ function renderAttachedPipeline(pe){
   };
 }
 
-function renderHistoryFeed(notes, tasks){
+function fmtBytes(n){
+  if(!n && n!==0) return '';
+  if(n < 1024) return n+' B';
+  if(n < 1024*1024) return (n/1024).toFixed(1)+' KB';
+  return (n/(1024*1024)).toFixed(1)+' MB';
+}
+
+function renderAttachedFiles(files, contactId){
+  const wrap = document.getElementById('attachedFiles');
+  if(!files.length){ wrap.innerHTML=''; return; }
+  wrap.innerHTML = `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600;margin:10px 0 4px">Files (${files.length})</div>` +
+    files.map(f=>{
+      const {data} = sb.storage.from('gc-crm-files').getPublicUrl(f.storage_path);
+      return `<div class="task-row"><span class="ttl">📎 <a href="${data.publicUrl}" target="_blank" rel="noopener">${esc(f.file_name)}</a></span><span class="due" style="margin-right:8px">${fmtBytes(f.size_bytes)}</span><a href="javascript:void(0)" class="link-btn fileDeleteBtn" data-fid="${f.id}" data-path="${esc(f.storage_path)}">Delete</a></div>`;
+    }).join('');
+  wrap.querySelectorAll('.fileDeleteBtn').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('Delete this file? This cannot be undone.')) return;
+      await sb.storage.from('gc-crm-files').remove([btn.dataset.path]);
+      await sb.from('gc_crm_files').delete().eq('id', btn.dataset.fid);
+      openContact(contactId);
+    };
+  });
+}
+
+function openFileUploadModal(contactId){
+  openModal(`
+    <h3>Attach a File</h3>
+    <div class="field"><label>Choose file *</label><input type="file" id="fuInput"></div>
+    <div class="modal-actions"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" id="fuSave">Upload</button></div>
+  `);
+  document.getElementById('fuSave').onclick = async ()=>{
+    const inp = document.getElementById('fuInput');
+    const file = inp.files[0];
+    if(!file){ alert('Choose a file first'); return; }
+    const btn = document.getElementById('fuSave');
+    btn.textContent = 'Uploading…'; btn.disabled = true;
+    const path = `${contactId}/${Date.now()}_${file.name}`;
+    const {error: upErr} = await sb.storage.from('gc-crm-files').upload(path, file);
+    if(upErr){ alert(upErr.message); btn.textContent='Upload'; btn.disabled=false; return; }
+    await sb.from('gc_crm_files').insert({contact_id: contactId, file_name: file.name, storage_path: path, size_bytes: file.size, uploaded_by: STATE.me?.id});
+    closeModal();
+    openContact(contactId);
+  };
+}
+
+function renderAttachedRelationships(rels, contactId){
+  const wrap = document.getElementById('attachedRelationships');
+  if(!rels.length){ wrap.innerHTML=''; return; }
+  wrap.innerHTML = `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600;margin:10px 0 4px">Relationships (${rels.length})</div>` +
+    rels.map(r=>{
+      const other = STATE.contacts.find(c=>c.id===r.otherId);
+      const label = other ? esc(other.name) : '(unknown contact)';
+      return `<div class="task-row"><span class="ttl">${label}${r.type?` — ${esc(r.type)}`:''}</span><a href="javascript:void(0)" class="link-btn relOpenBtn" data-cid="${r.otherId}" style="margin-right:8px">Open</a><a href="javascript:void(0)" class="link-btn relDeleteBtn" data-rid="${r.id}">Remove</a></div>`;
+    }).join('');
+  wrap.querySelectorAll('.relOpenBtn').forEach(btn=>{ btn.onclick = ()=>openContact(btn.dataset.cid); });
+  wrap.querySelectorAll('.relDeleteBtn').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('Remove this relationship?')) return;
+      await sb.from('gc_crm_contact_relationships').delete().eq('id', btn.dataset.rid);
+      openContact(contactId);
+    };
+  });
+}
+
+function openRelationshipModal(contactId){
+  const others = STATE.contacts.filter(c=>c.id!==contactId).sort((a,b)=>a.name.localeCompare(b.name));
+  openModal(`
+    <h3>Attach a Relationship</h3>
+    <div class="field"><label>Related contact *</label><select id="relContact"><option value="">Select a contact…</option>${others.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
+    <div class="field"><label>Relationship type</label><input type="text" id="relType" placeholder="e.g. Spouse, Referral, Manager"></div>
+    <div class="modal-actions"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" id="relSave">Save relationship</button></div>
+  `);
+  document.getElementById('relSave').onclick = async ()=>{
+    const relatedId = document.getElementById('relContact').value;
+    if(!relatedId){ alert('Select a contact'); return; }
+    const type = document.getElementById('relType').value.trim() || null;
+    await sb.from('gc_crm_contact_relationships').insert({contact_id: contactId, related_contact_id: relatedId, relationship_type: type});
+    closeModal();
+    openContact(contactId);
+  };
+}
+
+function renderHistoryFeed(notes, tasks, contactId){
   const items = [];
   notes.forEach(n=>items.push({ts:n.created_at, type:'note', data:n}));
   tasks.filter(t=>t.completed && t.completed_at).forEach(t=>items.push({ts:t.completed_at, type:'task_done', data:t}));
@@ -600,14 +915,45 @@ function renderHistoryFeed(notes, tasks){
   wrap.innerHTML = items.map(it=>{
     const author = it.type==='note' ? STATE.users.find(u=>u.id===it.data.author_id) : null;
     if(it.type==='note'){
+      const edited = it.data.updated_at ? ' (edited)' : '';
       return `<div class="hist-item"><span class="avatar">${author?initials(author.name):'?'}</span>
-        <div class="hist-body"><div class="hist-meta"><span>${author?esc(author.name):'Someone'} entered a note</span><span>${fmtDateTime(it.ts)}</span></div>
-        <div class="hist-content">${esc(it.data.body)}</div></div></div>`;
+        <div class="hist-body"><div class="hist-meta"><span>${author?esc(author.name):'Someone'} entered a note${edited}</span>
+          <span>${fmtDateTime(it.ts)} <a href="javascript:void(0)" class="noteEditBtn" data-nid="${it.data.id}" style="margin-left:8px">Edit</a> · <a href="javascript:void(0)" class="noteDeleteBtn" data-nid="${it.data.id}">Delete</a></span></div>
+        <div class="hist-content" id="noteContent-${it.data.id}">${esc(it.data.body)}</div></div></div>`;
     }
     return `<div class="hist-item"><span class="avatar">✓</span>
       <div class="hist-body"><div class="hist-meta"><span>Task completed</span><span>${fmtDateTime(it.ts)}</span></div>
       <div class="hist-content task">${esc(it.data.title)}</div></div></div>`;
   }).join('');
+
+  wrap.querySelectorAll('.noteDeleteBtn').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('Delete this note? This cannot be undone.')) return;
+      await sb.from('gc_crm_notes').delete().eq('id', btn.dataset.nid);
+      openContact(contactId);
+    };
+  });
+  wrap.querySelectorAll('.noteEditBtn').forEach(btn=>{
+    btn.onclick = ()=>{
+      const nid = btn.dataset.nid;
+      const contentEl = document.getElementById('noteContent-'+nid);
+      const currentText = contentEl.textContent;
+      contentEl.outerHTML = `<div class="hist-content" id="noteContent-${nid}">
+        <textarea id="noteEditArea-${nid}" style="width:100%;min-height:70px">${esc(currentText)}</textarea>
+        <div style="margin-top:6px;display:flex;gap:8px">
+          <button class="btn" id="noteEditSave-${nid}">Save</button>
+          <button class="btn sec" id="noteEditCancel-${nid}">Cancel</button>
+        </div>
+      </div>`;
+      document.getElementById('noteEditCancel-'+nid).onclick = ()=>openContact(contactId);
+      document.getElementById('noteEditSave-'+nid).onclick = async ()=>{
+        const newBody = document.getElementById('noteEditArea-'+nid).value.trim();
+        if(!newBody) return;
+        await sb.from('gc_crm_notes').update({body:newBody, updated_at:new Date().toISOString()}).eq('id', nid);
+        openContact(contactId);
+      };
+    };
+  });
 }
 
 function openEditContactModal(c){
@@ -721,13 +1067,7 @@ async function renderPipeline(){
     }</div>`;
   }).join('');
   board.querySelectorAll('.pipe-card').forEach(card=>{
-    card.onclick = ()=>{
-      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-      document.querySelectorAll('section.panel').forEach(x=>x.classList.remove('active'));
-      document.querySelector('.tab[data-t="contacts"]').classList.add('active');
-      document.getElementById('panel-contacts').classList.add('active');
-      openContact(card.dataset.id);
-    };
+    card.onclick = ()=>goToContact(card.dataset.id);
   });
 }
 
@@ -741,20 +1081,10 @@ async function renderTasks(){
   }
   ownerSel.onchange = renderTasks;
   const ownerFilter = ownerSel.value;
-  // Same >1000-row pagination issue as loadContacts()/renderPipeline(): without
-  // .range() this silently stopped at PostgREST's default 1000-row cap, which
-  // (sorted by due_date ascending) meant only the oldest tasks ever loaded —
-  // so "Open tasks" (the default filter) could show zero even with 1,600+ rows
-  // in the table, since every incomplete task is a more recent one.
-  const PAGE = 1000;
-  let rows = [], from = 0;
-  while(true){
-    const {data, error} = await sb.from('gc_crm_tasks').select('*, gc_crm_contacts(id,name), assignee:assigned_to(name)').order('due_date').range(from, from+PAGE-1);
-    if(error || !data || !data.length) break;
-    rows = rows.concat(data);
-    if(data.length < PAGE) break;
-    from += PAGE;
-  }
+  // fetchAllTasksJoined() pages through .range() rather than a single select() —
+  // needed since PostgREST's default 1000-row cap (sorted by due_date ascending)
+  // used to hide every recent/open task behind older, already-completed ones.
+  let rows = await fetchAllTasksJoined();
   const today = todayISO();
   if(filter==='open') rows = rows.filter(t=>!t.completed);
   if(filter==='overdue') rows = rows.filter(t=>!t.completed && t.due_date && t.due_date<today);
@@ -779,27 +1109,35 @@ async function renderTasks(){
     };
   });
   wrap.querySelectorAll('.taskContactLink').forEach(a=>{
-    a.onclick = ()=>{
-      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-      document.querySelectorAll('section.panel').forEach(x=>x.classList.remove('active'));
-      document.querySelector('.tab[data-t="contacts"]').classList.add('active');
-      document.getElementById('panel-contacts').classList.add('active');
-      openContact(a.dataset.cid);
-    };
+    a.onclick = ()=>goToContact(a.dataset.cid);
   });
 }
 
 // ---------- Groups tab ----------
+const GROUP_PALETTE = ['#048667','#0ea5e9','#f59e0b','#ef4444','#8b5cf6','#10b981','#f97316','#64748b','#ec4899','#14b8a6','#6366f1'];
+function groupColor(g){ return g?.color || GROUP_PALETTE[0]; }
+function groupBadgeStyle(color){ return `background:${color}22;color:${color};border:1px solid ${color}55`; }
+
 async function renderGroups(){
   const wrap = document.getElementById('groupsList');
   wrap.innerHTML = STATE.groups.map(g=>{
     const n = STATE.contacts.filter(c=>(c.gc_crm_contact_groups||[]).some(x=>x.group_id===g.id)).length;
     return `<div class="info-row" style="display:flex;justify-content:space-between;align-items:center">
-      <div><b>${esc(g.name)}</b> <span style="color:var(--muted);font-size:12px">(${n} contact${n===1?'':'s'})</span></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="color" class="groupColorPick" data-gid="${g.id}" value="${groupColor(g)}" title="Badge color" style="width:26px;height:26px;padding:0;border:none;border-radius:6px;cursor:pointer">
+        <b>${esc(g.name)}</b> <span style="color:var(--muted);font-size:12px">(${n} contact${n===1?'':'s'})</span>
+      </div>
       <button class="link-btn danger-link" data-gid="${g.id}" style="color:var(--red-dk)">Delete</button>
     </div>`;
   }).join('') || '<div class="empty">No groups yet.</div>';
-  wrap.querySelectorAll('[data-gid]').forEach(b=>{
+  wrap.querySelectorAll('.groupColorPick').forEach(inp=>{
+    inp.onchange = async ()=>{
+      await sb.from('gc_crm_groups').update({color: inp.value}).eq('id', inp.dataset.gid);
+      await loadAll();
+      renderGroups();
+    };
+  });
+  wrap.querySelectorAll('button[data-gid]').forEach(b=>{
     b.onclick = async ()=>{
       if(!confirm('Delete this group? Contacts keep their other groups.')) return;
       await sb.from('gc_crm_groups').delete().eq('id', b.dataset.gid);
@@ -811,7 +1149,8 @@ async function renderGroups(){
 document.getElementById('addGroupBtn').onclick = async ()=>{
   const name = document.getElementById('newGroupName').value.trim();
   if(!name) return;
-  const {error} = await sb.from('gc_crm_groups').insert({name, sort_order: STATE.groups.length+1});
+  const color = GROUP_PALETTE[STATE.groups.length % GROUP_PALETTE.length];
+  const {error} = await sb.from('gc_crm_groups').insert({name, color, sort_order: STATE.groups.length+1});
   if(error){ alert(error.message); return; }
   document.getElementById('newGroupName').value='';
   await loadAll();

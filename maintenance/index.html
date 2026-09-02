@@ -365,7 +365,7 @@ function formatDate(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('e
 function formatTimestamp(ts){ if(!ts) return '—'; const d=new Date(ts); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
 function daysAgo(ts){ if(!ts) return ''; const diff=Math.floor((Date.now()-new Date(ts).getTime())/(1000*60*60*24)); if(diff===0) return 'Today'; if(diff===1) return '1 day ago'; return diff+' days ago'; }
 function formatCurrency(n){ return n!=null ? '$'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; }
-function statusBadge(s){ return `<span class="badge badge-${(s||'').replace(/\s/g,'-')}">${(s||'—').replace(/_/g,' ')}</span>`; }
+function statusBadge(s){ return `<span class="badge badge-${(s||'').toLowerCase().replace(/\s/g,'-')}">${(s||'—').replace(/_/g,' ')}</span>`; }
 function priorityBadge(p){ return `<span class="badge badge-${p||'medium'}">${p||'medium'}</span>`; }
 function daysUntil(d){ if(!d)return Infinity; return Math.ceil((new Date(d+'T00:00:00')-new Date())/(1000*60*60*24)); }
 function closeModal(){ $('#modal-overlay').classList.remove('open'); }
@@ -698,7 +698,7 @@ function renderDashboard(){
   const emergWO = wo.filter(w=>w.priority==='emergency'&&w.status!=='completed'&&w.status!=='cancelled');
   const overduePM = pm.filter(p=>p.is_active && p.next_due && daysUntil(p.next_due)<0);
   const dueSoonPM = pm.filter(p=>p.is_active && p.next_due && daysUntil(p.next_due)>=0 && daysUntil(p.next_due)<=7);
-  const needsRepair = eq.filter(e=>e.status==='needs_repair'||e.status==='out_of_service');
+  const needsRepair = eq.filter(e=>e.status==='Needs Repair'||e.status==='Out of Service');
   const thisMonth = costs.filter(c=>{ const d=new Date(c.date_incurred+'T00:00:00'); const now=new Date(); return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear(); });
   const monthTotal = thisMonth.reduce((s,c)=>s+Number(c.amount||0),0);
 
@@ -764,9 +764,9 @@ function renderDashboard(){
       <div class="card-header"><h3>Equipment Needing Attention</h3></div>
       <div class="card-body">
         ${needsRepair.length===0?'<div class="empty"><p>All equipment operational</p></div>':
-        `<table><thead><tr><th>Equipment</th><th>Location</th><th>Category</th><th>Status</th></tr></thead><tbody>
+        `<div class="table-scroll"><table><thead><tr><th>Equipment</th><th>Location</th><th>Category</th><th>Status</th></tr></thead><tbody>
         ${needsRepair.map(e=>`<tr><td>${e.name}</td><td>${locStore(e.location_id)}</td><td>${catName(e.category_id)}</td><td>${statusBadge(e.status)}</td></tr>`).join('')}
-        </tbody></table>`}
+        </tbody></table></div>`}
       </div>
     </div>`;
 }
@@ -906,7 +906,7 @@ function renderEquipment(){
       <input type="text" id="eq-search" class="search-input" placeholder="Search equipment...">
       <select id="eq-loc"><option value="">All Locations</option>${(cache.dt_locations||[]).map(l=>`<option value="${l.id}">#${l.store_number} ${l.name}</option>`).join('')}</select>
       <select id="eq-cat"><option value="">All Categories</option>${(cache.dt_equipment_categories||[]).map(c=>`<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}</select>
-      <select id="eq-stat"><option value="">All Statuses</option><option value="operational">Operational</option><option value="needs_repair">Needs Repair</option><option value="out_of_service">Out of Service</option><option value="decommissioned">Decommissioned</option></select>
+      <select id="eq-stat"><option value="">All Statuses</option><option value="Operational">Operational</option><option value="Needs Repair">Needs Repair</option><option value="Out of Service">Out of Service</option><option value="Decommissioned">Decommissioned</option></select>
     </div>
     <div class="card" style="margin-bottom:20px"><div class="card-header"><h3>Service History</h3><div style="display:flex;gap:8px;align-items:center"><label style="font-size:.8rem;color:var(--text-secondary)">From</label><input type="date" id="sh-from" style="font-size:.8rem"><label style="font-size:.8rem;color:var(--text-secondary)">To</label><input type="date" id="sh-to" style="font-size:.8rem"></div></div><div class="card-body"><div class="table-scroll" id="sh-table"></div></div></div>
     <div class="card"><div class="card-body"><div class="table-scroll" id="eq-table"></div></div></div>`;
@@ -993,7 +993,7 @@ window.openEqForm = function(id){
       </div>
       <div class="form-row">
         <div class="form-group"><label>Serial Number</label><input id="m-serial" value="${e.serial_number||''}"></div>
-        <div class="form-group"><label>Status</label><select id="m-status"><option ${(!e.status||e.status==='operational')?'selected':''} value="operational">Operational</option><option ${e.status==='needs_repair'?'selected':''} value="needs_repair">Needs Repair</option><option ${e.status==='out_of_service'?'selected':''} value="out_of_service">Out of Service</option><option ${e.status==='decommissioned'?'selected':''} value="decommissioned">Decommissioned</option></select></div>
+        <div class="form-group"><label>Status</label><select id="m-status"><option ${(!e.status||e.status==='Operational')?'selected':''} value="Operational">Operational</option><option ${e.status==='Needs Repair'?'selected':''} value="Needs Repair">Needs Repair</option><option ${e.status==='Out of Service'?'selected':''} value="Out of Service">Out of Service</option><option ${e.status==='Decommissioned'?'selected':''} value="Decommissioned">Decommissioned</option></select></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Install Date</label><input type="date" id="m-install" value="${e.install_date||''}"></div>

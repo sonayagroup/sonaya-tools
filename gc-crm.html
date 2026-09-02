@@ -145,6 +145,7 @@ tbody tr.clickrow{cursor:pointer}
   <div class="sec-title">Tasks</div>
   <div class="toolbar">
     <select id="taskFilter"><option value="open">Open tasks</option><option value="overdue">Overdue</option><option value="done">Completed</option><option value="all">All</option></select>
+    <select id="taskOwnerFilter"><option value="">All owners</option></select>
   </div>
   <div class="card"><div id="taskList"></div></div>
 </section>
@@ -255,30 +256,37 @@ async function loadContacts(){
 function renderContactsList(){
   const wrap = document.getElementById('contactsList');
   const groupOpts = STATE.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('');
+  const ownerOpts = STATE.users.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('');
   wrap.innerHTML = `
     <div class="toolbar">
       <input type="search" id="contactSearch" placeholder="Search by name, phone, email…" style="min-width:260px">
       <select id="groupFilter"><option value="">All groups</option>${groupOpts}</select>
+      <select id="ownerFilter"><option value="">All owners</option><option value="__unassigned">Unassigned</option>${ownerOpts}</select>
       <button class="btn" id="newContactBtn">+ New Contact</button>
       <span style="margin-left:auto;color:var(--muted);font-size:12.5px" id="contactCount"></span>
     </div>
     <div class="card tbl-scroll"><table><thead><tr>
-      <th></th><th>Name</th><th>Phone</th><th>Email</th><th>Salon</th><th>Groups</th>
+      <th></th><th>Name</th><th>Phone</th><th>Email</th><th>Salon</th><th>Groups</th><th>Assigned to</th>
     </tr></thead><tbody id="contactsTbody"></tbody></table></div>`;
   document.getElementById('newContactBtn').onclick = ()=>openNewContactModal();
   document.getElementById('contactSearch').addEventListener('input', drawRows);
   document.getElementById('groupFilter').addEventListener('change', drawRows);
+  document.getElementById('ownerFilter').addEventListener('change', drawRows);
   drawRows();
 
   function drawRows(){
     const q = document.getElementById('contactSearch').value.trim().toLowerCase();
     const gf = document.getElementById('groupFilter').value;
+    const of = document.getElementById('ownerFilter').value;
     let rows = STATE.contacts;
     if(q) rows = rows.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q) || (c.email||'').toLowerCase().includes(q));
     if(gf) rows = rows.filter(c => (c.gc_crm_contact_groups||[]).some(x=>x.group_id===gf));
+    if(of==='__unassigned') rows = rows.filter(c => !c.assigned_to);
+    else if(of) rows = rows.filter(c => c.assigned_to===of);
     document.getElementById('contactCount').textContent = rows.length + ' contact' + (rows.length===1?'':'s');
     document.getElementById('contactsTbody').innerHTML = rows.map(c=>{
       const gnames = (c.gc_crm_contact_groups||[]).map(x=>STATE.groups.find(g=>g.id===x.group_id)?.name).filter(Boolean);
+      const ownerName = STATE.users.find(u=>u.id===c.assigned_to)?.name;
       return `<tr class="clickrow" data-id="${c.id}">
         <td><span class="avatar">${initials(c.name)}</span></td>
         <td>${esc(c.name)}${c.starred?' ★':''}</td>
@@ -286,8 +294,9 @@ function renderContactsList(){
         <td>${esc(c.email||'')}</td>
         <td>${esc(c.salon_id||'')}</td>
         <td>${gnames.map(n=>`<span class="badge">${esc(n)}</span>`).join('')}</td>
+        <td>${ownerName?esc(ownerName):''}</td>
       </tr>`;
-    }).join('') || `<tr><td colspan="6" class="empty">No contacts found.</td></tr>`;
+    }).join('') || `<tr><td colspan="7" class="empty">No contacts found.</td></tr>`;
     document.querySelectorAll('#contactsTbody tr.clickrow').forEach(tr=>{
       tr.addEventListener('click', ()=>openContact(tr.dataset.id));
     });
@@ -299,26 +308,44 @@ function openNewContactModal(){
     <h3>New Contact</h3>
     <div class="field"><label>Name *</label><input type="text" id="ncName"></div>
     <div class="two-col">
-      <div class="field"><label>Phone</label><input type="tel" id="ncPhone"></div>
+      <div class="field"><label>Phone</label><input type="tel" id="ncPhone" placeholder="(505) 555-1234"></div>
       <div class="field"><label>Email</label><input type="email" id="ncEmail"></div>
     </div>
-    <div class="field"><label>Salon</label><select id="ncSalon"><option value="">—</option></select></div>
+    <div class="two-col">
+      <div class="field"><label>Salon</label><select id="ncSalon"><option value="">—</option></select></div>
+      <div class="field"><label>Assigned to</label><select id="ncOwner"><option value="">Unassigned</option>${STATE.users.map(u=>`<option value="${u.id}" ${u.id===STATE.me?.id?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div>
+    </div>
     <div class="modal-actions"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" id="ncSave">Save</button></div>
   `);
   loadSalonOptions('ncSalon');
+  formatPhoneInput(document.getElementById('ncPhone'));
   document.getElementById('ncSave').onclick = async ()=>{
     const name = document.getElementById('ncName').value.trim();
     if(!name){ alert('Name is required'); return; }
     const phone = document.getElementById('ncPhone').value.trim();
     const email = document.getElementById('ncEmail').value.trim();
     const salon_id = document.getElementById('ncSalon').value || null;
-    const {data, error} = await sb.from('gc_crm_contacts').insert({name, phone, email, salon_id, created_by: STATE.me?.id}).select().single();
+    const assigned_to = document.getElementById('ncOwner').value || null;
+    const {data, error} = await sb.from('gc_crm_contacts').insert({name, phone, email, salon_id, assigned_to, created_by: STATE.me?.id}).select().single();
     if(error){ alert(error.message); return; }
     closeModal();
     await loadContacts();
     renderContactsList();
     openContact(data.id);
   };
+}
+
+// Live-format a phone <input> as "(XXX) XXX-XXXX" while the user types.
+function formatPhoneInput(el){
+  if(!el) return;
+  el.addEventListener('input', ()=>{
+    const digits = el.value.replace(/\D/g,'').slice(0,10);
+    let out = digits;
+    if(digits.length > 6) out = `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+    else if(digits.length > 3) out = `(${digits.slice(0,3)}) ${digits.slice(3)}`;
+    else if(digits.length > 0) out = `(${digits}`;
+    el.value = out;
+  });
 }
 
 let SALON_CACHE = null;
@@ -364,6 +391,7 @@ async function openContact(id){
           ${salonLabel?`<span>🏪 ${esc(salonLabel)}</span>`:''}
         </div>
       </div>
+      <div class="field" style="margin:0 10px 0 0"><label style="margin-bottom:2px">Assigned to</label><select id="ownerSel" style="min-width:160px"><option value="">Unassigned</option>${STATE.users.map(u=>`<option value="${u.id}" ${u.id===c.assigned_to?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div>
       <button class="btn sec" id="editContactBtn">Edit</button>
       <button class="btn danger" id="deleteContactBtn">Delete</button>
     </div>
@@ -426,6 +454,12 @@ async function openContact(id){
   document.getElementById('starToggle').onclick = async ()=>{
     const {error} = await sb.from('gc_crm_contacts').update({starred: !c.starred}).eq('id', id);
     if(!error){ c.starred = !c.starred; openContact(id); }
+  };
+  document.getElementById('ownerSel').onchange = async (e)=>{
+    const {error} = await sb.from('gc_crm_contacts').update({assigned_to: e.target.value||null}).eq('id', id);
+    if(error){ alert(error.message); return; }
+    c.assigned_to = e.target.value||null;
+    await loadContacts();
   };
   document.getElementById('editContactBtn').onclick = ()=>openEditContactModal(c);
   document.getElementById('deleteContactBtn').onclick = async ()=>{
@@ -581,10 +615,11 @@ function openEditContactModal(c){
     <h3>Edit ${esc(c.name)}</h3>
     <div class="two-col">
       <div class="field"><label>Name *</label><input type="text" id="ecName" value="${esc(c.name)}"></div>
-      <div class="field"><label>Phone</label><input type="tel" id="ecPhone" value="${esc(c.phone||'')}"></div>
+      <div class="field"><label>Phone</label><input type="tel" id="ecPhone" value="${esc(c.phone||'')}" placeholder="(505) 555-1234"></div>
       <div class="field"><label>Email</label><input type="email" id="ecEmail" value="${esc(c.email||'')}"></div>
       <div class="field"><label>Birthday</label><input type="date" id="ecBday" value="${c.birthday||''}"></div>
       <div class="field"><label>Salon</label><select id="ecSalon"></select></div>
+      <div class="field"><label>Assigned to</label><select id="ecOwner"><option value="">Unassigned</option>${STATE.users.map(u=>`<option value="${u.id}" ${u.id===c.assigned_to?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div>
       <div class="field"><label>Company Name</label><input type="text" id="ecCompany" value="${esc(c.company_name||'')}"></div>
       <div class="field"><label>Job Title</label><input type="text" id="ecJob" value="${esc(c.job_title||'')}"></div>
       <div class="field"><label>Website</label><input type="text" id="ecWebsite" value="${esc(c.website||'')}"></div>
@@ -597,6 +632,7 @@ function openEditContactModal(c){
     <div class="modal-actions"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" id="ecSave">Save changes</button></div>
   `);
   loadSalonOptions('ecSalon').then(()=>{ document.getElementById('ecSalon').value = c.salon_id||''; });
+  formatPhoneInput(document.getElementById('ecPhone'));
   document.getElementById('ecSave').onclick = async ()=>{
     const upd = {
       name: document.getElementById('ecName').value.trim(),
@@ -604,6 +640,7 @@ function openEditContactModal(c){
       email: document.getElementById('ecEmail').value.trim()||null,
       birthday: document.getElementById('ecBday').value||null,
       salon_id: document.getElementById('ecSalon').value||null,
+      assigned_to: document.getElementById('ecOwner').value||null,
       company_name: document.getElementById('ecCompany').value.trim()||null,
       job_title: document.getElementById('ecJob').value.trim()||null,
       website: document.getElementById('ecWebsite').value.trim()||null,
@@ -698,6 +735,12 @@ async function renderPipeline(){
 async function renderTasks(){
   const filter = document.getElementById('taskFilter').value;
   document.getElementById('taskFilter').onchange = renderTasks;
+  const ownerSel = document.getElementById('taskOwnerFilter');
+  if(ownerSel.options.length<=1){
+    ownerSel.innerHTML = '<option value="">All owners</option>' + STATE.users.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('');
+  }
+  ownerSel.onchange = renderTasks;
+  const ownerFilter = ownerSel.value;
   // Same >1000-row pagination issue as loadContacts()/renderPipeline(): without
   // .range() this silently stopped at PostgREST's default 1000-row cap, which
   // (sorted by due_date ascending) meant only the oldest tasks ever loaded —
@@ -716,6 +759,7 @@ async function renderTasks(){
   if(filter==='open') rows = rows.filter(t=>!t.completed);
   if(filter==='overdue') rows = rows.filter(t=>!t.completed && t.due_date && t.due_date<today);
   if(filter==='done') rows = rows.filter(t=>t.completed);
+  if(ownerFilter) rows = rows.filter(t=>t.assigned_to===ownerFilter);
 
   const wrap = document.getElementById('taskList');
   wrap.innerHTML = rows.length ? rows.map(t=>{

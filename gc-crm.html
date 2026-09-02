@@ -236,8 +236,19 @@ function populateWhoSel(){
 }
 
 async function loadContacts(){
-  const {data} = await sb.from('gc_crm_contacts').select('*, gc_crm_contact_groups(group_id)').order('name');
-  STATE.contacts = data||[];
+  // Supabase/PostgREST caps a single select at ~1000 rows by default, and this
+  // table has grown past that (LACRM import brought in ~3,863 contacts), so
+  // page through with .range() until a page comes back short of the page size.
+  const PAGE = 1000;
+  let all = [], from = 0;
+  while(true){
+    const {data, error} = await sb.from('gc_crm_contacts').select('*, gc_crm_contact_groups(group_id)').order('name').range(from, from+PAGE-1);
+    if(error || !data || !data.length) break;
+    all = all.concat(data);
+    if(data.length < PAGE) break;
+    from += PAGE;
+  }
+  STATE.contacts = all;
 }
 
 // ---------- Contacts List ----------
@@ -646,7 +657,17 @@ async function attachToPipeline(contactId){
 
 // ---------- Pipeline tab ----------
 async function renderPipeline(){
-  const {data:entries} = await sb.from('gc_crm_pipeline_entries').select('*, gc_crm_contacts(id,name,phone)').order('updated_at', {ascending:false});
+  // Same >1000-row pagination concern as loadContacts() above — page through
+  // so this keeps working as the pipeline grows past PostgREST's default cap.
+  const PAGE = 1000;
+  let entries = [], from = 0;
+  while(true){
+    const {data, error} = await sb.from('gc_crm_pipeline_entries').select('*, gc_crm_contacts(id,name,phone)').order('updated_at', {ascending:false}).range(from, from+PAGE-1);
+    if(error || !data || !data.length) break;
+    entries = entries.concat(data);
+    if(data.length < PAGE) break;
+    from += PAGE;
+  }
   const active = STATE.statuses.filter(s=>s.category==='active');
 
   const report = document.getElementById('pipelineReport');

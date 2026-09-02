@@ -698,9 +698,20 @@ async function renderPipeline(){
 async function renderTasks(){
   const filter = document.getElementById('taskFilter').value;
   document.getElementById('taskFilter').onchange = renderTasks;
-  let q = sb.from('gc_crm_tasks').select('*, gc_crm_contacts(id,name), assignee:assigned_to(name)').order('due_date');
-  const {data} = await q;
-  let rows = data||[];
+  // Same >1000-row pagination issue as loadContacts()/renderPipeline(): without
+  // .range() this silently stopped at PostgREST's default 1000-row cap, which
+  // (sorted by due_date ascending) meant only the oldest tasks ever loaded —
+  // so "Open tasks" (the default filter) could show zero even with 1,600+ rows
+  // in the table, since every incomplete task is a more recent one.
+  const PAGE = 1000;
+  let rows = [], from = 0;
+  while(true){
+    const {data, error} = await sb.from('gc_crm_tasks').select('*, gc_crm_contacts(id,name), assignee:assigned_to(name)').order('due_date').range(from, from+PAGE-1);
+    if(error || !data || !data.length) break;
+    rows = rows.concat(data);
+    if(data.length < PAGE) break;
+    from += PAGE;
+  }
   const today = todayISO();
   if(filter==='open') rows = rows.filter(t=>!t.completed);
   if(filter==='overdue') rows = rows.filter(t=>!t.completed && t.due_date && t.due_date<today);

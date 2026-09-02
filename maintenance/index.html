@@ -1150,11 +1150,30 @@ window.savePM = async function(id){
   if(!row.task_name||!row.location_id){toast('Task name and Location are required','error');return;}
   if(await upsert('dt_pm_schedules',row,id||undefined)){closeModal();await load('dt_pm_schedules','next_due',true);render();}
 };
-window.completePM = async function(id,freq){
+window.completePM = function(id,freq){
+  const p=(cache.dt_pm_schedules||[]).find(x=>x.id===id)||{};
+  const existingPhotos=getPhotos('pm_completion',id);
+  openModal(`
+    <div class="modal-header"><h3>Complete PM Task</h3><button class="btn-icon" onclick="closeModal()">✕</button></div>
+    <div class="modal-body">
+      <div style="background:var(--surface-2);padding:12px;border-radius:var(--radius);margin-bottom:16px">
+        <strong>${p.task_name||'PM Task'}</strong><br>
+        <span style="font-size:.85rem;color:var(--text-secondary)">${locName(p.location_id)} · ${eqName(p.equipment_id)}</span>
+      </div>
+      <div class="form-group"><label>Completion Notes</label><textarea id="pm-notes" rows="3" placeholder="Describe work performed, parts replaced, observations..."></textarea></div>
+      <div class="form-group"><label>Photos of Work Done</label>
+        ${photoGalleryHTML('pm_completion',id)}
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitPMCompletion('${id}',${freq})">✓ Mark Complete</button></div>`);
+};
+window.submitPMCompletion = async function(id,freq){
   const today=new Date().toISOString().slice(0,10);
   const nextDate=new Date();nextDate.setDate(nextDate.getDate()+freq);
+  const notes=$('#pm-notes')?.value||'';
   const row={last_completed:today,next_due:nextDate.toISOString().slice(0,10),updated_at:new Date().toISOString()};
-  if(await upsert('dt_pm_schedules',row,id)){toast('PM task marked complete!');await load('dt_pm_schedules','next_due',true);render();}
+  if(notes){row.description=(row.description?row.description+'\n':'')+`[${today}] ${notes}`;}
+  if(await upsert('dt_pm_schedules',row,id)){closeModal();toast('PM task marked complete!');await load('dt_pm_schedules','next_due',true);render();}
 };
 window.deletePM = async function(id){if(await remove('dt_pm_schedules',id)){await load('dt_pm_schedules','next_due',true);render();}};
 

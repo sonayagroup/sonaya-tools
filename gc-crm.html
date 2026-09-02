@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base target="_top">
+<title>Great Clips — Stylist CRM</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#048667;--blue-dk:#073b3a;--red:#e4002b;--red-dk:#b30020;--green:#089f45;--amber:#e9a049;
+--bg:#f4f7f5;--card:#fff;--line:#e1ece8;--ink:#12302c;--muted:#5f716d;--shadow:0 1px 3px rgba(7,59,58,.08),0 1px 2px rgba(7,59,58,.06);}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Poppins",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:1280px;margin:0 auto;padding:0 18px 60px}
+header{background:linear-gradient(135deg,var(--blue),var(--blue-dk));color:#fff;padding:16px 0 14px;box-shadow:var(--shadow)}
+.hdr-inner{max-width:1280px;margin:0 auto;padding:0 18px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.hdr-title{font-size:15px;font-weight:600;opacity:.92;white-space:nowrap}
+.hdr-back{font-size:12.5px;color:#fff;opacity:.85;border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:4px 9px}
+.hdr-back:hover{opacity:1;text-decoration:none;background:rgba(255,255,255,.1)}
+.hdr-meta{font-size:12.5px;opacity:.9;margin-left:auto;display:flex;align-items:center;gap:10px}
+.whoami{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);padding:5px 9px;border-radius:8px}
+.whoami select{font-size:12.5px;padding:3px 6px;border-radius:6px;border:1px solid #cfd8e3;background:#fff;color:var(--ink);font-weight:600}
+nav.tabs{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
+.tabs-inner{max-width:1280px;margin:0 auto;padding:0 10px;display:flex;flex-wrap:wrap}
+.tab{padding:12px 15px;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;user-select:none;font-size:13.5px}
+.tab:hover{color:var(--blue)}.tab.active{color:var(--blue-dk);border-bottom-color:var(--green)}
+section.panel{display:none;padding-top:20px}section.panel.active{display:block}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 14px;box-shadow:var(--shadow);cursor:pointer}
+.kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600}
+.kpi .val{font-size:23px;font-weight:700;margin-top:3px}.kpi .sub{font-size:12px;margin-top:2px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
+.card h3{font-size:14px;font-weight:700;margin-bottom:2px;color:var(--blue-dk)}.card .hint{font-size:11.5px;color:var(--muted);margin-bottom:12px}
+.sec-title{font-size:15px;font-weight:700;color:var(--blue-dk);margin:4px 0 10px}
+.grid2{display:grid;gap:16px;grid-template-columns:1fr 300px}
+@media (max-width:860px){.grid2{grid-template-columns:1fr}}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+input[type=text],input[type=search],input[type=email],input[type=tel],input[type=date],textarea,select{font:inherit;font-size:13.5px;padding:7px 9px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--blue)}
+.btn{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer}
+.btn:hover{background:var(--blue-dk)}.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sec{background:#fff;color:var(--blue-dk);border:1px solid var(--line)}
+.btn.sec:hover{background:#f0f3f7}
+.btn.danger{background:#fff;color:var(--red-dk);border:1px solid #f3c6c6}
+.btn.danger:hover{background:#fdecec}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line)}
+thead th{background:#f0f3f7;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0}
+tbody tr:hover{background:#f7fafd}
+tbody tr.clickrow{cursor:pointer}
+.tbl-scroll{overflow-x:auto}
+.badge{display:inline-block;background:#eaf3f0;color:var(--blue-dk);border-radius:20px;padding:2px 9px;font-size:11px;font-weight:600;margin:1px 3px 1px 0}
+.badge.stage{background:#e8eef7;color:#274a7a}
+.badge.closed{background:#f2f2f2;color:#666}
+.badge.rm{cursor:pointer}.badge.rm::after{content:" ×";font-weight:800}
+.star{cursor:pointer;color:#d8dfda;font-size:16px}
+.star.on{color:var(--amber)}
+.avatar{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;flex-shrink:0}
+.contact-hdr{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.contact-hdr .initials{width:52px;height:52px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700}
+.contact-hdr h2{font-size:20px}
+.contact-hdr .sub{font-size:12.5px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;margin-top:3px}
+.info-row{padding:8px 0;border-bottom:1px solid var(--line)}
+.info-row:last-child{border-bottom:none}
+.info-row .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600}
+.info-row .v{font-size:13.5px;margin-top:2px;word-break:break-word}
+.info-row .v input,.info-row .v textarea,.info-row .v select{width:100%}
+.note-box{margin-bottom:16px}
+.note-box textarea{width:100%;min-height:64px;resize:vertical}
+.hist-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.hist-item:last-child{border-bottom:none}
+.hist-body{flex:1}
+.hist-meta{font-size:11.5px;color:var(--muted);display:flex;justify-content:space-between}
+.hist-content{background:#f7faf9;border-radius:8px;padding:9px 11px;margin-top:4px;font-size:13px;white-space:pre-wrap}
+.hist-content.task{background:#eef7f1}
+.hist-content.sys{background:transparent;padding:0;color:var(--muted);font-style:italic}
+.attach-wrap{position:relative;display:inline-block}
+.menu{position:absolute;top:100%;right:0;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);min-width:170px;z-index:30;display:none;margin-top:4px}
+.menu.open{display:block}
+.menu .mi{padding:9px 13px;font-size:13px;cursor:pointer}
+.menu .mi:hover{background:#f0f3f7}
+.task-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line)}
+.task-row:last-child{border-bottom:none}
+.task-row.done .ttl{text-decoration:line-through;color:var(--muted)}
+.task-row .ttl{flex:1;font-size:13.5px}
+.task-row .due{font-size:11.5px;color:var(--muted)}
+.task-row .due.overdue{color:var(--red-dk);font-weight:700}
+.modal-bg{position:fixed;inset:0;background:rgba(7,59,58,.35);display:none;align-items:flex-start;justify-content:center;z-index:100;padding:40px 16px;overflow:auto}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:12px;padding:22px;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.modal h3{margin-bottom:14px;color:var(--blue-dk)}
+.field{margin-bottom:11px}
+.field label{display:block;font-size:11.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.field input,.field select,.field textarea{width:100%}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.pipe-cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.pipe-col{background:#f0f3f2;border-radius:10px;padding:10px}
+.pipe-col h4{font-size:12px;text-transform:uppercase;letter-spacing:.3px;color:var(--blue-dk);margin-bottom:8px;display:flex;justify-content:space-between}
+.pipe-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:8px;font-size:12.7px;box-shadow:var(--shadow);cursor:pointer}
+.pipe-card:hover{border-color:var(--blue)}
+.pipe-card .nm{font-weight:700}
+.pipe-card .meta{color:var(--muted);font-size:11.3px;margin-top:2px}
+.empty{color:var(--muted);font-size:13px;padding:20px 0;text-align:center}
+.link-btn{background:none;border:none;color:var(--blue);cursor:pointer;font:inherit;font-size:12.5px;padding:0}
+.link-btn:hover{text-decoration:underline}
+.checklist label{display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 0}
+.groupmembers{font-size:12.5px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:640px){.two-col{grid-template-columns:1fr}}
+.loading{padding:40px;text-align:center;color:var(--muted)}
+.footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:26px}
+</style></head>
+<body>
+<header><div class="hdr-inner">
+  <a class="hdr-back" href="https://tools.sonayagroup.com/greatclips.html">← Performance Dashboard</a>
+  <span class="hdr-title">Great Clips · Stylist CRM</span>
+  <div class="hdr-meta">
+    <div class="whoami"><label style="opacity:.9">I am:</label><select id="whoSel"></select></div>
+  </div>
+</div></header>
+<nav class="tabs"><div class="tabs-inner">
+  <div class="tab active" data-t="contacts">Contacts</div>
+  <div class="tab" data-t="pipeline">Active Recruit Pipeline</div>
+  <div class="tab" data-t="tasks">Tasks</div>
+  <div class="tab" data-t="groups">Groups</div>
+  <div class="tab" data-t="settings">Users</div>
+</div></nav>
+<div class="wrap">
+
+<section class="panel active" id="panel-contacts">
+  <div id="contactsList"></div>
+  <div id="contactDetail" style="display:none"></div>
+</section>
+
+<section class="panel" id="panel-pipeline">
+  <div class="sec-title">Active Recruit Pipeline</div>
+  <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:14px">Contacts currently being tracked as recruits. Click a card to open the contact.</div>
+  <div id="pipelineReport" class="kpis"></div>
+  <div id="pipelineBoard" class="pipe-cols"></div>
+</section>
+
+<section class="panel" id="panel-tasks">
+  <div class="sec-title">Tasks</div>
+  <div class="toolbar">
+    <select id="taskFilter"><option value="open">Open tasks</option><option value="overdue">Overdue</option><option value="done">Completed</option><option value="all">All</option></select>
+  </div>
+  <div class="card"><div id="taskList"></div></div>
+</section>
+
+<section class="panel" id="panel-groups">
+  <div class="sec-title">Groups</div>
+  <div class="toolbar"><input type="text" id="newGroupName" placeholder="New group name…" style="min-width:240px"><button class="btn" id="addGroupBtn">+ Add group</button></div>
+  <div id="groupsList" class="card"></div>
+</section>
+
+<section class="panel" id="panel-settings">
+  <div class="sec-title">Area Manager Users</div>
+  <div class="toolbar">
+    <input type="text" id="newUserName" placeholder="Full name">
+    <input type="text" id="newUserInitials" placeholder="Initials (e.g. JD)" maxlength="4" style="width:120px">
+    <input type="email" id="newUserEmail" placeholder="Email (optional)">
+    <select id="newUserRole"><option value="manager">Area Manager</option><option value="admin">Admin</option></select>
+    <button class="btn" id="addUserBtn">+ Add user</button>
+  </div>
+  <div class="card"><div id="usersList"></div></div>
+</section>
+
+<div class="footer">Great Clips Stylist CRM · data via Supabase · Sonaya Group internal tools</div>
+</div>
+
+<div class="modal-bg" id="modalBg"><div class="modal" id="modalBody"></div></div>
+
+<script>
+const SB_URL='https://vcukhvjwsuaqxgqzotwb.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
+const sb = supabase.createClient(SB_URL, SB_KEY);
+
+let STATE = { users:[], groups:[], statuses:[], pipeline:null, contacts:[], me:null, currentContactId:null };
+
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function initials(name){ if(!name) return '?'; const p=name.trim().split(/\s+/); return ((p[0]?.[0]||'')+(p[p.length-1]?.[0]||'')).toUpperCase(); }
+function fmtDate(d){ if(!d) return ''; const dt = new Date(d+'T00:00:00'); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function fmtDateTime(ts){ const dt=new Date(ts); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' · '+dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('modalBg').classList.add('open'); }
+function closeModal(){ document.getElementById('modalBg').classList.remove('open'); }
+document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('section.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.t).classList.add('active');
+    if(t.dataset.t==='pipeline') renderPipeline();
+    if(t.dataset.t==='tasks') renderTasks();
+    if(t.dataset.t==='groups') renderGroups();
+    if(t.dataset.t==='settings') renderUsers();
+    if(t.dataset.t==='contacts'){ document.getElementById('contactDetail').style.display='none'; document.getElementById('contactsList').style.display='block'; }
+  });
+});
+
+// ---------- Load everything ----------
+async function loadAll(){
+  const [{data:users},{data:groups},{data:pipelines},{data:statuses}] = await Promise.all([
+    sb.from('gc_crm_users').select('*').order('name'),
+    sb.from('gc_crm_groups').select('*').order('sort_order'),
+    sb.from('gc_crm_pipelines').select('*').order('sort_order'),
+    sb.from('gc_crm_pipeline_statuses').select('*').order('sort_order')
+  ]);
+  STATE.users = users||[];
+  STATE.groups = groups||[];
+  STATE.pipeline = (pipelines||[])[0]||null;
+  STATE.statuses = statuses||[];
+  populateWhoSel();
+  await loadContacts();
+  renderContactsList();
+}
+
+function populateWhoSel(){
+  const sel = document.getElementById('whoSel');
+  const saved = localStorage.getItem('gc_crm_who');
+  sel.innerHTML = STATE.users.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join('');
+  if(saved && STATE.users.some(u=>u.id===saved)) sel.value = saved;
+  STATE.me = STATE.users.find(u=>u.id===sel.value) || STATE.users[0];
+  sel.addEventListener('change', ()=>{ STATE.me = STATE.users.find(u=>u.id===sel.value); localStorage.setItem('gc_crm_who', sel.value); });
+}
+
+async function loadContacts(){
+  const {data} = await sb.from('gc_crm_contacts').select('*, gc_crm_contact_groups(group_id)').order('name');
+  STATE.contacts = data||[];
+}
+
+// ---------- Contacts List ----------
+function renderContactsList(){
+  const wrap = document.getElementById('contactsList');
+  const groupOpts = STATE.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('');
+  wrap.innerHTML = `
+    <div class="toolbar">
+      <input type="search" id="contactSearch" placeholder="Search by name, phone, email…" style="min-width:260px">
+      <select id="groupFilter"><option value="">All groups</option>${groupOpts}</select>
+      <button class="btn" id="newContactBtn">+ New Contact</button>
+      <span style="margin-left:auto;color:var(--muted);font-size:12.5px" id="contactCount"></span>
+    </div>
+    <div class="card tbl-scroll"><table><thead><tr>
+      <th></th><th>Name</th><th>Phone</th><th>Email</th><th>Salon</th><th>Groups</th>
+    </tr></thead><tbody id="contactsTbody"></tbody></table></div>`;
+  document.getElementById('newContactBtn').onclick = ()=>openNewContactModal();
+  document.getElementById('contactSearch').addEventListener('input', drawRows);
+  document.getElementById('groupFilter').addEventListener('change', drawRows);
+  drawRows();
+
+  function drawRows(){
+    const q = document.getElementById('contactSearch').value.trim().toLowerCase();
+    const gf = document.getElementById('groupFilter').value;
+    let rows = STATE.contacts;
+    if(q) rows = rows.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q) || (c.email||'').toLowerCase().includes(q));
+    if(gf) rows = rows.filter(c => (c.gc_crm_contact_groups||[]).some(x=>x.group_id===gf));
+    document.getElementById('contactCount').textContent = rows.length + ' contact' + (rows.length===1?'':'s');
+    document.getElementById('contactsTbody').innerHTML = rows.map(c=>{
+      const gnames = (c.gc_crm_contact_groups||[]).map(x=>STATE.groups.find(g=>g.id===x.group_id)?.name).filter(Boolean);
+      return `<tr class="clickrow" data-id="${c.id}">
+        <td><span class="avatar">${initials(c.name)}</span></td>
+        <td>${esc(c.name)}${c.starred?' ★':''}</td>
+        <td>${esc(c.phone||'')}</td>
+        <td>${esc(c.email||'')}</td>
+        <td>${esc(c.salon_id||'')}</td>
+        <td>${gnames.map(n=>`<span class="badge">${esc(n)}</span>`).join('')}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="6" class="empty">No contacts found.</td></tr>`;
+    document.querySelectorAll('#contactsTbody tr.clickrow').forEach(tr=>{
+      tr.addEventListener('click', ()=>openContact(tr.dataset.id));
+    });
+  }
+}
+
+function openNewContactModal(){
+  openModal(`
+    <h3>New Contact</h3>
+    <div class="field"><label>Name *</label><input type="text" id="ncName"></div>
+    <div class="two-col">
+      <div class="field"><label>Phone</label><input type="tel" id="ncPhone"></div>
+      <div class="field"><label>Email</label><input type="email" id="ncEmail"></div>
+    </div>
+    <div class="field"><label>Salon</label><select id="ncSalon"><option value="">—</option></select></div>
+    <div class="modal-actions"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" id="ncSave">Save</button></div>
+  `);
+  loadSalonOptions('ncSalon');
+  document.getElementById('ncSave').onclick = async ()=>{
+    const name = document.getElementById('ncName').value.trim();
+    if(!name){ alert('Name is required'); return; }
+    const phone = document.getElementById('ncPhone').value.trim();
+    const email = document.getElementById('ncEmail').value.trim();
+    const salon_id = document.getElementById('ncSalon').value || null;
+    const {data, error} = await sb.from('gc_crm_contacts').insert({name, phone, email, salon_id, created_by: STATE.me?.id}).select().single();
+    if(error){ alert(error.message); return; }
+    closeModal();
+    await loadContacts();
+    renderContactsList();
+    openContact(data.id);
+  };
+}
+
+let SALON_CACHE = null;
+async function loadSalonOptions(selectId){
+  if(!SALON_CACHE){
+    const {data} = await sb.from('salon_locations').select('salon_id, plaza_name').order('salon_id');
+    SALON_CACHE = data||[];
+  }
+  const sel = document.getElementById(selectId);
+  if(sel) sel.innerHTML = '<option value="">—</option>' + SALON_CACHE.map(s=>`<option value="${s.salon_id}">${esc(s.salon_id)} — ${esc(s.plaza_name||'')}</option>`).join('');
+}
+
+// ---------- Contact Detail ----------
+async function openContact(id){
+  STATE.currentContactId = id;
+  document.getElementById('contactsList').style.display='none';
+  const det = document.getElementById('contactDetail');
+  det.style.display='block';
+  det.innerHTML = '<div class="loading">Loading…</div>';
+
+  const [{data:c}, {data:notes}, {data:tasks}, {data:pe}, {data:memberships}] = await Promise.all([
+    sb.from('gc_crm_contacts').select('*').eq('id', id).single(),
+    sb.from('gc_crm_notes').select('*').eq('contact_id', id).order('created_at', {ascending:false}),
+    sb.from('gc_crm_tasks').select('*').eq('contact_id', id).order('due_date'),
+    sb.from('gc_crm_pipeline_entries').select('*').eq('contact_id', id).maybeSingle(),
+    sb.from('gc_crm_contact_groups').select('group_id').eq('contact_id', id)
+  ]);
+  if(!c){ det.innerHTML = '<div class="empty">Contact not found.</div>'; return; }
+  await loadSalonOptions(); // warm cache
+
+  const myGroupIds = new Set((memberships||[]).map(m=>m.group_id));
+  const salonLabel = c.salon_id ? (SALON_CACHE.find(s=>s.salon_id===c.salon_id)?.plaza_name || c.salon_id) : '';
+
+  det.innerHTML = `
+    <button class="link-btn" style="margin-bottom:10px" onclick="backToList()">← All contacts</button>
+    <div class="contact-hdr">
+      <div class="initials">${initials(c.name)}</div>
+      <div style="flex:1">
+        <h2>${esc(c.name)} <span class="star ${c.starred?'on':''}" id="starToggle" title="Star this contact">★</span></h2>
+        <div class="sub">
+          ${c.email?`<span>✉ ${esc(c.email)}</span>`:''}
+          ${c.phone?`<span>☎ ${esc(c.phone)}</span>`:''}
+          ${salonLabel?`<span>🏪 ${esc(salonLabel)}</span>`:''}
+        </div>
+      </div>
+      <button class="btn sec" id="editContactBtn">Edit</button>
+      <button class="btn danger" id="deleteContactBtn">Delete</button>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="margin:0">Attached items</h3>
+            <div class="attach-wrap">
+              <button class="btn sec" id="attachBtn">+ Attach an item ▾</button>
+              <div class="menu" id="attachMenu">
+                <div class="mi" data-a="task">📋 Task</div>
+                <div class="mi" data-a="pipeline">🎯 Active Recruit</div>
+              </div>
+            </div>
+          </div>
+          <div id="attachedTasks"></div>
+          <div id="attachedPipeline"></div>
+        </div>
+
+        <div class="card">
+          <h3>History</h3>
+          <div class="note-box">
+            <textarea id="noteInput" placeholder="Enter a note about ${esc(c.name.split(' ')[0])}…"></textarea>
+            <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:11.5px;color:var(--muted)">Posting as ${esc(STATE.me?.name||'—')}</span>
+              <button class="btn" id="saveNoteBtn">Save note</button>
+            </div>
+          </div>
+          <div id="historyFeed"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>Contact info</h3>
+          <div class="info-row"><div class="k">Email</div><div class="v">${esc(c.email||'—')}</div></div>
+          <div class="info-row"><div class="k">Phone</div><div class="v">${esc(c.phone||'—')}</div></div>
+          <div class="info-row"><div class="k">Address</div><div class="v">${esc(c.address||'—')}</div></div>
+          <div class="info-row"><div class="k">Birthday</div><div class="v">${c.birthday?fmtDate(c.birthday):'—'}</div></div>
+          <div class="info-row"><div class="k">Salon</div><div class="v">${esc(salonLabel||'—')}</div></div>
+          <div class="info-row"><div class="k">Company / Job title</div><div class="v">${esc(c.company_name||'—')}${c.job_title?' — '+esc(c.job_title):''}</div></div>
+          <div class="info-row"><div class="k">License details</div><div class="v">${esc(c.license_details||'—')}</div></div>
+          <div class="info-row"><div class="k">School details</div><div class="v">${esc(c.school_details||'—')}</div></div>
+          <div class="info-row"><div class="k">Website</div><div class="v">${esc(c.website||'—')}</div></div>
+          <div class="info-row"><div class="k">Background info</div><div class="v">${esc(c.background_info||'—')}</div></div>
+          <div class="info-row"><div class="k">History (misc)</div><div class="v">${esc(c.history||'—')}</div></div>
+        </div>
+
+        <div class="card">
+          <h3>Groups</h3>
+          <div id="groupChips" style="margin-bottom:10px"></div>
+          <select id="addGroupSel"><option value="">+ Add to group…</option>${STATE.groups.filter(g=>!myGroupIds.has(g.id)).map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('starToggle').onclick = async ()=>{
+    const {error} = await sb.from('gc_crm_contacts').update({starred: !c.starred}).eq('id', id);
+    if(!error){ c.starred = !c.starred; openContact(id); }
+  };
+  document.getElementById('editContactBtn').onclick = ()=>openEditContactModal(c);
+  document.getElementById('deleteContactBtn').onclick = async ()=>{
+    if(!confirm(`Delete ${c.name}? This removes all their notes, tasks, and pipeline history.`)) return;
+    await sb.from('gc_crm_contacts').delete().eq('id', id);
+    await loadContacts();
+    backToList();
+  };
+
+  document.getElementById('attachBtn').onclick = (e)=>{ e.stopPropagation(); document.getElementById('attachMenu').classList.toggle('open'); };
+  document.addEventListener('click', ()=>document.getElementById('attachMenu')?.classList.remove('open'), {once:true});
+  document.querySelectorAll('#attachMenu .mi').forEach(mi=>{
+    mi.onclick = ()=>{
+      document.getElementById('attachMenu').classList.remove('open');
+      if(mi.dataset.a==='task') openNewTaskModal(id);
+      if(mi.dataset.a==='pipeline') attachToPipeline(id);
+    };
+  });
+
+  document.getElementById('saveNoteBtn').onclick = async ()=>{
+    const body = document.getElementById('noteInput').value.trim();
+    if(!body) return;
+    await sb.from('gc_crm_notes').insert({contact_id:id, author_id: STATE.me?.id, body});
+    openContact(id);
+  };
+
+  document.getElementById('addGroupSel').onchange = async (e)=>{
+    const gid = e.target.value;
+    if(!gid) return;
+    await sb.from('gc_crm_contact_groups').insert({contact_id:id, group_id:gid});
+    await loadContacts();
+    openContact(id);
+  };
+
+  renderGroupChips(myGroupIds, id);
+  renderAttachedTasks(tasks||[], id);
+  renderAttachedPipeline(pe);
+  renderHistoryFeed(notes||[], tasks||[]);
+}
+
+function backToList(){
+  document.getElementById('contactDetail').style.display='none';
+  document.getElementById('contactsList').style.display='block';
+}
+
+function renderGroupChips(myGroupIds, contactId){
+  const wrap = document.getElementById('groupChips');
+  const names = [...myGroupIds].map(gid=>STATE.groups.find(g=>g.id===gid)).filter(Boolean);
+  wrap.innerHTML = names.length ? names.map(g=>`<span class="badge rm" data-gid="${g.id}">${esc(g.name)}</span>`).join('') : '<span style="color:var(--muted);font-size:12.5px">No groups yet</span>';
+  wrap.querySelectorAll('.badge.rm').forEach(b=>{
+    b.onclick = async ()=>{
+      await sb.from('gc_crm_contact_groups').delete().eq('contact_id', contactId).eq('group_id', b.dataset.gid);
+      await loadContacts();
+      openContact(contactId);
+    };
+  });
+}
+
+function renderAttachedTasks(tasks, contactId){
+  const open = tasks.filter(t=>!t.completed);
+  const wrap = document.getElementById('attachedTasks');
+  if(!open.length){ wrap.innerHTML=''; return; }
+  wrap.innerHTML = `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600;margin:6px 0 4px">Upcoming Tasks (${open.length})</div>` +
+    open.map(t=>{
+      const overdue = t.due_date && t.due_date < todayISO();
+      return `<div class="task-row"><input type="checkbox" data-tid="${t.id}" class="taskDoneCb"><span class="ttl">${esc(t.title)}</span><span class="due ${overdue?'overdue':''}">${t.due_date?fmtDate(t.due_date):''}</span></div>`;
+    }).join('');
+  wrap.querySelectorAll('.taskDoneCb').forEach(cb=>{
+    cb.onchange = async ()=>{
+      await sb.from('gc_crm_tasks').update({completed:true, completed_at:new Date().toISOString()}).eq('id', cb.dataset.tid);
+      openContact(contactId);
+    };
+  });
+}
+
+function renderAttachedPipeline(pe){
+  const wrap = document.getElementById('attachedPipeline');
+  if(!pe){ wrap.innerHTML=''; return; }
+  const status = STATE.statuses.find(s=>s.id===pe.status_id);
+  wrap.innerHTML = `
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600;margin:10px 0 6px">Active Recruit</div>
+    <div class="card" style="background:#f7faf9">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <select id="peStatusSel">${STATE.statuses.map(s=>`<option value="${s.id}" ${s.id===pe.status_id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
+        <button class="link-btn" id="peDetach">Remove from pipeline</button>
+      </div>
+      <div class="two-col">
+        <div class="field"><label>Applicant Source</label><input type="text" id="peSrc" value="${esc(pe.applicant_source||'')}"></div>
+        <div class="field"><label>Made Contact Date</label><input type="date" id="peMadeContact" value="${pe.made_contact_date||''}"></div>
+        <div class="field"><label>License Type</label><input type="text" id="peLicType" value="${esc(pe.license_type||'')}"></div>
+        <div class="field"><label>License Date of Issue</label><input type="date" id="peLicDate" value="${pe.license_date_of_issue||''}"></div>
+        <div class="field"><label>Application Date</label><input type="date" id="peAppDate" value="${pe.application_date||''}"></div>
+        <div class="field"><label>Interview Date</label><input type="date" id="peIntDate" value="${pe.interview_date||''}"></div>
+      </div>
+      <div class="field"><label>Recruitment Plan / Notes</label><textarea id="peNotes">${esc(pe.recruitment_plan_notes||'')}</textarea></div>
+      <div class="field"><label>Tasks To Do / Completed</label>
+        <div class="checklist">
+          ${['Assigned to a Manager','Acknowledgement Sent','Called to Invite','Screening Complete','Hiring Paperwork Complete'].map(k=>`<label><input type="checkbox" class="peChk" data-k="${esc(k)}" ${pe.checklist && pe.checklist[k] ? 'checked':''}> ${esc(k)}</label>`).join('')}
+        </div>
+      </div>
+      <button class="btn" id="peSave">Save recruit details</button>
+    </div>`;
+
+  document.getElementById('peStatusSel').onchange = async (e)=>{
+    await sb.from('gc_crm_pipeline_entries').update({status_id:e.target.value, updated_at:new Date().toISOString()}).eq('id', pe.id);
+  };
+  document.getElementById('peDetach').onclick = async ()=>{
+    if(!confirm('Remove this contact from the Active Recruit pipeline?')) return;
+    await sb.from('gc_crm_pipeline_entries').delete().eq('id', pe.id);
+    openContact(pe.contact_id);
+  };
+  document.getElementById('peSave').onclick = async ()=>{
+    const checklist = {};
+    document.querySelectorAll('.peChk').forEach(cb=>checklist[cb.dataset.k]=cb.checked);
+    const upd = {
+      applicant_source: document.getElementById('peSrc').value.trim() || null,
+      made_contact_date: document.getElementById('peMadeContact').value || null,
+      license_type: document.getElementById('peLicType').value.trim() || null,
+      license_date_of_issue: document.getElementById('peLicDate').value || null,
+      application_date: document.getElementById('peAppDate').value || null,
+      interview_date: document.getElementById('peIntDate').value || null,
+      recruitment_plan_notes: document.getElementById('peNotes').value.trim() || null,
+      checklist,
+      updated_at: new Date().toISOString()
+    };
+    const {error} = await sb.from('gc_crm_pipeline_entries').update(upd).eq('id', pe.id);
+    if(error) alert(error.message); else { const btn=document.getElementById('peSave'); btn.textContent='Saved ✓'; setTimeout(()=>btn.textContent='Save recruit details',1200); }
+  };
+}
+
+function renderHistoryFeed(notes, tasks){
+  const items = [];
+  notes.forEach(n=>items.push({ts:n.created_at, type:'note', data:n}));
+  tasks.filter(t=>t.completed && t.completed_at).forEach(t=>items.push({ts:t.completed_at, type:'task_done', data:t}));
+  items.sort((a,b)=> new Date(b.ts) - new Date(a.ts));
+  const wrap = document.getElementById('historyFeed');
+  if(!items.length){ wrap.innerHTML = '<div class="empty">No history yet.</div>'; return; }
+  wrap.innerHTML = items.map(it=>{
+    const author = it.type==='note' ? STATE.users.find(u=>u.id===it.data.author_id) : null;
+    if(it.type==='note'){
+      return `<div class="hist-item"><span class="avatar">${author?initials(author.name):'?'}</span>
+        <div class="hist-body"><div class="hist-meta"><span>${author?esc(author.name):'Someone'} entered a note</span><span>${fmtDateTime(it.ts)}</span></div>
+        <div class="hist-content">${esc(it.data.body)}</div></div></div>`;
+    }
+    return `<div class="hist-item"><span class="avatar">✓</span>
+      <div class="hist-body"><div class="hist-meta"><span>Task completed</span><span>${fmtDateTime(it.ts)}</span></div>
+      <div class="hist-content task">${esc(it.data.title)}</div></div></div>`;
+  }).join('');
+}
+
+function openEditContactModal(c){
+  openModal(`
+    <h3>Edit ${esc(c.name)}</h3>
+    <div class="two-col">
+      <div class="field"><label>Name *</label><input type="text" id="ecName" value="${esc(c.name)}"></div>
+      <div class="field"><label>Phone</label><input type="tel" id="ecPhone" value="${esc(c.phone||'')}"></div>
+      <div class="field"><label>Email</label><input type="email" id="ecEmail" value="${esc(c.email||'')}"></div>
+      <div class="field"><label>Birthday</label><input type="date" id="ecBday" value="${c.birthday||''}"></div>
+      <div class="field"><label>Salon</label><select id="ecSalon"></select></div>
+      <div class="field"><label>Company Name</label><input type="text" id="ecCompany" value="${esc(c.company_name||'')}"></div>
+      <div class="field"><label>Job Title</label><input type="text" id="ecJob" value="${esc(c.job_title||'')}"></div>
+      <div class="field"><label>Website</label><input type="text" id="ecWebsite" value="${esc(c.website||'')}"></div>
+    </div>
+    <div class="field"><label>Address</label><input type="text" id="ecAddress" value="${esc(c.address||'')}"></div>
+    <div class="field"><label>License Details</label><input type="text" id="ecLicense" value="${esc(c.license_details||'')}"></div>
+    <div class="field"><label>School Details</label><input type="text" id="ecSchool" value="${esc(c.school_details||'')}"></div>
+    <div class="field"><label>Background Info</label><textarea id="ecBg">${esc(c.background_info||'')}</textarea></div>
+    <div class="field"><label>History (misc)</label><textarea id="ecHistory">${esc(c.history||'')}</textarea></div>
+    <div class="modal-actions"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" id="ecSave">Save changes</button></div>
+  `);
+  loadSalonOptions('ecSalon').then(()=>{ document.getElementById('ecSalon').value = c.salon_id||''; });
+  document.getElementById('ecSave').onclick = async ()=>{
+    const upd = {
+      name: document.getElementById('ecName').value.trim(),
+      phone: document.getElementById('ecPhone').value.trim()||null,
+      email: document.getElementById('ecEmail').value.trim()||null,
+      birthday: document.getElementById('ecBday').value||null,
+      salon_id: document.getElementById('ecSalon').value||null,
+      company_name: document.getElementById('ecCompany').value.trim()||null,
+      job_title: document.getElementById('ecJob').value.trim()||null,
+      website: document.getElementById('ecWebsite').value.trim()||null,
+      address: document.getElementById('ecAddress').value.trim()||null,
+      license_details: document.getElementById('ecLicense').value.trim()||null,
+      school_details: document.getElementById('ecSchool').value.trim()||null,
+      background_info: document.getElementById('ecBg').value.trim()||null,
+      history: document.getElementById('ecHistory').value.trim()||null,
+      updated_at: new Date().toISOString()
+    };
+    if(!upd.name){ alert('Name is required'); return; }
+    const {error} = await sb.from('gc_crm_contacts').update(upd).eq('id', c.id);
+    if(error){ alert(error.message); return; }
+    closeModal();
+    await loadContacts();
+    openContact(c.id);
+  };
+}
+
+function openNewTaskModal(contactId){
+  openModal(`
+    <h3>New Task</h3>
+    <div class="field"><label>Title *</label><input type="text" id="ntTitle" placeholder="e.g. Follow up"></div>
+    <div class="two-col">
+      <div class="field"><label>Due date</label><input type="date" id="ntDue" value="${todayISO()}"></div>
+      <div class="field"><label>Assigned to</label><select id="ntAssignee">${STATE.users.map(u=>`<option value="${u.id}" ${u.id===STATE.me?.id?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div>
+    </div>
+    <div class="modal-actions"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" id="ntSave">Save task</button></div>
+  `);
+  document.getElementById('ntSave').onclick = async ()=>{
+    const title = document.getElementById('ntTitle').value.trim();
+    if(!title){ alert('Title is required'); return; }
+    await sb.from('gc_crm_tasks').insert({
+      contact_id: contactId, title,
+      due_date: document.getElementById('ntDue').value || null,
+      assigned_to: document.getElementById('ntAssignee').value || null,
+      created_by: STATE.me?.id
+    });
+    closeModal();
+    openContact(contactId);
+  };
+}
+
+async function attachToPipeline(contactId){
+  const {data:existing} = await sb.from('gc_crm_pipeline_entries').select('id').eq('contact_id', contactId).maybeSingle();
+  if(existing){ alert('Already in the Active Recruit pipeline.'); return; }
+  const firstStatus = STATE.statuses.find(s=>s.category==='active');
+  await sb.from('gc_crm_pipeline_entries').insert({pipeline_id: STATE.pipeline?.id, contact_id: contactId, status_id: firstStatus?.id, made_contact_date: todayISO()});
+  openContact(contactId);
+}
+
+// ---------- Pipeline tab ----------
+async function renderPipeline(){
+  const {data:entries} = await sb.from('gc_crm_pipeline_entries').select('*, gc_crm_contacts(id,name,phone)').order('updated_at', {ascending:false});
+  const active = STATE.statuses.filter(s=>s.category==='active');
+
+  const report = document.getElementById('pipelineReport');
+  report.innerHTML = STATE.statuses.map(s=>{
+    const n = (entries||[]).filter(e=>e.status_id===s.id).length;
+    return `<div class="kpi"><div class="lbl">${esc(s.name)}</div><div class="val">${n}</div></div>`;
+  }).join('');
+
+  const board = document.getElementById('pipelineBoard');
+  board.innerHTML = active.map(s=>{
+    const cards = (entries||[]).filter(e=>e.status_id===s.id);
+    return `<div class="pipe-col"><h4>${esc(s.name)} <span>${cards.length}</span></h4>${
+      cards.map(c=>`<div class="pipe-card" data-id="${c.contact_id}"><div class="nm">${esc(c.gc_crm_contacts?.name||'—')}</div><div class="meta">${esc(c.gc_crm_contacts?.phone||'')}</div></div>`).join('') || '<div style="color:var(--muted);font-size:11.5px">Empty</div>'
+    }</div>`;
+  }).join('');
+  board.querySelectorAll('.pipe-card').forEach(card=>{
+    card.onclick = ()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('section.panel').forEach(x=>x.classList.remove('active'));
+      document.querySelector('.tab[data-t="contacts"]').classList.add('active');
+      document.getElementById('panel-contacts').classList.add('active');
+      openContact(card.dataset.id);
+    };
+  });
+}
+
+// ---------- Tasks tab ----------
+async function renderTasks(){
+  const filter = document.getElementById('taskFilter').value;
+  document.getElementById('taskFilter').onchange = renderTasks;
+  let q = sb.from('gc_crm_tasks').select('*, gc_crm_contacts(id,name), assignee:assigned_to(name)').order('due_date');
+  const {data} = await q;
+  let rows = data||[];
+  const today = todayISO();
+  if(filter==='open') rows = rows.filter(t=>!t.completed);
+  if(filter==='overdue') rows = rows.filter(t=>!t.completed && t.due_date && t.due_date<today);
+  if(filter==='done') rows = rows.filter(t=>t.completed);
+
+  const wrap = document.getElementById('taskList');
+  wrap.innerHTML = rows.length ? rows.map(t=>{
+    const overdue = !t.completed && t.due_date && t.due_date<today;
+    return `<div class="task-row ${t.completed?'done':''}">
+      <input type="checkbox" data-tid="${t.id}" class="taskCb" ${t.completed?'checked':''}>
+      <span class="ttl">${esc(t.title)} — <a href="javascript:void(0)" class="taskContactLink" data-cid="${t.contact_id}">${esc(t.gc_crm_contacts?.name||'—')}</a></span>
+      <span style="font-size:11.5px;color:var(--muted)">${t.assignee?.name?esc(t.assignee.name):''}</span>
+      <span class="due ${overdue?'overdue':''}">${t.due_date?fmtDate(t.due_date):'No due date'}</span>
+    </div>`;
+  }).join('') : '<div class="empty">No tasks here.</div>';
+
+  wrap.querySelectorAll('.taskCb').forEach(cb=>{
+    cb.onchange = async ()=>{
+      await sb.from('gc_crm_tasks').update({completed:cb.checked, completed_at: cb.checked?new Date().toISOString():null}).eq('id', cb.dataset.tid);
+      renderTasks();
+    };
+  });
+  wrap.querySelectorAll('.taskContactLink').forEach(a=>{
+    a.onclick = ()=>{
+      document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('section.panel').forEach(x=>x.classList.remove('active'));
+      document.querySelector('.tab[data-t="contacts"]').classList.add('active');
+      document.getElementById('panel-contacts').classList.add('active');
+      openContact(a.dataset.cid);
+    };
+  });
+}
+
+// ---------- Groups tab ----------
+async function renderGroups(){
+  const wrap = document.getElementById('groupsList');
+  wrap.innerHTML = STATE.groups.map(g=>{
+    const n = STATE.contacts.filter(c=>(c.gc_crm_contact_groups||[]).some(x=>x.group_id===g.id)).length;
+    return `<div class="info-row" style="display:flex;justify-content:space-between;align-items:center">
+      <div><b>${esc(g.name)}</b> <span style="color:var(--muted);font-size:12px">(${n} contact${n===1?'':'s'})</span></div>
+      <button class="link-btn danger-link" data-gid="${g.id}" style="color:var(--red-dk)">Delete</button>
+    </div>`;
+  }).join('') || '<div class="empty">No groups yet.</div>';
+  wrap.querySelectorAll('[data-gid]').forEach(b=>{
+    b.onclick = async ()=>{
+      if(!confirm('Delete this group? Contacts keep their other groups.')) return;
+      await sb.from('gc_crm_groups').delete().eq('id', b.dataset.gid);
+      await loadAll();
+      renderGroups();
+    };
+  });
+}
+document.getElementById('addGroupBtn').onclick = async ()=>{
+  const name = document.getElementById('newGroupName').value.trim();
+  if(!name) return;
+  const {error} = await sb.from('gc_crm_groups').insert({name, sort_order: STATE.groups.length+1});
+  if(error){ alert(error.message); return; }
+  document.getElementById('newGroupName').value='';
+  await loadAll();
+  renderGroups();
+};
+
+// ---------- Users tab ----------
+async function renderUsers(){
+  const wrap = document.getElementById('usersList');
+  wrap.innerHTML = STATE.users.map(u=>`
+    <div class="info-row" style="display:flex;justify-content:space-between;align-items:center">
+      <div><span class="avatar">${initials(u.name)}</span> &nbsp;<b>${esc(u.name)}</b> <span class="badge">${esc(u.role)}</span> ${u.email?`<span style="color:var(--muted);font-size:12px">${esc(u.email)}</span>`:''}</div>
+      <button class="link-btn" data-uid="${u.id}" style="color:var(--red-dk)">Remove</button>
+    </div>`).join('') || '<div class="empty">No users yet.</div>';
+  wrap.querySelectorAll('[data-uid]').forEach(b=>{
+    b.onclick = async ()=>{
+      if(!confirm('Remove this user? Their past notes/tasks stay, but they will no longer appear as an assignee.')) return;
+      await sb.from('gc_crm_users').delete().eq('id', b.dataset.uid);
+      await loadAll();
+      renderUsers();
+    };
+  });
+}
+document.getElementById('addUserBtn').onclick = async ()=>{
+  const name = document.getElementById('newUserName').value.trim();
+  if(!name){ alert('Name is required'); return; }
+  const initialsVal = document.getElementById('newUserInitials').value.trim().toUpperCase() || initials(name);
+  const email = document.getElementById('newUserEmail').value.trim() || null;
+  const role = document.getElementById('newUserRole').value;
+  const {error} = await sb.from('gc_crm_users').insert({name, initials:initialsVal, email, role});
+  if(error){ alert(error.message); return; }
+  document.getElementById('newUserName').value='';
+  document.getElementById('newUserInitials').value='';
+  document.getElementById('newUserEmail').value='';
+  await loadAll();
+  renderUsers();
+};
+
+loadAll();
+</script>
+</body></html>

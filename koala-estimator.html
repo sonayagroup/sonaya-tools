@@ -1130,8 +1130,17 @@ async function loadPricingFromSupabase() {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const items = await resp.json();
 
+    // Update BLOW_IN prices
+    items.filter(i => i.product_type.startsWith('Blow-In')).forEach(ci => {
+      const p = parseFloat(ci.unit_price);
+      if (p > 0) {
+        if (ci.product_type.includes('Cellulose')) { BLOW_IN[0].price = p; }
+        else if (ci.product_type.includes('Fiberglass')) { BLOW_IN[1].price = p; }
+      }
+    });
+
     // Update INSULATION (batt/rigid) prices
-    items.filter(i => i.category === 'Insulation' && !i.product_type.startsWith('SPF')).forEach(ci => {
+    items.filter(i => i.category === 'Insulation' && !i.product_type.startsWith('SPF') && !i.product_type.startsWith('Blow-In')).forEach(ci => {
       const key = normKey(ci.product_type);
       const match = INSULATION.find(ins => normKey(ins.name) === key);
       if (match) {
@@ -1751,12 +1760,13 @@ function addBlowIn() {
   opt.rows.blowIn.push(id);
   const tr = document.createElement('tr'); tr.id = p + 'bi-' + id;
   tr.innerHTML = `
-    <td><select onchange="recalc()" data-id="${id}" class="${p}bi-sel">${optionsHtml(BLOW_IN, 'name')}</select></td>
+    <td><select onchange="onBlowInSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}bi-sel">${optionsHtml(BLOW_IN, 'name')}</select></td>
     <td><input type="number" value="0" min="0" class="${p}bi-qty" data-id="${id}" oninput="recalc()"></td>
-    <td class="num ${p}bi-price cost-col" data-id="${id}">--</td>
+    <td class="cost-col"><input type="number" value="" min="0" step="0.01" class="${p}bi-price" data-id="${id}" oninput="recalc()" style="width:72px;text-align:right;padding:3px 4px;border:1px solid var(--border);border-radius:4px;font-size:.85rem" placeholder="--"></td>
     <td class="num cost ${p}bi-cost cost-col" data-id="${id}">$0.00</td>
     <td><button class="btn-remove" onclick="removeRow('blowIn','${p}bi-${id}',${id})">&#10005;</button></td>`;
   $(p + 'blowInBody').appendChild(tr);
+  onBlowInSelect(p, id);
   recalc();
 }
 
@@ -1767,11 +1777,12 @@ function addBatt() {
   tr.innerHTML = `
     <td><select onchange="onBattSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}bt-sel">${battOptionsHtml()}</select></td>
     <td><input type="number" value="0" min="0" class="${p}bt-qty" data-id="${id}" oninput="recalc()"></td>
-    <td class="num ${p}bt-price cost-col" data-id="${id}">--</td>
+    <td class="cost-col"><input type="number" value="" min="0" step="0.01" class="${p}bt-price" data-id="${id}" oninput="recalc()" style="width:72px;text-align:right;padding:3px 4px;border:1px solid var(--border);border-radius:4px;font-size:.85rem" placeholder="--"></td>
     <td class="num ${p}bt-sqft" data-id="${id}">--</td>
     <td class="num cost ${p}bt-cost cost-col" data-id="${id}">$0.00</td>
     <td><button class="btn-remove" onclick="removeRow('batt','${p}bt-${id}',${id})">&#10005;</button></td>`;
   $(p + 'battBody').appendChild(tr);
+  onBattSelect(p, id);
   recalc();
 }
 
@@ -1780,12 +1791,13 @@ function addSpf() {
   opt.rows.spf.push(id);
   const tr = document.createElement('tr'); tr.id = p + 'sf-' + id;
   tr.innerHTML = `
-    <td><select onchange="recalc()" data-id="${id}" class="${p}sf-sel">${optionsHtml(SPF_TYPES, 'name')}</select></td>
+    <td><select onchange="onSpfSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}sf-sel">${optionsHtml(SPF_TYPES, 'name')}</select></td>
     <td><input type="number" value="0" min="0" class="${p}sf-qty" data-id="${id}" oninput="recalc()"></td>
-    <td class="num ${p}sf-price cost-col" data-id="${id}">--</td>
+    <td class="cost-col"><input type="number" value="" min="0" step="0.01" class="${p}sf-price" data-id="${id}" oninput="recalc()" style="width:72px;text-align:right;padding:3px 4px;border:1px solid var(--border);border-radius:4px;font-size:.85rem" placeholder="--"></td>
     <td class="num cost ${p}sf-cost cost-col" data-id="${id}">$0.00</td>
     <td><button class="btn-remove" onclick="removeRow('spf','${p}sf-${id}',${id})">&#10005;</button></td>`;
   $(p + 'spfBody').appendChild(tr);
+  onSpfSelect(p, id);
   recalc();
 }
 
@@ -1960,13 +1972,33 @@ function onJobTypeChange() {
 
 // ─── SELECT CALLBACKS ───────────────────────────────────────────────────────
 
+function onBlowInSelect(p, id) {
+  const sel = document.querySelector(`.${CSS.escape(p)}bi-sel[data-id="${id}"]`);
+  const priceInput = document.querySelector(`.${CSS.escape(p)}bi-price[data-id="${id}"]`);
+  if (sel && sel.value !== '' && priceInput) {
+    priceInput.value = BLOW_IN[parseInt(sel.value)].price.toFixed(2);
+  } else if (priceInput) {
+    priceInput.value = '';
+  }
+}
+
 function onBattSelect(p, id) {
   const sel = document.querySelector(`.${CSS.escape(p)}bt-sel[data-id="${id}"]`);
-  const priceEl = document.querySelector(`.${CSS.escape(p)}bt-price[data-id="${id}"]`);
-  if (sel && sel.value !== '') {
-    priceEl.textContent = fmt(INSULATION[parseInt(sel.value)].price);
-  } else if (priceEl) {
-    priceEl.textContent = '--';
+  const priceInput = document.querySelector(`.${CSS.escape(p)}bt-price[data-id="${id}"]`);
+  if (sel && sel.value !== '' && priceInput) {
+    priceInput.value = INSULATION[parseInt(sel.value)].price.toFixed(2);
+  } else if (priceInput) {
+    priceInput.value = '';
+  }
+}
+
+function onSpfSelect(p, id) {
+  const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${id}"]`);
+  const priceInput = document.querySelector(`.${CSS.escape(p)}sf-price[data-id="${id}"]`);
+  if (sel && sel.value !== '' && priceInput) {
+    priceInput.value = SPF_TYPES[parseInt(sel.value)].pricePerBdFt.toFixed(2);
+  } else if (priceInput) {
+    priceInput.value = '';
   }
 }
 
@@ -2276,7 +2308,7 @@ function addBattFromSuggestion(prodIdx, qty) {
   tr.innerHTML = `
     <td><select onchange="onBattSelect('${p}',${id}); recalc()" data-id="${id}" class="${p}bt-sel">${battOptionsHtml()}</select></td>
     <td><input type="number" value="${qty || 0}" min="0" class="${p}bt-qty" data-id="${id}" oninput="recalc()"></td>
-    <td class="num ${p}bt-price cost-col" data-id="${id}">--</td>
+    <td class="cost-col"><input type="number" value="" min="0" step="0.01" class="${p}bt-price" data-id="${id}" oninput="recalc()" style="width:72px;text-align:right;padding:3px 4px;border:1px solid var(--border);border-radius:4px;font-size:.85rem" placeholder="--"></td>
     <td class="num ${p}bt-sqft" data-id="${id}">--</td>
     <td class="num cost ${p}bt-cost cost-col" data-id="${id}">$0.00</td>
     <td><button class="btn-remove" onclick="removeRow('batt','${p}bt-${id}',${id})">&#10005;</button></td>`;
@@ -2339,16 +2371,14 @@ function calcOption(opt) {
   opt.rows.blowIn.forEach(id => {
     const sel = document.querySelector(`.${CSS.escape(p)}bi-sel[data-id="${id}"]`);
     const qty = parseFloat(document.querySelector(`.${CSS.escape(p)}bi-qty[data-id="${id}"]`)?.value) || 0;
-    const priceEl = document.querySelector(`.${CSS.escape(p)}bi-price[data-id="${id}"]`);
+    const priceInput = document.querySelector(`.${CSS.escape(p)}bi-price[data-id="${id}"]`);
     const costEl = document.querySelector(`.${CSS.escape(p)}bi-cost[data-id="${id}"]`);
     if (sel && sel.value !== '') {
-      const item = BLOW_IN[parseInt(sel.value)];
-      if (priceEl) priceEl.textContent = fmt(item.price);
-      const cost = qty * item.price;
+      const unitPrice = parseFloat(priceInput?.value) || 0;
+      const cost = qty * unitPrice;
       if (costEl) costEl.textContent = fmt(cost);
       totalBlowIn += cost;
     } else {
-      if (priceEl) priceEl.textContent = '--';
       if (costEl) costEl.textContent = '$0.00';
     }
   });
@@ -2357,13 +2387,15 @@ function calcOption(opt) {
   opt.rows.batt.forEach(id => {
     const sel = document.querySelector(`.${CSS.escape(p)}bt-sel[data-id="${id}"]`);
     const qty = parseFloat(document.querySelector(`.${CSS.escape(p)}bt-qty[data-id="${id}"]`)?.value) || 0;
+    const priceInput = document.querySelector(`.${CSS.escape(p)}bt-price[data-id="${id}"]`);
     const sqftEl = document.querySelector(`.${CSS.escape(p)}bt-sqft[data-id="${id}"]`);
     const costEl = document.querySelector(`.${CSS.escape(p)}bt-cost[data-id="${id}"]`);
     if (sel && sel.value !== '') {
       const item = INSULATION[parseInt(sel.value)];
       const sqft = qty * item.coverage;
       if (sqftEl) sqftEl.textContent = sqft.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' sf';
-      const cost = qty * item.price;
+      const unitPrice = parseFloat(priceInput?.value) || 0;
+      const cost = qty * unitPrice;
       if (costEl) costEl.textContent = fmt(cost);
       totalBatt += cost;
     } else {
@@ -2376,16 +2408,14 @@ function calcOption(opt) {
   opt.rows.spf.forEach(id => {
     const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${id}"]`);
     const qty = parseFloat(document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${id}"]`)?.value) || 0;
-    const priceEl = document.querySelector(`.${CSS.escape(p)}sf-price[data-id="${id}"]`);
+    const priceInput = document.querySelector(`.${CSS.escape(p)}sf-price[data-id="${id}"]`);
     const costEl = document.querySelector(`.${CSS.escape(p)}sf-cost[data-id="${id}"]`);
     if (sel && sel.value !== '') {
-      const item = SPF_TYPES[parseInt(sel.value)];
-      if (priceEl) priceEl.textContent = '$' + item.pricePerBdFt.toFixed(2);
-      const cost = qty * item.pricePerBdFt;
+      const unitPrice = parseFloat(priceInput?.value) || 0;
+      const cost = qty * unitPrice;
       if (costEl) costEl.textContent = fmt(cost);
       totalSpf += cost;
     } else {
-      if (priceEl) priceEl.textContent = '--';
       if (costEl) costEl.textContent = '$0.00';
     }
   });
@@ -2595,19 +2625,22 @@ function serializeForm() {
     opt.rows.blowIn.forEach(id => {
       const sel = document.querySelector(`.${CSS.escape(p)}bi-sel[data-id="${id}"]`);
       const qty = document.querySelector(`.${CSS.escape(p)}bi-qty[data-id="${id}"]`);
-      optData.blowIn.push({ material: sel?.value || '', qty: qty?.value || '0' });
+      const price = document.querySelector(`.${CSS.escape(p)}bi-price[data-id="${id}"]`);
+      optData.blowIn.push({ material: sel?.value || '', qty: qty?.value || '0', price: price?.value || '' });
     });
 
     opt.rows.batt.forEach(id => {
       const sel = document.querySelector(`.${CSS.escape(p)}bt-sel[data-id="${id}"]`);
       const qty = document.querySelector(`.${CSS.escape(p)}bt-qty[data-id="${id}"]`);
-      optData.batt.push({ product: sel?.value || '', qty: qty?.value || '0' });
+      const price = document.querySelector(`.${CSS.escape(p)}bt-price[data-id="${id}"]`);
+      optData.batt.push({ product: sel?.value || '', qty: qty?.value || '0', price: price?.value || '' });
     });
 
     opt.rows.spf.forEach(id => {
       const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${id}"]`);
       const qty = document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${id}"]`);
-      optData.spf.push({ type: sel?.value || '', qty: qty?.value || '0' });
+      const price = document.querySelector(`.${CSS.escape(p)}sf-price[data-id="${id}"]`);
+      optData.spf.push({ type: sel?.value || '', qty: qty?.value || '0', price: price?.value || '' });
     });
 
     opt.rows.labor.forEach(id => {
@@ -2732,6 +2765,12 @@ function deserializeForm(data) {
       const qty = document.querySelector(`.${CSS.escape(p)}bi-qty[data-id="${lastId}"]`);
       if (sel) sel.value = row.material;
       if (qty) qty.value = row.qty;
+      onBlowInSelect(p, lastId);
+      // Restore saved price override (after onBlowInSelect sets DB price)
+      if (row.price != null && row.price !== '') {
+        const priceInput = document.querySelector(`.${CSS.escape(p)}bi-price[data-id="${lastId}"]`);
+        if (priceInput) priceInput.value = row.price;
+      }
     });
 
     // Batt rows
@@ -2743,6 +2782,11 @@ function deserializeForm(data) {
       if (sel) sel.value = row.product;
       if (qty) qty.value = row.qty;
       onBattSelect(p, lastId);
+      // Restore saved price override
+      if (row.price != null && row.price !== '') {
+        const priceInput = document.querySelector(`.${CSS.escape(p)}bt-price[data-id="${lastId}"]`);
+        if (priceInput) priceInput.value = row.price;
+      }
     });
 
     // SPF rows
@@ -2753,6 +2797,12 @@ function deserializeForm(data) {
       const qty = document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${lastId}"]`);
       if (sel) sel.value = row.type;
       if (qty) qty.value = row.qty;
+      onSpfSelect(p, lastId);
+      // Restore saved price override
+      if (row.price != null && row.price !== '') {
+        const priceInput = document.querySelector(`.${CSS.escape(p)}sf-price[data-id="${lastId}"]`);
+        if (priceInput) priceInput.value = row.price;
+      }
     });
 
     // Remove default labor row that createOption+addLabor added

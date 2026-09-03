@@ -467,7 +467,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   <div class="container">
     <div class="connection-banner connected" id="finBanner">
       <span class="banner-icon">&#10003;</span>
-      <span>Real QuickBooks P&amp;L data for Patel Insulation LLC — Jan through Jun 2026 (Mar restated). July 2026 hasn't been provided yet, so it's omitted rather than estimated. August (in progress) isn't closed in QuickBooks yet — the small tile below uses the ServiceMinder invoice proxy in the meantime.</span>
+      <span>Real QuickBooks P&amp;L data for Patel Insulation LLC — Jan through Jul 2026. Jan, Feb, Mar, and May were corrected by Pranav on Sep 3, 2026 (materially different from what this dashboard showed before — see the callouts below); April was unchanged. August (in progress) isn't closed in QuickBooks yet — the small tile below uses the ServiceMinder invoice proxy in the meantime.</span>
     </div>
     <div class="section-title">Callouts</div>
     <div class="flag-list" id="finFlagList"></div>
@@ -478,7 +478,8 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <button data-month="mar">Mar</button>
         <button data-month="apr">Apr</button>
         <button data-month="may">May</button>
-        <button data-month="jun" class="active">Jun</button>
+        <button data-month="jun">Jun</button>
+        <button data-month="jul" class="active">Jul</button>
         <button data-month="ytd">YTD</button>
       </div>
     </div>
@@ -487,7 +488,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Revenue &amp; Net Income — Monthly Actuals</h3>
-        <p class="chart-subtitle">Jan–Jun 2026 — Jul omitted (no data)</p>
+        <p class="chart-subtitle">Jan–Jul 2026</p>
         <div class="chart-area" id="chartFinTrend"></div>
       </div>
       <div class="chart-card">
@@ -496,17 +497,19 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <div class="chart-area" id="chartFinExpense"></div>
       </div>
     </div>
-    <div class="section-title">June 2026 by Location</div>
-    <div class="store-table-wrap">
-      <table class="store-table" id="finLocationTable">
-        <thead><tr><th>Location</th><th>Revenue</th><th>Net Income</th></tr></thead>
-        <tbody id="finLocationTbody"></tbody>
-      </table>
+    <div id="finLocationSection">
+      <div class="section-title" id="finLocationTitle">Jul 2026 by Location</div>
+      <div class="store-table-wrap">
+        <table class="store-table" id="finLocationTable">
+          <thead><tr><th>Location</th><th>Revenue</th><th>Net Income</th></tr></thead>
+          <tbody id="finLocationTbody"></tbody>
+        </table>
+      </div>
     </div>
-    <div class="section-title" id="finPLTitle">P&amp;L Summary — Jun 2026</div>
+    <div class="section-title" id="finPLTitle">P&amp;L Summary — Jul 2026</div>
     <div class="store-table-wrap">
       <table class="store-table" id="finTable">
-        <thead><tr><th>Line Item</th><th id="finTableMonthCol">Jun 2026</th></tr></thead>
+        <thead><tr><th>Line Item</th><th id="finTableMonthCol">Jul 2026</th></tr></thead>
         <tbody id="finTbody"></tbody>
       </table>
     </div>
@@ -847,56 +850,76 @@ const dataStore = {
     { customer: 'Caliber Collision',             date: '2026-07-30', amount: 45638.68,  service: 'B2B New Installation' },
     { customer: 'Crystal Boarding School',       date: '2026-08-13', amount: 39607.78,  service: 'B2B New Installation' },
   ],
-  // Real QuickBooks Online Profit & Loss reports for Patel Insulation LLC, provided by Pranav as PDFs
-  // (Jan/Feb pulled Mar 17 2026; March is the "Updated"/restated version pulled Apr 8 2026; May pulled
-  // Jun 15 2026; June pulled Jul 30 2026, first month reported with an Albuquerque/Corporate/Las Cruces
-  // location split). April and July 2026 were not provided — intentionally left out, not estimated.
+  // Real QuickBooks Online Profit & Loss reports for Patel Insulation LLC. Jan–Jul 2026 were all
+  // re-provided by Pranav as corrected PDFs pulled Sep 1 2026 (Jan, Feb, Mar, and May all changed
+  // materially from what this dashboard showed before — see finFlags below; April was re-pulled too but
+  // is byte-for-byte identical to what was already here, so it needed no change). June and July are the
+  // first two months QuickBooks reports with an Albuquerque/Corporate/Las Cruces/Not-Specified location
+  // split (see locationByMonth). August is still open in QuickBooks — the small tile in the UI uses the
+  // ServiceMinder invoice proxy in the meantime.
   // Expense-bucket splits (Materials / Field Labor / Vehicle & Fuel / Marketing / Admin & Overhead) are
   // derived by category-mapping each month's actual COGS + Expense line items; each month's five buckets
-  // sum exactly to that month's COGS + Total Expenses.
+  // sum exactly to that month's COGS + Total Expenses. Marketing = Advertising & Marketing + Brand Fund
+  // Contribution exactly (verified against the original bucket methodology on Jan/Feb before this
+  // correction, which matched to the penny); the other four buckets follow the same category logic.
   financial: {
-    monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun'],
+    monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul'],
     months: {
-      jan: { label: 'Jan 2026', revenue: 156946.51, cogs: 72199.23, grossProfit: 84747.28, grossMargin: 54.00, opex: 78306.22, netIncome: 6442.68, netMargin: 4.11,
-             buckets: { materials: 40801.54, fieldLabor: 31397.69, vehicleFuel: 2021.05, marketing: 8497.93, admin: 67787.24 } },
-      feb: { label: 'Feb 2026', revenue: 185272.10, cogs: 48668.00, grossProfit: 136604.10, grossMargin: 73.73, opex: 67916.07, netIncome: 68742.38, netMargin: 37.10,
-             buckets: { materials: 14618.05, fieldLabor: 34049.95, vehicleFuel: 4117.40, marketing: 4779.03, admin: 59019.64 } },
-      mar: { label: 'Mar 2026 (restated)', revenue: 192370.66, cogs: 148880.34, grossProfit: 43490.32, grossMargin: 22.61, opex: 83337.58, netIncome: -39845.79, netMargin: -20.71,
-             buckets: { materials: 101634.39, fieldLabor: 47245.95, vehicleFuel: 3595.83, marketing: 3922.09, admin: 75819.66 } },
+      jan: { label: 'Jan 2026 (corrected)', revenue: 156946.51, cogs: 87608.45, grossProfit: 69338.06, grossMargin: 44.18, opex: 78306.22, netIncome: -8966.54, netMargin: -5.71,
+             buckets: { materials: 56210.76, fieldLabor: 65419.94, vehicleFuel: 4614.62, marketing: 8497.93, admin: 31171.42 } },
+      feb: { label: 'Feb 2026 (corrected)', revenue: 186167.88, cogs: 183647.66, grossProfit: 2520.22, grossMargin: 1.35, opex: 67916.07, netIncome: -65341.50, netMargin: -35.10,
+             buckets: { materials: 149597.71, fieldLabor: 59498.30, vehicleFuel: 4592.79, marketing: 4779.03, admin: 33095.90 } },
+      mar: { label: 'Mar 2026 (corrected)', revenue: 192457.99, cogs: 199498.70, grossProfit: -7040.71, grossMargin: -3.66, opex: 67722.14, netIncome: -74761.38, netMargin: -38.85,
+             buckets: { materials: 152252.75, fieldLabor: 62752.17, vehicleFuel: 2780.01, marketing: 5166.10, admin: 44269.81 } },
       apr: { label: 'Apr 2026', revenue: 297674.37, cogs: 95443.30, grossProfit: 202231.07, grossMargin: 67.94, opex: 81840.05, netIncome: 119743.27, netMargin: 40.23,
              buckets: { materials: 49921.77, fieldLabor: 45521.53, vehicleFuel: 1766.14, marketing: 5939.60, admin: 74134.31 } },
-      may: { label: 'May 2026', revenue: 287973.43, cogs: 116558.43, grossProfit: 171415.00, grossMargin: 59.52, opex: 109043.44, netIncome: 62372.19, netMargin: 21.66,
-             buckets: { materials: 54112.38, fieldLabor: 62446.05, vehicleFuel: 2103.68, marketing: 10163.59, admin: 96776.17 } },
-      jun: { label: 'Jun 2026', revenue: 217252.45, cogs: 107998.99, grossProfit: 109253.46, grossMargin: 50.28, opex: 90354.13, netIncome: 18899.92, netMargin: 8.70,
-             buckets: { materials: 71378.76, fieldLabor: 36620.23, vehicleFuel: 2711.19, marketing: 7172.14, admin: 80470.80 } },
+      may: { label: 'May 2026 (corrected)', revenue: 287973.43, cogs: 89695.99, grossProfit: 198277.44, grossMargin: 68.85, opex: 109043.44, netIncome: 89234.63, netMargin: 30.99,
+             buckets: { materials: 27249.94, fieldLabor: 114215.96, vehicleFuel: 6835.73, marketing: 10163.59, admin: 40274.21 } },
+      jun: { label: 'Jun 2026 (corrected)', revenue: 217114.55, cogs: 115250.03, grossProfit: 101864.52, grossMargin: 46.92, opex: 90354.13, netIncome: 11510.98, netMargin: 5.30,
+             buckets: { materials: 79016.18, fieldLabor: 70124.01, vehicleFuel: 6771.96, marketing: 7172.14, admin: 42519.87 } },
+      jul: { label: 'Jul 2026', revenue: 386385.06, cogs: 137232.70, grossProfit: 249152.36, grossMargin: 64.48, opex: 86685.63, netIncome: 162468.22, netMargin: 42.05,
+             buckets: { materials: 96317.82, fieldLabor: 75964.31, vehicleFuel: 5597.51, marketing: 10136.42, admin: 35902.27 } },
     },
-    // Officially reported cumulative YTD as of the May 2026 P&L (QuickBooks-computed, not derived by us).
-    // Revenue reconciles almost exactly against summing the 5 individual monthly statements (off by ~$569 on $1.12M);
-    // net income does not (off by ~$189.5K) — see the critical callout below.
-    ytdThroughMay: { label: 'Jan–May 2026 YTD (QuickBooks report)', revenue: 1120805.82, netIncome: 27935.00 },
-    // June 2026 was the first month QuickBooks reported with a location split.
-    juneByLocation: [
-      { location: 'Albuquerque', revenue: 213367.23, netIncome: 62021.98 },
-      { location: 'Las Cruces',  revenue: 3885.22,   netIncome: -9332.27 },
-      { location: 'Corporate (overhead)', revenue: 0, netIncome: -33762.76 },
-    ],
+    // Officially reported cumulative YTD, read directly off the July 2026 P&L's own "Jan 1 - Jul 31 2026
+    // (YTD)" column (QuickBooks-computed, not derived by us). Both revenue and net income now reconcile
+    // EXACTLY against summing the 7 individual monthly statements above (to the penny on $1.72M revenue
+    // and $233,887.68 net income) — the $189.5K unreconciled gap flagged in the prior version of this
+    // dashboard is resolved by this correction. See the 'ok' flag below.
+    ytdThroughJul: { label: 'Jan–Jul 2026 YTD (QuickBooks report, from Jul P&L)', revenue: 1724719.79, netIncome: 233887.68 },
+    // June and July 2026 are the two months QuickBooks has reported with a location split so far.
+    locationByMonth: {
+      jun: [
+        { location: 'Albuquerque', revenue: 213229.33, netIncome: 54633.04 },
+        { location: 'Las Cruces',  revenue: 3885.22,   netIncome: -9332.27 },
+        { location: 'Corporate (overhead)', revenue: 0, netIncome: -33762.76 },
+        { location: 'Not Specified', revenue: 0, netIncome: -27.03 },
+      ],
+      jul: [
+        { location: 'Albuquerque', revenue: 371720.27, netIncome: 192881.49 },
+        { location: 'Las Cruces',  revenue: 14664.79,  netIncome: 4004.38 },
+        { location: 'Corporate (overhead)', revenue: 0, netIncome: -34417.65 },
+        { location: 'Not Specified', revenue: 0, netIncome: 0 },
+      ],
+    },
   },
   // Notable flags surfaced directly from the real P&L numbers above.
   finFlags: [
-    { level: 'critical', title: 'March restatement still unreconciled — now off by $189.5K through May',
-      body: 'With April added, summing the five individual Jan–May monthly P&Ls gives $217,455 in net income — but QuickBooks\' own Jan–May YTD report shows just $27,935, a $189,520 gap. Revenue reconciles almost exactly between the two (within $569 on $1.12M), so the entire gap is on the cost side. That points to costs sitting at the YTD/consolidated level that aren\'t reflected in one or more of the individual monthly statements — worth a direct reconciliation with your bookkeeper before trusting Jan–May actuals.' },
-    { level: 'serious', title: 'BI Fiberglass costs are missing for a second month — now April too',
-      body: 'April shows $80,130 in BI Fiberglass sales but $0 in the matching COGS line (compare June: $130,448 in BI Fiberglass sales against $45,822 of COGS, a ~35% ratio). At that same ratio, April is likely missing roughly $28,000 of cost, which would mean April\'s 67.9% gross margin and 40.2% net margin are overstated. This is the same pattern flagged for February, where $90,671 of BI Fiberglass sales also carried $0 COGS that month — suggests BI Fiberglass installer costs are being posted to a different month than the matching revenue.' },
-    { level: 'serious', title: 'March posted a $39,846 net loss',
-      body: 'COGS jumped to 77.4% of revenue in March — more than double every other month shown (26–50%). Likely related to the BI Fiberglass timing issue above and the broader restatement flagged first.' },
-    { level: 'warn', title: 'Las Cruces is running at a loss',
-      body: 'June was the first month QuickBooks split results by location. Albuquerque was profitable (+$62,022 net income), but Las Cruces posted –$9,332 and newly broken-out Corporate overhead (royalties, brand fund, management fees, G/L insurance) came to –$33,763 — June’s consolidated net income ($18,900) is being carried entirely by Albuquerque.' },
-    { level: 'warn', title: 'One month of P&L data is still missing',
-      body: 'No report has been provided for July 2026 yet — it\'s left out of the trend chart below rather than estimated. Send it over when you have it.' },
+    { level: 'critical', title: 'Jan–Mar and May 2026 net income were significantly restated — Jan and Feb flip from profit to loss',
+      body: 'Pranav sent corrected P&Ls (pulled Sep 1 2026) for every month Jan–Jul. Compared to what this dashboard showed before: January flips from +$6,443 net income to a $8,967 loss; February flips from +$68,742 to a $65,342 loss; March\'s loss deepens from –$39,846 to –$74,761; May\'s profit improves from +$62,372 to +$89,235. Only April was unchanged (re-pulled byte-for-byte identical). The swing is entirely COGS timing/classification — revenue is unchanged in every month. Net effect: H1 2026 profitability is materially worse than this dashboard previously showed.' },
+    { level: 'ok', title: 'The $189.5K reconciliation gap flagged previously is now resolved',
+      body: 'Summing all 7 individual monthly P&Ls (Jan–Jul) now matches QuickBooks\' own Jan–Jul YTD report exactly — $1,724,719.79 revenue and $233,887.68 net income, both to the penny. The bookkeeper appears to have gone back and properly posted the missing/misclassified COGS entries that caused the prior mismatch.' },
+    { level: 'serious', title: 'February\'s COGS correction looks like a multi-month catch-up entry, not a normal month',
+      body: 'February COGS jumped to $183,648 against $186,168 of revenue — 98.65% of revenue, versus 27–56% in every other month. Batts COGS alone was $73,661 against just $10,461 of Batts sales (704% of that line\'s revenue), and BI Fiberglass COGS was 70% of BI Fiberglass sales versus ~35% in June. This pattern (large COGS with no matching revenue increase) usually means costs from other periods were booked into February in bulk. Worth confirming with the bookkeeper whether some of this belongs in earlier months (or even 2025) rather than treating Feb\'s near-zero 1.35% gross margin as that month\'s real unit economics.' },
+    { level: 'serious', title: 'March posted a deeper $74,761 net loss (was –$39,846)',
+      body: 'COGS is now 103.7% of revenue in March — gross profit is negative. Likely the same missing/mistimed-cost pattern as February, now more fully corrected.' },
+    { level: 'warn', title: 'Las Cruces was running at a loss through June, but turned profitable in July',
+      body: 'Las Cruces posted –$9,332 net income in June but +$4,004 in July — the first profitable month since location reporting started. Corporate overhead (royalties, brand fund, management fees, G/L insurance) remains a drag both months (–$33,763 in June, –$34,418 in July), fully absorbed by Albuquerque, which was profitable both months ($54,633 in June, $192,881 in July).' },
+    { level: 'ok', title: 'July 2026 P&L is now available and was a strong month',
+      body: '$386,385 revenue, $162,468 net income (42.1% net margin) — the highest of any month on file. "Not Specified" location spend also dropped to $0, meaning July is the first month with every dollar cleanly assigned to a location.' },
     { level: 'ok', title: 'February included a one-time $40,000 inspection contract',
       body: '"Annual Inspection Sales" was $40,000 in Feb 2026 vs. $0 in Feb 2025 — looks like a bulk/annual contract, not a run-rate increase. Worth excluding when judging month-over-month growth.' },
-    { level: 'ok', title: 'May expenses included an $18,298 payroll credit',
-      body: 'A negative "Vacation Pay" line (–$18,298, i.e. a reversal/credit) reduced May’s expenses and flattered that month’s margin somewhat versus a typical month.' },
+    { level: 'ok', title: 'May expenses included an $18,298 payroll credit; March also carried an $18,430 credit',
+      body: 'A negative "Vacation Pay" line reduced expenses in both May (–$18,298) and, per the newly corrected March P&L, March as well (–$18,430) — likely the same reversal/credit landing a month later than originally recorded. Both months\' margins are flattered somewhat by this relative to a typical month.' },
   ],
   // CRM Pipeline tab data now lives in Supabase (table crm_deals) — see the "CRM Pipeline (live)"
   // section further down for the fetch/create/update calls. This dataStore no longer embeds deal
@@ -1432,16 +1455,15 @@ function renderPipelineTab() {
 }
 
 /* ---------------- Render: Financial tab ---------------- */
-let finMonth = 'jun';
+let finMonth = 'jul';
 let revSourceRange = '30d';
 let repRevenueRange = '30d';
 const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
 const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
 
-/* Synthetic "YTD" entry: sums every real monthly P&L on file (Jan-Jun 2026 — Jul is omitted since no
-   report has been provided for it, matching how the trend chart already treats missing months). This is
-   explicitly a sum of the individual monthly statements, NOT a QuickBooks-native cumulative report — see
-   the critical flag below on why those two don't currently agree (a $189.5K unreconciled gap through May). */
+/* Synthetic "YTD" entry: sums every real monthly P&L on file (Jan-Jul 2026, all months present). This is
+   explicitly a sum of the individual monthly statements, not a QuickBooks-native cumulative report — but
+   as of the Sep 2026 correction the two now agree exactly (see the 'ok' flag on the reconciliation). */
 function computeYtdSummary() {
   const months = dataStore.financial.months;
   const presentMonths = dataStore.financial.monthOrder.filter(m => months[m]);
@@ -1481,8 +1503,8 @@ function renderFinancialTab() {
     kpiTile('Net Income', fmtMoneyCompact(f.netIncome), fmtPct(f.netMargin) + ' margin', f.netIncome >= 0 ? 'good' : 'bad'),
   ].join('');
 
-  // Context row: official YTD-through-May (as reported), sum of all real monthly statements on file, and current month in progress
-  const ytd = dataStore.financial.ytdThroughMay;
+  // Context row: official YTD-through-July (as reported), sum of all real monthly statements on file, and current month in progress
+  const ytd = dataStore.financial.ytdThroughJul;
   const presentMonths = dataStore.financial.monthOrder.filter(m => months[m]);
   const sumRevenue = presentMonths.reduce((a, m) => a + months[m].revenue, 0);
   const sumNetIncome = presentMonths.reduce((a, m) => a + months[m].netIncome, 0);
@@ -1494,12 +1516,12 @@ function renderFinancialTab() {
     <div class="callout"><div class="callout-label">${sumLabel}</div><div class="callout-value">${fmtMoneyCompact(sumRevenue)}</div>
       ${deltaLine(fmtMoneyCompact(sumNetIncome) + ' net income', 'var(--delta-up-good)')}</div>
     <div class="callout"><div class="callout-label">${ytd.label}</div><div class="callout-value">${fmtMoneyCompact(ytd.revenue)}</div>
-      ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income — $189.5K below the monthly-sum total at left, see callout above', 'var(--delta-down-bad)')}</div>
+      ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income — matches the monthly-sum total at left exactly', 'var(--delta-up-good)')}</div>
     <div class="callout"><div class="callout-label">Aug 2026 (in progress) — ServiceMinder proxy</div><div class="callout-value">${fmtMoneyCompact(dataStore.revenue.mtdInvoiced)}</div>
       ${deltaLine('Aug 1–20 invoiced, not yet closed in QuickBooks', 'var(--text-muted)')}</div>
   `;
 
-  // Trend: every month with real data on file (Jul omitted, not interpolated)
+  // Trend: every month with real data on file
   const trendMonths = presentMonths;
   const shortLabel = m => months[m].label.split(' ')[0];
   renderLineChart('chartFinTrend', [
@@ -1511,10 +1533,20 @@ function renderFinancialTab() {
   document.getElementById('finExpenseSubtitle').textContent = f.label + ' — share of COGS + operating expenses';
   renderPieChart('chartFinExpense', Object.entries(f.buckets).map(([k, v]) => ({ label: bucketLabels[k], value: v })));
 
-  // June-by-location table (always shown; June is the only month with a location split so far)
-  document.getElementById('finLocationTbody').innerHTML = dataStore.financial.juneByLocation.map(l =>
-    `<tr><td>${l.location}</td><td>${fmtMoney(l.revenue)}</td><td>${l.netIncome < 0 ? '(' + fmtMoney(Math.abs(l.netIncome)) + ')' : fmtMoney(l.netIncome)}</td></tr>`
-  ).join('');
+  // Location-split table: only Jun and Jul 2026 have a location breakdown so far. Show it for whichever
+  // of those is selected (or fall back to the most recent, July, when viewing YTD or another month).
+  const locByMonth = dataStore.financial.locationByMonth;
+  const locMonthKey = locByMonth[finMonth] ? finMonth : 'jul';
+  const locSection = document.getElementById('finLocationSection');
+  if (locByMonth[locMonthKey]) {
+    locSection.style.display = '';
+    document.getElementById('finLocationTitle').textContent = months[locMonthKey].label.replace(' (corrected)', '') + ' by Location';
+    document.getElementById('finLocationTbody').innerHTML = locByMonth[locMonthKey].map(l =>
+      `<tr><td>${l.location}</td><td>${fmtMoney(l.revenue)}</td><td>${l.netIncome < 0 ? '(' + fmtMoney(Math.abs(l.netIncome)) + ')' : fmtMoney(l.netIncome)}</td></tr>`
+    ).join('');
+  } else {
+    locSection.style.display = 'none';
+  }
 
   // P&L summary for selected month
   document.getElementById('finPLTitle').textContent = 'P&L Summary — ' + f.label;

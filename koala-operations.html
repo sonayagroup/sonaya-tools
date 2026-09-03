@@ -301,7 +301,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   <div class="container">
     <div class="connection-banner connected" id="leadSourcesBanner">
       <span class="banner-icon">&#10003;</span>
-      <span>Live data from ServiceMinder contacts (org 4457) — 30-day window, Jul 22–Aug 20. ServiceMinder's "Channel" field mirrors "Lead Source" 1:1 for this account, so only Source is shown. Category is the contact record type as set in ServiceMinder, not a marketing dimension.</span>
+      <span>Lead counts below are a static snapshot — ServiceMinder contacts (org 4457), 30-day window, Jul 22–Aug 20, 2026. ServiceMinder's "Channel" field mirrors "Lead Source" 1:1 for this account, so only Source is shown. Category is the contact record type as set in ServiceMinder, not a marketing dimension. (The Revenue by Source section further down does refresh live — it uses ServiceMinder invoices, not contacts.)</span>
     </div>
     <div class="kpi-summary" id="leadSourcesKpiRow"></div>
     <div class="charts-grid">
@@ -331,10 +331,10 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="controls">
       <div class="view-toggle" id="revSourceRangeToggle">
         <button data-range="7d">7D</button>
-        <button data-range="30d" class="active">30D</button>
+        <button data-range="30d">30D</button>
         <button data-range="90d">90D</button>
         <button data-range="week">This Week</button>
-        <button data-range="month">This Month</button>
+        <button data-range="month" class="active">This Month</button>
         <button data-range="quarter">This Quarter</button>
         <button data-range="year">This Year</button>
         <button data-range="custom">Custom</button>
@@ -371,7 +371,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       <span>Live data from ServiceMinder appointments/proposals — 30-day window Jul 22–Aug 20, 2026. Lead source breakdown has moved to the Lead Sources tab.</span>
     </div>
     <div class="kpi-summary" id="revenueKpiRow"></div>
-    <div class="section-title">Month-to-Date Financials <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— from ServiceMinder invoices, Aug 1–20, 2026, a proxy for real-time revenue until QuickBooks is reconnected to the right company. Budgeted vs the 2026 annual plan (flat &divide; 12).</span></div>
+    <div class="section-title">Month-to-Date Financials <span id="mtdFinancialsSubtitle" style="font-weight:400;color:var(--text-muted);font-size:12px;">— from ServiceMinder invoices, Aug 1–20, 2026, a proxy for real-time revenue until QuickBooks is reconnected to the right company. Budgeted vs the 2026 annual plan (flat &divide; 12).</span></div>
     <div class="callout-row" id="mtdFinancialsRow"></div>
     <div class="section-title">Revenue Pacing <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year. Click "On the Books" to see which jobs are included.</span></div>
     <div class="controls">
@@ -589,17 +589,33 @@ async function callSMEdge(params) {
   return body;
 }
 
-// "Today" for calendar-period math (This Week / This Month / etc.) is fixed to match the rest of
-// this static-snapshot dashboard, which was last refreshed 2026-08-20.
+// "Today" for the dashboard's STATIC illustrative content (chart date labels, the Aug 20 snapshot
+// callouts, etc.) stays fixed to match the rest of the static-snapshot architecture. It is NOT used for
+// calendar-period math anymore (see computePresetRange below) — that used to read from this same
+// constant, which meant every live-fetch range button ("This Month", "This Quarter", ...) was silently
+// computing its range as of Aug 20, 2026 no matter what today's real date was. Found + fixed 2026-09-03
+// while wiring the Revenue Pacing/On-the-Books/Lead-Sources tiles up to auto-refresh live on page
+// load/tab switch — a "live" pull dated to a range that ended weeks ago isn't actually live.
 const TODAY_ISO = '2026-08-20';
 function isoDate(d) { return d.toISOString().slice(0, 10); }
 function fmtShortDate(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }); }
 
+// The viewer's real local calendar date, as an ISO string — used by computePresetRange and
+// elapsedPctOfPeriod below to drive live ServiceMinder fetches. Deliberately local (not UTC): this
+// dashboard is used in New Mexico (Mountain time), and anchoring to UTC's calendar date would flip
+// "today" over several hours early in the evening.
+function localTodayISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
 /* Calendar-period presets (as opposed to the rolling 7d/30d/90d windows already baked into
    dataStore): This Week (Mon-today), This Month (1st-today), This Quarter (quarter-start-today),
-   This Year (Jan 1-today). Returns {from, through, label} in the shape callSMEdge expects. */
+   This Year (Jan 1-today). Returns {from, through, label} in the shape callSMEdge expects. Anchored to
+   the real current date (see localTodayISO) — every caller of this function drives a LIVE fetch. */
 function computePresetRange(preset) {
-  const today = new Date(TODAY_ISO + 'T00:00:00Z');
+  const todayISO = localTodayISO();
+  const today = new Date(todayISO + 'T00:00:00Z');
   const y = today.getUTCFullYear(), m = today.getUTCMonth(), d = today.getUTCDate();
   let from, label;
   if (preset === 'week') {
@@ -616,7 +632,31 @@ function computePresetRange(preset) {
     from = new Date(Date.UTC(y, 0, 1));
     label = `${y} YTD: ${fmtShortDate(from)}–${fmtShortDate(today)}`;
   }
-  return { from: isoDate(from), through: TODAY_ISO, label };
+  return { from: isoDate(from), through: todayISO, label };
+}
+
+/* Real-time elapsed-% of the current month/quarter/year, used for Revenue Pacing sentiment coloring
+   (good/neutral/bad). Replaces the old fixed constants (20/31, 51/92, 232/365 — all anchored to the
+   Aug 20, 2026 snapshot date), which would have silently miscolored pacing sentiment more and more as
+   real time moved past that date while the revenue figures themselves went live. Anchored to the same
+   real local date as computePresetRange above. */
+function elapsedPctOfPeriod(unit) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+  if (unit === 'month') {
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    return 100 * d / daysInMonth;
+  }
+  if (unit === 'quarter') {
+    const qStartMonth = Math.floor(m / 3) * 3;
+    const daysInQuarter = Math.round((new Date(y, qStartMonth + 3, 1) - new Date(y, qStartMonth, 1)) / 86400000);
+    const elapsedDays = Math.round((new Date(y, m, d) - new Date(y, qStartMonth, 1)) / 86400000) + 1;
+    return 100 * elapsedDays / daysInQuarter;
+  }
+  // 'year'
+  const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const elapsedDays = Math.round((new Date(y, m, d) - new Date(y, 0, 1)) / 86400000) + 1;
+  return 100 * elapsedDays / (isLeap ? 366 : 365);
 }
 
 /* ---------------- Sample dataStore (to be replaced by live pulls) ---------------- */
@@ -933,6 +973,15 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+    // Live fetch on tab switch, per Pranav's approved mechanism (2026-09-03): Revenue Pacing/On the
+    // Books, the Sales Funnel's Open Proposals/Job Backlog tiles, and the Lead Sources tab's Revenue by
+    // Source section each refresh with a fresh ServiceMinder pull whenever you switch into that tab (in
+    // addition to the fetch already kicked off on page load — see renderAll below). The Edge Function's
+    // own 15-minute cache keeps repeated switches cheap.
+    if (btn.dataset.tab === 'funnel') loadLiveProposalsSummary();
+    if (btn.dataset.tab === 'revenue') { loadLiveRevenueTiles(); loadLiveProposalsSummary(); }
+    if (btn.dataset.tab === 'leadsources') refreshLeadSourceLive();
   });
 });
 
@@ -1117,20 +1166,51 @@ function renderPieChart(containerId, slices) {
 /* ---------------- Render: Funnel tab ---------------- */
 function renderFunnelTab() {
   const f = dataStore.funnel;
+
+  // Open Proposals and Job Backlog go live via the shared loadLiveProposalsSummary (see above) — both
+  // are derived from the same full ServiceMinder Proposals-Kind pull already used for the Revenue tab's
+  // On-the-Books tile, just different status filters (Open vs. Accepted/Scheduled/Invoiced), so no extra
+  // API call is needed. Leads/Appointments/Estimates Sent stay static: they'd need ServiceMinder
+  // Contacts-Kind and Appointments-Kind pulls the edge function doesn't support yet, and the exact field
+  // mapping (e.g. what counts as "estimate sent") hasn't been validated against a known-good number the
+  // way every other live report on this dashboard has been — shipping a guess here risks a silently
+  // wrong number on a dashboard people make real decisions from, so it's being left for a follow-up
+  // once that mapping can be confirmed.
+  const liveProp = liveProposals.status === 'ready' ? liveProposals : null;
+  const openProposals = (liveProp && liveProp.openProposalsCount != null) ? liveProp.openProposalsCount : f.openProposals;
+  const openProposalsValue = (liveProp && liveProp.openProposalsValue != null) ? liveProp.openProposalsValue : f.openProposalsValue;
+  const backlogJobs = liveProp ? liveProp.onTheBooksCount : f.backlogJobs;
+  const backlogValue = liveProp ? liveProp.onTheBooksValue : f.backlogValue;
+
+  const banner = document.getElementById('funnelBanner');
+  if (liveProposals.status === 'loading') {
+    banner.classList.add('connected');
+    banner.innerHTML = `<span class="banner-icon">&#8987;</span><span>Loading live ServiceMinder data for Open Proposals / Job Backlog…</span>`;
+  } else if (liveProp) {
+    banner.classList.add('connected');
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Open Proposals and Job Backlog are live from ServiceMinder as of ${liveProposals.fetchedAt.toLocaleTimeString('en-US')} (org 4457). Leads, Appointments, and Estimates Sent are still the Aug 20, 2026 static snapshot — see note below. Daily trend chart is still illustrative.</span>`;
+  } else if (liveProposals.status === 'error') {
+    banner.classList.remove('connected');
+    banner.innerHTML = `<span class="banner-icon">&#9888;</span><span>Live pull failed (${liveProposals.error}) — Open Proposals/Job Backlog showing the Aug 20, 2026 snapshot.</span>`;
+  } else {
+    banner.classList.add('connected');
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live data from ServiceMinder (org 4457) — pulled Aug 20, 2026, window Jul 22–Aug 20. Daily trend chart below is still illustrative (historical daily pull not automated yet).</span>`;
+  }
+
   document.getElementById('funnelKpiRow').innerHTML = [
     kpiTile('Leads (30d)', f.leads30d),
     kpiTile('Appointments (30d)', f.appts30d),
     kpiTile('Estimates Sent (30d)', f.estimatesSent30d),
-    kpiTile('Open Proposals', f.openProposals, fmtMoneyCompact(f.openProposalsValue) + ' pipeline', 'neutral'),
+    kpiTile('Open Proposals', openProposals, fmtMoneyCompact(openProposalsValue) + ' pipeline', 'neutral'),
     kpiTile('Accepted (All-Time)', f.acceptedAllTime),
-    kpiTile('Job Backlog', f.backlogJobs, fmtMoneyCompact(f.backlogValue), 'good'),
+    kpiTile('Job Backlog', backlogJobs, fmtMoneyCompact(backlogValue), 'good'),
   ].join('');
 
   renderFunnel('chartFunnel', [
     { label: 'Leads', value: f.leads30d },
     { label: 'Appointments', value: f.appts30d },
     { label: 'Estimates Sent', value: f.estimatesSent30d },
-    { label: 'Open Proposals', value: f.openProposals },
+    { label: 'Open Proposals', value: openProposals },
   ]);
 
   renderLineChart('chartFunnelTrend', [
@@ -1142,6 +1222,41 @@ function renderFunnelTab() {
 /* ---------------- Render: Revenue tab ---------------- */
 function renderRevenueTab() {
   const r = dataStore.revenue;
+
+  // MTD/QTD/YTD invoiced revenue and On-the-Books now auto-refresh live on page load and whenever this
+  // tab is switched into (see loadLiveRevenueTiles/loadLiveProposalsSummary and the tab-btn click handler
+  // below) — this is the "live fetch on page load/tab switch" mechanism Pranav approved 2026-09-03.
+  // Falls back to the dataStore.revenue Aug 20 snapshot whenever a live fetch hasn't completed yet or
+  // failed. Booked Revenue(30d)/Revenue-per-Lead/Open Pipeline/Accepted(All-Time) above, and MTD
+  // Collected/Outstanding below, stay on the static snapshot — there's no live ServiceMinder source for
+  // payment/balance data via the current edge function, and Accepted/Open-Pipeline need Contacts-Kind
+  // data the edge function doesn't pull.
+  const liveRev = liveRevenue.status === 'ready' ? liveRevenue : null;
+  const liveProp = liveProposals.status === 'ready' ? liveProposals : null;
+  const mtdInvoiced = liveRev ? liveRev.mtdInvoiced : r.mtdInvoiced;
+  const mtdInvoiceCount = liveRev ? liveRev.mtdInvoiceCount : r.mtdInvoiceCount;
+  const qtdInvoiced = liveRev ? liveRev.qtdInvoiced : r.qtdInvoiced;
+  const ytdInvoiced = liveRev ? liveRev.ytdInvoiced : r.ytdInvoiced;
+  const onTheBooksValue = liveProp ? liveProp.onTheBooksValue : r.onTheBooksValue;
+  const onTheBooksCount = liveProp ? liveProp.onTheBooksCount : r.onTheBooksCount;
+
+  const banner = document.getElementById('revenueBanner');
+  if (liveRevenue.status === 'loading' || liveProposals.status === 'loading') {
+    banner.classList.add('connected');
+    banner.innerHTML = `<span class="banner-icon">&#8987;</span><span>Loading live ServiceMinder data… (MTD/QTD/YTD revenue and On the Books)</span>`;
+  } else if (liveRev && liveProp) {
+    const asOf = liveRevenue.fetchedAt > liveProposals.fetchedAt ? liveRevenue.fetchedAt : liveProposals.fetchedAt;
+    banner.classList.add('connected');
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live from ServiceMinder as of ${asOf.toLocaleTimeString('en-US')} — MTD/QTD/YTD revenue and On the Books refresh automatically on page load and when you switch to this tab. Lead source breakdown has moved to the Lead Sources tab.</span>`;
+  } else if (liveRevenue.status === 'error' || liveProposals.status === 'error') {
+    banner.classList.remove('connected');
+    const errMsg = (liveRevenue.error || liveProposals.error || 'unknown error');
+    banner.innerHTML = `<span class="banner-icon">&#9888;</span><span>Live pull failed (${errMsg}) — showing the Aug 20, 2026 static snapshot below.</span>`;
+  } else {
+    banner.classList.add('connected');
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live data from ServiceMinder appointments/proposals — 30-day window Jul 22–Aug 20, 2026. Lead source breakdown has moved to the Lead Sources tab.</span>`;
+  }
+
   document.getElementById('revenueKpiRow').innerHTML = [
     kpiTile('Booked Revenue (30d)', fmtMoneyCompact(r.booked30d)),
     kpiTile('Revenue / Lead (30d)', fmtMoney(r.revenuePerLead30d)),
@@ -1149,27 +1264,30 @@ function renderRevenueTab() {
     kpiTile('Accepted (All-Time)', r.acceptedAllTime),
   ].join('');
 
+  document.getElementById('mtdFinancialsSubtitle').textContent = liveRev
+    ? `— live from ServiceMinder invoices, ${liveRev.mtdRange.label}, a proxy for real-time revenue until QuickBooks is reconnected to the right company (MTD Collected/Outstanding still use the Aug 20 snapshot — no live payments source yet). Budgeted vs the 2026 annual plan (flat ÷ 12).`
+    : `— from ServiceMinder invoices, Aug 1–20, 2026, a proxy for real-time revenue until QuickBooks is reconnected to the right company. Budgeted vs the 2026 annual plan (flat ÷ 12).`;
   document.getElementById('mtdFinancialsRow').innerHTML = [
-    calloutTile('MTD Revenue (Invoiced)', fmtMoneyCompact(r.mtdInvoiced),
-      { target: r.mtdRevenueBudget, actual: r.mtdInvoiced, sentiment: paceSentiment(100 * r.mtdInvoiced / r.mtdRevenueBudget, MTD_ELAPSED_PCT) }),
+    calloutTile('MTD Revenue (Invoiced)', fmtMoneyCompact(mtdInvoiced),
+      { target: r.mtdRevenueBudget, actual: mtdInvoiced, sentiment: paceSentiment(100 * mtdInvoiced / r.mtdRevenueBudget, elapsedPctOfPeriod('month')) }),
     calloutTile('MTD Collected', fmtMoneyCompact(r.mtdCollected),
-      { target: r.mtdCollectedBudget, actual: r.mtdCollected, sentiment: paceSentiment(100 * r.mtdCollected / r.mtdCollectedBudget, MTD_ELAPSED_PCT) }),
+      { target: r.mtdCollectedBudget, actual: r.mtdCollected, sentiment: paceSentiment(100 * r.mtdCollected / r.mtdCollectedBudget, elapsedPctOfPeriod('month')) }),
     calloutTileInfo('MTD Outstanding', fmtMoneyCompact(r.mtdOutstanding), r.mtdInvoiceCount + ' invoices this month'),
   ].join('');
 
   // Revenue Pacing: real-time actual (ServiceMinder proxy) + on-the-books (accepted, not-yet-completed
-  // proposals) vs the 2026 budget. Elapsed-% constants are as of the Aug 20, 2026 data pull (see top-of-file
-  // note on the static-snapshot architecture) — Q3 runs Jul 1-Sep 30 (92 days), the year is 365 days.
-  const qtdPct = 100 * r.qtdInvoiced / r.quarterlyRevenueBudget;
-  const ytdPct = 100 * r.ytdInvoiced / r.annualRevenueBudget;
-  const projectedYearEnd = r.ytdInvoiced + r.onTheBooksValue;
+  // proposals) vs the 2026 budget. Q3 runs Jul 1-Sep 30 (92 days), the year is 365/366 days — both
+  // computed live off the real current date by elapsedPctOfPeriod.
+  const qtdPct = 100 * qtdInvoiced / r.quarterlyRevenueBudget;
+  const ytdPct = 100 * ytdInvoiced / r.annualRevenueBudget;
+  const projectedYearEnd = ytdInvoiced + onTheBooksValue;
   const projectedPct = 100 * projectedYearEnd / r.annualRevenueBudget;
   document.getElementById('pacingRow').innerHTML = [
-    calloutTile('QTD Revenue (Q3)', fmtMoneyCompact(r.qtdInvoiced),
-      { target: r.quarterlyRevenueBudget, actual: r.qtdInvoiced, sentiment: paceSentiment(qtdPct, QTD_ELAPSED_PCT) }),
-    calloutTile('YTD Revenue', fmtMoneyCompact(r.ytdInvoiced),
-      { target: r.annualRevenueBudget, actual: r.ytdInvoiced, sentiment: paceSentiment(ytdPct, YTD_ELAPSED_PCT) }),
-    calloutTileInfo('On the Books', fmtMoneyCompact(r.onTheBooksValue), r.onTheBooksCount + ' accepted proposals, not yet complete', 'openOnTheBooksModal()'),
+    calloutTile('QTD Revenue (Q3)', fmtMoneyCompact(qtdInvoiced),
+      { target: r.quarterlyRevenueBudget, actual: qtdInvoiced, sentiment: paceSentiment(qtdPct, elapsedPctOfPeriod('quarter')) }),
+    calloutTile('YTD Revenue', fmtMoneyCompact(ytdInvoiced),
+      { target: r.annualRevenueBudget, actual: ytdInvoiced, sentiment: paceSentiment(ytdPct, elapsedPctOfPeriod('year')) }),
+    calloutTileInfo('On the Books', fmtMoneyCompact(onTheBooksValue), onTheBooksCount + ' accepted proposals, not yet complete', 'openOnTheBooksModal()'),
     calloutTile('Projected Year-End', fmtMoneyCompact(projectedYearEnd),
       { target: r.annualRevenueBudget, actual: projectedYearEnd, sentiment: paceSentiment(projectedPct, 100) }),
   ].join('');
@@ -1212,6 +1330,64 @@ function renderRevenueTab() {
   // — it was an illustrative, not-yet-automated monthly pull and he didn't want it shown. dataStore.revenueTrend
   // is left in place, unused, in case this is revisited later.
 }
+/* Live auto-refresh for MTD/QTD/YTD invoiced revenue on the Revenue & Jobs tab. Fetched automatically
+   on page load and whenever the Revenue & Jobs tab is switched into (see the tab-btn click handler and
+   renderAll below) — this is the "live fetch on page load/tab switch" mechanism Pranav approved
+   2026-09-03, covering the "Revenue Pacing & On the Books" area of that approval (On the Books itself is
+   handled by the separate, shared loadLiveProposalsSummary below, since the Sales Funnel tab's Open
+   Proposals/Job Backlog tiles need the same underlying proposals pull). Falls back to the
+   dataStore.revenue Aug 20 snapshot on any error, same pattern as loadOnTheBooksModalData. */
+let liveRevenue = { status: 'idle' };
+async function loadLiveRevenueTiles() {
+  liveRevenue = { status: 'loading' };
+  renderRevenueTab();
+  try {
+    const mtdRange = computePresetRange('month');
+    const qtdRange = computePresetRange('quarter');
+    const ytdRange = computePresetRange('year');
+    const [mtd, qtd, ytd] = await Promise.all([
+      callSMEdge({ report: 'pacing', from: mtdRange.from, through: mtdRange.through }),
+      callSMEdge({ report: 'pacing', from: qtdRange.from, through: qtdRange.through }),
+      callSMEdge({ report: 'pacing', from: ytdRange.from, through: ytdRange.through }),
+    ]);
+    liveRevenue = {
+      status: 'ready', fetchedAt: new Date(), mtdRange, qtdRange, ytdRange,
+      mtdInvoiced: mtd.revenue, mtdInvoiceCount: mtd.invoiceCount,
+      qtdInvoiced: qtd.revenue, ytdInvoiced: ytd.revenue,
+    };
+  } catch (err) {
+    liveRevenue = { status: 'error', error: err.message };
+  }
+  renderRevenueTab();
+}
+
+/* Live auto-refresh for the On-the-Books value/count. Shared by two tabs: Revenue & Jobs (the "On the
+   Books" pacing tile) and Sales Funnel (the "Job Backlog" tile is the identical figure, and "Open
+   Proposals"/its $ value comes from the exact same ServiceMinder proposals pull, just a different status
+   filter — see the openProposals field the edge function now returns alongside the on-the-books jobs, so
+   this is one live pull serving both tabs rather than two). Fetched on page load and on switching into
+   either tab. Falls back to the dataStore static snapshot (dataStore.revenue for On the Books,
+   dataStore.funnel for Open Proposals/Job Backlog) on any error. */
+let liveProposals = { status: 'idle' };
+async function loadLiveProposalsSummary() {
+  liveProposals = { status: 'loading' };
+  renderFunnelTab();
+  renderRevenueTab();
+  try {
+    const result = await callSMEdge({ report: 'onthebooks' });
+    liveProposals = {
+      status: 'ready', fetchedAt: new Date(),
+      onTheBooksValue: result.totalValue, onTheBooksCount: result.count,
+      openProposalsCount: result.openProposals ? result.openProposals.count : null,
+      openProposalsValue: result.openProposals ? result.openProposals.totalValue : null,
+    };
+  } catch (err) {
+    liveProposals = { status: 'error', error: err.message };
+  }
+  renderFunnelTab();
+  renderRevenueTab();
+}
+
 let revPacingCustom = null;
 
 async function loadLivePacingRange(key, from, through, label) {
@@ -1291,7 +1467,13 @@ function renderOnTheBooksModalTable(jobs, meta) {
     footerEl.innerHTML = `Live from ServiceMinder just now &mdash; all ${meta.count} jobs shown, totaling ${fmtMoney(meta.totalValue)}.`;
   } else {
     const moreLine = meta.restCount ? ` Showing the top ${jobs.length} by value; ${meta.restCount} more not itemized here total ${fmtMoney(meta.restValue)}.` : '';
-    footerEl.innerHTML = `Live pull unavailable (server credentials not configured yet), showing a snapshot from 2026-08-20 &mdash; ${meta.count} jobs, ${fmtMoney(meta.totalValue)} total.${moreLine}`;
+    // Fixed 2026-09-03: this used to always say "server credentials not configured yet" regardless of
+    // the actual failure reason, which was stale/wrong messaging once the credentials WERE configured
+    // (the real recurring cause has been the full-history pull occasionally exceeding the live-pull
+    // timeout, not a credentials problem — see the POLL_MAX_ATTEMPTS_LARGE comment in the edge function).
+    // Now surfaces the real error message so this is trustworthy going forward.
+    const reason = meta.error ? `live pull failed: ${meta.error}` : 'live pull unavailable';
+    footerEl.innerHTML = `${reason} &mdash; showing a snapshot from 2026-08-20 &mdash; ${meta.count} jobs, ${fmtMoney(meta.totalValue)} total.${moreLine}`;
   }
 }
 
@@ -1318,11 +1500,9 @@ document.getElementById('revPacingApplyBtn').addEventListener('click', () => {
   if (from > through) { alert('The start date must be on or before the end date.'); return; }
   loadLivePacingRange('custom', from, through, `${from} – ${through}`);
 });
-// Elapsed-time constants as of the Aug 20, 2026 data pull: MTD = 20/31 days of August; QTD = 51/92 days of
-// Q3 (Jul 1 - Sep 30); YTD = 232/365 days of 2026.
-const MTD_ELAPSED_PCT = 100 * 20 / 31;
-const QTD_ELAPSED_PCT = 100 * 51 / 92;
-const YTD_ELAPSED_PCT = 100 * 232 / 365;
+// (Elapsed-time constants that used to live here were removed 2026-09-03 — replaced by the live
+// elapsedPctOfPeriod() helper above, computed from the real current date instead of frozen at the
+// Aug 20, 2026 data pull.)
 
 /* ---------------- Render: Lead Sources tab ---------------- */
 function renderLeadSourcesTab() {
@@ -1447,7 +1627,11 @@ function renderPipelineTab() {
 
 /* ---------------- Render: Financial tab ---------------- */
 let finMonth = 'jul';
-let revSourceRange = '30d';
+// Defaults to a live "This Month" pull rather than the static 30D preset, so the Lead Sources tab's
+// Revenue-by-Source section is live on page load per Pranav's approval (2026-09-03) — see
+// refreshLeadSourceLive() and the tab-btn click handler below. The 7D/30D/90D buttons remain available
+// and, when clicked, still show their static hand-pulled snapshot as before.
+let revSourceRange = 'month';
 let repRevenueRange = '30d';
 const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
 const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
@@ -1574,6 +1758,13 @@ async function loadLiveLeadSourceRange(key, from, through, label) {
     dataStore.revenueBySourceByRange[key] = { label, sources: [], loading: false, error: err.message };
   }
   if (revSourceRange === key) renderLeadSourcesTab();
+}
+
+/* Triggers the default live "This Month" pull for Revenue-by-Source — called on page load and whenever
+   the Lead Sources tab is switched into (see the tab-btn click handler below). */
+function refreshLeadSourceLive() {
+  const { from, through, label } = computePresetRange('month');
+  loadLiveLeadSourceRange('month', from, through, label);
 }
 
 document.querySelectorAll('#revSourceRangeToggle button').forEach(btn => {
@@ -2033,6 +2224,16 @@ function renderAll() {
   renderCrmTab();
 }
 renderAll();
+
+// Kick off the live-on-page-load fetches once at startup (not on every renderAll() call — renderAll()
+// also re-runs on every theme toggle, and re-fetching live data on a light/dark switch would be wasteful
+// and cause a visible loading flash for no reason). Per Pranav's approval (2026-09-03): Revenue Pacing &
+// On the Books, the Sales Funnel's Open Proposals/Job Backlog, and the Lead Sources tab's Revenue by
+// Source section all fetch live ServiceMinder data as soon as the dashboard loads, independent of which
+// tab happens to be active — matching how the CRM Pipeline tab has always auto-loaded on page load.
+loadLiveProposalsSummary();
+loadLiveRevenueTiles();
+refreshLeadSourceLive();
 </script>
 </body>
 </html>

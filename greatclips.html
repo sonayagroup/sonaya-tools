@@ -37,6 +37,7 @@ th,td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line);white
 th:first-child,td:first-child{text-align:left}
 thead th{background:#f0f3f7;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;position:sticky;top:0}
 thead th:hover{color:var(--blue)}
+.kpi-ideal{display:block;font-weight:500;letter-spacing:0;opacity:.62;font-size:9px;margin-top:1px}
 tbody tr:hover{background:#f7fafd}tfoot td{font-weight:700;border-top:2px solid var(--blue);background:#f0f3f7}
 tbody tr.clickrow{cursor:pointer}
 .flag{background:#fdecec;color:var(--red-dk);font-weight:700}.warn{background:#fff5e6}
@@ -118,9 +119,9 @@ tbody tr.clickrow{cursor:pointer}
   <div class="sec-title" id="portTitle"></div>
   <div class="card tbl-scroll" style="margin-bottom:18px">
     <table id="portTable"><thead><tr>
-      <th data-k="0">Salon</th><th data-k="4">Total Sales</th><th data-k="5">Cust</th><th data-k="6">Payroll %</th>
-      <th data-k="7">Avg HC</th><th data-k="8">CPH</th><th title="Overall health score (1-5) from payroll %, CPH, avg HC time, wait &gt;15%, and customer growth vs. targets">Health</th><th data-k="10">Avg Wait</th>
-      <th data-k="11">Wait&gt;15%</th><th data-k="12">Cust Gr%</th><th data-k="13">Sales Gr%</th><th class="gcol" title="Live Google rating (snapshot)">Google ★</th>
+      <th data-k="0">Salon</th><th data-k="4">Total Sales</th><th data-k="5">Cust</th><th data-k="6">Payroll %<span class="kpi-ideal">&lt;40%</span></th>
+      <th data-k="7">Avg HC<span class="kpi-ideal">&lt;16 min</span></th><th data-k="8">CPH<span class="kpi-ideal">≥2.4</span></th><th title="Overall health score (1-5) from payroll %, CPH, avg HC time, wait &gt;15%, and customer growth vs. targets">Health</th><th title="Product sales as a % of the salon's total sales for the day">Product %<span class="kpi-ideal">≥5%</span></th>
+      <th data-k="11">Wait&gt;15%</th><th data-k="12">Cust Gr%<span class="kpi-ideal">≥5%</span></th><th data-k="13">Sales Gr%<span class="kpi-ideal">≥5%</span></th><th class="gcol" title="Live Google rating (snapshot)">Google ★</th>
     </tr></thead><tbody></tbody><tfoot></tfoot></table>
   </div>
   <div class="grid g2">
@@ -516,9 +517,11 @@ function sName(id){return SALONS[id]||id;}
 function kpi(m,v){ if(v===null||v===undefined||v==="")return"";
   if(m==="payroll")return v<40?"kg":(v<41?"ky":"kr");
   if(m==="cuts")return v>=2.4?"kg":(v>=2?"ky":"kr");
-  if(m==="avghc")return v<17?"kg":(v<19?"ky":"kr");
+  if(m==="avghc")return v<16?"kg":(v<19?"ky":"kr");
   if(m==="wait15")return v<17?"kg":(v<19?"ky":"kr");
   if(m==="custgrowth")return v>=5?"kg":(v>=0?"ky":"kr");
+  if(m==="salesgrowth")return v>=5?"kg":(v>=0?"ky":"kr");
+  if(m==="prodsales")return v>=5?"kg":(v>=3?"ky":"kr");
   if(m==="stdprod")return v>5?"kg":(v>=3?"ky":"kr");
   if(m==="newret")return v>=26?"kg":(v>=21?"ky":"kr");
   if(m==="repret")return v>=78?"kg":(v>=72?"ky":"kr");
@@ -585,10 +588,11 @@ function renderPort(){
   const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
   const tb=$("#portTable tbody");tb.innerHTML="";
   rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    const pp=s[4]?s[3]/s[4]*100:null;
     tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
-      ${healthCell(s)}<td>${s[10]}</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
-      <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
+      ${healthCell(s)}<td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
+      <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderRed();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">Google ratings updated ${GRATE_ASOF}</td></tr>`:"";
@@ -612,10 +616,11 @@ function renderPortYTD(){
   const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
   const tb=$("#portTable tbody");tb.innerHTML="";
   rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    const pp=s[4]?s[3]/s[4]*100:null;
     tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
-      ${healthCell(s)}<td>${num(s[10],0)}</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
-      <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
+      ${healthCell(s)}<td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
+      <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];detMode="ytd";document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x.dataset.mode==="ytd"));$("#detDay").style.display="none";$("#detWeek").style.display="none";$("#detYTD").style.display="";renderDetail();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">YTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth)</td></tr>`:"";
@@ -639,10 +644,11 @@ function renderPortWTD(){
   const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
   const tb=$("#portTable tbody");tb.innerHTML="";
   rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    const pp=s[4]?s[3]/s[4]*100:null;
     tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
-      ${healthCell(s)}<td>${num(s[10],0)}</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
-      <td class="${cls(s[12])}">${sign(s[12])}</td><td class="${cls(s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
+      ${healthCell(s)}<td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
+      <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td><td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderRed();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">WTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth) · ${wtd.daysInWeek} of 7 days</td></tr>`:"";

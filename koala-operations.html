@@ -373,7 +373,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="kpi-summary" id="revenueKpiRow"></div>
     <div class="section-title">Month-to-Date Financials <span id="mtdFinancialsSubtitle" style="font-weight:400;color:var(--text-muted);font-size:12px;">— from ServiceMinder invoices, Aug 1–20, 2026, a proxy for real-time revenue until QuickBooks is reconnected to the right company. Budgeted vs the 2026 annual plan (flat &divide; 12).</span></div>
     <div class="callout-row" id="mtdFinancialsRow"></div>
-    <div class="section-title">Revenue Pacing <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year. Click "On the Books" to see which jobs are included.</span></div>
+    <div class="section-title">Revenue Pacing <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed &mdash; older stale "Accepted" records are excluded) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year. Click "On the Books" to see which jobs are included.</span></div>
     <div class="controls">
       <div class="view-toggle" id="revPacingRangeToggle">
         <button data-range="week">This Week</button>
@@ -435,7 +435,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   <div class="container">
     <div class="connection-banner connected" id="pipelineBanner">
       <span class="banner-icon">&#10003;</span>
-      <span>Live data from ServiceMinder scheduling and open proposals, pulled Aug 20, 2026. Backlog and open-estimate figures are a point-in-time snapshot as of that date; upcoming appointments cover the forward-looking window Aug 20–27, 2026.</span>
+      <span>Live data from ServiceMinder scheduling and open proposals. Job Backlog re-pulled Sep 3, 2026 and now excludes proposals accepted before May 2026 (stale records never marked Complete); other figures are a point-in-time snapshot from Aug 20, 2026. Upcoming appointments cover the forward-looking window Aug 20–27, 2026.</span>
     </div>
     <div class="kpi-summary" id="pipelineKpiRow"></div>
     <div class="section-title">Upcoming Appointments (Aug 20–27, 2026)</div>
@@ -544,7 +544,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="modal-header">
       <div>
         <h3 id="onBooksModalTitle">On the Books — Jobs Included</h3>
-        <p id="onBooksModalSubtitle">Accepted, Scheduled, or Invoiced proposals not yet marked Complete</p>
+        <p id="onBooksModalSubtitle">Accepted, Scheduled, or Invoiced proposals not yet marked Complete — accepted on/after May 1, 2026</p>
       </div>
       <button class="modal-close-btn" onclick="closeOnTheBooksModal()" aria-label="Close">&times;</button>
     </div>
@@ -676,12 +676,15 @@ const dataStore = {
   // regardless of creation date, current status snapshot): Status="Open" = open proposals; Status in
   // ["Accepted","Scheduled","Invoiced"] = backlog (won, not yet marked Complete). This replaces the prior
   // manually-pulled backlog figure with one sourced the same way as the Revenue tab's "On the Books" pacing
-  // figure, so the two now agree.
+  // figure, so the two now agree. backlogJobs/backlogValue re-pulled 2026-09-03 and now also excludes
+  // proposals accepted before 2026-05-01 (stale multi-year-old "Accepted" records that never got marked
+  // Complete) — see the ON_BOOKS_MIN_ACCEPTED_DATE note on dataStore.revenue.onTheBooksValue. openProposals
+  // (Status="Open") is untouched by that filter and still the 2026-08-20 pull.
   funnel: {
     leads30d: 109, appts30d: 28, estimatesSent30d: 111,
     openProposals: 75, openProposalsValue: 1384616,
     acceptedAllTime: 150,
-    backlogJobs: 179, backlogValue: 1257724,
+    backlogJobs: 33, backlogValue: 299665,
   },
   funnelTrend: (() => {
     const days = 14, out = [];
@@ -758,65 +761,62 @@ const dataStore = {
     qtdInvoiced: 499747.90, qtdInvoiceCount: 83, // Q3 (Jul 1 - Sep 30) to date: Jul 1 - Aug 20, 2026
     ytdInvoiced: 1803514.10, ytdInvoiceCount: 364, // Jan 1 - Aug 20, 2026
     // "On the Books" = accepted proposals not yet completed (Status: Accepted, Scheduled, or Invoiced —
-    // i.e. won but not yet marked Complete), pulled from a full ServiceMinder proposal history, 2026-08-20
-    // snapshot. Same figure/definition as funnel.backlogValue and pipeline.backlogValue, so all three tabs
-    // now agree on this number.
-    onTheBooksValue: 1257724.08, onTheBooksCount: 179,
+    // i.e. won but not yet marked Complete) AND accepted on/after 2026-05-01, pulled from a full
+    // ServiceMinder proposal history, 2026-09-03 snapshot. The May 2026 cutoff was added 2026-09-03
+    // (Pranav: "the on the books revenue is wrong... remove anything prior to May 2026") after finding
+    // 144 of 177 jobs ($931,928) were stale proposals Accepted as far back as 2022 that never got marked
+    // Complete in ServiceMinder — not real pipeline. Same figure/definition as funnel.backlogValue and
+    // pipeline.backlogValue, so all three tabs still agree on this number.
+    onTheBooksValue: 299665.01, onTheBooksCount: 33,
     // Budget targets from Pranav's 2026 Budget.xlsx (Total Income line, $2,850,000 annual). The file has no
     // monthly/quarterly breakout, so monthly and quarterly targets here are a flat pro-ration (annual/12,
     // annual/4) — a simplification worth revisiting if the business has meaningful seasonality.
     annualRevenueBudget: 2850000, quarterlyRevenueBudget: 712500,
     mtdRevenueBudget: 237500, mtdCollectedBudget: 237500,
   },
-  // Static fallback for the "On the Books" drill-down modal, pulled 2026-08-20 from the same full-history
+  // Static fallback for the "On the Books" drill-down modal, pulled 2026-09-03 from the same full-history
   // ServiceMinder Proposals snapshot as revenue.onTheBooksValue/onTheBooksCount above (Status in Accepted/
-  // Scheduled/Invoiced), sorted by value descending. The modal tries a live pull via the Edge Function first
-  // (report=onthebooks) and falls back to this list if the live call fails (e.g. server secrets not yet set).
-  // Only the top 40 by value are itemized here to keep the file lean; onTheBooksJobsRest summarizes the tail.
-  // Fields: [customer, service, value, status, date (accepted, or created if never accepted), owner/rep].
+  // Scheduled/Invoiced, accepted on/after 2026-05-01 — see the ON_BOOKS_MIN_ACCEPTED_DATE note on that
+  // field), sorted by value descending. The modal tries a live pull via the Edge Function first
+  // (report=onthebooks) and falls back to this list if the live call fails. All 33 qualifying jobs fit
+  // here now that the stale pre-May-2026 records are excluded, so onTheBooksJobsRest is empty.
+  // Fields: [customer, service, value, status, date (accepted), owner/rep].
   onTheBooksJobs: [
-    ['Avid Hotel (Hospitality Management Services)', 'B2B New Installation', 129995, 'Invoiced', '2025-08-19', 'Ericka Olvera'],
-    ['Amit Bhakta', 'Residential New Installation', 57140, 'Accepted', '2025-04-01', 'Alejandra Guerrero'],
-    ['Francisco Lumbi', 'B2B New Installation', 50802, 'Invoiced', '2025-08-07', 'Mark Aragon'],
-    ['Mario Day', 'Residential Retrofit', 48995, 'Accepted', '2024-08-15', ''],
-    ['Tidal Wave Auto Spa (Project Builders)', 'B2B New Installation', 45931, 'Scheduled', '2026-08-05', 'Frank Emanuel'],
-    ['Paula Jones / Dron Jones', 'Residential New Installation', 30383, 'Scheduled', '2025-10-03', 'Mark Aragon'],
-    ['Little Residence', 'B2B New Installation', 30128, 'Accepted', '2026-08-07', 'Jacob Martin'],
-    ['Christopher Gregory', 'Residential New Installation', 24850, 'Invoiced', '2025-05-19', 'Ivan Marquez'],
-    ['Dustie Shryock', 'Residential New Installation', 22495, 'Accepted', '2025-06-03', 'Mike Jones'],
-    ['Amy Nowell', 'Residential New Installation', 21020, 'Invoiced', '2026-07-30', 'Gabriel Espinosa'],
-    ['Steven Booth', 'Residential Retrofit', 19891, 'Scheduled', '2026-08-14', 'Gabriel Espinosa'],
-    ['Reid Residence', 'B2B New Installation', 17950, 'Invoiced', '2025-09-23', 'Mark Aragon'],
-    ['Parmenides Orpinel', 'Residential New Installation', 16325, 'Scheduled', '2026-07-31', 'Frank Emanuel'],
-    ['Backdoor Construction', 'B2B New Installation', 16185, 'Accepted', '2025-05-22', 'Ericka Olvera'],
-    ['James Blankenship', 'Residential Retrofit', 15919, 'Accepted', '2026-07-20', 'Gabriel Espinosa'],
-    ['Luis Lacquer', 'Residential Retrofit', 15050, 'Accepted', '2024-02-22', ''],
-    ['Modconn LLC', 'Residential Retrofit', 14450, 'Accepted', '2024-06-10', ''],
-    ['Damacio Page', 'B2B Retrofit', 13990, 'Accepted', '2025-07-01', 'Jacob Martin'],
-    ['Connected Construction', 'B2B New Installation', 12995, 'Invoiced', '2025-05-06', 'Alejandra Guerrero'],
-    ['James Armijo', 'Residential Retrofit', 12679, 'Scheduled', '2026-08-11', 'Gabriel Espinosa'],
-    ['David Herman', 'Residential Retrofit', 11823, 'Accepted', '2024-06-07', ''],
-    ['Adam Pehrson', 'Residential Retrofit', 11540, 'Accepted', '2024-05-09', ''],
-    ['Gabriel Griego', 'Residential Retrofit', 11400, 'Accepted', '2023-02-21', ''],
-    ['Danny Richardson', 'Residential Retrofit', 11374, 'Scheduled', '2026-08-18', 'Mike Jones'],
-    ['Drew Garcia', 'Residential New Installation', 11349, 'Accepted', '2026-01-09', 'Christopher Williams'],
-    ['Leef Crawford', 'Residential Retrofit', 11290, 'Accepted', '2025-01-07', ''],
-    ['Andrew Sanchez', 'Residential Retrofit', 11105, 'Invoiced', '2025-02-07', 'Jacob Martin'],
-    ['Sullivan (Mesa Del Sol)', 'B2B New Installation', 11050, 'Invoiced', '2025-11-05', 'Jacob Martin'],
-    ['RJS Construction Services', 'B2B New Installation', 10719, 'Invoiced', '2025-03-19', 'Ericka Olvera'],
-    ['6821 Quivira', 'B2B New Installation', 10355, 'Scheduled', '2026-08-04', 'Gabriel Espinosa'],
-    ['Leslie Watson', 'Residential Retrofit', 10011, 'Scheduled', '2026-06-23', 'Gabriel Espinosa'],
-    ['Stephen Gnerich', 'Residential Retrofit', 9770, 'Scheduled', '2026-08-19', 'Gabriel Espinosa'],
-    ['Steve Anderson', 'Residential New Installation', 9715, 'Accepted', '2025-11-11', 'Christopher Williams'],
-    ['Michael Labrake', 'Residential Retrofit', 9500, 'Accepted', '2025-01-27', ''],
-    ['Steven Warren', 'Residential Retrofit', 9134, 'Accepted', '2024-08-21', ''],
-    ['Christopher Quarles', 'Residential Retrofit', 8770, 'Scheduled', '2026-08-10', 'Frank Emanuel'],
-    ['2127 Rail Line', 'B2B New Installation', 8602, 'Scheduled', '2026-07-22', 'Mark Aragon'],
-    ['Murphy Residence', 'B2B New Installation', 8229, 'Invoiced', '2026-08-05', 'Mark Aragon'],
-    ['Mike Waller', 'Residential Retrofit', 8200, 'Accepted', '2023-05-25', ''],
-    ['Ed White', 'B2B New Installation', 8111, 'Accepted', '2025-07-23', 'Mike Jones'],
+    ['Tidal Wave Auto Spa (Project Builders)', 'B2B New Installation', 45930.68, 'Invoiced', '2026-08-05', 'Frank Emanuel'],
+    ['Little Residence', 'B2B New Installation', 30127.69, 'Accepted', '2026-08-07', 'Jacob Martin'],
+    ['Kurt Wood', 'Residential New Installation', 25133.13, 'Accepted', '2026-08-27', 'Mike Jones'],
+    ['Steven Booth', 'Residential Retrofit', 19890.90, 'Scheduled', '2026-08-14', 'Gabriel Espinosa'],
+    ['SWIF', 'B2B New Installation', 19087.29, 'Scheduled', '2026-08-25', 'Frank Emanuel'],
+    ['James Blankenship', 'Residential Retrofit', 15918.67, 'Accepted', '2026-07-20', 'Gabriel Espinosa'],
+    ['6821 Quivira', 'B2B New Installation', 10354.80, 'Scheduled', '2026-08-04', 'Gabriel Espinosa'],
+    ['Leslie Watson', 'Residential Retrofit', 10011.31, 'Scheduled', '2026-06-23', 'Gabriel Espinosa'],
+    ['1926 Johnson Street SE (Peplinsky Residense)', 'B2B New Installation', 9591.58, 'Scheduled', '2026-08-25', 'Gabriel Espinosa'],
+    ['Christopher Quarles', 'Residential Retrofit', 8770.26, 'Scheduled', '2026-08-10', 'Frank Emanuel'],
+    ['2127 Rail Line', 'B2B New Installation', 8602.42, 'Scheduled', '2026-07-22', 'Mark Aragon'],
+    ['Omokore Residence', 'B2B New Installation', 7520.63, 'Accepted', '2026-07-13', 'Mark Aragon'],
+    ["2132 O'Keefe", 'B2B New Installation', 7520.63, 'Scheduled', '2026-08-24', 'Frank Emanuel'],
+    ['Sullivan "B" Model', 'B2B New Installation', 7167.16, 'Scheduled', '2026-07-16', 'Mark Aragon'],
+    ['Gayle Edmiston', 'Residential Retrofit', 6100.20, 'Accepted', '2026-05-28', 'Gabriel Espinosa'],
+    ['608 Posada Ct SE', 'Residential Retrofit', 6068.30, 'Scheduled', '2026-08-31', 'Gabriel Espinosa'],
+    ['Connected Construction', 'Residential New Installation', 5595.49, 'Accepted', '2026-05-18', 'Christopher Williams'],
+    ['David Harbaugh', 'Residential New Installation', 5525.22, 'Scheduled', '2026-08-07', 'Mike Jones'],
+    ['Richard Ma', 'Residential Retrofit', 4562.29, 'Scheduled', '2026-08-28', 'Gabriel Espinosa'],
+    ['17 Calle Granada Plan 1781', 'B2B New Installation', 4350, 'Accepted', '2026-08-11', 'Jacob Martin'],
+    ['25 Calle Granada Plan 1781', 'B2B New Installation', 4350, 'Accepted', '2026-08-11', 'Jacob Martin'],
+    ['31 Calle Granada Plan 1690', 'B2B New Installation', 4300, 'Accepted', '2026-06-29', 'Jacob Martin'],
+    ['Minerva Carrera', 'Residential Retrofit', 4212.08, 'Scheduled', '2026-09-03', 'Mike Jones'],
+    ['Bryan Klein', 'Residential Retrofit', 4020.98, 'Scheduled', '2026-09-02', 'Gabriel Espinosa'],
+    ['35 Calle Granada Plan 1522', 'B2B New Installation', 3900, 'Accepted', '2026-07-15', 'Jacob Martin'],
+    ['33 Calle Granada Plan 1522', 'B2B New Installation', 3900, 'Accepted', '2026-08-11', 'Jacob Martin'],
+    ['37 Calle Granada Plan 1337', 'B2B New Installation', 3550, 'Accepted', '2026-08-11', 'Jacob Martin'],
+    ['2 Avenida Alamosa Plan 1337', 'B2B New Installation', 3550, 'Accepted', '2026-08-26', 'Jacob Martin'],
+    ['Catalina Lehner', 'Residential Retrofit', 3045.36, 'Accepted', '2026-05-13', 'Gabriel Espinosa'],
+    ['Amy Nowell', 'Residential New Installation', 2097.62, 'Accepted', '2026-08-06', 'Gabriel Espinosa'],
+    ['Andrew Fellows', 'B2B Retrofit', 2052, 'Scheduled', '2026-08-20', 'Frank Emanuel'],
+    ['Janet Greene', 'Residential Retrofit', 1718.63, 'Scheduled', '2026-08-31', 'Mike Jones'],
+    ['Amy Nowell', 'Residential New Installation', 1139.69, 'Accepted', '2026-08-11', 'Gabriel Espinosa'],
   ],
-  onTheBooksJobsRest: { count: 139, value: 438504.93 },
+  onTheBooksJobsRest: { count: 0, value: 0 },
   revenueTrend: [
     { month: 'Mar', revenue: 318400 }, { month: 'Apr', revenue: 356900 }, { month: 'May', revenue: 389100 },
     { month: 'Jun', revenue: 421700 }, { month: 'Jul', revenue: 447300 }, { month: 'Aug', revenue: 402200 },
@@ -860,8 +860,11 @@ const dataStore = {
   },
   // backlogJobs/backlogValue refreshed 2026-08-20 alongside funnel.backlogJobs — same Proposals-Kind pull, same
   // definition (Status in Accepted/Scheduled/Invoiced), so this figure now matches the Revenue tab's "On the
-  // Books" pacing figure instead of diverging from it.
-  pipeline: { openEstimates: 75, pipelineValue: 1384616, apptsNext7: 29, backlogJobs: 179, backlogValue: 1257724 },
+  // Books" pacing figure instead of diverging from it. Re-pulled 2026-09-03 with the same May-2026-or-later
+  // accepted-date filter as dataStore.revenue.onTheBooksValue/funnel.backlogValue (see that note) — this tab
+  // (Pipeline & Scheduling) is still a static snapshot, not live, so keep this number in sync by hand if the
+  // Revenue tab's live On the Books figure is refreshed again.
+  pipeline: { openEstimates: 75, pipelineValue: 1384616, apptsNext7: 29, backlogJobs: 33, backlogValue: 299665 },
   upcomingAppts: [
     { date: 'Thu Aug 20, 8:00a',  customer: 'Amy Nowell',                           rep: 'Jorge Gonzalez',          type: 'Residential New Installation' },
     { date: 'Thu Aug 20, 8:00a',  customer: 'Murphy Residence — Twilight Homes',    rep: 'Mark Jr. Aragon',         type: 'B2B New Installation' },
@@ -1188,7 +1191,7 @@ function renderFunnelTab() {
     banner.innerHTML = `<span class="banner-icon">&#8987;</span><span>Loading live ServiceMinder data for Open Proposals / Job Backlog…</span>`;
   } else if (liveProp) {
     banner.classList.add('connected');
-    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Open Proposals and Job Backlog are live from ServiceMinder as of ${liveProposals.fetchedAt.toLocaleTimeString('en-US')} (org 4457). Leads, Appointments, and Estimates Sent are still the Aug 20, 2026 static snapshot — see note below. Daily trend chart is still illustrative.</span>`;
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Open Proposals and Job Backlog are live from ServiceMinder as of ${liveProposals.fetchedAt.toLocaleTimeString('en-US')} (org 4457). Job Backlog excludes proposals accepted before May 2026 (stale records never marked Complete); Open Proposals is not yet date-filtered. Leads, Appointments, and Estimates Sent are still the Aug 20, 2026 static snapshot — see note below. Daily trend chart is still illustrative.</span>`;
   } else if (liveProposals.status === 'error') {
     banner.classList.remove('connected');
     banner.innerHTML = `<span class="banner-icon">&#9888;</span><span>Live pull failed (${liveProposals.error}) — Open Proposals/Job Backlog showing the Aug 20, 2026 snapshot.</span>`;
@@ -1247,7 +1250,7 @@ function renderRevenueTab() {
   } else if (liveRev && liveProp) {
     const asOf = liveRevenue.fetchedAt > liveProposals.fetchedAt ? liveRevenue.fetchedAt : liveProposals.fetchedAt;
     banner.classList.add('connected');
-    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live from ServiceMinder as of ${asOf.toLocaleTimeString('en-US')} — MTD/QTD/YTD revenue and On the Books refresh automatically on page load and when you switch to this tab. Lead source breakdown has moved to the Lead Sources tab.</span>`;
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live from ServiceMinder as of ${asOf.toLocaleTimeString('en-US')} — MTD/QTD/YTD revenue and On the Books refresh automatically on page load and when you switch to this tab. On the Books now excludes proposals accepted before May 2026 (stale records never marked Complete). Lead source breakdown has moved to the Lead Sources tab.</span>`;
   } else if (liveRevenue.status === 'error' || liveProposals.status === 'error') {
     banner.classList.remove('connected');
     const errMsg = (liveRevenue.error || liveProposals.error || 'unknown error');
@@ -1287,7 +1290,7 @@ function renderRevenueTab() {
       { target: r.quarterlyRevenueBudget, actual: qtdInvoiced, sentiment: paceSentiment(qtdPct, elapsedPctOfPeriod('quarter')) }),
     calloutTile('YTD Revenue', fmtMoneyCompact(ytdInvoiced),
       { target: r.annualRevenueBudget, actual: ytdInvoiced, sentiment: paceSentiment(ytdPct, elapsedPctOfPeriod('year')) }),
-    calloutTileInfo('On the Books', fmtMoneyCompact(onTheBooksValue), onTheBooksCount + ' accepted proposals, not yet complete', 'openOnTheBooksModal()'),
+    calloutTileInfo('On the Books', fmtMoneyCompact(onTheBooksValue), onTheBooksCount + ' accepted proposals since May 2026, not yet complete', 'openOnTheBooksModal()'),
     calloutTile('Projected Year-End', fmtMoneyCompact(projectedYearEnd),
       { target: r.annualRevenueBudget, actual: projectedYearEnd, sentiment: paceSentiment(projectedPct, 100) }),
   ].join('');
@@ -1473,7 +1476,7 @@ function renderOnTheBooksModalTable(jobs, meta) {
     // timeout, not a credentials problem — see the POLL_MAX_ATTEMPTS_LARGE comment in the edge function).
     // Now surfaces the real error message so this is trustworthy going forward.
     const reason = meta.error ? `live pull failed: ${meta.error}` : 'live pull unavailable';
-    footerEl.innerHTML = `${reason} &mdash; showing a snapshot from 2026-08-20 &mdash; ${meta.count} jobs, ${fmtMoney(meta.totalValue)} total.${moreLine}`;
+    footerEl.innerHTML = `${reason} &mdash; showing a snapshot from 2026-09-03 (accepted on/after May 1, 2026) &mdash; ${meta.count} jobs, ${fmtMoney(meta.totalValue)} total.${moreLine}`;
   }
 }
 

@@ -74,9 +74,34 @@ input[type=text].field-input:focus{outline:none;border-color:var(--blue);backgro
 .save-status.err{color:var(--red-dk)}
 .add-q-btn{width:100%;padding:14px;background:#fff;border:2px dashed var(--line);border-radius:10px;color:var(--blue-dk);font:inherit;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:18px}
 .add-q-btn:hover{border-color:var(--blue);background:#eefaf6}
+
+/* ---- password gate ---- */
+.pw-screen{position:fixed;inset:0;background:linear-gradient(135deg,var(--blue),var(--blue-dk));display:flex;align-items:center;justify-content:center;z-index:999;padding:20px}
+.pw-box{background:#fff;border-radius:14px;padding:36px 32px;max-width:340px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.pw-box .lock-icon{font-size:2.2rem;margin-bottom:8px}
+.pw-box h2{font-size:1.15rem;color:var(--blue-dk);margin-bottom:6px}
+.pw-box p{font-size:.85rem;color:var(--muted);margin-bottom:18px}
+.pw-box input[type=password]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:1rem;text-align:center;margin-bottom:10px;background:#fcfdfe}
+.pw-box input[type=password]:focus{outline:none;border-color:var(--blue)}
+.pw-box button{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:7px;font:inherit;font-weight:700;font-size:.95rem;cursor:pointer}
+.pw-box button:hover{background:var(--blue-dk)}
+.pw-error{color:var(--red-dk);font-size:.82rem;font-weight:600;margin-top:10px;min-height:1em}
 </style>
 </head>
 <body>
+
+<div class="pw-screen" id="pwScreen">
+  <div class="pw-box">
+    <div class="lock-icon">🔒</div>
+    <h2>Manager Quiz — Locked</h2>
+    <p>This page has quiz results and correct answers. Enter the admin password to continue.</p>
+    <input type="password" id="pwInput" placeholder="Password" autocomplete="off">
+    <button type="button" onclick="checkPassword()">Unlock</button>
+    <div class="pw-error" id="pwError"></div>
+  </div>
+</div>
+
+<div id="appContent" style="display:none">
 <header>
   <div class="hdr-inner">
     <a href="https://tools.sonayagroup.com/greatclips.html" class="back-link">&larr; Back to Dashboard</a>
@@ -137,6 +162,7 @@ input[type=text].field-input:focus{outline:none;border-color:var(--blue);backgro
   </section>
 
 </div>
+</div><!-- /appContent -->
 
 <script>
 const QUIZ_ID = "gc-kpi-quiz";
@@ -425,9 +451,51 @@ async function loadQuestionsEditor(){
   draw();
 }
 
+/* ---------- PASSWORD GATE ---------- */
+const ADMIN_PW_HASH = "5ed4f5e535c18fe0e7b7a9369bf400c780b55cd1cc041a5f471f67e71d849524";
+
+async function sha256(str){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+
+function unlockApp(){
+  document.getElementById("pwScreen").style.display = "none";
+  document.getElementById("appContent").style.display = "block";
+  loadResults();
+  loadQuestionsEditor();
+}
+
+async function checkPassword(){
+  const input = document.getElementById("pwInput");
+  const err = document.getElementById("pwError");
+  const pw = input.value;
+  if (!pw) { err.textContent = "Please enter a password."; return; }
+  const hash = await sha256(pw);
+  if (hash === ADMIN_PW_HASH) {
+    try { sessionStorage.setItem("gc_quiz_admin_unlocked", "1"); } catch(e) {}
+    unlockApp();
+  } else {
+    err.textContent = "Incorrect password. Try again.";
+    input.value = "";
+    input.focus();
+  }
+}
+
+document.getElementById("pwInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") checkPassword();
+});
+
 /* ---------- INIT ---------- */
-loadResults();
-loadQuestionsEditor();
+(function(){
+  let alreadyUnlocked = false;
+  try { alreadyUnlocked = sessionStorage.getItem("gc_quiz_admin_unlocked") === "1"; } catch(e) {}
+  if (alreadyUnlocked) {
+    unlockApp();
+  } else {
+    document.getElementById("pwInput").focus();
+  }
+})();
 </script>
 </body>
 </html>

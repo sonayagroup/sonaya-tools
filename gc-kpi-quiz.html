@@ -35,8 +35,8 @@ header p{margin:0;opacity:.92;font-size:.92rem}
 .status-closed .status-title{color:var(--red-dk)}
 .muted{color:var(--muted);font-size:.88rem}
 form > label{display:block;font-weight:600;font-size:.78rem;margin-bottom:6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
-input[type=text]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:.95rem;margin-bottom:16px;background:#fcfdfe;color:var(--ink)}
-input[type=text]:focus{outline:none;border-color:var(--blue);background:#fff}
+input[type=text],select#salonName{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:.95rem;margin-bottom:16px;background:#fcfdfe;color:var(--ink)}
+input[type=text]:focus,select#salonName:focus{outline:none;border-color:var(--blue);background:#fff}
 .q{margin-bottom:22px;padding-bottom:20px;border-bottom:1px solid var(--line)}
 .q:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
 .q-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--blue);color:#fff;font-size:.75rem;font-weight:700;margin-right:8px;flex:none}
@@ -83,9 +83,33 @@ thead th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spaci
 .save-status.err{color:var(--red-dk)}
 .add-q-btn{width:100%;padding:14px;background:#fff;border:2px dashed var(--line);border-radius:10px;color:var(--blue-dk);font:inherit;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:18px}
 .add-q-btn:hover{border-color:var(--blue);background:#eefaf6}
+
+/* ---- password gate (admin/edit modes only) ---- */
+.pw-screen{position:fixed;inset:0;background:linear-gradient(135deg,var(--blue),var(--blue-dk));display:flex;align-items:center;justify-content:center;z-index:999;padding:20px}
+.pw-box{background:#fff;border-radius:14px;padding:36px 32px;max-width:340px;width:100%;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.pw-box .lock-icon{font-size:2.2rem;margin-bottom:8px}
+.pw-box h2{font-size:1.15rem;color:var(--blue-dk);margin-bottom:6px}
+.pw-box p{font-size:.85rem;color:var(--muted);margin-bottom:18px}
+.pw-box input[type=password]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:1rem;text-align:center;margin-bottom:10px;background:#fcfdfe}
+.pw-box input[type=password]:focus{outline:none;border-color:var(--blue)}
+.pw-box button{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:7px;font:inherit;font-weight:700;font-size:.95rem;cursor:pointer}
+.pw-box button:hover{background:var(--blue-dk)}
+.pw-error{color:var(--red-dk);font-size:.82rem;font-weight:600;margin-top:10px;min-height:1em}
 </style>
 </head>
 <body>
+
+<div class="pw-screen" id="pwScreen" style="display:none">
+  <div class="pw-box">
+    <div class="lock-icon">🔒</div>
+    <h2>Locked</h2>
+    <p>This view has quiz results and correct answers. Enter the admin password to continue.</p>
+    <input type="password" id="pwInput" placeholder="Password" autocomplete="off">
+    <button type="button" onclick="checkPassword()">Unlock</button>
+    <div class="pw-error" id="pwError"></div>
+  </div>
+</div>
+
 <header>
   <div class="hdr-inner" id="hdrInner">
     <a href="https://tools.sonayagroup.com/greatclips.html" class="back-link">&larr; Back to Dashboard</a>
@@ -110,9 +134,11 @@ thead th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spaci
 
   <form class="card" id="quizForm" style="display:none;">
     <label for="managerName">Your name</label>
-    <input type="text" id="managerName" placeholder="e.g. Samantha Martin" required>
+    <input type="text" id="managerName" required>
     <label for="salonName">Salon Name</label>
-    <input type="text" id="salonName" placeholder="e.g. Coors & Montano" required>
+    <select id="salonName" required>
+      <option value="" disabled selected>Select your salon…</option>
+    </select>
     <div id="questions"></div>
     <button type="submit" class="submit" id="submitBtn">Submit Quiz</button>
   </form>
@@ -136,6 +162,38 @@ const TIMEZONE = "America/Denver";
 const OPEN_HOUR = 8;   // 8:00 AM
 const CLOSE_HOUR = 12; // 12:00 PM (noon)
 const OPEN_DAY = 0;    // Sunday
+
+// Master salon list — same 15 salons/names shown in the main dashboard's Salon selector.
+// Update this list here (and in the dashboard) if a salon opens, closes, or is renamed.
+const SALONS = [
+  { id: "0200", name: "Shops At Nob Hill" },
+  { id: "0646", name: "Espanola" },
+  { id: "0933", name: "Four Hills Shopping Center" },
+  { id: "2092", name: "North Towne Plaza" },
+  { id: "2850", name: "Southern & 528" },
+  { id: "3781", name: "Golf Course & Paseo" },
+  { id: "3999", name: "Cavern City Shopping Center" },
+  { id: "5809", name: "Juan Tabo Plaza" },
+  { id: "6101", name: "Star Plaza" },
+  { id: "6110", name: "Towne Park Plaza" },
+  { id: "6116", name: "De Vargas Center Mall" },
+  { id: "6117", name: "Coronado Center" },
+  { id: "7700", name: "Entrada Contenta" },
+  { id: "7741", name: "Las Estancias" },
+  { id: "8914", name: "San Isidro Plaza" }
+];
+
+function populateSalonDropdown(){
+  const sel = document.getElementById("salonName");
+  if (!sel || sel.dataset.populated) return;
+  SALONS.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = `${s.id} — ${s.name}`;
+    opt.textContent = `${s.id} — ${s.name}`;
+    sel.appendChild(opt);
+  });
+  sel.dataset.populated = "1";
+}
 
 function sbHeaders(extra){
   return Object.assign({
@@ -263,6 +321,7 @@ async function showStatus(){
       ? "This is exactly what a manager sees once the Sunday window opens."
       : "Closes at 12:00 PM Mountain Time today. Answer every question — 100% is what wins the reward.";
     form.style.display = "block";
+    populateSalonDropdown();
     renderQuestions();
   } else {
     statusCard.className = "card status-closed";
@@ -556,11 +615,50 @@ function escapeAttr(str){
   return String(str || "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+/* ---------- PASSWORD GATE (admin/edit modes only) ---------- */
+const ADMIN_PW_HASH = "5ed4f5e535c18fe0e7b7a9369bf400c780b55cd1cc041a5f471f67e71d849524";
+
+async function sha256(str){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+
+function runProtectedView(){
+  if (params.get("admin") === "1") {
+    renderAdminView();
+  } else if (EDIT_MODE) {
+    renderEditView();
+  }
+}
+
+async function checkPassword(){
+  const input = document.getElementById("pwInput");
+  const err = document.getElementById("pwError");
+  const pw = input.value;
+  if (!pw) { err.textContent = "Please enter a password."; return; }
+  const hash = await sha256(pw);
+  if (hash === ADMIN_PW_HASH) {
+    try { sessionStorage.setItem("gc_quiz_admin_unlocked", "1"); } catch(e) {}
+    document.getElementById("pwScreen").style.display = "none";
+    runProtectedView();
+  } else {
+    err.textContent = "Incorrect password. Try again.";
+    input.value = "";
+    input.focus();
+  }
+}
+
 /* ---------- INIT ---------- */
-if (params.get("admin") === "1") {
-  renderAdminView();
-} else if (EDIT_MODE) {
-  renderEditView();
+if (params.get("admin") === "1" || EDIT_MODE) {
+  let alreadyUnlocked = false;
+  try { alreadyUnlocked = sessionStorage.getItem("gc_quiz_admin_unlocked") === "1"; } catch(e) {}
+  if (alreadyUnlocked) {
+    runProtectedView();
+  } else {
+    document.getElementById("pwScreen").style.display = "flex";
+    document.getElementById("pwInput").focus();
+    document.getElementById("pwInput").addEventListener("keydown", e => { if (e.key === "Enter") checkPassword(); });
+  }
 } else {
   showStatus();
 }

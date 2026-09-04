@@ -733,6 +733,7 @@ body.customer-mode .customer-total-box { display: block; }
     <div class="email-panel-footer">
       <button class="ep-footer-btn ep-btn-plain" onclick="copyEmailPlainText()">&#128195; Copy Plain Text</button>
       <button class="ep-footer-btn ep-btn-copy" onclick="copyEmailPlainText()">&#9993; Copy to Clipboard</button>
+      <button class="ep-footer-btn" onclick="createFinalCombined()" style="background:var(--navy);color:#fff;font-weight:700;margin-left:auto" id="btnCreateFinal">&#128203; Create Final / Combined</button>
     </div>
   </div>
 </div>
@@ -3172,24 +3173,37 @@ function refreshEmailPreview() {
     html += '<div class="ep-notes-box">' + escHtml(notes) + '</div>';
   }
 
-  // Show selected options with materials and prices
+  // Show options with accepted/not accepted status
   const selectedIdxs = getSelectedEmailOptions();
-  if (selectedIdxs.length === 0) {
-    html += '<div class="ep-sec-value" style="color:#c62828;font-weight:600">No options selected — check at least one option above.</div>';
-  } else {
-    selectedIdxs.forEach(idx => {
-      const opt = options[idx];
+  const selectedSet = new Set(selectedIdxs);
+  if (options.length <= 1) {
+    // Single option — just show materials, no accepted/not accepted labels
+    if (selectedIdxs.length === 0) {
+      html += '<div class="ep-sec-value" style="color:#c62828;font-weight:600">No options selected — check at least one option above.</div>';
+    } else {
+      const opt = options[selectedIdxs[0]];
       const optMaterials = getEmailMaterialsForOption(opt);
+      html += '<div class="ep-sec-label">Materials Needed:</div>';
+      html += '<div class="ep-sec-value">' + escHtml(optMaterials) + '</div>';
+    }
+  } else {
+    // Multiple options — show ALL with Accepted / Not Accepted status
+    if (selectedIdxs.length === 0) {
+      html += '<div class="ep-sec-value" style="color:#c62828;font-weight:600">No options selected — check at least one option above.</div>';
+    }
+    options.forEach((opt, idx) => {
+      const isAccepted = selectedSet.has(idx);
       const optPrice = fmt(getOptionCustomerPrice(opt));
-      if (selectedIdxs.length > 1) {
-        html += '<div class="ep-option-block"><h4>' + escHtml(opt.name) + ' — ' + optPrice + '</h4>';
-        html += '<div class="ep-sec-label">Materials Needed:</div>';
-        html += '<div class="ep-sec-value">' + escHtml(optMaterials) + '</div>';
-        html += '</div>';
-      } else {
+      const statusBadge = isAccepted
+        ? '<span style="background:#2e7d32;color:#fff;padding:2px 8px;border-radius:4px;font-size:.8rem;font-weight:600;margin-left:8px">ACCEPTED</span>'
+        : '<span style="background:#c62828;color:#fff;padding:2px 8px;border-radius:4px;font-size:.8rem;font-weight:600;margin-left:8px">NOT ACCEPTED</span>';
+      html += '<div class="ep-option-block" style="' + (!isAccepted ? 'opacity:0.6' : '') + '"><h4>' + escHtml(opt.name) + ' — ' + optPrice + ' ' + statusBadge + '</h4>';
+      if (isAccepted) {
+        const optMaterials = getEmailMaterialsForOption(opt);
         html += '<div class="ep-sec-label">Materials Needed:</div>';
         html += '<div class="ep-sec-value">' + escHtml(optMaterials) + '</div>';
       }
+      html += '</div>';
     });
   }
 
@@ -3197,18 +3211,19 @@ function refreshEmailPreview() {
   html += '<div class="ep-detail-grid">';
   html += detailRow('Estimator', estimator);
   html += detailRow('Service Address', address);
-  if (selectedIdxs.length <= 1) {
+  if (options.length <= 1) {
     const singlePrice = selectedIdxs.length === 1 ? fmt(getOptionCustomerPrice(options[selectedIdxs[0]])) : '$0.00';
     html += '<div class="ep-detail-row"><span class="ep-detail-label">Total Amount</span><span class="ep-detail-value ep-amount">' + singlePrice + '</span></div>';
   } else {
     let grandTotal = 0;
-    selectedIdxs.forEach(idx => {
-      const opt = options[idx];
+    options.forEach((opt, idx) => {
+      const isAccepted = selectedSet.has(idx);
       const optPrice = getOptionCustomerPrice(opt);
-      grandTotal += optPrice;
-      html += '<div class="ep-detail-row"><span class="ep-detail-label">' + escHtml(opt.name) + '</span><span class="ep-detail-value ep-amount">' + fmt(optPrice) + '</span></div>';
+      if (isAccepted) grandTotal += optPrice;
+      const statusTag = isAccepted ? '' : ' (Not Accepted)';
+      html += '<div class="ep-detail-row" style="' + (!isAccepted ? 'opacity:0.5;text-decoration:line-through' : '') + '"><span class="ep-detail-label">' + escHtml(opt.name) + statusTag + '</span><span class="ep-detail-value ep-amount">' + fmt(optPrice) + '</span></div>';
     });
-    html += '<div class="ep-detail-row" style="border-top:2px solid var(--navy);margin-top:4px;padding-top:6px"><span class="ep-detail-label" style="font-weight:800">Total Amount</span><span class="ep-detail-value ep-amount" style="font-size:1.25rem">' + fmt(grandTotal) + '</span></div>';
+    html += '<div class="ep-detail-row" style="border-top:2px solid var(--navy);margin-top:4px;padding-top:6px"><span class="ep-detail-label" style="font-weight:800">Accepted Total</span><span class="ep-detail-value ep-amount" style="font-size:1.25rem">' + fmt(grandTotal) + '</span></div>';
   }
   html += detailRow('Installer / Estimated Hours', installerHours);
   html += detailRow('Projected Margin', margin);
@@ -3273,35 +3288,45 @@ function copyEmailPlainText() {
     text += 'Additional Notes:\n' + notes + '\n\n';
   }
   const selectedIdxs = getSelectedEmailOptions();
-  if (selectedIdxs.length === 0) {
-    text += 'No options selected.\n\n';
+  const selectedSet = new Set(selectedIdxs);
+  if (options.length <= 1) {
+    // Single option
+    if (selectedIdxs.length === 0) {
+      text += 'No options selected.\n\n';
+    } else {
+      const optMaterials = getEmailMaterialsForOption(options[selectedIdxs[0]]);
+      text += 'Materials Needed:\n' + optMaterials + '\n\n';
+    }
   } else {
-    selectedIdxs.forEach(idx => {
-      const opt = options[idx];
-      const optMaterials = getEmailMaterialsForOption(opt);
+    // Multiple options — show ALL with accepted/not accepted
+    options.forEach((opt, idx) => {
+      const isAccepted = selectedSet.has(idx);
       const optPrice = fmt(getOptionCustomerPrice(opt));
-      if (selectedIdxs.length > 1) {
-        text += opt.name + ' — ' + optPrice + '\n';
-        text += 'Materials Needed: ' + optMaterials + '\n\n';
-      } else {
-        text += 'Materials Needed:\n' + optMaterials + '\n\n';
+      const status = isAccepted ? '✅ ACCEPTED' : '❌ NOT ACCEPTED';
+      text += opt.name + ' — ' + optPrice + '  ' + status + '\n';
+      if (isAccepted) {
+        const optMaterials = getEmailMaterialsForOption(opt);
+        text += 'Materials Needed: ' + optMaterials + '\n';
       }
+      text += '\n';
     });
   }
   text += '──────────────────────────────────\n\n';
   text += 'Estimator: ' + estimator + '\n';
   text += 'Service Address: ' + address + '\n';
-  if (selectedIdxs.length <= 1) {
+  if (options.length <= 1) {
     const singlePrice = selectedIdxs.length === 1 ? fmt(getOptionCustomerPrice(options[selectedIdxs[0]])) : '$0.00';
     text += 'Total Amount: ' + singlePrice + '\n';
   } else {
     let grandTotal = 0;
-    selectedIdxs.forEach(idx => {
-      const optPrice = getOptionCustomerPrice(options[idx]);
-      grandTotal += optPrice;
-      text += options[idx].name + ': ' + fmt(optPrice) + '\n';
+    options.forEach((opt, idx) => {
+      const isAccepted = selectedSet.has(idx);
+      const optPrice = getOptionCustomerPrice(opt);
+      if (isAccepted) grandTotal += optPrice;
+      const statusTag = isAccepted ? '' : ' (Not Accepted)';
+      text += opt.name + statusTag + ': ' + fmt(optPrice) + '\n';
     });
-    text += 'Total Amount: ' + fmt(grandTotal) + '\n';
+    text += 'Accepted Total: ' + fmt(grandTotal) + '\n';
   }
   text += 'Installer / Estimated Hours: ' + installerHours + '\n';
   text += 'Projected Margin: ' + margin + '\n';
@@ -3325,6 +3350,207 @@ function copyEmailPlainText() {
     document.body.removeChild(ta);
     showToast('Email copied to clipboard!', 'success');
   });
+}
+
+// ─── FINAL / COMBINED ─────────────────────────────────────────────────────
+
+function createFinalCombined() {
+  const selectedIdxs = getSelectedEmailOptions();
+  if (selectedIdxs.length === 0) {
+    showToast('Select at least one option to create the Final / Combined.', 'error');
+    return;
+  }
+
+  // Capture selected option references before any removals shift indices
+  const selectedOpts = selectedIdxs.map(i => options[i]).filter(Boolean);
+  const acceptedNames = selectedOpts.map(o => o.name).join(', ');
+
+  // Gather row data from each accepted option (read from DOM)
+  const combinedData = { blowIn: [], batt: [], spf: [], labor: [], misc: [], trips: [] };
+
+  selectedOpts.forEach(srcOpt => {
+    const sp = optPrefixFor(srcOpt);
+
+    // Blow-in
+    srcOpt.rows.blowIn.forEach(id => {
+      const sel = document.querySelector(`.${CSS.escape(sp)}bi-sel[data-id="${id}"]`);
+      const qty = document.querySelector(`.${CSS.escape(sp)}bi-qty[data-id="${id}"]`);
+      const price = document.querySelector(`.${CSS.escape(sp)}bi-price[data-id="${id}"]`);
+      if (sel && sel.value !== '') {
+        combinedData.blowIn.push({ material: sel.value, qty: qty?.value || '0', price: price?.value || '' });
+      }
+    });
+
+    // Batt
+    srcOpt.rows.batt.forEach(id => {
+      const sel = document.querySelector(`.${CSS.escape(sp)}bt-sel[data-id="${id}"]`);
+      const qty = document.querySelector(`.${CSS.escape(sp)}bt-qty[data-id="${id}"]`);
+      const price = document.querySelector(`.${CSS.escape(sp)}bt-price[data-id="${id}"]`);
+      if (sel && sel.value !== '') {
+        combinedData.batt.push({ product: sel.value, qty: qty?.value || '0', price: price?.value || '' });
+      }
+    });
+
+    // SPF
+    srcOpt.rows.spf.forEach(id => {
+      const sel = document.querySelector(`.${CSS.escape(sp)}sf-sel[data-id="${id}"]`);
+      const qty = document.querySelector(`.${CSS.escape(sp)}sf-qty[data-id="${id}"]`);
+      const price = document.querySelector(`.${CSS.escape(sp)}sf-price[data-id="${id}"]`);
+      if (sel && sel.value !== '') {
+        combinedData.spf.push({ type: sel.value, qty: qty?.value || '0', price: price?.value || '' });
+      }
+    });
+
+    // Labor
+    srcOpt.rows.labor.forEach(id => {
+      const label = document.querySelector(`.${CSS.escape(sp)}lb-label[data-id="${id}"]`);
+      const hrs = document.querySelector(`.${CSS.escape(sp)}lb-hrs[data-id="${id}"]`);
+      const rate = document.querySelector(`.${CSS.escape(sp)}lb-rate[data-id="${id}"]`);
+      const ot = document.querySelector(`.${CSS.escape(sp)}lb-ot[data-id="${id}"]`);
+      const otRate = document.querySelector(`.${CSS.escape(sp)}lb-otrate[data-id="${id}"]`);
+      const bonus = document.querySelector(`.${CSS.escape(sp)}lb-bonus[data-id="${id}"]`);
+      combinedData.labor.push({
+        label: label?.value || '', hrs: hrs?.value || '0', rate: rate?.value || '25',
+        ot: ot?.value || '0', otRate: otRate?.value || '37.50', bonus: bonus?.value || '0'
+      });
+    });
+
+    // Misc
+    srcOpt.rows.misc.forEach(m => {
+      const nameInput = document.querySelector(`.${CSS.escape(sp)}ms-name[data-id="${m.id}"]`);
+      const qty = document.querySelector(`.${CSS.escape(sp)}ms-qty[data-id="${m.id}"]`);
+      const price = document.querySelector(`.${CSS.escape(sp)}ms-price[data-id="${m.id}"]`);
+      if (nameInput && nameInput.value.trim() !== '') {
+        combinedData.misc.push({ itemName: nameInput.value.trim(), qty: qty?.value || '1', price: price?.value || '0', auto: m.auto || false });
+      }
+    });
+
+    // Trip
+    const tierEl = $(sp + 'tripTier');
+    if (tierEl) {
+      combinedData.trips.push({
+        tier: tierEl.value,
+        miles: $(sp + 'tripMiles')?.value || '0',
+        chargeAmt: $(sp + 'tripChargeAmt')?.value || '0',
+        days: $(sp + 'tripDays')?.value || '1',
+        genHours: $(sp + 'genHours')?.value || '0',
+        fuelRate: $(sp + 'fuelRate')?.value || '4.00'
+      });
+    }
+  });
+
+  // Remove existing Final / Combined option if present
+  const existingIdx = options.findIndex(o => o.name === 'Final / Combined');
+  if (existingIdx !== -1) {
+    removeOption(existingIdx);
+  }
+
+  // Create new Final / Combined option
+  const combined = createOption('Final / Combined');
+  const cp = optPrefixFor(combined);
+
+  // Make it the active option (createOption already does switchToOption)
+  // Remove the default labor row that createOption + addLabor added
+  while (combined.rows.labor.length > 0) {
+    const lid = combined.rows.labor[0];
+    const tr = document.getElementById(cp + 'lb-' + lid);
+    if (tr) tr.remove();
+    combined.rows.labor.splice(0, 1);
+  }
+
+  // Populate blow-in
+  combinedData.blowIn.forEach(row => {
+    addBlowIn();
+    const lastId = combined.rows.blowIn[combined.rows.blowIn.length - 1];
+    const sel = document.querySelector(`.${CSS.escape(cp)}bi-sel[data-id="${lastId}"]`);
+    const qty = document.querySelector(`.${CSS.escape(cp)}bi-qty[data-id="${lastId}"]`);
+    if (sel) sel.value = row.material;
+    if (qty) qty.value = row.qty;
+    onBlowInSelect(cp, lastId);
+    if (row.price != null && row.price !== '') {
+      const priceInput = document.querySelector(`.${CSS.escape(cp)}bi-price[data-id="${lastId}"]`);
+      if (priceInput) priceInput.value = row.price;
+    }
+  });
+
+  // Populate batt
+  combinedData.batt.forEach(row => {
+    addBatt();
+    const lastId = combined.rows.batt[combined.rows.batt.length - 1];
+    const sel = document.querySelector(`.${CSS.escape(cp)}bt-sel[data-id="${lastId}"]`);
+    const qty = document.querySelector(`.${CSS.escape(cp)}bt-qty[data-id="${lastId}"]`);
+    if (sel) sel.value = row.product;
+    if (qty) qty.value = row.qty;
+    onBattSelect(cp, lastId);
+    if (row.price != null && row.price !== '') {
+      const priceInput = document.querySelector(`.${CSS.escape(cp)}bt-price[data-id="${lastId}"]`);
+      if (priceInput) priceInput.value = row.price;
+    }
+  });
+
+  // Populate SPF
+  combinedData.spf.forEach(row => {
+    addSpf();
+    const lastId = combined.rows.spf[combined.rows.spf.length - 1];
+    const sel = document.querySelector(`.${CSS.escape(cp)}sf-sel[data-id="${lastId}"]`);
+    const qty = document.querySelector(`.${CSS.escape(cp)}sf-qty[data-id="${lastId}"]`);
+    if (sel) sel.value = row.type;
+    if (qty) qty.value = row.qty;
+    onSpfSelect(cp, lastId);
+    if (row.price != null && row.price !== '') {
+      const priceInput = document.querySelector(`.${CSS.escape(cp)}sf-price[data-id="${lastId}"]`);
+      if (priceInput) priceInput.value = row.price;
+    }
+  });
+
+  // Populate labor
+  combinedData.labor.forEach(row => {
+    addLabor(row.label, parseFloat(row.rate) || 25, parseFloat(row.otRate) || 37.50);
+    const lastId = combined.rows.labor[combined.rows.labor.length - 1];
+    const hrs = document.querySelector(`.${CSS.escape(cp)}lb-hrs[data-id="${lastId}"]`);
+    const ot = document.querySelector(`.${CSS.escape(cp)}lb-ot[data-id="${lastId}"]`);
+    const bonus = document.querySelector(`.${CSS.escape(cp)}lb-bonus[data-id="${lastId}"]`);
+    if (hrs) hrs.value = row.hrs;
+    if (ot) ot.value = row.ot;
+    if (bonus) bonus.value = row.bonus || '0';
+  });
+
+  // Populate misc
+  combinedData.misc.forEach(row => {
+    addMisc(row.itemName, parseInt(row.qty) || 1, row.auto);
+    const lastMisc = combined.rows.misc[combined.rows.misc.length - 1];
+    const priceInput = document.querySelector(`.${CSS.escape(cp)}ms-price[data-id="${lastMisc.id}"]`);
+    if (priceInput && row.price) priceInput.value = row.price;
+  });
+
+  // Trip: use the highest charge amount, sum days and gen hours
+  if (combinedData.trips.length > 0) {
+    let maxCharge = 0, totalDays = 0, totalGenHours = 0, bestTier = '0', bestMiles = '0', bestFuelRate = '4.00';
+    combinedData.trips.forEach(t => {
+      const amt = parseFloat(t.chargeAmt) || 0;
+      if (amt > maxCharge) {
+        maxCharge = amt;
+        bestTier = t.tier;
+        bestMiles = t.miles;
+        bestFuelRate = t.fuelRate;
+      }
+      totalDays += parseInt(t.days) || 1;
+      totalGenHours += parseFloat(t.genHours) || 0;
+    });
+    $(cp + 'tripTier').value = bestTier;
+    onTripTierChange(cp);
+    $(cp + 'tripMiles').value = bestMiles;
+    $(cp + 'tripChargeAmt').value = maxCharge.toFixed(2);
+    $(cp + 'tripDays').value = totalDays;
+    $(cp + 'genHours').value = totalGenHours;
+    $(cp + 'fuelRate').value = bestFuelRate;
+  }
+
+  // Close email panel
+  closeEmailPanel();
+  recalc();
+
+  showToast('Final / Combined created from: ' + acceptedNames, 'success');
 }
 
 // ─── INIT ───────────────────────────────────────────────────────────────────

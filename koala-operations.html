@@ -179,6 +179,11 @@ body {
 .callout-clickable::after { content: "View jobs \2192"; display: block; font-size: 11px; font-weight: 600; color: var(--brand-teal); margin-top: 6px; }
 .callout .callout-label { font-size: 12px; color: var(--text-secondary); font-weight: 600; margin-bottom: 4px; }
 .callout .callout-value { font-size: 20px; font-weight: 700; color: var(--brand-teal); }
+
+.metric-badge { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; padding: 1px 6px; border-radius: 8px; margin-left: 5px; vertical-align: middle; white-space: nowrap; }
+.metric-badge.unvalidated { background: var(--status-warn-bg); color: var(--status-warn); }
+.metric-badge.validated { background: var(--status-good-bg); color: var(--status-good); }
+th .metric-badge, .kpi-label .metric-badge { transform: translateY(-1px); }
 .flag-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
 .flag-item { display: flex; gap: 12px; padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface-card); align-items: flex-start; }
 .flag-item .status-pill { flex-shrink: 0; margin-top: 2px; }
@@ -264,72 +269,25 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 </header>
 
 <nav class="tab-bar">
-  <button class="tab-btn active" data-tab="funnel">Sales Funnel</button>
-  <button class="tab-btn" data-tab="leadsources">Lead Sources</button>
-  <button class="tab-btn" data-tab="revenue">Revenue &amp; Jobs</button>
-  <button class="tab-btn" data-tab="reps">Sales Rep Performance</button>
-  <button class="tab-btn" data-tab="pipeline">Pipeline &amp; Scheduling</button>
+  <button class="tab-btn active" data-tab="sales">Sales Performance</button>
   <button class="tab-btn" data-tab="financial">Financial Snapshot</button>
   <button class="tab-btn" data-tab="crm">CRM Pipeline</button>
 </nav>
 
-<!-- TAB 1: SALES FUNNEL -->
-<div class="tab-content active" id="tab-funnel">
+<!-- TAB: SALES PERFORMANCE -->
+<div class="tab-content active" id="tab-sales">
   <div class="container">
-    <div class="connection-banner connected" id="funnelBanner">
+    <div class="connection-banner connected" id="salesBanner">
       <span class="banner-icon">&#10003;</span>
-      <span>Live data from ServiceMinder (org 4457) — pulled Aug 20, 2026, window Jul 22–Aug 20. Daily trend chart below is still illustrative (historical daily pull not automated yet).</span>
-    </div>
-    <div class="kpi-summary" id="funnelKpiRow"></div>
-    <div class="charts-grid">
-      <div class="chart-card">
-        <h3>Sales Activity — Last 30 Days</h3>
-        <p class="chart-subtitle">Leads, appointments, estimates sent, open proposals</p>
-        <div class="chart-area" id="chartFunnel"></div>
-      </div>
-      <div class="chart-card">
-        <h3>Leads vs. Appointments Held</h3>
-        <p class="chart-subtitle">Illustrative pattern, Aug 7–20, 2026 — daily historical pull not yet automated</p>
-        <div class="chart-area" id="chartFunnelTrend"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- TAB: LEAD SOURCES -->
-<div class="tab-content" id="tab-leadsources">
-  <div class="container">
-    <div class="connection-banner connected" id="leadSourcesBanner">
-      <span class="banner-icon">&#10003;</span>
-      <span>Lead counts below are a static snapshot — ServiceMinder contacts (org 4457), 30-day window, Jul 22–Aug 20, 2026. ServiceMinder's "Channel" field mirrors "Lead Source" 1:1 for this account, so only Source is shown. Category is the contact record type as set in ServiceMinder, not a marketing dimension. (The Revenue by Source section further down does refresh live — it uses ServiceMinder invoices, not contacts.)</span>
-    </div>
-    <div class="kpi-summary" id="leadSourcesKpiRow"></div>
-    <div class="charts-grid">
-      <div class="chart-card">
-        <h3>Leads by Source</h3>
-        <p class="chart-subtitle">Jul 22–Aug 20, 2026</p>
-        <div class="chart-area" id="chartLeadSources"></div>
-      </div>
-      <div class="chart-card">
-        <h3>Leads by Contact Category</h3>
-        <p class="chart-subtitle">Jul 22–Aug 20, 2026 — as categorized in ServiceMinder</p>
-        <div class="chart-area" id="chartLeadCategories"></div>
-      </div>
-    </div>
-    <div class="section-title">Lead Source Detail (Jul 22–Aug 20, 2026)</div>
-    <div class="store-table-wrap">
-      <table class="store-table" id="leadSourceTable">
-        <thead><tr><th>Source</th><th>Leads</th><th>% of Total</th></tr></thead>
-        <tbody id="leadSourceTbody"></tbody>
-      </table>
+      <span>Loading live ServiceMinder data…</span>
     </div>
 
-    <div class="connection-banner connected" style="margin-top:24px;" id="revSourceBanner">
-      <span class="banner-icon">&#10003;</span>
-      <span id="revSourceBannerText"></span>
-    </div>
+    <div class="section-title">Revenue Pacing <span class="section-title-sub">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year. Click "On the Books" to see which jobs are included.</span></div>
+    <div class="callout-row" id="pacingRow"></div>
+
+    <div class="section-title">Leads &amp; Sales Performance by Period <span class="section-title-sub">— Revenue, Invoices, and Avg Deal Size are checked to the penny against ServiceMinder's own reports. Estimates Sent and Close Rate <span class="metric-badge unvalidated">Unvalidated</span> are computed here from a raw proposals pull, cohorted by the date each estimate was sent, and reflect that cohort's status as of today.</span></div>
     <div class="controls">
-      <div class="view-toggle" id="revSourceRangeToggle">
+      <div class="view-toggle" id="salesRangeToggle">
         <button data-range="7d">7D</button>
         <button data-range="30d">30D</button>
         <button data-range="90d">90D</button>
@@ -339,123 +297,52 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <button data-range="year">This Year</button>
         <button data-range="custom">Custom</button>
       </div>
-      <div class="date-range-custom" id="revSourceCustomRow" style="display:none;">
-        <input type="date" id="revSourceFromInput"> <span>to</span> <input type="date" id="revSourceThroughInput">
-        <button id="revSourceApplyBtn" class="apply-btn">Apply</button>
+      <div class="date-range-custom" id="salesCustomRow" style="display:none;">
+        <input type="date" id="salesFromInput"> <span>to</span> <input type="date" id="salesThroughInput">
+        <button id="salesApplyBtn" class="apply-btn">Apply</button>
       </div>
-      <div id="revSourceLiveStatus" class="live-status" style="display:none;"></div>
+      <div id="salesLiveStatus" class="live-status" style="display:none;"></div>
     </div>
-    <div class="kpi-summary" id="revenueBySourceKpiRow"></div>
+    <div class="kpi-summary" id="salesPeriodKpiRow"></div>
     <div class="charts-grid">
       <div class="chart-card">
-        <h3>Revenue by Source</h3>
-        <p class="chart-subtitle" id="revenueBySourceSubtitle">Jul 22–Aug 20, 2026 — invoiced revenue attributed to source</p>
-        <div class="chart-area" id="chartRevenueBySource"></div>
+        <h3>Revenue by Lead Source</h3>
+        <p class="chart-subtitle" id="chartSalesSourceSubtitle">This Month</p>
+        <div class="chart-area" id="chartSalesSource"></div>
       </div>
-    </div>
-    <div class="section-title" id="revenueBySourceTableTitle">Revenue by Source Detail (Jul 22–Aug 20, 2026)</div>
-    <div class="store-table-wrap">
-      <table class="store-table" id="revenueBySourceTable">
-        <thead><tr><th>Source</th><th>Contacts</th><th>Invoices</th><th>Revenue</th><th>Avg / Invoice</th></tr></thead>
-        <tbody id="revenueBySourceTbody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- TAB 2: REVENUE & JOBS -->
-<div class="tab-content" id="tab-revenue">
-  <div class="container">
-    <div class="connection-banner connected" id="revenueBanner">
-      <span class="banner-icon">&#10003;</span>
-      <span>Live data from ServiceMinder appointments/proposals — 30-day window Jul 22–Aug 20, 2026. Lead source breakdown has moved to the Lead Sources tab.</span>
-    </div>
-    <div class="kpi-summary" id="revenueKpiRow"></div>
-    <div class="section-title">Month-to-Date Financials <span id="mtdFinancialsSubtitle" style="font-weight:400;color:var(--text-muted);font-size:12px;">— from ServiceMinder invoices, Aug 1–20, 2026, a proxy for real-time revenue until QuickBooks is reconnected to the right company. Budgeted vs the 2026 annual plan (flat &divide; 12).</span></div>
-    <div class="callout-row" id="mtdFinancialsRow"></div>
-    <div class="section-title">Revenue Pacing <span style="font-weight:400;color:var(--text-muted);font-size:12px;">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed &mdash; older stale "Accepted" records are excluded) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year. Click "On the Books" to see which jobs are included.</span></div>
-    <div class="controls">
-      <div class="view-toggle" id="revPacingRangeToggle">
-        <button data-range="week">This Week</button>
-        <button data-range="month">This Month</button>
-        <button data-range="quarter">This Quarter</button>
-        <button data-range="year">This Year</button>
-        <button data-range="custom">Custom</button>
-      </div>
-      <div class="date-range-custom" id="revPacingCustomRow" style="display:none;">
-        <input type="date" id="revPacingFromInput"> <span>to</span> <input type="date" id="revPacingThroughInput">
-        <button id="revPacingApplyBtn" class="apply-btn">Apply</button>
-      </div>
-      <div id="revPacingLiveStatus" class="live-status" style="display:none;"></div>
-    </div>
-    <div class="callout-row" id="pacingRow"></div>
-    <div class="callout-row" id="pacingCustomRow" style="display:none;"></div>
-  </div>
-</div>
-
-<!-- TAB 3: SALES REP PERFORMANCE -->
-<div class="tab-content" id="tab-reps">
-  <div class="container">
-    <div class="connection-banner connected" id="repsBanner">
-      <span class="banner-icon">&#10003;</span>
-      <span>Live data from ServiceMinder invoices, grouped by Proposal Owner (the salesperson who owns the proposal that became the job) — 30-day window Jul 22–Aug 20, 2026. This corrects an earlier version of this tab that grouped by "Service Agent" (the installer/field crew member), which mislabeled installer activity as sales rep performance. Per Pranav (Aug 2026): all 6 people who own revenue-generating proposals are legitimate reps, not just the 3 formally-titled ones. "Appointments by Sales Rep" has been replaced with "Jobs Closed by Sales Rep" (invoice count per Proposal Owner) since ServiceMinder's appointment records don't reliably map to the same rep roster as Proposal Owner does.</span>
-    </div>
-    <div class="kpi-summary" id="repsKpiRow"></div>
-    <div class="charts-grid">
       <div class="chart-card">
         <h3>Revenue by Sales Rep</h3>
-        <p class="chart-subtitle" id="chartRepsSubtitle">Jul 22–Aug 20, 2026</p>
-        <div class="controls" style="margin-bottom:8px;">
-          <div class="view-toggle" id="repRevenueRangeToggle">
-            <button data-range="7d">7D</button>
-            <button data-range="30d" class="active">30D</button>
-            <button data-range="90d">90D</button>
-          </div>
-        </div>
-        <div class="chart-area" id="chartReps"></div>
-      </div>
-      <div class="chart-card">
-        <h3>Jobs Closed by Sales Rep</h3>
-        <p class="chart-subtitle">Jul 22–Aug 20, 2026</p>
-        <div class="chart-area" id="chartRepsClose"></div>
+        <p class="chart-subtitle" id="chartSalesRepsSubtitle">This Month</p>
+        <div class="chart-area" id="chartSalesReps"></div>
       </div>
     </div>
-    <div class="section-title">Rep Leaderboard (Jul 22–Aug 20, 2026)</div>
+
+    <div class="section-title" id="salesSourceTableTitle">Lead Source Breakdown</div>
     <div class="store-table-wrap">
-      <table class="store-table" id="repsTable">
-        <thead><tr><th>Rep</th><th>Jobs</th><th>Revenue</th><th>Avg $ / Job</th></tr></thead>
-        <tbody id="repsTbody"></tbody>
+      <table class="store-table" id="salesSourceTable">
+        <thead><tr><th>Source</th><th>Estimates Sent <span class="metric-badge unvalidated">Unvalidated</span></th><th>Close Rate <span class="metric-badge unvalidated">Unvalidated</span></th><th>Revenue</th><th>Invoices</th><th>Avg Deal Size</th></tr></thead>
+        <tbody id="salesSourceTbody"></tbody>
       </table>
+    </div>
+
+    <div class="section-title" id="salesRepTableTitle">Sales Rep Breakdown</div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="salesRepTable">
+        <thead><tr><th>Rep</th><th>Estimates Sent <span class="metric-badge unvalidated">Unvalidated</span></th><th>Close Rate <span class="metric-badge unvalidated">Unvalidated</span></th><th>Revenue</th><th>Jobs</th><th>Avg Deal Size</th></tr></thead>
+        <tbody id="salesRepTbody"></tbody>
+      </table>
+    </div>
+
+    <div class="section-title">Weekly Revenue Closed by Sales Rep <span class="metric-badge unvalidated">Unvalidated</span> <span class="section-title-sub">— trailing 8 weeks, by Accepted Date, top reps by total. Independent of the period toggle above.</span></div>
+    <div class="charts-grid">
+      <div class="chart-card" style="grid-column: 1 / -1;">
+        <div class="chart-area" id="chartWeeklyRepRevenue"></div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- TAB 4: PIPELINE & SCHEDULING -->
-<div class="tab-content" id="tab-pipeline">
-  <div class="container">
-    <div class="connection-banner connected" id="pipelineBanner">
-      <span class="banner-icon">&#10003;</span>
-      <span>Live data from ServiceMinder scheduling and open proposals. Job Backlog re-pulled Sep 3, 2026 and now excludes proposals accepted before May 2026 (stale records never marked Complete); other figures are a point-in-time snapshot from Aug 20, 2026. Upcoming appointments cover the forward-looking window Aug 20–27, 2026.</span>
-    </div>
-    <div class="kpi-summary" id="pipelineKpiRow"></div>
-    <div class="section-title">Upcoming Appointments (Aug 20–27, 2026)</div>
-    <div class="store-table-wrap">
-      <table class="store-table" id="upcomingTable">
-        <thead><tr><th>Date</th><th>Customer</th><th>Rep</th><th>Type</th><th>Status</th></tr></thead>
-        <tbody id="upcomingTbody"></tbody>
-      </table>
-    </div>
-    <div class="section-title">Open Estimates Awaiting Decision (largest, as of Aug 20, 2026)</div>
-    <div class="store-table-wrap">
-      <table class="store-table" id="openEstTable">
-        <thead><tr><th>Customer</th><th>Service</th><th>Estimate Date</th><th>Amount</th><th>Days Open</th></tr></thead>
-        <tbody id="openEstTbody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- TAB 5: FINANCIAL SNAPSHOT -->
+<!-- TAB: FINANCIAL SNAPSHOT -->
 <div class="tab-content" id="tab-financial">
   <div class="container">
     <div class="connection-banner connected" id="finBanner">
@@ -978,13 +865,10 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
 
     // Live fetch on tab switch, per Pranav's approved mechanism (2026-09-03): Revenue Pacing/On the
-    // Books, the Sales Funnel's Open Proposals/Job Backlog tiles, and the Lead Sources tab's Revenue by
-    // Source section each refresh with a fresh ServiceMinder pull whenever you switch into that tab (in
-    // addition to the fetch already kicked off on page load — see renderAll below). The Edge Function's
-    // own 15-minute cache keeps repeated switches cheap.
-    if (btn.dataset.tab === 'funnel') loadLiveProposalsSummary();
-    if (btn.dataset.tab === 'revenue') { loadLiveRevenueTiles(); loadLiveProposalsSummary(); }
-    if (btn.dataset.tab === 'leadsources') refreshLeadSourceLive();
+    // Books and the Lead/Rep period breakdown each refresh with a fresh ServiceMinder pull whenever you
+    // switch into the Sales Performance tab (in addition to the fetch already kicked off on page load —
+    // see renderAll below). The Edge Function's own 15-minute cache keeps repeated switches cheap.
+    if (btn.dataset.tab === 'sales') { loadLiveProposalsSummary(); loadLiveRevenueTiles(); refreshSalesRangeDefault(); }
   });
 });
 
@@ -1166,184 +1050,157 @@ function renderPieChart(containerId, slices) {
   document.getElementById(containerId).innerHTML = svg;
 }
 
-/* ---------------- Render: Funnel tab ---------------- */
-function renderFunnelTab() {
-  const f = dataStore.funnel;
-
-  // Open Proposals and Job Backlog go live via the shared loadLiveProposalsSummary (see above) — both
-  // are derived from the same full ServiceMinder Proposals-Kind pull already used for the Revenue tab's
-  // On-the-Books tile, just different status filters (Open vs. Accepted/Scheduled/Invoiced), so no extra
-  // API call is needed. Leads/Appointments/Estimates Sent stay static: they'd need ServiceMinder
-  // Contacts-Kind and Appointments-Kind pulls the edge function doesn't support yet, and the exact field
-  // mapping (e.g. what counts as "estimate sent") hasn't been validated against a known-good number the
-  // way every other live report on this dashboard has been — shipping a guess here risks a silently
-  // wrong number on a dashboard people make real decisions from, so it's being left for a follow-up
-  // once that mapping can be confirmed.
-  const liveProp = liveProposals.status === 'ready' ? liveProposals : null;
-  const openProposals = (liveProp && liveProp.openProposalsCount != null) ? liveProp.openProposalsCount : f.openProposals;
-  const openProposalsValue = (liveProp && liveProp.openProposalsValue != null) ? liveProp.openProposalsValue : f.openProposalsValue;
-  const backlogJobs = liveProp ? liveProp.onTheBooksCount : f.backlogJobs;
-  const backlogValue = liveProp ? liveProp.onTheBooksValue : f.backlogValue;
-
-  const banner = document.getElementById('funnelBanner');
-  if (liveProposals.status === 'loading') {
-    banner.classList.add('connected');
-    banner.innerHTML = `<span class="banner-icon">&#8987;</span><span>Loading live ServiceMinder data for Open Proposals / Job Backlog…</span>`;
-  } else if (liveProp) {
-    banner.classList.add('connected');
-    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Open Proposals and Job Backlog are live from ServiceMinder as of ${liveProposals.fetchedAt.toLocaleTimeString('en-US')} (org 4457). Job Backlog excludes proposals accepted before May 2026 (stale records never marked Complete); Open Proposals is not yet date-filtered. Leads, Appointments, and Estimates Sent are still the Aug 20, 2026 static snapshot — see note below. Daily trend chart is still illustrative.</span>`;
-  } else if (liveProposals.status === 'error') {
-    banner.classList.remove('connected');
-    banner.innerHTML = `<span class="banner-icon">&#9888;</span><span>Live pull failed (${liveProposals.error}) — Open Proposals/Job Backlog showing the Aug 20, 2026 snapshot.</span>`;
-  } else {
-    banner.classList.add('connected');
-    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live data from ServiceMinder (org 4457) — pulled Aug 20, 2026, window Jul 22–Aug 20. Daily trend chart below is still illustrative (historical daily pull not automated yet).</span>`;
-  }
-
-  document.getElementById('funnelKpiRow').innerHTML = [
-    kpiTile('Leads (30d)', f.leads30d),
-    kpiTile('Appointments (30d)', f.appts30d),
-    kpiTile('Estimates Sent (30d)', f.estimatesSent30d),
-    kpiTile('Open Proposals', openProposals, fmtMoneyCompact(openProposalsValue) + ' pipeline', 'neutral'),
-    kpiTile('Accepted (All-Time)', f.acceptedAllTime),
-    kpiTile('Job Backlog', backlogJobs, fmtMoneyCompact(backlogValue), 'good'),
-  ].join('');
-
-  renderFunnel('chartFunnel', [
-    { label: 'Leads', value: f.leads30d },
-    { label: 'Appointments', value: f.appts30d },
-    { label: 'Estimates Sent', value: f.estimatesSent30d },
-    { label: 'Open Proposals', value: openProposals },
-  ]);
-
-  renderLineChart('chartFunnelTrend', [
-    { name: 'Leads', color: 'var(--cat-1)', points: dataStore.funnelTrend.map(d => ({ x: d.date, y: d.leads, label: d.date })) },
-    { name: 'Appts Held', color: 'var(--cat-3)', points: dataStore.funnelTrend.map(d => ({ x: d.date, y: d.held, label: d.date })) },
-  ], { fmt: v => Math.round(v) });
+/* ---------------- Sales Performance tab: shared helpers ---------------- */
+// Parses ServiceMinder's M/D/YYYY (non-zero-padded) date strings client-side — mirrors parseUSDate in
+// the serviceminder-revenue edge function. Used to filter/bucket the raw allProposals history (see
+// report=onthebooks) for the period toggle and the Weekly Revenue Closed chart below.
+function parseSMDate(s) {
+  if (!s) return null;
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(s).trim());
+  if (!m) return null;
+  return new Date(Date.UTC(+m[3], +m[1] - 1, +m[2]));
 }
 
-/* ---------------- Render: Revenue tab ---------------- */
-function renderRevenueTab() {
-  const r = dataStore.revenue;
-
-  // MTD/QTD/YTD invoiced revenue and On-the-Books now auto-refresh live on page load and whenever this
-  // tab is switched into (see loadLiveRevenueTiles/loadLiveProposalsSummary and the tab-btn click handler
-  // below) — this is the "live fetch on page load/tab switch" mechanism Pranav approved 2026-09-03.
-  // Falls back to the dataStore.revenue Aug 20 snapshot whenever a live fetch hasn't completed yet or
-  // failed. Booked Revenue(30d)/Revenue-per-Lead/Open Pipeline/Accepted(All-Time) above, and MTD
-  // Collected/Outstanding below, stay on the static snapshot — there's no live ServiceMinder source for
-  // payment/balance data via the current edge function, and Accepted/Open-Pipeline need Contacts-Kind
-  // data the edge function doesn't pull.
-  const liveRev = liveRevenue.status === 'ready' ? liveRevenue : null;
-  const liveProp = liveProposals.status === 'ready' ? liveProposals : null;
-  const mtdInvoiced = liveRev ? liveRev.mtdInvoiced : r.mtdInvoiced;
-  const mtdInvoiceCount = liveRev ? liveRev.mtdInvoiceCount : r.mtdInvoiceCount;
-  const qtdInvoiced = liveRev ? liveRev.qtdInvoiced : r.qtdInvoiced;
-  const ytdInvoiced = liveRev ? liveRev.ytdInvoiced : r.ytdInvoiced;
-  const onTheBooksValue = liveProp ? liveProp.onTheBooksValue : r.onTheBooksValue;
-  const onTheBooksCount = liveProp ? liveProp.onTheBooksCount : r.onTheBooksCount;
-
-  const banner = document.getElementById('revenueBanner');
-  if (liveRevenue.status === 'loading' || liveProposals.status === 'loading') {
-    banner.classList.add('connected');
-    banner.innerHTML = `<span class="banner-icon">&#8987;</span><span>Loading live ServiceMinder data… (MTD/QTD/YTD revenue and On the Books)</span>`;
-  } else if (liveRev && liveProp) {
-    const asOf = liveRevenue.fetchedAt > liveProposals.fetchedAt ? liveRevenue.fetchedAt : liveProposals.fetchedAt;
-    banner.classList.add('connected');
-    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live from ServiceMinder as of ${asOf.toLocaleTimeString('en-US')} — MTD/QTD/YTD revenue and On the Books refresh automatically on page load and when you switch to this tab. On the Books now excludes proposals accepted before May 2026 (stale records never marked Complete). Lead source breakdown has moved to the Lead Sources tab.</span>`;
-  } else if (liveRevenue.status === 'error' || liveProposals.status === 'error') {
-    banner.classList.remove('connected');
-    const errMsg = (liveRevenue.error || liveProposals.error || 'unknown error');
-    banner.innerHTML = `<span class="banner-icon">&#9888;</span><span>Live pull failed (${errMsg}) — showing the Aug 20, 2026 static snapshot below.</span>`;
-  } else {
-    banner.classList.add('connected');
-    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live data from ServiceMinder appointments/proposals — 30-day window Jul 22–Aug 20, 2026. Lead source breakdown has moved to the Lead Sources tab.</span>`;
-  }
-
-  document.getElementById('revenueKpiRow').innerHTML = [
-    kpiTile('Booked Revenue (30d)', fmtMoneyCompact(r.booked30d)),
-    kpiTile('Revenue / Lead (30d)', fmtMoney(r.revenuePerLead30d)),
-    kpiTile('Open Pipeline Value', fmtMoneyCompact(r.openPipelineValue)),
-    kpiTile('Accepted (All-Time)', r.acceptedAllTime),
-  ].join('');
-
-  document.getElementById('mtdFinancialsSubtitle').textContent = liveRev
-    ? `— live from ServiceMinder invoices, ${liveRev.mtdRange.label}, a proxy for real-time revenue until QuickBooks is reconnected to the right company (MTD Collected/Outstanding still use the Aug 20 snapshot — no live payments source yet). Budgeted vs the 2026 annual plan (flat ÷ 12).`
-    : `— from ServiceMinder invoices, Aug 1–20, 2026, a proxy for real-time revenue until QuickBooks is reconnected to the right company. Budgeted vs the 2026 annual plan (flat ÷ 12).`;
-  document.getElementById('mtdFinancialsRow').innerHTML = [
-    calloutTile('MTD Revenue (Invoiced)', fmtMoneyCompact(mtdInvoiced),
-      { target: r.mtdRevenueBudget, actual: mtdInvoiced, sentiment: paceSentiment(100 * mtdInvoiced / r.mtdRevenueBudget, elapsedPctOfPeriod('month')) }),
-    calloutTile('MTD Collected', fmtMoneyCompact(r.mtdCollected),
-      { target: r.mtdCollectedBudget, actual: r.mtdCollected, sentiment: paceSentiment(100 * r.mtdCollected / r.mtdCollectedBudget, elapsedPctOfPeriod('month')) }),
-    calloutTileInfo('MTD Outstanding', fmtMoneyCompact(r.mtdOutstanding), r.mtdInvoiceCount + ' invoices this month'),
-  ].join('');
-
-  // Revenue Pacing: real-time actual (ServiceMinder proxy) + on-the-books (accepted, not-yet-completed
-  // proposals) vs the 2026 budget. Q3 runs Jul 1-Sep 30 (92 days), the year is 365/366 days — both
-  // computed live off the real current date by elapsedPctOfPeriod.
-  const qtdPct = 100 * qtdInvoiced / r.quarterlyRevenueBudget;
-  const ytdPct = 100 * ytdInvoiced / r.annualRevenueBudget;
-  const projectedYearEnd = ytdInvoiced + onTheBooksValue;
-  const projectedPct = 100 * projectedYearEnd / r.annualRevenueBudget;
-  document.getElementById('pacingRow').innerHTML = [
-    calloutTile('QTD Revenue (Q3)', fmtMoneyCompact(qtdInvoiced),
-      { target: r.quarterlyRevenueBudget, actual: qtdInvoiced, sentiment: paceSentiment(qtdPct, elapsedPctOfPeriod('quarter')) }),
-    calloutTile('YTD Revenue', fmtMoneyCompact(ytdInvoiced),
-      { target: r.annualRevenueBudget, actual: ytdInvoiced, sentiment: paceSentiment(ytdPct, elapsedPctOfPeriod('year')) }),
-    calloutTileInfo('On the Books', fmtMoneyCompact(onTheBooksValue), onTheBooksCount + ' accepted proposals since May 2026, not yet complete', 'openOnTheBooksModal()'),
-    calloutTile('Projected Year-End', fmtMoneyCompact(projectedYearEnd),
-      { target: r.annualRevenueBudget, actual: projectedYearEnd, sentiment: paceSentiment(projectedPct, 100) }),
-  ].join('');
-
-  // Custom date-range pacing tile (This Week/Month/Quarter/Year/Custom) — populated live via the Edge
-  // Function's report=pacing when the user picks a range; hidden otherwise.
-  const customRowEl = document.getElementById('pacingCustomRow');
-  const statusEl = document.getElementById('revPacingLiveStatus');
-  if (revPacingCustom) {
-    customRowEl.style.display = 'grid';
-    if (revPacingCustom.loading) {
-      statusEl.textContent = `Loading live ServiceMinder data for ${revPacingCustom.label}…`;
-      statusEl.className = 'live-status';
-      statusEl.style.display = 'block';
-      customRowEl.innerHTML = '';
-    } else if (revPacingCustom.error) {
-      statusEl.textContent = `Live data unavailable: ${revPacingCustom.error}`;
-      statusEl.className = 'live-status error';
-      statusEl.style.display = 'block';
-      customRowEl.innerHTML = '';
-    } else {
-      statusEl.style.display = 'none';
-      const rangeDays = Math.round((new Date(revPacingCustom.through) - new Date(revPacingCustom.from)) / 86400000) + 1;
-      const proratedBudget = r.annualRevenueBudget * (rangeDays / 365);
-      const pct = 100 * revPacingCustom.revenue / proratedBudget;
-      const elapsedPct = 100 * rangeDays / rangeDays; // the range is, by definition, fully "elapsed" once chosen
-      customRowEl.innerHTML = [
-        calloutTile(`${revPacingCustom.label} Revenue`, fmtMoneyCompact(revPacingCustom.revenue),
-          { target: proratedBudget, actual: revPacingCustom.revenue, sentiment: paceSentiment(pct, elapsedPct) }),
-        calloutTileInfo('Invoices in Range', revPacingCustom.invoiceCount, revPacingCustom.contactCount + ' distinct customers'),
-        calloutTileInfo('Prorated Budget', fmtMoneyCompact(proratedBudget), `${rangeDays} days &times; annual budget &divide; 365`),
-      ].join('');
-    }
-  } else {
-    customRowEl.style.display = 'none';
-    statusEl.style.display = 'none';
-  }
-
-  // Booked Revenue Trend chart removed from the Revenue & Jobs tab per Pranav's request (2026-09-03)
-  // — it was an illustrative, not-yet-automated monthly pull and he didn't want it shown. dataStore.revenueTrend
-  // is left in place, unused, in case this is revisited later.
+// Rolling N-day window ending today, in the same {from, through, label} shape computePresetRange
+// returns — lets the period toggle offer 7D/30D/90D alongside the calendar presets, all driven live off
+// the real current date (see localTodayISO).
+function computeRollingRange(days) {
+  const todayISO = localTodayISO();
+  const today = new Date(todayISO + 'T00:00:00Z');
+  const from = new Date(today); from.setUTCDate(from.getUTCDate() - (days - 1));
+  return { from: isoDate(from), through: todayISO, label: `Last ${days} Days` };
 }
-/* Live auto-refresh for MTD/QTD/YTD invoiced revenue on the Revenue & Jobs tab. Fetched automatically
-   on page load and whenever the Revenue & Jobs tab is switched into (see the tab-btn click handler and
-   renderAll below) — this is the "live fetch on page load/tab switch" mechanism Pranav approved
-   2026-09-03, covering the "Revenue Pacing & On the Books" area of that approval (On the Books itself is
-   handled by the separate, shared loadLiveProposalsSummary below, since the Sales Funnel tab's Open
-   Proposals/Job Backlog tiles need the same underlying proposals pull). Falls back to the
+
+function isoWeekMonday(d) {
+  const day = (d.getUTCDay() + 6) % 7; // days since Monday, Sun counted as 6
+  const monday = new Date(d);
+  monday.setUTCDate(d.getUTCDate() - day);
+  return monday;
+}
+
+function metricBadge(kind) {
+  return kind === 'unvalidated'
+    ? '<span class="metric-badge unvalidated" title="Computed here from a raw ServiceMinder proposals pull — not yet checked to the penny against a ServiceMinder report the way Revenue/Invoices/Avg Deal Size have been.">Unvalidated</span>'
+    : '';
+}
+
+const PROP_WON = new Set(['Complete', 'Accepted', 'Scheduled', 'Invoiced']);
+const PROP_LOST = new Set(['Declined', 'Expired']);
+
+// Client-side aggregation over the full-history allProposals array (report=onthebooks, tuple shape
+// [value, status, acceptedDate, owner, leadSource, sentDate] — see the serviceminder-revenue edge
+// function). Cohorts proposals by SENT date within [fromISO, throughISO] — "estimates sent in this
+// period" — then looks at each proposal's CURRENT status to compute close rate, regardless of when it
+// was actually decided. This is the one part of the Sales Performance tab not checked to the penny
+// against a ServiceMinder report (Pranav approved shipping it clearly labeled "Unvalidated", 2026-09-04).
+// Owner is reliably populated for 2026+ sentDate rows (100% in a live spot-check) but sparse for older
+// historical rows, so rep-level cohort numbers on wide historical ranges may undercount unattributed reps.
+function aggregateProposalCohort(allProposals, fromISO, throughISO) {
+  const fromD = new Date(fromISO + 'T00:00:00Z');
+  const throughD = new Date(throughISO + 'T00:00:00Z');
+  const cohort = (allProposals || []).filter(row => {
+    const d = parseSMDate(row[5]);
+    return d && d >= fromD && d <= throughD;
+  });
+  const overall = { sent: cohort.length, won: 0, lost: 0, pending: 0 };
+  const bySource = new Map();
+  const byRep = new Map();
+  const bump = (map, key) => {
+    if (!map.has(key)) map.set(key, { sent: 0, won: 0, lost: 0 });
+    return map.get(key);
+  };
+  cohort.forEach(row => {
+    const status = row[1], owner = row[3], leadSource = row[4];
+    const outcome = PROP_WON.has(status) ? 'won' : PROP_LOST.has(status) ? 'lost' : 'pending';
+    overall[outcome]++;
+    const sb = bump(bySource, leadSource || '(Unknown)'); sb.sent++; if (outcome !== 'pending') sb[outcome]++;
+    const rb = bump(byRep, owner || '(Unassigned)'); rb.sent++; if (outcome !== 'pending') rb[outcome]++;
+  });
+  const closeRateOf = b => (b.won + b.lost) > 0 ? b.won / (b.won + b.lost) : null;
+  return { cohortSize: cohort.length, overall, closeRate: closeRateOf(overall), bySource, byRep, closeRateOf };
+}
+
+// Weekly revenue closed (won proposals, bucketed by Accepted Date's Monday-start week) by rep, over the
+// trailing `weeks` weeks. Independent of the period toggle above — always trailing, so reps see a
+// consistent recent trend regardless of what range the breakdown tables are viewing. Unvalidated, same
+// basis as aggregateProposalCohort.
+function aggregateWeeklyClosedByRep(allProposals, weeks) {
+  const todayISO = localTodayISO();
+  const today = new Date(todayISO + 'T00:00:00Z');
+  const curMonday = isoWeekMonday(today);
+  const weekKeys = [];
+  for (let i = weeks - 1; i >= 0; i--) {
+    const d = new Date(curMonday); d.setUTCDate(curMonday.getUTCDate() - i * 7);
+    weekKeys.push(isoDate(d));
+  }
+  const windowStart = new Date(weekKeys[0] + 'T00:00:00Z');
+  const byRepWeek = new Map();
+  (allProposals || []).forEach(row => {
+    const value = row[0], status = row[1], acceptedDate = row[2], owner = row[3];
+    if (!PROP_WON.has(status)) return;
+    const d = parseSMDate(acceptedDate);
+    if (!d || d < windowStart) return;
+    const wk = isoDate(isoWeekMonday(d));
+    if (!weekKeys.includes(wk)) return;
+    const repName = owner || '(Unassigned)';
+    if (!byRepWeek.has(repName)) byRepWeek.set(repName, new Map());
+    const m = byRepWeek.get(repName);
+    m.set(wk, (m.get(wk) || 0) + value);
+  });
+  const totals = [...byRepWeek.entries()]
+    .map(([name, m]) => [name, [...m.values()].reduce((a, b) => a + b, 0)])
+    .sort((a, b) => b[1] - a[1]);
+  const topReps = totals.slice(0, 6).map(t => t[0]);
+  return {
+    weekKeys,
+    series: topReps.map((name, i) => ({
+      name,
+      color: `var(--cat-${(i % 8) + 1})`,
+      points: weekKeys.map(wk => ({
+        x: wk,
+        y: (byRepWeek.get(name) || new Map()).get(wk) || 0,
+        label: fmtShortDate(new Date(wk + 'T00:00:00Z')),
+      })),
+    })),
+  };
+}
+
+/* Live fetch for the period-toggle section's VALIDATED figures: revenue/invoices by lead source
+   (report=leadsource) and by sales rep (report=agent) for an arbitrary [from, through] window — both
+   checked to the penny per this dashboard's established practice. The UNVALIDATED Estimates Sent/Close
+   Rate columns come from aggregateProposalCohort() over the allProposals history already loaded by
+   loadLiveProposalsSummary — no extra network call needed for those. */
+let salesRangeData = { key: 'month', label: '', from: null, through: null, sources: [], reps: [], loading: true, error: null };
+async function loadSalesRange(key, from, through, label) {
+  salesRangeData = { key, from, through, label, sources: [], reps: [], loading: true, error: null };
+  renderSalesTab();
+  try {
+    const [srcResult, repResult] = await Promise.all([
+      callSMEdge({ report: 'leadsource', from, through }),
+      callSMEdge({ report: 'agent', from, through }),
+    ]);
+    salesRangeData = { key, from, through, label, sources: srcResult.sources || [], reps: repResult.reps || [], loading: false, error: null };
+  } catch (err) {
+    salesRangeData = { key, from, through, label, sources: [], reps: [], loading: false, error: err.message };
+  }
+  renderSalesTab();
+}
+
+// Triggers the default live "This Month" pull — called on page load and whenever the Sales Performance
+// tab is switched into (see the tab-btn click handler below).
+function refreshSalesRangeDefault() {
+  const { from, through, label } = computePresetRange('month');
+  loadSalesRange('month', from, through, label);
+}
+
+/* Live auto-refresh for MTD/QTD/YTD invoiced revenue. Fetched automatically on page load and whenever
+   the Sales Performance tab is switched into (see the tab-btn click handler and renderAll below) — the
+   "live fetch on page load/tab switch" mechanism Pranav approved 2026-09-03. Falls back to the
    dataStore.revenue Aug 20 snapshot on any error, same pattern as loadOnTheBooksModalData. */
 let liveRevenue = { status: 'idle' };
 async function loadLiveRevenueTiles() {
   liveRevenue = { status: 'loading' };
-  renderRevenueTab();
+  renderSalesTab();
   try {
     const mtdRange = computePresetRange('month');
     const qtdRange = computePresetRange('quarter');
@@ -1361,21 +1218,18 @@ async function loadLiveRevenueTiles() {
   } catch (err) {
     liveRevenue = { status: 'error', error: err.message };
   }
-  renderRevenueTab();
+  renderSalesTab();
 }
 
-/* Live auto-refresh for the On-the-Books value/count. Shared by two tabs: Revenue & Jobs (the "On the
-   Books" pacing tile) and Sales Funnel (the "Job Backlog" tile is the identical figure, and "Open
-   Proposals"/its $ value comes from the exact same ServiceMinder proposals pull, just a different status
-   filter — see the openProposals field the edge function now returns alongside the on-the-books jobs, so
-   this is one live pull serving both tabs rather than two). Fetched on page load and on switching into
-   either tab. Falls back to the dataStore static snapshot (dataStore.revenue for On the Books,
-   dataStore.funnel for Open Proposals/Job Backlog) on any error. */
+/* Live auto-refresh for the On-the-Books value/count AND the full-history allProposals array that
+   powers Estimates Sent / Close Rate / the Weekly Revenue Closed chart above. One pull serves all of it
+   (see the report=onthebooks aggregateOnTheBooks() on the edge function side). Fetched on page load and
+   on switching into the Sales Performance tab. Falls back to the dataStore.revenue static snapshot for
+   On the Books on any error; the allProposals-derived metrics simply show as unavailable. */
 let liveProposals = { status: 'idle' };
 async function loadLiveProposalsSummary() {
   liveProposals = { status: 'loading' };
-  renderFunnelTab();
-  renderRevenueTab();
+  renderSalesTab();
   try {
     const result = await callSMEdge({ report: 'onthebooks' });
     liveProposals = {
@@ -1383,26 +1237,164 @@ async function loadLiveProposalsSummary() {
       onTheBooksValue: result.totalValue, onTheBooksCount: result.count,
       openProposalsCount: result.openProposals ? result.openProposals.count : null,
       openProposalsValue: result.openProposals ? result.openProposals.totalValue : null,
+      allProposals: result.allProposals || [],
     };
   } catch (err) {
     liveProposals = { status: 'error', error: err.message };
   }
-  renderFunnelTab();
-  renderRevenueTab();
+  renderSalesTab();
 }
 
-let revPacingCustom = null;
+/* ---------------- Render: Sales Performance tab ---------------- */
+function renderSalesTab() {
+  const r = dataStore.revenue;
+  const liveRev = liveRevenue.status === 'ready' ? liveRevenue : null;
+  const liveProp = liveProposals.status === 'ready' ? liveProposals : null;
+  const mtdInvoiced = liveRev ? liveRev.mtdInvoiced : r.mtdInvoiced;
+  const qtdInvoiced = liveRev ? liveRev.qtdInvoiced : r.qtdInvoiced;
+  const ytdInvoiced = liveRev ? liveRev.ytdInvoiced : r.ytdInvoiced;
+  const onTheBooksValue = liveProp ? liveProp.onTheBooksValue : r.onTheBooksValue;
+  const onTheBooksCount = liveProp ? liveProp.onTheBooksCount : r.onTheBooksCount;
+  const allProposals = liveProp ? liveProp.allProposals : null;
 
-async function loadLivePacingRange(key, from, through, label) {
-  revPacingCustom = { label, from, through, loading: true };
-  renderRevenueTab();
-  try {
-    const result = await callSMEdge({ report: 'pacing', from, through });
-    revPacingCustom = { label, from, through, loading: false, revenue: result.revenue, invoiceCount: result.invoiceCount, contactCount: result.contactCount };
-  } catch (err) {
-    revPacingCustom = { label, from, through, loading: false, error: err.message };
+  const banner = document.getElementById('salesBanner');
+  if (liveRevenue.status === 'loading' || liveProposals.status === 'loading') {
+    banner.classList.add('connected');
+    banner.innerHTML = `<span class="banner-icon">&#8987;</span><span>Loading live ServiceMinder data…</span>`;
+  } else if (liveRev && liveProp) {
+    const asOf = liveRevenue.fetchedAt > liveProposals.fetchedAt ? liveRevenue.fetchedAt : liveProposals.fetchedAt;
+    banner.classList.add('connected');
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live from ServiceMinder as of ${asOf.toLocaleTimeString('en-US')} (org 4457). Revenue Pacing refreshes automatically on page load and when you switch to this tab. On the Books excludes proposals accepted before May 2026 (stale records never marked Complete). Revenue, Invoices, and Avg Deal Size below are checked to the penny against ServiceMinder's own reports; Estimates Sent, Close Rate, and the Weekly Revenue Closed chart are computed here from a raw proposals pull and are marked ${metricBadge('unvalidated')}.</span>`;
+  } else if (liveRevenue.status === 'error' || liveProposals.status === 'error') {
+    banner.classList.remove('connected');
+    const errMsg = (liveRevenue.error || liveProposals.error || 'unknown error');
+    banner.innerHTML = `<span class="banner-icon">&#9888;</span><span>Live pull failed (${errMsg}) — Revenue Pacing showing the last known snapshot; the period breakdown below is unavailable until the pull succeeds.</span>`;
+  } else {
+    banner.classList.add('connected');
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live data from ServiceMinder (org 4457).</span>`;
   }
-  renderRevenueTab();
+
+  // Revenue Pacing: real-time actual (ServiceMinder proxy) + on-the-books (accepted, not-yet-completed
+  // proposals) vs the 2026 budget. Q3 runs Jul 1-Sep 30 (92 days), the year is 365/366 days — both
+  // computed live off the real current date by elapsedPctOfPeriod.
+  const mtdPct = 100 * mtdInvoiced / r.mtdRevenueBudget;
+  const qtdPct = 100 * qtdInvoiced / r.quarterlyRevenueBudget;
+  const ytdPct = 100 * ytdInvoiced / r.annualRevenueBudget;
+  const projectedYearEnd = ytdInvoiced + onTheBooksValue;
+  const projectedPct = 100 * projectedYearEnd / r.annualRevenueBudget;
+  document.getElementById('pacingRow').innerHTML = [
+    calloutTile('MTD Revenue', fmtMoneyCompact(mtdInvoiced),
+      { target: r.mtdRevenueBudget, actual: mtdInvoiced, sentiment: paceSentiment(mtdPct, elapsedPctOfPeriod('month')) }),
+    calloutTile('QTD Revenue (Q3)', fmtMoneyCompact(qtdInvoiced),
+      { target: r.quarterlyRevenueBudget, actual: qtdInvoiced, sentiment: paceSentiment(qtdPct, elapsedPctOfPeriod('quarter')) }),
+    calloutTile('YTD Revenue', fmtMoneyCompact(ytdInvoiced),
+      { target: r.annualRevenueBudget, actual: ytdInvoiced, sentiment: paceSentiment(ytdPct, elapsedPctOfPeriod('year')) }),
+    calloutTileInfo('On the Books', fmtMoneyCompact(onTheBooksValue), onTheBooksCount + ' accepted proposals since May 2026, not yet complete', 'openOnTheBooksModal()'),
+    calloutTile('Projected Year-End', fmtMoneyCompact(projectedYearEnd),
+      { target: r.annualRevenueBudget, actual: projectedYearEnd, sentiment: paceSentiment(projectedPct, 100) }),
+  ].join('');
+
+  // Period-toggle section: lead volume, close rate, revenue/avg-deal-size by source & rep.
+  const rangeLabel = salesRangeData.label || '—';
+  const statusEl = document.getElementById('salesLiveStatus');
+  if (salesRangeData.loading) {
+    statusEl.textContent = `Loading live ServiceMinder data for ${rangeLabel}…`;
+    statusEl.className = 'live-status';
+    statusEl.style.display = 'block';
+  } else if (salesRangeData.error) {
+    statusEl.textContent = `Live data unavailable: ${salesRangeData.error}`;
+    statusEl.className = 'live-status error';
+    statusEl.style.display = 'block';
+  } else {
+    statusEl.style.display = 'none';
+  }
+
+  const cohort = (allProposals && salesRangeData.from && salesRangeData.through)
+    ? aggregateProposalCohort(allProposals, salesRangeData.from, salesRangeData.through)
+    : null;
+
+  const validatedSources = [...salesRangeData.sources].sort((a, b) => b.revenue - a.revenue);
+  const validatedReps = [...salesRangeData.reps].sort((a, b) => b.revenue - a.revenue);
+  const totalPeriodRevenue = validatedSources.reduce((a, s) => a + s.revenue, 0);
+  const totalPeriodInvoices = validatedSources.reduce((a, s) => a + s.invoices, 0);
+
+  document.getElementById('salesPeriodKpiRow').innerHTML = [
+    kpiTile('Estimates Sent ' + metricBadge('unvalidated'), cohort ? cohort.cohortSize : '—'),
+    kpiTile('Close Rate ' + metricBadge('unvalidated'), cohort && cohort.closeRate != null ? fmtPct(cohort.closeRate * 100) : '—',
+      cohort ? (cohort.overall.won + cohort.overall.lost) + ' decided of ' + cohort.cohortSize + ' sent' : null),
+    kpiTile('Revenue (' + rangeLabel + ')', fmtMoneyCompact(totalPeriodRevenue)),
+    kpiTile('Avg Deal Size', totalPeriodInvoices ? fmtMoney(totalPeriodRevenue / totalPeriodInvoices) : '—', totalPeriodInvoices + ' invoices'),
+  ].join('');
+
+  document.getElementById('chartSalesSourceSubtitle').textContent = rangeLabel + ' — invoiced revenue attributed to source';
+  renderBarChart('chartSalesSource', validatedSources.length
+    ? validatedSources.map((s, i) => ({ label: s.source.split(' ')[0], value: s.revenue, color: `var(--cat-${(i % 8) + 1})` }))
+    : [{ label: 'No data', value: 0, color: 'var(--cat-1)' }]);
+
+  document.getElementById('chartSalesRepsSubtitle').textContent = rangeLabel;
+  renderBarChart('chartSalesReps', validatedReps.length
+    ? validatedReps.map((rp, i) => ({ label: rp.name.split(' ')[0], value: rp.revenue, color: `var(--cat-${(i % 8) + 1})` }))
+    : [{ label: 'No data', value: 0, color: 'var(--cat-1)' }]);
+
+  // Merge validated (revenue/invoices/avg deal size) with unvalidated (estimates sent/close rate) by
+  // source name — both sides run through the same normalizeLeadSource() server-side, so names match.
+  const sourceNames = new Set(validatedSources.map(s => s.source));
+  if (cohort) for (const name of cohort.bySource.keys()) sourceNames.add(name);
+  const sourceRows = [...sourceNames].map(name => {
+    const v = validatedSources.find(s => s.source === name);
+    const c = cohort ? cohort.bySource.get(name) : null;
+    return {
+      name,
+      revenue: v ? v.revenue : 0,
+      invoices: v ? v.invoices : 0,
+      sent: c ? c.sent : 0,
+      closeRate: c ? cohort.closeRateOf(c) : null,
+    };
+  }).sort((a, b) => b.revenue - a.revenue);
+  document.getElementById('salesSourceTbody').innerHTML = sourceRows.length ? sourceRows.map(s => `<tr>
+      <td>${s.name}</td>
+      <td>${s.sent || '&mdash;'}</td>
+      <td>${s.closeRate != null ? fmtPct(s.closeRate * 100) : '&mdash;'}</td>
+      <td>${fmtMoney(s.revenue)}</td>
+      <td>${s.invoices || '&mdash;'}</td>
+      <td>${s.invoices ? fmtMoney(s.revenue / s.invoices) : '&mdash;'}</td>
+    </tr>`).join('') : `<tr><td colspan="6" style="color:var(--text-muted);text-align:center;">${salesRangeData.loading ? 'Loading…' : 'No data for this range'}</td></tr>`;
+  document.getElementById('salesSourceTableTitle').textContent = `Lead Source Breakdown (${rangeLabel})`;
+
+  const repNames = new Set(validatedReps.map(rp => rp.name));
+  if (cohort) for (const name of cohort.byRep.keys()) repNames.add(name);
+  const repRows = [...repNames].map(name => {
+    const v = validatedReps.find(rp => rp.name === name);
+    const c = cohort ? cohort.byRep.get(name) : null;
+    return {
+      name,
+      revenue: v ? v.revenue : 0,
+      invoices: v ? v.invoiceCount : 0,
+      sent: c ? c.sent : 0,
+      closeRate: c ? cohort.closeRateOf(c) : null,
+    };
+  }).sort((a, b) => b.revenue - a.revenue);
+  document.getElementById('salesRepTbody').innerHTML = repRows.length ? repRows.map(rp => `<tr>
+      <td>${rp.name}</td>
+      <td>${rp.sent || '&mdash;'}</td>
+      <td>${rp.closeRate != null ? fmtPct(rp.closeRate * 100) : '&mdash;'}</td>
+      <td>${fmtMoney(rp.revenue)}</td>
+      <td>${rp.invoices || '&mdash;'}</td>
+      <td>${rp.invoices ? fmtMoney(rp.revenue / rp.invoices) : '&mdash;'}</td>
+    </tr>`).join('') : `<tr><td colspan="6" style="color:var(--text-muted);text-align:center;">${salesRangeData.loading ? 'Loading…' : 'No data for this range'}</td></tr>`;
+  document.getElementById('salesRepTableTitle').textContent = `Sales Rep Breakdown (${rangeLabel})`;
+
+  // Weekly Revenue Closed by Sales Rep (trailing 8 weeks, unvalidated).
+  if (allProposals) {
+    const weekly = aggregateWeeklyClosedByRep(allProposals, 8);
+    if (weekly.series.length) {
+      renderLineChart('chartWeeklyRepRevenue', weekly.series.map(s => ({ name: s.name, color: s.color, points: s.points })));
+    } else {
+      document.getElementById('chartWeeklyRepRevenue').innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No won proposals in the last 8 weeks.</p>';
+    }
+  } else {
+    document.getElementById('chartWeeklyRepRevenue').innerHTML = `<p style="color:var(--text-muted);font-size:13px;">${liveProposals.status === 'loading' ? 'Loading…' : 'Live data unavailable.'}</p>`;
+  }
 }
 
 /* ---------------- On the Books drill-down modal ---------------- */
@@ -1480,162 +1472,8 @@ function renderOnTheBooksModalTable(jobs, meta) {
   }
 }
 
-document.querySelectorAll('#revPacingRangeToggle button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const preset = btn.dataset.range;
-    document.querySelectorAll('#revPacingRangeToggle button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const customRow = document.getElementById('revPacingCustomRow');
-    if (preset === 'custom') {
-      customRow.style.display = 'flex';
-      return; // wait for Apply
-    }
-    customRow.style.display = 'none';
-    const { from, through, label } = computePresetRange(preset);
-    loadLivePacingRange(preset, from, through, label);
-  });
-});
-
-document.getElementById('revPacingApplyBtn').addEventListener('click', () => {
-  const from = document.getElementById('revPacingFromInput').value;
-  const through = document.getElementById('revPacingThroughInput').value;
-  if (!from || !through) return;
-  if (from > through) { alert('The start date must be on or before the end date.'); return; }
-  loadLivePacingRange('custom', from, through, `${from} – ${through}`);
-});
-// (Elapsed-time constants that used to live here were removed 2026-09-03 — replaced by the live
-// elapsedPctOfPeriod() helper above, computed from the real current date instead of frozen at the
-// Aug 20, 2026 data pull.)
-
-/* ---------------- Render: Lead Sources tab ---------------- */
-function renderLeadSourcesTab() {
-  const sources = dataStore.leadsBySource;
-  const totalLeads = sources.reduce((a, s) => a + s.leads, 0);
-  const top = [...sources].sort((a, b) => b.leads - a.leads)[0];
-  const existing = sources.find(s => s.source.startsWith('Existing'));
-
-  document.getElementById('leadSourcesKpiRow').innerHTML = [
-    kpiTile('Total Leads (30d)', totalLeads),
-    kpiTile('Top Source', top.source, `${top.leads} leads &middot; ${fmtPct((top.leads / totalLeads) * 100)}`, 'good'),
-    kpiTile('Distinct Sources', sources.length),
-    kpiTile('Existing / Repeat', existing ? existing.leads : 0, existing ? fmtPct((existing.leads / totalLeads) * 100) + ' of leads' : null),
-  ].join('');
-
-  renderBarChart('chartLeadSources', sources.map((s, i) => ({ label: s.source.split(' ')[0], value: s.leads, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });
-  renderBarChart('chartLeadCategories', dataStore.leadCategories.map((c, i) => ({ label: c.shortLabel, value: c.count, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });
-
-  document.getElementById('leadSourceTbody').innerHTML = sources.map(s => {
-    const pct = (s.leads / totalLeads) * 100;
-    return `<tr><td>${s.source}</td><td>${s.leads}</td><td>${fmtPct(pct)}</td></tr>`;
-  }).join('');
-
-  const revRange = dataStore.revenueBySourceByRange[revSourceRange] || { label: '—', sources: [] };
-
-  const statusEl = document.getElementById('revSourceLiveStatus');
-  if (revRange.loading) {
-    statusEl.textContent = `Loading live ServiceMinder data for ${revRange.label}…`;
-    statusEl.className = 'live-status';
-    statusEl.style.display = 'block';
-  } else if (revRange.error) {
-    statusEl.textContent = `Live data unavailable: ${revRange.error}`;
-    statusEl.className = 'live-status error';
-    statusEl.style.display = 'block';
-  } else {
-    statusEl.style.display = 'none';
-  }
-
-  const revSources = [...(revRange.sources || [])].sort((a, b) => b.revenue - a.revenue);
-  const totalAttributedRevenue = revSources.reduce((a, s) => a + s.revenue, 0);
-  const totalAttributedContacts = revSources.reduce((a, s) => a + s.contacts, 0);
-  const topRevSource = revSources[0] || { source: '—', revenue: 0 };
-  const isFixedPreset = ['7d', '30d', '90d'].includes(revSourceRange);
-
-  document.getElementById('revenueBySourceKpiRow').innerHTML = [
-    kpiTile(`Attributed Revenue (${revRange.label})`, fmtMoneyCompact(totalAttributedRevenue)),
-    kpiTile('Revenue-Attributed Contacts', totalAttributedContacts),
-    kpiTile('Top Revenue Source', topRevSource.source, topRevSource.revenue ? fmtMoneyCompact(topRevSource.revenue) : null, 'good'),
-    kpiTile('Revenue / Attributed Contact', totalAttributedContacts ? fmtMoney(totalAttributedRevenue / totalAttributedContacts) : '—'),
-  ].join('');
-
-  renderBarChart('chartRevenueBySource', revSources.length
-    ? revSources.map((s, i) => ({ label: s.source.split(' ')[0], value: s.revenue, color: `var(--cat-${(i % 8) + 1})` }))
-    : [{ label: 'No data', value: 0, color: 'var(--cat-1)' }]);
-
-  document.getElementById('revenueBySourceTbody').innerHTML = revSources.length ? revSources.map(s => {
-    const avgPerInvoice = s.invoices > 0 ? fmtMoney(s.revenue / s.invoices) : '&mdash;';
-    return `<tr><td>${s.source}</td><td>${s.contacts}</td><td>${s.invoices}</td><td>${fmtMoney(s.revenue)}</td><td>${avgPerInvoice}</td></tr>`;
-  }).join('') : `<tr><td colspan="5" style="color:var(--text-muted);text-align:center;">${revRange.loading ? 'Loading…' : 'No data for this range'}</td></tr>`;
-
-  document.getElementById('revenueBySourceSubtitle').textContent = `${revRange.label} — invoiced revenue attributed to source`;
-  document.getElementById('revenueBySourceTableTitle').textContent = `Revenue by Source Detail (${revRange.label})`;
-  const compareNote = revSourceRange === '30d'
-    ? ` — a different, smaller base than the 100 total leads above, which counts every new contact in the same 30-day window regardless of whether they've bought yet.`
-    : '. Note: the "Leads by Source" volume section above is a fixed 30-day window and does not change with this toggle.';
-  const sourceDesc = isFixedPreset
-    ? `From ServiceMinder's "Revenue by Lead Source" report (Reports > Revenue by Lead Source), Invoice mode, ${revRange.label} window.`
-    : `Live pull from ServiceMinder's invoices Download API for ${revRange.label}, grouped by Lead Source (same methodology as the 7D/30D/90D report, validated to the penny).`;
-  document.getElementById('revSourceBannerText').textContent = `${sourceDesc} This counts the ${totalAttributedContacts} contacts with invoiced revenue in the window${compareNote}`;
-}
-
-/* ---------------- Render: Reps tab ---------------- */
-function renderRepsTab() {
-  const reps = [...dataStore.reps].sort((a, b) => b.revenue30d - a.revenue30d);
-  const totalRevenue = reps.reduce((a, r) => a + r.revenue30d, 0);
-  const totalJobs = reps.reduce((a, r) => a + r.jobs30d, 0);
-  const topRep = reps[0];
-
-  document.getElementById('repsKpiRow').innerHTML = [
-    kpiTile('Top Rep (30d)', topRep.name, fmtMoney(topRep.revenue30d), 'good'),
-    kpiTile('Reps Active (30d)', reps.length),
-    kpiTile('Team Revenue (30d)', fmtMoneyCompact(totalRevenue)),
-    kpiTile('Team Jobs Closed (30d)', totalJobs),
-  ].join('');
-
-  const shortName = n => n.split(' ')[0];
-  const repRevRange = repRevenueRange === '30d'
-    ? { label: 'Jul 22–Aug 20, 2026', reps: reps.map(r => ({ name: r.name, revenue: r.revenue30d })) }
-    : dataStore.repRevenueByRange[repRevenueRange];
-  const repRevSorted = [...repRevRange.reps].sort((a, b) => b.revenue - a.revenue);
-  renderBarChart('chartReps', repRevSorted.map((r, i) => ({ label: shortName(r.name), value: r.revenue, color: `var(--cat-${(i % 8) + 1})` })));
-  document.getElementById('chartRepsSubtitle').textContent = repRevRange.label;
-  renderBarChart('chartRepsClose', reps.map((r, i) => ({ label: shortName(r.name), value: r.jobs30d, color: `var(--cat-${(i % 8) + 1})` })), { fmt: v => Math.round(v) });
-
-  document.getElementById('repsTbody').innerHTML = reps.map(r => {
-    const avgPerJob = r.jobs30d > 0 ? fmtMoney(r.revenue30d / r.jobs30d) : '&mdash;';
-    return `<tr><td>${r.name}</td><td>${r.jobs30d}</td><td>${fmtMoney(r.revenue30d)}</td><td>${avgPerJob}</td></tr>`;
-  }).join('');
-}
-
-/* ---------------- Render: Pipeline tab ---------------- */
-function renderPipelineTab() {
-  const p = dataStore.pipeline;
-  document.getElementById('pipelineKpiRow').innerHTML = [
-    kpiTile('Open Estimates', p.openEstimates),
-    kpiTile('Estimate $ in Pipeline', fmtMoneyCompact(p.pipelineValue)),
-    kpiTile('Appointments — Next 7 Days', p.apptsNext7),
-    kpiTile('Job Backlog (Accepted, Not Yet Complete)', p.backlogJobs + ' jobs', fmtMoneyCompact(p.backlogValue), 'good'),
-  ].join('');
-
-  document.getElementById('upcomingTbody').innerHTML = dataStore.upcomingAppts.map(a =>
-    `<tr><td>${a.date}</td><td>${a.customer}</td><td>${a.rep}</td><td>${a.type}</td><td><span class="status-pill good">Scheduled</span></td></tr>`
-  ).join('');
-
-  const today = new Date('2026-08-20');
-  document.getElementById('openEstTbody').innerHTML = dataStore.openEstimatesList.map(e => {
-    const daysOpen = Math.round((today - new Date(e.date)) / 86400000);
-    const cls = daysOpen > 21 ? 'warn' : 'ok';
-    return `<tr><td>${e.customer}</td><td>${e.service}</td><td>${e.date}</td><td>${fmtMoney(e.amount)}</td><td><span class="status-pill ${cls}">${daysOpen}</span></td></tr>`;
-  }).join('');
-}
-
 /* ---------------- Render: Financial tab ---------------- */
 let finMonth = 'jul';
-// Defaults to a live "This Month" pull rather than the static 30D preset, so the Lead Sources tab's
-// Revenue-by-Source section is live on page load per Pranav's approval (2026-09-03) — see
-// refreshLeadSourceLive() and the tab-btn click handler below. The 7D/30D/90D buttons remain available
-// and, when clicked, still show their static hand-pulled snapshot as before.
-let revSourceRange = 'month';
-let repRevenueRange = '30d';
 const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
 const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
 
@@ -1747,66 +1585,34 @@ document.querySelectorAll('#finMonthToggle button').forEach(btn => {
   });
 });
 
-/* Live fetch for lead-source revenue, used by the This Week/Month/Quarter/Year/Custom buttons (the
-   7D/30D/90D presets stay instant/static — no network call needed). Populates a "live" slot in
-   dataStore.revenueBySourceByRange so the existing render code works unchanged. */
-async function loadLiveLeadSourceRange(key, from, through, label) {
-  dataStore.revenueBySourceByRange[key] = { label, sources: [], loading: true };
-  revSourceRange = key;
-  renderLeadSourcesTab();
-  try {
-    const result = await callSMEdge({ report: 'leadsource', from, through });
-    dataStore.revenueBySourceByRange[key] = { label, sources: result.sources || [], loading: false };
-  } catch (err) {
-    dataStore.revenueBySourceByRange[key] = { label, sources: [], loading: false, error: err.message };
-  }
-  if (revSourceRange === key) renderLeadSourcesTab();
-}
-
-/* Triggers the default live "This Month" pull for Revenue-by-Source — called on page load and whenever
-   the Lead Sources tab is switched into (see the tab-btn click handler below). */
-function refreshLeadSourceLive() {
-  const { from, through, label } = computePresetRange('month');
-  loadLiveLeadSourceRange('month', from, through, label);
-}
-
-document.querySelectorAll('#revSourceRangeToggle button').forEach(btn => {
+document.querySelectorAll('#salesRangeToggle button').forEach(btn => {
   btn.addEventListener('click', () => {
     const preset = btn.dataset.range;
-    document.querySelectorAll('#revSourceRangeToggle button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#salesRangeToggle button').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    const customRow = document.getElementById('revSourceCustomRow');
+    const customRow = document.getElementById('salesCustomRow');
     if (preset === 'custom') {
       customRow.style.display = 'flex';
       return; // wait for the Apply button
     }
     customRow.style.display = 'none';
-    if (['7d', '30d', '90d'].includes(preset)) {
-      revSourceRange = preset;
-      renderLeadSourcesTab();
+    if (preset === '7d' || preset === '30d' || preset === '90d') {
+      const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
+      const { from, through, label } = computeRollingRange(days);
+      loadSalesRange(preset, from, through, label);
       return;
     }
     const { from, through, label } = computePresetRange(preset);
-    loadLiveLeadSourceRange(preset, from, through, label);
+    loadSalesRange(preset, from, through, label);
   });
 });
 
-document.getElementById('revSourceApplyBtn').addEventListener('click', () => {
-  const from = document.getElementById('revSourceFromInput').value;
-  const through = document.getElementById('revSourceThroughInput').value;
+document.getElementById('salesApplyBtn').addEventListener('click', () => {
+  const from = document.getElementById('salesFromInput').value;
+  const through = document.getElementById('salesThroughInput').value;
   if (!from || !through) return;
   if (from > through) { alert('The start date must be on or before the end date.'); return; }
-  const label = `${from} – ${through}`;
-  loadLiveLeadSourceRange('custom', from, through, label);
-});
-
-document.querySelectorAll('#repRevenueRangeToggle button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#repRevenueRangeToggle button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    repRevenueRange = btn.dataset.range;
-    renderRepsTab();
-  });
+  loadSalesRange('custom', from, through, `${from} – ${through}`);
 });
 
 /* ---------------- CRM Pipeline (live Supabase CRM) ---------------- */
@@ -2218,11 +2024,7 @@ setInterval(() => {
 
 /* ---------------- Init ---------------- */
 function renderAll() {
-  renderFunnelTab();
-  renderLeadSourcesTab();
-  renderRevenueTab();
-  renderRepsTab();
-  renderPipelineTab();
+  renderSalesTab();
   renderFinancialTab();
   renderCrmTab();
 }
@@ -2231,12 +2033,12 @@ renderAll();
 // Kick off the live-on-page-load fetches once at startup (not on every renderAll() call — renderAll()
 // also re-runs on every theme toggle, and re-fetching live data on a light/dark switch would be wasteful
 // and cause a visible loading flash for no reason). Per Pranav's approval (2026-09-03): Revenue Pacing &
-// On the Books, the Sales Funnel's Open Proposals/Job Backlog, and the Lead Sources tab's Revenue by
-// Source section all fetch live ServiceMinder data as soon as the dashboard loads, independent of which
-// tab happens to be active — matching how the CRM Pipeline tab has always auto-loaded on page load.
+// On the Books and the Lead/Rep period breakdown all fetch live ServiceMinder data as soon as the
+// dashboard loads, independent of which tab happens to be active — matching how the CRM Pipeline tab has
+// always auto-loaded on page load.
 loadLiveProposalsSummary();
 loadLiveRevenueTiles();
-refreshLeadSourceLive();
+refreshSalesRangeDefault();
 </script>
 </body>
 </html>

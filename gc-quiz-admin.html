@@ -156,6 +156,7 @@ input[type=text].field-input:focus{outline:none;border-color:var(--blue);backgro
 <nav class="tabs"><div class="tabs-inner">
   <div class="tab active" data-t="results">📊 Results</div>
   <div class="tab" data-t="questions">✏️ Questions</div>
+  <div class="tab" data-t="settings">⚙️ Settings</div>
   <a href="#" target="_blank" class="tab-ext" id="previewLink">👀 Preview quiz &#8599;</a>
   <span class="tab-ext" id="copyLinkBtn" style="cursor:pointer;color:var(--blue)">🔗 Copy manager link</span>
 </div></nav>
@@ -199,6 +200,42 @@ input[type=text].field-input:focus{outline:none;border-color:var(--blue);backgro
       <p class="muted" style="color:var(--blue-dk);font-weight:600">Changes here save straight to the live quiz — no redeploy needed. This page is only linked from inside the dashboard, so it's safe to leave open.</p>
     </div>
     <div id="editRoot"><p class="muted">Loading questions…</p></div>
+  </section>
+
+  <!-- ===== SETTINGS PANEL ===== -->
+  <section class="panel" id="settings">
+    <div class="card" style="max-width:480px">
+      <h3>Quiz settings</h3>
+      <p class="hint">Changes save immediately — no redeploy needed.</p>
+
+      <label class="field">Quiz name</label>
+      <input type="text" class="field-input" id="settingsTitle">
+
+      <label class="field">Time limit</label>
+      <select class="field-input" id="settingsTimeLimit">
+        <option value="180">3 minutes</option>
+        <option value="240">4 minutes</option>
+        <option value="300">5 minutes</option>
+        <option value="360">6 minutes</option>
+        <option value="420">7 minutes</option>
+        <option value="480">8 minutes</option>
+        <option value="600">10 minutes</option>
+        <option value="720">12 minutes</option>
+        <option value="900">15 minutes</option>
+      </select>
+      <p class="hint" style="margin-top:-8px">Managers see a countdown from the moment they start. Time runs out → their quiz auto-submits with whatever's answered.</p>
+
+      <label class="field">Status</label>
+      <select class="field-input" id="settingsActive">
+        <option value="true">Active</option>
+        <option value="false">Archived (hidden from managers, still viewable here)</option>
+      </select>
+
+      <div class="edit-actions">
+        <button type="button" class="btn-blue" id="settingsSaveBtn">Save changes</button>
+        <span class="save-status" id="settingsStatus"></span>
+      </div>
+    </div>
   </section>
 
 </div>
@@ -654,6 +691,55 @@ async function unlockApp(){
 
   loadResults();
   loadQuestionsEditor();
+  loadSettingsPanel();
+}
+
+/* ---------- SETTINGS PANEL ---------- */
+async function loadSettingsPanel(){
+  const titleInput = document.getElementById("settingsTitle");
+  const timeSelect = document.getElementById("settingsTimeLimit");
+  const activeSelect = document.getElementById("settingsActive");
+  const statusEl = document.getElementById("settingsStatus");
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/quizzes?slug=eq.${encodeURIComponent(QUIZ_ID)}&select=title,active,time_limit_seconds`, { headers: sbHeaders() });
+  const rows = await res.json();
+  const quiz = Array.isArray(rows) && rows[0] ? rows[0] : { title: "", active: true, time_limit_seconds: 480 };
+
+  titleInput.value = quiz.title || "";
+  activeSelect.value = String(quiz.active !== false);
+  // pick the closest preset if the stored value isn't one of the dropdown options
+  const presets = [...timeSelect.options].map(o => parseInt(o.value, 10));
+  const closest = presets.reduce((best, v) => Math.abs(v - quiz.time_limit_seconds) < Math.abs(best - quiz.time_limit_seconds) ? v : best, presets[0]);
+  timeSelect.value = String(closest);
+
+  document.getElementById("settingsSaveBtn").onclick = async () => {
+    const newTitle = titleInput.value.trim();
+    if (!newTitle) {
+      statusEl.className = "save-status err";
+      statusEl.textContent = "Quiz name can't be empty.";
+      return;
+    }
+    statusEl.className = "save-status";
+    statusEl.textContent = "Saving…";
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/quizzes?slug=eq.${encodeURIComponent(QUIZ_ID)}`, {
+        method: "PATCH",
+        headers: sbHeaders(),
+        body: JSON.stringify({
+          title: newTitle,
+          time_limit_seconds: parseInt(timeSelect.value, 10),
+          active: activeSelect.value === "true"
+        })
+      });
+      document.getElementById("manageTitle").textContent = "📝 " + newTitle;
+      document.title = newTitle + " — Quiz Manager";
+      statusEl.textContent = "Saved ✓";
+      setTimeout(() => { if (statusEl.textContent === "Saved ✓") statusEl.textContent = ""; }, 2500);
+    } catch (err) {
+      statusEl.className = "save-status err";
+      statusEl.textContent = "Save failed — try again.";
+    }
+  };
 }
 
 async function checkPassword(){

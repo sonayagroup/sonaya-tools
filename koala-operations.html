@@ -339,10 +339,6 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 <!-- TAB: FINANCIAL SNAPSHOT -->
 <div class="tab-content" id="tab-financial">
   <div class="container">
-    <div class="connection-banner connected" id="finBanner">
-      <span class="banner-icon">&#10003;</span>
-      <span>Real QuickBooks P&amp;L data for Patel Insulation LLC — Jan through Jul 2026. Jan, Feb, Mar, and May were corrected by Pranav on Sep 3, 2026 (materially different from what this dashboard showed before); April was unchanged. August (in progress) isn't closed in QuickBooks yet — the small tile below uses the ServiceMinder invoice proxy in the meantime.</span>
-    </div>
     <div class="controls">
       <div class="view-toggle" id="finMonthToggle">
         <button data-month="jan">Jan</button>
@@ -771,8 +767,9 @@ const dataStore = {
   // materially from what this dashboard showed before — see finFlags below; April was re-pulled too but
   // is byte-for-byte identical to what was already here, so it needed no change). June and July are the
   // first two months QuickBooks reports with an Albuquerque/Corporate/Las Cruces/Not-Specified location
-  // split (see locationByMonth). August is still open in QuickBooks — the small tile in the UI uses the
-  // ServiceMinder invoice proxy in the meantime.
+  // split (see locationByMonth). August is still open in QuickBooks (confirmed 2026-09-04 — the raw Aug
+  // P&L export came back entirely $0 across every line item) — the small tile in the UI live-fetches the
+  // full-month ServiceMinder invoice proxy instead of a hardcoded snapshot; see loadLiveAugustProxy.
   // Expense-bucket splits (Materials / Field Labor / Vehicle & Fuel / Marketing / Admin & Overhead) are
   // derived by category-mapping each month's actual COGS + Expense line items; each month's five buckets
   // sum exactly to that month's COGS + Total Expenses. Marketing = Advertising & Marketing + Brand Fund
@@ -864,6 +861,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     // switch into the Sales Performance tab (in addition to the fetch already kicked off on page load —
     // see renderAll below). The Edge Function's own 15-minute cache keeps repeated switches cheap.
     if (btn.dataset.tab === 'sales') { loadLiveProposalsSummary(); loadLiveRevenueTiles(); refreshSalesRangeDefault(); }
+    if (btn.dataset.tab === 'financial') { loadLiveAugustProxy(); }
   });
 });
 
@@ -1438,6 +1436,26 @@ function computeYtdSummary() {
   };
 }
 
+/* Live full-month ServiceMinder invoice proxy for August 2026, used only until QuickBooks closes the
+   month. The August P&L pulled directly from QuickBooks on 2026-09-04 came back entirely zeroed out
+   (every line item $0), confirming the month genuinely isn't closed yet — not a data problem on our end.
+   This replaces the old hardcoded "Aug 1-20" snapshot, which was captured 2026-08-20 and then never
+   updated again as the month progressed — flagged by Pranav 2026-09-04 ("you never updated the dashboard
+   with August financials"). Fetched live (full Aug 1-31 range) on page load and whenever the Financial
+   Snapshot tab is opened, same mechanism as the Sales Performance tab's live tiles — see loadLiveRevenueTiles. */
+let liveAugustProxy = { status: 'idle' };
+async function loadLiveAugustProxy() {
+  liveAugustProxy = { status: 'loading' };
+  renderFinancialTab();
+  try {
+    const result = await callSMEdge({ report: 'pacing', from: '2026-08-01', through: '2026-08-31' });
+    liveAugustProxy = { status: 'ready', fetchedAt: new Date(), revenue: result.revenue, invoiceCount: result.invoiceCount };
+  } catch (err) {
+    liveAugustProxy = { status: 'error', error: err.message };
+  }
+  renderFinancialTab();
+}
+
 function renderFinancialTab() {
   const months = dataStore.financial.months;
   const f = finMonth === 'ytd' ? computeYtdSummary() : months[finMonth];
@@ -1463,13 +1481,23 @@ function renderFinancialTab() {
   const sumLast = months[presentMonths[presentMonths.length - 1]].label.split(' ')[0];
   const sumLabel = `${sumFirst}–${sumLast} 2026 (sum of monthly P&Ls)`;
   const deltaLine = (text, color) => `<div style="font-size:13px;font-weight:500;margin-top:6px;color:${color};">${text}</div>`;
+  let augTile;
+  if (liveAugustProxy.status === 'ready') {
+    augTile = `<div class="callout"><div class="callout-label">Aug 2026 (full month) — ServiceMinder proxy</div><div class="callout-value">${fmtMoneyCompact(liveAugustProxy.revenue)}</div>
+      ${deltaLine(liveAugustProxy.invoiceCount + ' invoices — not yet closed in QuickBooks', 'var(--text-muted)')}</div>`;
+  } else if (liveAugustProxy.status === 'error') {
+    augTile = `<div class="callout"><div class="callout-label">Aug 2026 — ServiceMinder proxy</div><div class="callout-value">—</div>
+      ${deltaLine('Live ServiceMinder pull failed — reload to retry', 'var(--text-muted)')}</div>`;
+  } else {
+    augTile = `<div class="callout"><div class="callout-label">Aug 2026 — ServiceMinder proxy</div><div class="callout-value">&hellip;</div>
+      ${deltaLine('Loading live August total…', 'var(--text-muted)')}</div>`;
+  }
   document.getElementById('finContextRow').innerHTML = `
     <div class="callout"><div class="callout-label">${sumLabel}</div><div class="callout-value">${fmtMoneyCompact(sumRevenue)}</div>
       ${deltaLine(fmtMoneyCompact(sumNetIncome) + ' net income', 'var(--delta-up-good)')}</div>
     <div class="callout"><div class="callout-label">${ytd.label}</div><div class="callout-value">${fmtMoneyCompact(ytd.revenue)}</div>
       ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income — matches the monthly-sum total at left exactly', 'var(--delta-up-good)')}</div>
-    <div class="callout"><div class="callout-label">Aug 2026 (in progress) — ServiceMinder proxy</div><div class="callout-value">${fmtMoneyCompact(dataStore.revenue.mtdInvoiced)}</div>
-      ${deltaLine('Aug 1–20 invoiced, not yet closed in QuickBooks', 'var(--text-muted)')}</div>
+    ${augTile}
   `;
 
   // Trend: every month with real data on file
@@ -1976,10 +2004,11 @@ renderAll();
 // and cause a visible loading flash for no reason). Per Pranav's approval (2026-09-03): Revenue Pacing &
 // On the Books and the Lead/Rep period breakdown all fetch live ServiceMinder data as soon as the
 // dashboard loads, independent of which tab happens to be active — matching how the CRM Pipeline tab has
-// always auto-loaded on page load.
+// always auto-loaded on page load. The Financial Snapshot tab's August proxy tile does the same.
 loadLiveProposalsSummary();
 loadLiveRevenueTiles();
 refreshSalesRangeDefault();
+loadLiveAugustProxy();
 </script>
 </body>
 </html>

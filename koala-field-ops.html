@@ -1,0 +1,1228 @@
+<!DOCTYPE html><script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Koala Field Ops Dashboard",
+  "schemaVersion": 1,
+  "description": "Koala Insulation (Patel Insulation LLC) field operations dashboard for Mark (Sales & Ops Manager) and Ricardo (Field Supervisor). Job audits, maintenance, material pickups, PPE checklists, call backs, to-dos, notification settings.",
+  "mcpTools": [],
+  "mcpServerNames": []
+}
+</script>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Koala Field Ops — Patel Insulation LLC</title>
+<style>
+:root {
+  --surface-page:   #f5f6f5;
+  --surface-card:   #ffffff;
+  --surface-input:  #fafaf9;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --gridline:       #e1e0d9;
+  --border:         rgba(11,11,11,0.10);
+  --brand-navy:       #043968;
+  --brand-teal:       #2f6f4f;
+  --brand-teal-light: #eaf3ec;
+  --brand-amber:      #d97706;
+  --status-good:     #0ca30c;
+  --status-good-bg:  #edfaed;
+  --status-warn:     #b37a00;
+  --status-warn-bg:  #fff8e6;
+  --status-critical: #d03b3b;
+  --status-critical-bg:#fef2f2;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 2px 10px rgba(0,0,0,0.07);
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-page:   #111110;
+  --surface-card:   #1c1c1a;
+  --surface-input:  #232321;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #918f89;
+  --gridline:       #2c2c2a;
+  --border:         rgba(255,255,255,0.10);
+  --brand-navy:       #0d5aa7;
+  --brand-teal:       #52a97a;
+  --brand-teal-light: #17281d;
+  --brand-amber:      #f0a94e;
+  --status-good:     #3fc23f;
+  --status-good-bg:  #16281a;
+  --status-warn:     #fab219;
+  --status-warn-bg:  #2e2a1a;
+  --status-critical: #ec6a6a;
+  --status-critical-bg:#2e1a1a;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--surface-page);
+  color: var(--text-primary);
+}
+header.topbar {
+  background: linear-gradient(135deg, var(--brand-navy), #022847);
+  color: #fff;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+header.topbar .titles h1 { margin: 0; font-size: 19px; }
+header.topbar .titles p { margin: 2px 0 0; font-size: 12.5px; color: rgba(255,255,255,0.75); }
+header.topbar .right { display: flex; align-items: center; gap: 10px; }
+.pill {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+}
+button.btn {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  padding: 7px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  transition: 120ms ease;
+}
+button.btn:hover { border-color: var(--brand-teal); }
+button.btn.primary { background: var(--brand-teal); color: #fff; border-color: var(--brand-teal); font-weight: 600; }
+button.btn.primary:hover { filter: brightness(1.08); }
+button.btn.danger { color: var(--status-critical); }
+button.btn.small { padding: 4px 9px; font-size: 12px; }
+button.btn:disabled { opacity: .5; cursor: default; }
+nav.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--gridline);
+  padding: 0 20px;
+  overflow-x: auto;
+}
+nav.tabs button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 13px 15px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-bottom: 2.5px solid transparent;
+  white-space: nowrap;
+}
+nav.tabs button.active { color: var(--brand-teal); border-bottom-color: var(--brand-teal); }
+main { max-width: 1180px; margin: 0 auto; padding: 20px; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+.card h2 { margin: 0 0 4px; font-size: 16px; }
+.card .sub { margin: 0 0 12px; font-size: 12.5px; color: var(--text-muted); }
+.row-flex { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+@media (max-width: 720px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+label.field { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 3px; margin-top: 8px; }
+input[type=text], input[type=date], input[type=time], input[type=email], input[type=tel], input[type=number], select, textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 13.5px;
+  padding: 7px 9px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-input);
+  color: var(--text-primary);
+}
+textarea { resize: vertical; min-height: 54px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand-teal); outline-offset: -1px; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .3px; padding: 0 8px 8px 0; border-bottom: 1px solid var(--gridline); }
+td { padding: 9px 8px; border-bottom: 1px solid var(--gridline); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+.badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.badge.good { background: var(--status-good-bg); color: var(--status-good); }
+.badge.warn { background: var(--status-warn-bg); color: var(--status-warn); }
+.badge.bad { background: var(--status-critical-bg); color: var(--status-critical); }
+.badge.muted { background: var(--surface-input); color: var(--text-muted); }
+.job-card { border: 1px solid var(--border); border-left: 4px solid var(--gridline); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 10px; background: var(--surface-card); }
+.job-card.completed { border-left-color: var(--status-good); }
+.job-card.missed { border-left-color: var(--status-critical); }
+.job-card .jhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.job-card .jname { font-size: 15px; font-weight: 700; }
+.job-card .jmeta { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+.job-card .jactions { display: flex; gap: 6px; flex-shrink: 0; }
+.empty-state { text-align: center; padding: 30px 10px; color: var(--text-muted); font-size: 13.5px; }
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 50; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 40px 16px; }
+.modal-backdrop.open { display: flex; }
+.modal { background: var(--surface-card); border-radius: var(--radius); max-width: 560px; width: 100%; padding: 20px; box-shadow: var(--shadow-md); }
+.modal h3 { margin: 0 0 12px; font-size: 16px; }
+.modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--text-primary); color: var(--surface-page); padding: 10px 16px; border-radius: var(--radius-sm); font-size: 13px; z-index: 100; box-shadow: var(--shadow-md); opacity: 0; transform: translateY(8px); transition: 200ms ease; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateY(0); }
+.ppe-grid { overflow-x: auto; }
+.ppe-grid table { min-width: 900px; }
+.check-icon { cursor: pointer; user-select: none; font-size: 16px; }
+.small-note { font-size: 11.5px; color: var(--text-muted); }
+a.link { color: var(--brand-teal); text-decoration: none; font-weight: 600; }
+a.link:hover { text-decoration: underline; }
+.checklist-cell select { font-size: 12.5px; padding: 4px 6px; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="titles">
+    <h1>Koala Field Ops</h1>
+    <p>Patel Insulation LLC — Mark (Sales &amp; Ops) · Ricardo (Field Supervisor)</p>
+  </div>
+  <div class="right">
+    <span class="pill" id="connPill">connecting…</span>
+    <button class="btn" id="themeToggle">Dark</button>
+    <a class="btn" href="https://tools.sonayagroup.com/koala-operations.html">KPI Dashboard →</a>
+  </div>
+</header>
+
+<nav class="tabs" id="tabNav">
+  <button data-tab="audits" class="active">Job Audits</button>
+  <button data-tab="maintenance">Maintenance</button>
+  <button data-tab="pickups">Material Pickup</button>
+  <button data-tab="ppe">PPE Checklist</button>
+  <button data-tab="callbacks">Call Backs</button>
+  <button data-tab="todos">To-Do List</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+
+<main>
+
+<!-- ===================== JOB AUDITS ===================== -->
+<section class="tab-panel active" id="tab-audits">
+  <div class="card">
+    <div class="row-flex">
+      <div>
+        <h2>Job Audits</h2>
+        <p class="sub">The day's scheduled jobs — add each job, then Ricardo checks it off with notes once he audits it on site.</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="auditDate" style="width:auto">
+        <button class="btn" id="btnRouteLink">🗺️ Get Route</button>
+        <button class="btn primary" id="btnAddJob">+ Add Job</button>
+      </div>
+    </div>
+    <p class="small-note" id="auditSummary"></p>
+  </div>
+  <div id="auditList"></div>
+</section>
+
+<!-- ===================== MAINTENANCE ===================== -->
+<section class="tab-panel" id="tab-maintenance">
+  <div class="card">
+    <div class="row-flex">
+      <div>
+        <h2>Maintenance</h2>
+        <p class="sub">Vehicles, trailers, generators, removal machines &amp; blow-in machines. Reminders send 7 days before service is due, and again 7 days after if it's still overdue.</p>
+      </div>
+      <button class="btn primary" id="btnAddEquipment">+ Add Equipment</button>
+    </div>
+  </div>
+  <div id="equipmentList"></div>
+</section>
+
+<!-- ===================== MATERIAL PICKUP ===================== -->
+<section class="tab-panel" id="tab-pickups">
+  <div class="card">
+    <div class="row-flex">
+      <div>
+        <h2>Material Pickup</h2>
+        <p class="sub">Flag material Ricardo needs to pick up from a vendor. He gets notified immediately if subscribed in Settings.</p>
+      </div>
+      <button class="btn primary" id="btnAddPickup">+ New Pickup</button>
+    </div>
+  </div>
+  <div id="pickupList"></div>
+</section>
+
+<!-- ===================== PPE CHECKLIST ===================== -->
+<section class="tab-panel" id="tab-ppe">
+  <div class="card">
+    <div class="row-flex">
+      <div>
+        <h2>PPE Safety Checklist</h2>
+        <p class="sub">Minimum once a month for all active employees. If PPE is missing or damaged, note why it hasn't been replaced.</p>
+      </div>
+      <button class="btn primary" id="btnNewChecklist">+ New Checklist</button>
+    </div>
+  </div>
+  <div id="ppeList"></div>
+</section>
+
+<!-- ===================== CALL BACKS ===================== -->
+<section class="tab-panel" id="tab-callbacks">
+  <div class="card">
+    <div class="row-flex">
+      <div>
+        <h2>Call Backs / Missed Opportunities</h2>
+        <p class="sub">Based on the Koala Call Back Checklist. Mark gets notified immediately if subscribed in Settings.</p>
+      </div>
+      <button class="btn primary" id="btnAddCallback">+ Log Call Back</button>
+    </div>
+  </div>
+  <div id="callbackList"></div>
+</section>
+
+<!-- ===================== TO-DO LIST ===================== -->
+<section class="tab-panel" id="tab-todos">
+  <div class="card">
+    <div class="row-flex">
+      <div>
+        <h2>To-Do List</h2>
+        <p class="sub">Mark assigns tasks to Ricardo (or anyone else). Ricardo gets notified immediately if subscribed in Settings.</p>
+      </div>
+      <button class="btn primary" id="btnAddTodo">+ New To-Do</button>
+    </div>
+  </div>
+  <div id="todoList"></div>
+</section>
+
+<!-- ===================== SETTINGS ===================== -->
+<section class="tab-panel" id="tab-settings">
+  <div class="card">
+    <div class="row-flex">
+      <div><h2>Notification Recipients</h2><p class="sub">Who gets emailed, and for what. Emails send via Resend from fieldops@sonayagroup.com.</p></div>
+      <button class="btn primary" id="btnAddRecipient">+ Add Recipient</button>
+    </div>
+    <div id="recipientList"></div>
+  </div>
+  <div class="card">
+    <div class="row-flex">
+      <div><h2>Employees</h2><p class="sub">Used for job audit crew assignment, PPE checklists, and to-do assignment.</p></div>
+      <button class="btn primary" id="btnAddEmployee">+ Add Employee</button>
+    </div>
+    <div id="employeeList"></div>
+  </div>
+</section>
+
+</main>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" id="modalBody"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================== CONFIG ============================== */
+const SUPABASE_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
+const JOB_TYPES = ['B2B New Installation','B2B Retrofit','Residential New Installation','Residential Retrofit','Foam Back','Call Back'];
+const EQUIP_CATEGORIES = ['Vehicle','Trailer','Generator','Removal Machine','Blow-In Machine'];
+const VENDORS = ['CA','IDI','RIS','Home Depot',"Lowe's",'Other'];
+const PPE_ITEMS = [
+  ['hard_hat','Hard Hat'], ['bump_cap','Bump Cap Insert'], ['safety_glasses','Safety Glasses'],
+  ['uniform','Uniform(s)'], ['work_boots','Work Boots'], ['safety_vest','Safety Vest'],
+  ['respirator','Respirator'], ['gloves','Gloves'],
+];
+
+/* ============================== SUPABASE REST HELPERS ============================== */
+async function sb(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=representation',
+      ...(opts.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Supabase ${opts.method || 'GET'} ${path} failed: ${res.status} ${text}`);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+const sbSelect = (table, query = '') => sb(`${table}?${query}`);
+const sbInsert = (table, row) => sb(table, { method: 'POST', body: JSON.stringify(row) });
+const sbUpdate = (table, id, patch) => sb(`${table}?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+const sbDelete = (table, id) => sb(`${table}?id=eq.${id}`, { method: 'DELETE', prefer: 'return=minimal' });
+
+async function notify(type, id) {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/koala-fieldops-notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, id }),
+    });
+  } catch (e) { console.error('notify failed', e); }
+}
+
+/* ============================== STATE ============================== */
+const state = {
+  auditDate: localTodayISO(),
+  employees: [],
+  audits: [],
+  equipment: [],
+  maintLogs: [],
+  pickups: [],
+  ppeChecklists: [],
+  ppeItems: [],
+  callbacks: [],
+  todos: [],
+  recipients: [],
+};
+
+function localTodayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(iso) { if (!iso) return '—'; const d = new Date(iso + 'T00:00:00'); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._h);
+  showToast._h = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ============================== MODAL ============================== */
+function openModal(html) {
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalBackdrop').classList.add('open');
+}
+function closeModal() { document.getElementById('modalBackdrop').classList.remove('open'); }
+document.getElementById('modalBackdrop').addEventListener('click', (e) => { if (e.target.id === 'modalBackdrop') closeModal(); });
+
+/* ============================== TABS ============================== */
+document.getElementById('tabNav').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-tab]');
+  if (!btn) return;
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab));
+});
+
+/* ============================== THEME ============================== */
+const themeBtn = document.getElementById('themeToggle');
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  themeBtn.textContent = t === 'dark' ? 'Light' : 'Dark';
+}
+applyTheme('light');
+themeBtn.addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
+/* ============================== EMPLOYEE OPTIONS ============================== */
+function employeeOptionsHtml(selected) {
+  return state.employees.map(e => `<option value="${esc(e.name)}" ${e.name === selected ? 'selected' : ''}>${esc(e.name)}</option>`).join('');
+}
+function field(label, innerHtml) { return `<label class="field">${label}</label>${innerHtml}`; }
+
+/* ============================== JOB AUDITS ============================== */
+document.getElementById('auditDate').value = state.auditDate;
+document.getElementById('auditDate').addEventListener('change', async (e) => {
+  state.auditDate = e.target.value;
+  await loadAudits();
+  renderAudits();
+});
+document.getElementById('btnAddJob').addEventListener('click', openJobModal);
+document.getElementById('btnRouteLink').addEventListener('click', () => {
+  const jobs = state.audits.filter(a => (a.address || '').trim());
+  if (!jobs.length) { showToast('No jobs with addresses yet'); return; }
+  const addrs = jobs.map(a => encodeURIComponent(a.address));
+  const url = 'https://www.google.com/maps/dir/' + addrs.join('/');
+  window.open(url, '_blank');
+});
+
+async function loadAudits() {
+  state.audits = await sbSelect('fo_job_audits', `audit_date=eq.${state.auditDate}&order=sort_order.asc,created_at.asc`);
+}
+
+function auditStatusBadge(a) {
+  if (a.status === 'completed') return `<span class="badge good">Completed</span>`;
+  if (a.status === 'missed') return `<span class="badge bad">Unable to reach</span>`;
+  return `<span class="badge muted">Pending</span>`;
+}
+
+function renderAudits() {
+  const list = document.getElementById('auditList');
+  const completed = state.audits.filter(a => a.status === 'completed').length;
+  const missed = state.audits.filter(a => a.status === 'missed').length;
+  document.getElementById('auditSummary').textContent = state.audits.length
+    ? `${completed} completed · ${missed} unable to reach · ${state.audits.length - completed - missed} pending — of ${state.audits.length} job${state.audits.length === 1 ? '' : 's'} on ${fmtDate(state.auditDate)}`
+    : `No jobs added yet for ${fmtDate(state.auditDate)}.`;
+  if (!state.audits.length) { list.innerHTML = `<div class="card"><div class="empty-state">No jobs for this day yet. Click "+ Add Job" to add one.</div></div>`; return; }
+  list.innerHTML = state.audits.map((a, i) => `
+    <div class="job-card ${a.status}">
+      <div class="jhead">
+        <div>
+          <div class="jname">${esc(a.customer_name) || 'Unnamed job'} ${auditStatusBadge(a)}</div>
+          <div class="jmeta">${esc(a.job_type)} · ${esc(a.address) || 'no address'} ${a.phone ? '· ' + esc(a.phone) : ''} ${a.crew_or_tech ? '· ' + esc(a.crew_or_tech) : ''}</div>
+          ${a.description ? `<div class="jmeta">${esc(a.description)}</div>` : ''}
+          ${a.status !== 'pending' ? noteSummaryHtml(a) : ''}
+        </div>
+        <div class="jactions">
+          <button class="btn small" onclick="moveAudit(${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn small" onclick="moveAudit(${i},1)" ${i === state.audits.length - 1 ? 'disabled' : ''}>↓</button>
+          <button class="btn small" onclick="openJobModal('${a.id}')">Edit</button>
+          ${a.status === 'pending' ? `<button class="btn small primary" onclick="openCompleteModal('${a.id}')">✓ Audit Complete</button><button class="btn small" onclick="openMissedModal('${a.id}')">Couldn't Reach</button>` : ''}
+          <button class="btn small danger" onclick="deleteAudit('${a.id}')">Delete</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function noteSummaryHtml(a) {
+  const parts = [];
+  if (a.quality_notes) parts.push(`<b>Quality:</b> ${esc(a.quality_notes)}`);
+  if (a.efficiency_notes) parts.push(`<b>Efficiency:</b> ${esc(a.efficiency_notes)}`);
+  if (a.ppe_notes) parts.push(`<b>PPE:</b> ${esc(a.ppe_notes)}`);
+  if (a.safety_notes) parts.push(`<b>Safety:</b> ${esc(a.safety_notes)}`);
+  if (a.general_notes) parts.push(`<b>Notes:</b> ${esc(a.general_notes)}`);
+  if (!parts.length) return '';
+  return `<div style="margin-top:8px;font-size:13px;background:var(--surface-input);border-radius:var(--radius-sm);padding:8px 10px">${parts.join('<br>')}</div>`;
+}
+
+async function moveAudit(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= state.audits.length) return;
+  [state.audits[i], state.audits[j]] = [state.audits[j], state.audits[i]];
+  renderAudits();
+  await Promise.all(state.audits.map((a, idx) => sbUpdate('fo_job_audits', a.id, { sort_order: idx })));
+}
+
+function openJobModal(id) {
+  const a = id ? state.audits.find(x => x.id === id) : null;
+  openModal(`
+    <h3>${a ? 'Edit Job' : 'Add Job'} — ${fmtDate(state.auditDate)}</h3>
+    <div class="grid-2">
+      ${field('Job Type', `<select id="f_job_type">${JOB_TYPES.map(t => `<option ${a && a.job_type === t ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}
+      ${field('Assigned Tech / Crew', `<select id="f_crew"><option value="">—</option>${employeeOptionsHtml(a && a.crew_or_tech)}</select>`)}
+    </div>
+    ${field('Customer Name', `<input id="f_name" value="${esc(a && a.customer_name)}">`)}
+    ${field('Address', `<input id="f_addr" value="${esc(a && a.address)}">`)}
+    ${field('Phone', `<input id="f_phone" value="${esc(a && a.phone)}">`)}
+    ${field('Brief Description', `<textarea id="f_desc">${esc(a && a.description)}</textarea>`)}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveJob(${a ? `'${a.id}'` : 'null'})">Save</button>
+    </div>`);
+}
+
+async function saveJob(id) {
+  const payload = {
+    audit_date: state.auditDate,
+    job_type: document.getElementById('f_job_type').value,
+    customer_name: document.getElementById('f_name').value,
+    address: document.getElementById('f_addr').value,
+    phone: document.getElementById('f_phone').value,
+    description: document.getElementById('f_desc').value,
+    crew_or_tech: document.getElementById('f_crew').value,
+  };
+  if (id) await sbUpdate('fo_job_audits', id, payload);
+  else await sbInsert('fo_job_audits', { ...payload, sort_order: state.audits.length });
+  closeModal(); showToast('Job saved');
+  await loadAudits(); renderAudits();
+}
+
+async function deleteAudit(id) {
+  if (!confirm('Delete this job from today\'s audit list?')) return;
+  await sbDelete('fo_job_audits', id);
+  await loadAudits(); renderAudits();
+}
+
+function openCompleteModal(id) {
+  openModal(`
+    <h3>Job Audit Notes</h3>
+    <p class="small-note">Add what we need to know before marking this complete — quality, efficiency, PPE use, job site safety, and anything else.</p>
+    ${field('Quality', `<textarea id="c_quality" placeholder="Workmanship, finish, callback risk..."></textarea>`)}
+    ${field('Efficiency', `<textarea id="c_eff" placeholder="On schedule? Any delays or issues..."></textarea>`)}
+    ${field('PPE Being Used', `<textarea id="c_ppe" placeholder="Was proper PPE worn on site..."></textarea>`)}
+    ${field('Job Site Safety', `<textarea id="c_safety" placeholder="Hazards, housekeeping, safe practices..."></textarea>`)}
+    ${field('Other Notes', `<textarea id="c_general" placeholder="Anything else we should know..."></textarea>`)}
+    ${field('Audited By', `<select id="c_by">${employeeOptionsHtml('Ricardo')}</select>`)}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="completeAudit('${id}')">Mark Complete</button>
+    </div>`);
+}
+
+async function completeAudit(id) {
+  const fields = {
+    quality_notes: document.getElementById('c_quality').value.trim(),
+    efficiency_notes: document.getElementById('c_eff').value.trim(),
+    ppe_notes: document.getElementById('c_ppe').value.trim(),
+    safety_notes: document.getElementById('c_safety').value.trim(),
+    general_notes: document.getElementById('c_general').value.trim(),
+  };
+  if (!Object.values(fields).some(v => v)) {
+    alert('Please add at least one note before marking this job complete — quality, efficiency, PPE, safety, or a general note.');
+    return;
+  }
+  await sbUpdate('fo_job_audits', id, {
+    ...fields,
+    status: 'completed',
+    completed_by: document.getElementById('c_by').value,
+    completed_at: new Date().toISOString(),
+  });
+  closeModal(); showToast('Job marked complete');
+  await loadAudits(); renderAudits();
+}
+
+function openMissedModal(id) {
+  openModal(`
+    <h3>Couldn't Make It to This Job</h3>
+    <p class="small-note">Add a note explaining why, so the office knows this job wasn't skipped without reason.</p>
+    ${field('Reason', `<textarea id="m_reason" placeholder="Why weren't you able to reach this job today..."></textarea>`)}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="missAudit('${id}')">Save</button>
+    </div>`);
+}
+
+async function missAudit(id) {
+  const reason = document.getElementById('m_reason').value.trim();
+  if (!reason) { alert('Please add a short note explaining why this job wasn\'t reached.'); return; }
+  await sbUpdate('fo_job_audits', id, { status: 'missed', general_notes: reason });
+  closeModal(); showToast('Noted');
+  await loadAudits(); renderAudits();
+}
+
+/* ============================== MAINTENANCE ============================== */
+document.getElementById('btnAddEquipment').addEventListener('click', () => openEquipmentModal());
+
+async function loadEquipment() {
+  state.equipment = await sbSelect('fo_maintenance_equipment', 'active=eq.true&order=category.asc,name.asc');
+}
+
+function daysUntil(iso) {
+  if (!iso) return null;
+  const today = new Date(localTodayISO() + 'T00:00:00');
+  const due = new Date(iso + 'T00:00:00');
+  return Math.round((due - today) / 86400000);
+}
+
+function dueBadge(e) {
+  const d = daysUntil(e.next_service_due);
+  if (d === null) return `<span class="badge muted">No schedule set</span>`;
+  if (d < 0) return `<span class="badge bad">Overdue ${Math.abs(d)}d (was ${fmtDate(e.next_service_due)})</span>`;
+  if (d <= 7) return `<span class="badge warn">Due in ${d}d — ${fmtDate(e.next_service_due)}</span>`;
+  return `<span class="badge good">Due ${fmtDate(e.next_service_due)}</span>`;
+}
+
+function renderEquipment() {
+  const list = document.getElementById('equipmentList');
+  if (!state.equipment.length) { list.innerHTML = `<div class="card"><div class="empty-state">No equipment on file yet. Click "+ Add Equipment" to add vehicles, trailers, generators, removal machines, or blow-in machines.</div></div>`; return; }
+  const byCat = {};
+  EQUIP_CATEGORIES.forEach(c => byCat[c] = []);
+  state.equipment.forEach(e => { (byCat[e.category] = byCat[e.category] || []).push(e); });
+  list.innerHTML = Object.entries(byCat).filter(([, items]) => items.length).map(([cat, items]) => `
+    <div class="card">
+      <h2>${cat}${items.length > 1 ? ' (' + items.length + ')' : ''}</h2>
+      <table><thead><tr><th>Name</th><th>ID</th><th>Assigned To</th><th>Last Service</th><th>Status</th><th></th></tr></thead><tbody>
+        ${items.map(e => `
+          <tr>
+            <td><b>${esc(e.name)}</b>${e.notes ? `<div class="small-note">${esc(e.notes)}</div>` : ''}</td>
+            <td>${esc(e.identifier) || '—'}</td>
+            <td>${esc(e.assigned_to) || '—'}</td>
+            <td>${e.last_service_date ? fmtDate(e.last_service_date) : '—'}</td>
+            <td>${dueBadge(e)}</td>
+            <td style="text-align:right;white-space:nowrap">
+              <button class="btn small" onclick="openLogServiceModal('${e.id}')">Log Service</button>
+              <button class="btn small" onclick="openEquipmentModal('${e.id}')">Edit</button>
+              <button class="btn small danger" onclick="deleteEquipment('${e.id}')">Delete</button>
+            </td>
+          </tr>`).join('')}
+      </tbody></table>
+    </div>`).join('');
+}
+
+function openEquipmentModal(id) {
+  const e = id ? state.equipment.find(x => x.id === id) : null;
+  openModal(`
+    <h3>${e ? 'Edit Equipment' : 'Add Equipment'}</h3>
+    <div class="grid-2">
+      ${field('Category', `<select id="e_cat">${EQUIP_CATEGORIES.map(c => `<option ${e && e.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`)}
+      ${field('Name', `<input id="e_name" value="${esc(e && e.name)}" placeholder="e.g. Truck 3 - Ford F250">`)}
+    </div>
+    <div class="grid-2">
+      ${field('ID / VIN / Serial #', `<input id="e_ident" value="${esc(e && e.identifier)}">`)}
+      ${field('Assigned To', `<input id="e_assigned" value="${esc(e && e.assigned_to)}">`)}
+    </div>
+    <div class="grid-3">
+      ${field('Service Interval (days)', `<input type="number" id="e_interval" value="${e && e.service_interval_days || ''}">`)}
+      ${field('Last Service Date', `<input type="date" id="e_last" value="${e && e.last_service_date || ''}">`)}
+      ${field('Next Service Due', `<input type="date" id="e_next" value="${e && e.next_service_due || ''}">`)}
+    </div>
+    ${field('Notes', `<textarea id="e_notes">${esc(e && e.notes)}</textarea>`)}
+    <div class="modal-actions">
+      ${e ? `<button class="btn danger" style="margin-right:auto" onclick="deleteEquipment('${e.id}')">Delete</button>` : ''}
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveEquipment(${e ? `'${e.id}'` : 'null'})">Save</button>
+    </div>`);
+}
+
+async function saveEquipment(id) {
+  const payload = {
+    category: document.getElementById('e_cat').value,
+    name: document.getElementById('e_name').value,
+    identifier: document.getElementById('e_ident').value,
+    assigned_to: document.getElementById('e_assigned').value,
+    service_interval_days: document.getElementById('e_interval').value ? Number(document.getElementById('e_interval').value) : null,
+    last_service_date: document.getElementById('e_last').value || null,
+    next_service_due: document.getElementById('e_next').value || null,
+    notes: document.getElementById('e_notes').value,
+  };
+  if (!payload.name.trim()) { alert('Name is required'); return; }
+  if (id) await sbUpdate('fo_maintenance_equipment', id, payload);
+  else await sbInsert('fo_maintenance_equipment', payload);
+  closeModal(); showToast('Equipment saved');
+  await loadEquipment(); renderEquipment();
+}
+
+async function deleteEquipment(id) {
+  if (!confirm('Remove this equipment? Its service history will also be deleted.')) return;
+  await sbDelete('fo_maintenance_equipment', id);
+  closeModal();
+  await loadEquipment(); renderEquipment();
+}
+
+function openLogServiceModal(id) {
+  const e = state.equipment.find(x => x.id === id);
+  openModal(`
+    <h3>Log Service — ${esc(e.name)}</h3>
+    ${field('Service Date', `<input type="date" id="l_date" value="${localTodayISO()}">`)}
+    ${field('Description', `<textarea id="l_desc" placeholder="What was done..."></textarea>`)}
+    <div class="grid-2">
+      ${field('Performed By', `<input id="l_by">`)}
+      ${field('Cost', `<input type="number" step="0.01" id="l_cost">`)}
+    </div>
+    ${field('Next Service Due', `<input type="date" id="l_next" value="${e.service_interval_days ? addDaysISO(localTodayISO(), e.service_interval_days) : ''}">`)}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="logService('${id}')">Save</button>
+    </div>`);
+}
+
+function addDaysISO(iso, days) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+async function logService(equipmentId) {
+  const service_date = document.getElementById('l_date').value;
+  const next_due_date = document.getElementById('l_next').value || null;
+  await sbInsert('fo_maintenance_logs', {
+    equipment_id: equipmentId,
+    service_date,
+    description: document.getElementById('l_desc').value,
+    performed_by: document.getElementById('l_by').value,
+    cost: document.getElementById('l_cost').value ? Number(document.getElementById('l_cost').value) : null,
+    next_due_date,
+  });
+  await sbUpdate('fo_maintenance_equipment', equipmentId, {
+    last_service_date: service_date,
+    next_service_due: next_due_date,
+    reminder_sent_at: null,
+    overdue_sent_at: null,
+  });
+  closeModal(); showToast('Service logged');
+  await loadEquipment(); renderEquipment();
+}
+
+/* ============================== MATERIAL PICKUP ============================== */
+document.getElementById('btnAddPickup').addEventListener('click', () => openPickupModal());
+
+async function loadPickups() {
+  state.pickups = await sbSelect('fo_material_pickups', 'order=status.asc,created_at.desc');
+}
+
+function renderPickups() {
+  const list = document.getElementById('pickupList');
+  if (!state.pickups.length) { list.innerHTML = `<div class="card"><div class="empty-state">No material pickups flagged.</div></div>`; return; }
+  list.innerHTML = `<div class="card"><table><thead><tr><th>Vendor</th><th>Material</th><th>Qty</th><th>For Job</th><th>Assigned</th><th>Status</th><th></th></tr></thead><tbody>
+    ${state.pickups.map(p => `
+      <tr>
+        <td><b>${esc(p.vendor)}</b></td>
+        <td>${esc(p.material)}${p.notes ? `<div class="small-note">${esc(p.notes)}</div>` : ''}</td>
+        <td>${esc(p.quantity)}</td>
+        <td>${esc(p.job_reference) || '—'}</td>
+        <td>${esc(p.assigned_to) || '—'}</td>
+        <td>${p.status === 'picked_up' ? '<span class="badge good">Picked Up</span>' : '<span class="badge warn">Pending</span>'}</td>
+        <td style="text-align:right;white-space:nowrap">
+          ${p.status !== 'picked_up' ? `<button class="btn small primary" onclick="markPickedUp('${p.id}')">Picked Up</button>` : ''}
+          <button class="btn small danger" onclick="deletePickup('${p.id}')">Delete</button>
+        </td>
+      </tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function openPickupModal() {
+  openModal(`
+    <h3>New Material Pickup</h3>
+    <div class="grid-2">
+      ${field('Vendor', `<select id="p_vendor">${VENDORS.map(v => `<option>${v}</option>`).join('')}</select>`)}
+      ${field('For Job / Customer', `<input id="p_job">`)}
+    </div>
+    <div class="grid-2">
+      ${field('Material', `<input id="p_material">`)}
+      ${field('Quantity', `<input id="p_qty">`)}
+    </div>
+    ${field('Notes', `<textarea id="p_notes"></textarea>`)}
+    <div class="grid-2">
+      ${field('Assigned To', `<select id="p_assigned">${employeeOptionsHtml('Ricardo')}</select>`)}
+      ${field('Requested By', `<select id="p_requested">${employeeOptionsHtml('Mark')}</select>`)}
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="savePickup()">Save</button>
+    </div>`);
+}
+
+async function savePickup() {
+  const row = await sbInsert('fo_material_pickups', {
+    vendor: document.getElementById('p_vendor').value,
+    job_reference: document.getElementById('p_job').value,
+    material: document.getElementById('p_material').value,
+    quantity: document.getElementById('p_qty').value,
+    notes: document.getElementById('p_notes').value,
+    assigned_to: document.getElementById('p_assigned').value,
+    requested_by: document.getElementById('p_requested').value,
+  });
+  closeModal(); showToast('Pickup added — notifying...');
+  await loadPickups(); renderPickups();
+  if (row && row[0]) notify('material_pickup', row[0].id);
+}
+
+async function markPickedUp(id) {
+  await sbUpdate('fo_material_pickups', id, { status: 'picked_up', picked_up_at: new Date().toISOString() });
+  await loadPickups(); renderPickups();
+}
+async function deletePickup(id) {
+  if (!confirm('Delete this pickup?')) return;
+  await sbDelete('fo_material_pickups', id);
+  await loadPickups(); renderPickups();
+}
+
+/* ============================== PPE CHECKLIST ============================== */
+document.getElementById('btnNewChecklist').addEventListener('click', () => openNewChecklistModal());
+
+async function loadPpe() {
+  state.ppeChecklists = await sbSelect('fo_ppe_checklists', 'order=check_date.desc');
+  state.ppeItems = state.ppeChecklists.length
+    ? await sbSelect('fo_ppe_checklist_items', `checklist_id=in.(${state.ppeChecklists.map(c => c.id).join(',')})`)
+    : [];
+}
+
+const PPE_STATUS_OPTIONS = ['ok', 'missing', 'damaged', 'na'];
+const PPE_STATUS_LABEL = { ok: 'OK', missing: 'Missing', damaged: 'Damaged', na: 'N/A' };
+
+function renderPpe() {
+  const list = document.getElementById('ppeList');
+  if (!state.ppeChecklists.length) { list.innerHTML = `<div class="card"><div class="empty-state">No PPE checklists yet. Click "+ New Checklist" to start this month's check.</div></div>`; return; }
+  list.innerHTML = state.ppeChecklists.map(c => {
+    const items = state.ppeItems.filter(i => i.checklist_id === c.id);
+    return `
+    <div class="card">
+      <div class="row-flex">
+        <div><h2>${fmtDate(c.check_date)}${c.jobsite_location ? ' — ' + esc(c.jobsite_location) : ''}</h2><p class="sub">Supervisor: ${esc(c.supervisor_name)}</p></div>
+        <button class="btn small danger" onclick="deleteChecklist('${c.id}')">Delete Checklist</button>
+      </div>
+      <div class="ppe-grid"><table><thead><tr><th>Employee</th>${PPE_ITEMS.map(([, l]) => `<th>${l}</th>`).join('')}<th>Issue / Why not replaced</th><th>Signature</th></tr></thead><tbody>
+        ${items.map(it => `
+          <tr>
+            <td><b>${esc(it.employee_name)}</b></td>
+            ${PPE_ITEMS.map(([key]) => `<td class="checklist-cell"><select onchange="updatePpeItem('${it.id}','${key}',this.value)">${PPE_STATUS_OPTIONS.map(s => `<option value="${s}" ${it[key] === s ? 'selected' : ''}>${PPE_STATUS_LABEL[s]}</option>`).join('')}</select></td>`).join('')}
+            <td><input value="${esc(it.issue_reason)}" onchange="updatePpeItem('${it.id}','issue_reason',this.value)" placeholder="if missing/damaged, why?"></td>
+            <td><input value="${esc(it.employee_signature)}" onchange="updatePpeItem('${it.id}','employee_signature',this.value)" placeholder="initials"></td>
+          </tr>`).join('')}
+      </tbody></table></div>
+    </div>`;
+  }).join('');
+}
+
+function openNewChecklistModal() {
+  openModal(`
+    <h3>New PPE Checklist</h3>
+    <div class="grid-2">
+      ${field('Check Date', `<input type="date" id="k_date" value="${localTodayISO()}">`)}
+      ${field('Jobsite / Location', `<input id="k_loc">`)}
+    </div>
+    ${field('Supervisor Name', `<select id="k_super">${employeeOptionsHtml('Ricardo')}</select>`)}
+    <p class="small-note">This creates a row for every active employee — you'll mark exceptions (missing/damaged) directly in the table.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveNewChecklist()">Create</button>
+    </div>`);
+}
+
+async function saveNewChecklist() {
+  const row = await sbInsert('fo_ppe_checklists', {
+    check_date: document.getElementById('k_date').value,
+    jobsite_location: document.getElementById('k_loc').value,
+    supervisor_name: document.getElementById('k_super').value,
+  });
+  const checklistId = row[0].id;
+  if (state.employees.length) {
+    await sbInsert('fo_ppe_checklist_items', state.employees.map(e => ({ checklist_id: checklistId, employee_name: e.name })));
+  }
+  closeModal(); showToast('Checklist created');
+  await loadPpe(); renderPpe();
+}
+
+async function updatePpeItem(itemId, key, value) {
+  await sbUpdate('fo_ppe_checklist_items', itemId, { [key]: value });
+  const it = state.ppeItems.find(i => i.id === itemId);
+  if (it) it[key] = value;
+}
+
+async function deleteChecklist(id) {
+  if (!confirm('Delete this whole checklist?')) return;
+  await sbDelete('fo_ppe_checklists', id);
+  await loadPpe(); renderPpe();
+}
+
+/* ============================== CALL BACKS ============================== */
+document.getElementById('btnAddCallback').addEventListener('click', () => openCallbackModal());
+
+async function loadCallbacks() {
+  state.callbacks = await sbSelect('fo_callbacks', 'order=created_at.desc');
+}
+
+function renderCallbacks() {
+  const list = document.getElementById('callbackList');
+  if (!state.callbacks.length) { list.innerHTML = `<div class="card"><div class="empty-state">No call backs logged.</div></div>`; return; }
+  list.innerHTML = state.callbacks.map(c => `
+    <div class="card">
+      <div class="row-flex">
+        <div>
+          <h2>${esc(c.customer_name)}</h2>
+          <p class="sub">Job return: ${c.job_return_date ? fmtDate(c.job_return_date) : '—'} · Reason: ${esc(c.reason) || '—'}</p>
+        </div>
+        <button class="btn small danger" onclick="deleteCallback('${c.id}')">Delete</button>
+      </div>
+      <div class="grid-2" style="font-size:13.5px">
+        <div><b>Materials Needed:</b> ${esc(c.materials_needed) || '—'}</div>
+        <div><b>Previous Job Date:</b> ${c.previous_job_date ? fmtDate(c.previous_job_date) : '—'}</div>
+        <div><b>Previous Crew Lead:</b> ${esc(c.previous_crew_lead) || '—'}</div>
+        <div><b>Previous Crew:</b> ${esc(c.previous_crew) || '—'}</div>
+        <div><b>Explanation:</b> ${esc(c.explanation) || '—'}</div>
+        <div><b>Handling Crew Lead:</b> ${esc(c.handling_crew_lead) || '—'}</div>
+        <div><b>Time — On My Way / Start / Finish:</b> ${esc(c.time_on_my_way) || '—'} / ${esc(c.time_start) || '—'} / ${esc(c.time_finish) || '—'}</div>
+        <div><b>Materials Used:</b> ${esc(c.materials_used) || '—'}</div>
+        <div><b>Customer Satisfied:</b> ${c.customer_satisfied === 'yes' ? 'Yes' : c.customer_satisfied === 'no' ? 'No' : '—'} ${esc(c.satisfaction_notes)}</div>
+        <div><b>Before/After Photos Uploaded to HCP:</b> ${c.photos_uploaded ? 'Yes' : 'No'}</div>
+      </div>
+      ${c.additional_notes ? `<div style="margin-top:8px"><b>Additional Notes:</b> ${esc(c.additional_notes)}</div>` : ''}
+      <p class="small-note" style="margin-top:8px">Signed: ${esc(c.signature) || '—'} ${c.signed_date ? '· ' + fmtDate(c.signed_date) : ''} · Logged by ${esc(c.created_by) || '—'}</p>
+    </div>`).join('');
+}
+
+function openCallbackModal() {
+  openModal(`
+    <h3>Log Call Back</h3>
+    <div class="grid-2">
+      ${field('Customer Name', `<input id="cb_customer">`)}
+      ${field('Job Return Date', `<input type="date" id="cb_return">`)}
+    </div>
+    ${field('Materials Needed', `<textarea id="cb_materials_needed"></textarea>`)}
+    ${field('Reason for Call Back', `<textarea id="cb_reason"></textarea>`)}
+    <div class="grid-3">
+      ${field('Previous Job Date', `<input type="date" id="cb_prev_date">`)}
+      ${field('Previous Crew Lead', `<input id="cb_prev_lead">`)}
+      ${field('Previous Crew', `<input id="cb_prev_crew">`)}
+    </div>
+    ${field('Explanation from Crew Lead on Why We Got the Call Back', `<textarea id="cb_explanation"></textarea>`)}
+    ${field('Crew Lead/Crew Handling Call Back', `<input id="cb_handling">`)}
+    <div class="grid-3">
+      ${field('On My Way', `<input id="cb_omw" placeholder="time">`)}
+      ${field('Start', `<input id="cb_start" placeholder="time">`)}
+      ${field('Finish', `<input id="cb_finish" placeholder="time">`)}
+    </div>
+    ${field('Materials/Products Needed or Used to Correct', `<textarea id="cb_materials_used"></textarea>`)}
+    <div class="grid-2">
+      ${field('Customer Satisfied?', `<select id="cb_satisfied"><option value="">—</option><option value="yes">Yes</option><option value="no">No</option></select>`)}
+      ${field('If No, Why', `<input id="cb_sat_notes">`)}
+    </div>
+    ${field('Before/After Photos Uploaded to HCP?', `<select id="cb_photos"><option value="false">No</option><option value="true">Yes</option></select>`)}
+    ${field('Additional Notes', `<textarea id="cb_additional"></textarea>`)}
+    <div class="grid-3">
+      ${field('Signature', `<input id="cb_sig">`)}
+      ${field('Date', `<input type="date" id="cb_sig_date" value="${localTodayISO()}">`)}
+      ${field('Logged By', `<select id="cb_created_by">${employeeOptionsHtml('Ricardo')}</select>`)}
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveCallback()">Save</button>
+    </div>`);
+}
+
+async function saveCallback() {
+  const customer = document.getElementById('cb_customer').value.trim();
+  if (!customer) { alert('Customer name is required'); return; }
+  const row = await sbInsert('fo_callbacks', {
+    customer_name: customer,
+    job_return_date: document.getElementById('cb_return').value || null,
+    materials_needed: document.getElementById('cb_materials_needed').value,
+    reason: document.getElementById('cb_reason').value,
+    previous_job_date: document.getElementById('cb_prev_date').value || null,
+    previous_crew_lead: document.getElementById('cb_prev_lead').value,
+    previous_crew: document.getElementById('cb_prev_crew').value,
+    explanation: document.getElementById('cb_explanation').value,
+    handling_crew_lead: document.getElementById('cb_handling').value,
+    time_on_my_way: document.getElementById('cb_omw').value,
+    time_start: document.getElementById('cb_start').value,
+    time_finish: document.getElementById('cb_finish').value,
+    materials_used: document.getElementById('cb_materials_used').value,
+    customer_satisfied: document.getElementById('cb_satisfied').value,
+    satisfaction_notes: document.getElementById('cb_sat_notes').value,
+    photos_uploaded: document.getElementById('cb_photos').value === 'true',
+    additional_notes: document.getElementById('cb_additional').value,
+    signature: document.getElementById('cb_sig').value,
+    signed_date: document.getElementById('cb_sig_date').value || null,
+    created_by: document.getElementById('cb_created_by').value,
+  });
+  closeModal(); showToast('Call back logged — notifying...');
+  await loadCallbacks(); renderCallbacks();
+  if (row && row[0]) notify('callback_logged', row[0].id);
+}
+
+async function deleteCallback(id) {
+  if (!confirm('Delete this call back record?')) return;
+  await sbDelete('fo_callbacks', id);
+  await loadCallbacks(); renderCallbacks();
+}
+
+/* ============================== TO-DO LIST ============================== */
+document.getElementById('btnAddTodo').addEventListener('click', () => openTodoModal());
+
+async function loadTodos() {
+  state.todos = await sbSelect('fo_todos', 'order=status.asc,due_date.asc.nullslast,created_at.desc');
+}
+
+const PRIORITY_BADGE = { high: 'bad', normal: 'muted', low: 'muted' };
+
+function renderTodos() {
+  const list = document.getElementById('todoList');
+  if (!state.todos.length) { list.innerHTML = `<div class="card"><div class="empty-state">No to-dos yet.</div></div>`; return; }
+  list.innerHTML = `<div class="card"><table><thead><tr><th>Task</th><th>Assigned To</th><th>Due</th><th>Priority</th><th>Status</th><th></th></tr></thead><tbody>
+    ${state.todos.map(t => `
+      <tr>
+        <td><b>${esc(t.task)}</b>${t.notes ? `<div class="small-note">${esc(t.notes)}</div>` : ''}</td>
+        <td>${esc(t.assigned_to)}</td>
+        <td>${t.due_date ? fmtDate(t.due_date) : '—'}</td>
+        <td><span class="badge ${PRIORITY_BADGE[t.priority] || 'muted'}">${esc(t.priority)}</span></td>
+        <td>${t.status === 'done' ? '<span class="badge good">Done</span>' : '<span class="badge warn">Open</span>'}</td>
+        <td style="text-align:right;white-space:nowrap">
+          ${t.status !== 'done' ? `<button class="btn small primary" onclick="markTodoDone('${t.id}')">Mark Done</button>` : ''}
+          <button class="btn small danger" onclick="deleteTodo('${t.id}')">Delete</button>
+        </td>
+      </tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function openTodoModal() {
+  openModal(`
+    <h3>New To-Do</h3>
+    ${field('Task', `<input id="t_task">`)}
+    <div class="grid-3">
+      ${field('Assigned To', `<select id="t_to">${employeeOptionsHtml('Ricardo')}</select>`)}
+      ${field('Assigned By', `<select id="t_by">${employeeOptionsHtml('Mark')}</select>`)}
+      ${field('Priority', `<select id="t_priority"><option value="normal" selected>Normal</option><option value="high">High</option><option value="low">Low</option></select>`)}
+    </div>
+    ${field('Due Date', `<input type="date" id="t_due">`)}
+    ${field('Notes', `<textarea id="t_notes"></textarea>`)}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveTodo()">Save</button>
+    </div>`);
+}
+
+async function saveTodo() {
+  const task = document.getElementById('t_task').value.trim();
+  if (!task) { alert('Task is required'); return; }
+  const row = await sbInsert('fo_todos', {
+    task,
+    assigned_to: document.getElementById('t_to').value,
+    assigned_by: document.getElementById('t_by').value,
+    priority: document.getElementById('t_priority').value,
+    due_date: document.getElementById('t_due').value || null,
+    notes: document.getElementById('t_notes').value,
+  });
+  closeModal(); showToast('To-do added — notifying...');
+  await loadTodos(); renderTodos();
+  if (row && row[0]) notify('todo_assigned', row[0].id);
+}
+
+async function markTodoDone(id) {
+  await sbUpdate('fo_todos', id, { status: 'done', completed_at: new Date().toISOString() });
+  await loadTodos(); renderTodos();
+}
+async function deleteTodo(id) {
+  if (!confirm('Delete this to-do?')) return;
+  await sbDelete('fo_todos', id);
+  await loadTodos(); renderTodos();
+}
+
+/* ============================== SETTINGS ============================== */
+document.getElementById('btnAddRecipient').addEventListener('click', () => openRecipientModal());
+document.getElementById('btnAddEmployee').addEventListener('click', () => openEmployeeModal());
+
+async function loadRecipients() {
+  state.recipients = await sbSelect('fo_notification_recipients', 'order=created_at.asc');
+}
+async function loadEmployees() {
+  state.employees = await sbSelect('fo_employees', 'order=name.asc');
+}
+
+const NOTIFY_COLS = [
+  ['notify_eod_recap', 'EOD Recap'],
+  ['notify_maintenance', 'Maintenance'],
+  ['notify_ppe', 'PPE'],
+  ['notify_material_pickup', 'Material Pickup'],
+  ['notify_callback', 'Call Backs'],
+  ['notify_todo_assigned', 'To-Do Assigned'],
+];
+
+function renderRecipients() {
+  const list = document.getElementById('recipientList');
+  if (!state.recipients.length) { list.innerHTML = `<div class="empty-state">No recipients yet — add Mark and Ricardo's emails to start getting notifications.</div>`; return; }
+  list.innerHTML = `<table><thead><tr><th>Name</th><th>Email</th>${NOTIFY_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>Active</th><th></th></tr></thead><tbody>
+    ${state.recipients.map(r => `
+      <tr>
+        <td><b>${esc(r.name)}</b></td>
+        <td>${esc(r.email)}</td>
+        ${NOTIFY_COLS.map(([key]) => `<td><input type="checkbox" ${r[key] ? 'checked' : ''} onchange="updateRecipient('${r.id}','${key}',this.checked)"></td>`).join('')}
+        <td><input type="checkbox" ${r.active ? 'checked' : ''} onchange="updateRecipient('${r.id}','active',this.checked)"></td>
+        <td><button class="btn small danger" onclick="deleteRecipient('${r.id}')">Delete</button></td>
+      </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function openRecipientModal() {
+  openModal(`
+    <h3>Add Notification Recipient</h3>
+    <div class="grid-2">
+      ${field('Name', `<input id="r_name">`)}
+      ${field('Email', `<input type="email" id="r_email">`)}
+    </div>
+    <p class="small-note" style="margin-top:10px">Choose what they get notified about:</p>
+    ${NOTIFY_COLS.map(([key, label]) => `<label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13.5px"><input type="checkbox" id="r_${key}"> ${label}</label>`).join('')}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveRecipient()">Save</button>
+    </div>`);
+}
+
+async function saveRecipient() {
+  const name = document.getElementById('r_name').value.trim();
+  const email = document.getElementById('r_email').value.trim();
+  if (!name || !email) { alert('Name and email are required'); return; }
+  const payload = { name, email, active: true };
+  NOTIFY_COLS.forEach(([key]) => payload[key] = document.getElementById('r_' + key).checked);
+  await sbInsert('fo_notification_recipients', payload);
+  closeModal(); showToast('Recipient added');
+  await loadRecipients(); renderRecipients();
+}
+
+async function updateRecipient(id, key, value) {
+  await sbUpdate('fo_notification_recipients', id, { [key]: value });
+}
+async function deleteRecipient(id) {
+  if (!confirm('Remove this recipient?')) return;
+  await sbDelete('fo_notification_recipients', id);
+  await loadRecipients(); renderRecipients();
+}
+
+function renderEmployees() {
+  const list = document.getElementById('employeeList');
+  if (!state.employees.length) { list.innerHTML = `<div class="empty-state">No employees yet.</div>`; return; }
+  list.innerHTML = `<table><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Active</th><th></th></tr></thead><tbody>
+    ${state.employees.map(e => `
+      <tr>
+        <td><b>${esc(e.name)}</b></td>
+        <td>${esc(e.role) || '—'}</td>
+        <td>${esc(e.email) || '—'}</td>
+        <td>${esc(e.phone) || '—'}</td>
+        <td><input type="checkbox" ${e.active ? 'checked' : ''} onchange="updateEmployee('${e.id}','active',this.checked)"></td>
+        <td><button class="btn small danger" onclick="deleteEmployee('${e.id}')">Delete</button></td>
+      </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function openEmployeeModal() {
+  openModal(`
+    <h3>Add Employee</h3>
+    <div class="grid-2">
+      ${field('Name', `<input id="em_name">`)}
+      ${field('Role', `<input id="em_role" placeholder="e.g. Installer, Crew Lead">`)}
+    </div>
+    <div class="grid-2">
+      ${field('Email', `<input type="email" id="em_email">`)}
+      ${field('Phone', `<input id="em_phone">`)}
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveEmployee()">Save</button>
+    </div>`);
+}
+
+async function saveEmployee() {
+  const name = document.getElementById('em_name').value.trim();
+  if (!name) { alert('Name is required'); return; }
+  await sbInsert('fo_employees', {
+    name,
+    role: document.getElementById('em_role').value || 'Installer',
+    email: document.getElementById('em_email').value,
+    phone: document.getElementById('em_phone').value,
+  });
+  closeModal(); showToast('Employee added');
+  await loadEmployees(); renderAllEmployeeDependentTabs();
+}
+
+async function updateEmployee(id, key, value) {
+  await sbUpdate('fo_employees', id, { [key]: value });
+}
+async function deleteEmployee(id) {
+  if (!confirm('Remove this employee?')) return;
+  await sbDelete('fo_employees', id);
+  await loadEmployees(); renderAllEmployeeDependentTabs();
+}
+function renderAllEmployeeDependentTabs() { renderEmployees(); renderAudits(); }
+
+/* ============================== INIT ============================== */
+async function loadAll() {
+  try {
+    await Promise.all([loadEmployees(), loadAudits(), loadEquipment(), loadPickups(), loadCallbacks(), loadTodos(), loadRecipients()]);
+    await loadPpe();
+    renderAudits(); renderEquipment(); renderPickups(); renderPpe(); renderCallbacks(); renderTodos(); renderRecipients(); renderEmployees();
+    document.getElementById('connPill').textContent = 'connected';
+  } catch (err) {
+    console.error(err);
+    document.getElementById('connPill').textContent = 'connection error';
+    showToast('Failed to load data — check console');
+  }
+}
+loadAll();
+</script>
+</body>
+</html>

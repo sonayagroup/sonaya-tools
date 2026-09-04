@@ -186,7 +186,8 @@ tr:last-child td { border-bottom: none; }
 .modal .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .toast { position: fixed; bottom: 20px; right: 20px; background: var(--text-primary); color: var(--surface-page); padding: 10px 16px; border-radius: var(--radius-sm); font-size: 13px; z-index: 100; box-shadow: var(--shadow-md); opacity: 0; transform: translateY(8px); transition: 200ms ease; pointer-events: none; }
 .toast.show { opacity: 1; transform: translateY(0); }
-.ppe-grid { overflow-x: auto; }
+.ppe-grid { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .ppe-grid table { min-width: 900px; }
 .check-icon { cursor: pointer; user-select: none; font-size: 16px; }
 .small-note { font-size: 11.5px; color: var(--text-muted); }
@@ -758,7 +759,7 @@ function renderEquipment() {
   list.innerHTML = Object.entries(byCat).filter(([, items]) => items.length).map(([cat, items]) => `
     <div class="card">
       <h2>${cat}${items.length > 1 ? ' (' + items.length + ')' : ''}</h2>
-      <table><thead><tr><th>Name</th><th>ID</th><th>Assigned To</th><th>Last Service</th><th>Status</th><th></th></tr></thead><tbody>
+      <div class="table-scroll"><table><thead><tr><th>Name</th><th>ID</th><th>Assigned To</th><th>Last Service</th><th>Status</th><th></th></tr></thead><tbody>
         ${items.map(e => `
           <tr>
             <td><b>${esc(e.name)}</b>${e.notes ? `<div class="small-note">${esc(e.notes)}</div>` : ''}</td>
@@ -772,7 +773,7 @@ function renderEquipment() {
               <button class="btn small danger" onclick="deleteEquipment('${e.id}')">Delete</button>
             </td>
           </tr>`).join('')}
-      </tbody></table>
+      </tbody></table></div>
     </div>`).join('');
 }
 
@@ -880,7 +881,7 @@ async function loadPickups() {
 function renderPickups() {
   const list = document.getElementById('pickupList');
   if (!state.pickups.length) { list.innerHTML = `<div class="card"><div class="empty-state">No material pickups flagged.</div></div>`; return; }
-  list.innerHTML = `<div class="card"><table><thead><tr><th>Vendor</th><th>Material</th><th>Qty</th><th>For Job</th><th>Assigned</th><th>Status</th><th></th></tr></thead><tbody>
+  list.innerHTML = `<div class="card"><div class="table-scroll"><table><thead><tr><th>Vendor</th><th>Material</th><th>Qty</th><th>For Job</th><th>Assigned</th><th>Status</th><th></th></tr></thead><tbody>
     ${state.pickups.map(p => `
       <tr>
         <td><b>${esc(p.vendor)}</b></td>
@@ -894,7 +895,7 @@ function renderPickups() {
           <button class="btn small danger" onclick="deletePickup('${p.id}')">Delete</button>
         </td>
       </tr>`).join('')}
-  </tbody></table></div>`;
+  </tbody></table></div></div>`;
 }
 
 function openPickupModal() {
@@ -1067,7 +1068,7 @@ const PRIORITY_BADGE = { high: 'bad', normal: 'muted', low: 'muted' };
 function renderTodos() {
   const list = document.getElementById('todoList');
   if (!state.todos.length) { list.innerHTML = `<div class="card"><div class="empty-state">No to-dos yet.</div></div>`; return; }
-  list.innerHTML = `<div class="card"><table><thead><tr><th>Task</th><th>Assigned To</th><th>Due</th><th>Priority</th><th>Status</th><th></th></tr></thead><tbody>
+  list.innerHTML = `<div class="card"><div class="table-scroll"><table><thead><tr><th>Task</th><th>Assigned To</th><th>Due</th><th>Priority</th><th>Status</th><th></th></tr></thead><tbody>
     ${state.todos.map(t => `
       <tr>
         <td><b>${esc(t.task)}</b>${t.notes ? `<div class="small-note">${esc(t.notes)}</div>` : ''}</td>
@@ -1080,7 +1081,7 @@ function renderTodos() {
           <button class="btn small danger" onclick="deleteTodo('${t.id}')">Delete</button>
         </td>
       </tr>`).join('')}
-  </tbody></table></div>`;
+  </tbody></table></div></div>`;
 }
 
 function openTodoModal() {
@@ -1146,13 +1147,13 @@ const NOTIFY_COLS = [
 function notifySummary(e) {
   const on = NOTIFY_COLS.filter(([key]) => e[key]).map(([, label]) => label);
   if (!on.length) return '<span class="small-note">No email notifications</span>';
-  return on.map(l => `<span class="badge muted" style="margin:1px 3px 1px 0">${l}</span>`).join('');
+  return `<span class="small-note" style="color:var(--text-secondary)">${on.join(', ')}</span>`;
 }
 
 function renderEmployees() {
   const list = document.getElementById('employeeList');
   if (!state.employees.length) { list.innerHTML = `<div class="empty-state">No employees yet.</div>`; return; }
-  list.innerHTML = `<table><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Notifications</th><th>Active</th><th></th></tr></thead><tbody>
+  list.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Notifications</th><th>Active</th><th></th></tr></thead><tbody>
     ${state.employees.map(e => `
       <tr>
         <td><b>${esc(e.name)}</b></td>
@@ -1166,7 +1167,7 @@ function renderEmployees() {
           <button class="btn small danger" onclick="deleteEmployee('${e.id}')">Delete</button>
         </td>
       </tr>`).join('')}
-  </tbody></table>`;
+  </tbody></table></div>`;
 }
 
 function openEmployeeModal(id) {

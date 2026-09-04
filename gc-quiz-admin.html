@@ -102,6 +102,9 @@ input[type=text].field-input:focus{outline:none;border-color:var(--blue);backgro
 </div>
 
 <div id="appContent" style="display:none">
+
+<!-- ===== QUIZZES HUB (default landing — lists every quiz) ===== -->
+<div id="hubView">
 <header>
   <div class="hdr-inner">
     <a href="https://tools.sonayagroup.com/greatclips.html" class="back-link">&larr; Back to Dashboard</a>
@@ -109,15 +112,52 @@ input[type=text].field-input:focus{outline:none;border-color:var(--blue);backgro
       <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQwAAAAwCAQAAABOSox6AAAC+klEQVR42u2c627sIAyEmYj3f+Xpr93T0wSwzT3YUqVqt2xg+DDjhC2CJJh8B8GjrFJaJ66qJcxDdUD0Kt112g4MdgHtbCieVNoKDHZBzaF4UonZ1yZqeTXG4hwoOAC3iXMRRVCgy6p5X67Ae1SKhe6XkhkOBESv04YqxcxwNTscjsGjRieJSljDY6AJFrtOMaqxQEPMllL8Ora2YIM2L1Ypnjbgii3vBJX4GVc8MFu0cUJ4LRQMIQA3odD4Qn93com10q5NjUNi1vZhcL54vsGF70+NH9L1n1/bi8B/hLQHg8JyDeLVDPX6hzpXSMHopxKN1R6MOfKOYwgIvLrlC2n3+Os3KtvrWry7mGZCDb1GyFUl43d2qj9D16IlFlgYjzo/9c1QcToWKLgEVt574MN2OcuwDq0rVGqH/x1GQByKBRJS57Yz3P4WBi+xwYNuc7ai2hch8T6/cBgzBpVdf3oVidWMDM3Sq6GI0psCDwsN4paJhXJN4/z5VQja/y54/WhhrrqDeWYGmk9NWVtvAXE8Gvr6ZAIYeL3ou/RbDEd89PCrFFurVhA7uJZPH/FYwqIMBgxCYvhUyCbGjyUGoXUvwvGOM59M3vfra+522fCgP/QdC8Xg+js5BeXbKdtJ6ZmIYlO5Nk/IvK0MLIXtahlFfHvsWsIzWK/LYrpc3yrP31aYyxjmsmbiOhx/c7uVSn3UbfqF0muxFcHFVyoqJ7mfSWbb5RiL5sRyfqqmnMoXUm0fo1sMpKn4644zMwbclE1jcdCpw3jsPMw630MTGjIh56pE1bPk1KioA6NUuvaCIbUKNXkGhZYf2NDgXFf+hEf/QtmyTbAmY5QHHQai0U4uNr5W/aesVFRDBkYNHKgcEFVXQcV/8WCzKeBCUNwPOZmPP8dGw0azYWlOfSNz7pxGydARj3FIyBRFm66OO0+eNnO5v4XqHZ3hnKtS7qsYlhnEXIY9esA2aMYuV93DwfBwMDwcDA8Hw8PB8HAwPBwMDwfDw8HweF38ANCiCWc/qeQQAAAAAElFTkSuQmCC" alt="Great Clips">
       <span class="title">Salon Performance Dashboard</span>
     </div>
-    <h1>📝 Manager Quiz</h1>
-    <p>Weekly KPI quiz results and question management.</p>
+    <h1>📝 Manager Quizzes</h1>
+    <p>Create, manage, and review results for every weekly quiz — old and new.</p>
+  </div>
+</header>
+
+<div class="wrap content">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <div>
+        <h3>All quizzes</h3>
+        <p class="hint" style="margin-bottom:0">Click a quiz to manage its questions and see results. Copy its link to send to managers.</p>
+      </div>
+      <button type="button" class="btn-blue" id="newQuizBtn" style="white-space:nowrap">+ New quiz</button>
+    </div>
+    <div class="tbl-scroll">
+      <table id="quizzesTable">
+        <thead><tr>
+          <th>Quiz</th><th>Status</th><th>Questions</th><th>Attempts</th><th>Manager link</th><th></th>
+        </tr></thead>
+        <tbody id="quizzesBody"></tbody>
+      </table>
+    </div>
+    <div id="quizzesEmpty" class="empty" style="display:none">No quizzes yet — click "+ New quiz" to create the first one.</div>
+  </div>
+</div>
+</div><!-- /hubView -->
+
+<!-- ===== SINGLE QUIZ MANAGEMENT ===== -->
+<div id="manageView" style="display:none">
+<header>
+  <div class="hdr-inner">
+    <a href="javascript:void(0)" id="backToHubLink" class="back-link">&larr; All quizzes</a>
+    <div class="hdr-top">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQwAAAAwCAQAAABOSox6AAAC+klEQVR42u2c627sIAyEmYj3f+Xpr93T0wSwzT3YUqVqt2xg+DDjhC2CJJh8B8GjrFJaJ66qJcxDdUD0Kt112g4MdgHtbCieVNoKDHZBzaF4UonZ1yZqeTXG4hwoOAC3iXMRRVCgy6p5X67Ae1SKhe6XkhkOBESv04YqxcxwNTscjsGjRieJSljDY6AJFrtOMaqxQEPMllL8Ora2YIM2L1Ypnjbgii3vBJX4GVc8MFu0cUJ4LRQMIQA3odD4Qn93com10q5NjUNi1vZhcL54vsGF70+NH9L1n1/bi8B/hLQHg8JyDeLVDPX6hzpXSMHopxKN1R6MOfKOYwgIvLrlC2n3+Os3KtvrWry7mGZCDb1GyFUl43d2qj9D16IlFlgYjzo/9c1QcToWKLgEVt574MN2OcuwDq0rVGqH/x1GQByKBRJS57Yz3P4WBi+xwYNuc7ai2hch8T6/cBgzBpVdf3oVidWMDM3Sq6GI0psCDwsN4paJhXJN4/z5VQja/y54/WhhrrqDeWYGmk9NWVtvAXE8Gvr6ZAIYeL3ou/RbDEd89PCrFFurVhA7uJZPH/FYwqIMBgxCYvhUyCbGjyUGoXUvwvGOM59M3vfra+522fCgP/QdC8Xg+js5BeXbKdtJ6ZmIYlO5Nk/IvK0MLIXtahlFfHvsWsIzWK/LYrpc3yrP31aYyxjmsmbiOhx/c7uVSn3UbfqF0muxFcHFVyoqJ7mfSWbb5RiL5sRyfqqmnMoXUm0fo1sMpKn4644zMwbclE1jcdCpw3jsPMw630MTGjIh56pE1bPk1KioA6NUuvaCIbUKNXkGhZYf2NDgXFf+hEf/QtmyTbAmY5QHHQai0U4uNr5W/aesVFRDBkYNHKgcEFVXQcV/8WCzKeBCUNwPOZmPP8dGw0azYWlOfSNz7pxGydARj3FIyBRFm66OO0+eNnO5v4XqHZ3hnKtS7qsYlhnEXIY9esA2aMYuV93DwfBwMDwcDA8Hw8PB8HAwPBwMDwfDw8HweF38ANCiCWc/qeQQAAAAAElFTkSuQmCC" alt="Great Clips">
+      <span class="title">Salon Performance Dashboard</span>
+    </div>
+    <h1 id="manageTitle">📝 Manager Quiz</h1>
+    <p id="manageSub">Weekly KPI quiz results and question management.</p>
   </div>
 </header>
 
 <nav class="tabs"><div class="tabs-inner">
   <div class="tab active" data-t="results">📊 Results</div>
   <div class="tab" data-t="questions">✏️ Questions</div>
-  <a href="https://tools.sonayagroup.com/gc-kpi-quiz.html?preview=1" target="_blank" class="tab-ext">👀 Preview quiz &#8599;</a>
+  <a href="#" target="_blank" class="tab-ext" id="previewLink">👀 Preview quiz &#8599;</a>
+  <span class="tab-ext" id="copyLinkBtn" style="cursor:pointer;color:var(--blue)">🔗 Copy manager link</span>
 </div></nav>
 
 <div class="wrap content">
@@ -162,13 +202,18 @@ input[type=text].field-input:focus{outline:none;border-color:var(--blue);backgro
   </section>
 
 </div>
+</div><!-- /manageView -->
+
 </div><!-- /appContent -->
 
 <script>
-const QUIZ_ID = "gc-kpi-quiz";
 const SUPABASE_URL = "https://vcukhvjwsuaqxgqzotwb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE";
 const TIMEZONE = "America/Denver";
+const QUIZ_TAKING_URL = "https://tools.sonayagroup.com/gc-kpi-quiz.html";
+
+const urlParams = new URLSearchParams(window.location.search);
+let QUIZ_ID = urlParams.get("quiz") || null; // which quiz is currently being managed — null means "show the hub"
 
 function sbHeaders(extra){
   return Object.assign({
@@ -183,6 +228,96 @@ function escapeAttr(str){
 function escapeHtml(str){
   return String(str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+function slugify(str){
+  return String(str || "").toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "quiz";
+}
+
+/* ---------- QUIZZES HUB ---------- */
+async function loadHub(){
+  const body = document.getElementById("quizzesBody");
+  const empty = document.getElementById("quizzesEmpty");
+  body.innerHTML = `<tr><td colspan="6" class="muted">Loading…</td></tr>`;
+  empty.style.display = "none";
+
+  const [quizzesRes, questionsRes, attemptsRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/quizzes?order=created_at.desc`, { headers: sbHeaders() }),
+    fetch(`${SUPABASE_URL}/rest/v1/quiz_questions?select=quiz_id&active=eq.true`, { headers: sbHeaders() }),
+    fetch(`${SUPABASE_URL}/rest/v1/quiz_attempts?select=quiz_id`, { headers: sbHeaders() })
+  ]);
+  const quizzes = await quizzesRes.json();
+  const questions = await questionsRes.json();
+  const attempts = await attemptsRes.json();
+
+  const qCount = {}, aCount = {};
+  (Array.isArray(questions) ? questions : []).forEach(q => { qCount[q.quiz_id] = (qCount[q.quiz_id] || 0) + 1; });
+  (Array.isArray(attempts) ? attempts : []).forEach(a => { aCount[a.quiz_id] = (aCount[a.quiz_id] || 0) + 1; });
+
+  const rows = Array.isArray(quizzes) ? quizzes : [];
+  if (rows.length === 0) {
+    body.innerHTML = "";
+    empty.style.display = "block";
+    return;
+  }
+
+  body.innerHTML = rows.map(q => {
+    const link = `${QUIZ_TAKING_URL}?quiz=${encodeURIComponent(q.slug)}`;
+    return `<tr>
+      <td><a href="?quiz=${encodeURIComponent(q.slug)}" style="font-weight:700">${escapeHtml(q.title)}</a></td>
+      <td>${q.active ? '<span class="badge-win">Active</span>' : '<span class="muted">Archived</span>'}</td>
+      <td>${qCount[q.slug] || 0}</td>
+      <td>${aCount[q.slug] || 0}</td>
+      <td class="muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${link}</td>
+      <td style="white-space:nowrap">
+        <button type="button" class="btn-blue hub-manage-btn" data-slug="${escapeAttr(q.slug)}" style="padding:6px 12px;font-size:12.5px;margin-right:6px">Manage</button>
+        <button type="button" class="btn-outline hub-copy-btn" data-link="${escapeAttr(link)}" style="padding:6px 12px;font-size:12.5px;color:var(--blue-dk);border-color:var(--line)">Copy link</button>
+      </td>
+    </tr>`;
+  }).join("");
+
+  body.querySelectorAll(".hub-manage-btn").forEach(btn => {
+    btn.addEventListener("click", () => { window.location.search = "?quiz=" + encodeURIComponent(btn.dataset.slug); });
+  });
+  body.querySelectorAll(".hub-copy-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.link);
+        const orig = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => { btn.textContent = orig; }, 1800);
+      } catch (err) {
+        prompt("Copy this link:", btn.dataset.link);
+      }
+    });
+  });
+}
+
+document.getElementById("newQuizBtn").addEventListener("click", async () => {
+  const title = prompt("Name this quiz (e.g. \"Sept 14 KPI Quiz\"):");
+  if (!title || !title.trim()) return;
+  let slug = slugify(title);
+
+  // ensure uniqueness
+  const checkRes = await fetch(`${SUPABASE_URL}/rest/v1/quizzes?slug=eq.${encodeURIComponent(slug)}&select=slug`, { headers: sbHeaders() });
+  const existing = await checkRes.json();
+  if (Array.isArray(existing) && existing.length > 0) {
+    slug = slug + "-" + Date.now().toString().slice(-5);
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/quizzes`, {
+    method: "POST",
+    headers: sbHeaders({ "Prefer": "return=representation" }),
+    body: JSON.stringify({ slug, title: title.trim(), active: true })
+  });
+  const created = await res.json();
+  if (Array.isArray(created) && created[0]) {
+    window.location.search = "?quiz=" + encodeURIComponent(created[0].slug);
+  } else {
+    alert("Couldn't create the quiz — try again.");
+  }
+});
 
 /* ---------- TABS ---------- */
 document.querySelectorAll(".tab").forEach(tab => {
@@ -459,9 +594,43 @@ async function sha256(str){
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,"0")).join("");
 }
 
-function unlockApp(){
+async function unlockApp(){
   document.getElementById("pwScreen").style.display = "none";
   document.getElementById("appContent").style.display = "block";
+
+  if (!QUIZ_ID) {
+    document.getElementById("hubView").style.display = "block";
+    document.getElementById("manageView").style.display = "none";
+    loadHub();
+    return;
+  }
+
+  document.getElementById("hubView").style.display = "none";
+  document.getElementById("manageView").style.display = "block";
+  document.getElementById("backToHubLink").addEventListener("click", () => { window.location.search = ""; });
+  document.getElementById("previewLink").href = `${QUIZ_TAKING_URL}?preview=1&quiz=${encodeURIComponent(QUIZ_ID)}`;
+  document.getElementById("copyLinkBtn").addEventListener("click", async () => {
+    const link = `${QUIZ_TAKING_URL}?quiz=${encodeURIComponent(QUIZ_ID)}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      const btn = document.getElementById("copyLinkBtn");
+      const orig = btn.textContent;
+      btn.textContent = "✅ Copied!";
+      setTimeout(() => { btn.textContent = orig; }, 1800);
+    } catch (err) {
+      prompt("Copy this link:", link);
+    }
+  });
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/quizzes?slug=eq.${encodeURIComponent(QUIZ_ID)}&select=title,active`, { headers: sbHeaders() });
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows[0]) {
+      document.getElementById("manageTitle").textContent = "📝 " + rows[0].title;
+      document.title = rows[0].title + " — Quiz Manager";
+    }
+  } catch (err) { /* fall back to default title */ }
+
   loadResults();
   loadQuestionsEditor();
 }

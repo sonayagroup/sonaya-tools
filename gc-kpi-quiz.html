@@ -174,7 +174,8 @@ thead th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spaci
 
 <script>
 /* ---------- CONFIG ---------- */
-const QUIZ_ID = "gc-kpi-quiz";
+const urlParams = new URLSearchParams(window.location.search);
+const QUIZ_ID = urlParams.get("quiz") || "gc-kpi-quiz"; // which quiz this link serves — set via ?quiz=<slug>
 const SUPABASE_URL = "https://vcukhvjwsuaqxgqzotwb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE";
 const TIMEZONE = "America/Denver";
@@ -250,7 +251,7 @@ function isOpen(){
 let QUESTIONS = [];       // loaded from Supabase: [{id, q, opts:[...], correct}]
 let answers = [];
 const storageKey = "gc_quiz_submitted_" + QUIZ_ID + "_" + denverDateKey();
-const params = new URLSearchParams(window.location.search);
+const params = urlParams;
 const PREVIEW = params.get("preview") === "1";
 const EDIT_MODE = params.get("edit") === "1";
 
@@ -331,7 +332,25 @@ function stopTimer(){
   if (bar) bar.style.display = "none";
 }
 
+async function fetchQuizMeta(){
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/quizzes?slug=eq.${QUIZ_ID}&select=title,active`,
+      { headers: sbHeaders() }
+    );
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows[0]) return rows[0];
+  } catch (err) { console.error("Failed to load quiz meta", err); }
+  return null;
+}
+
 async function showStatus(){
+  const meta = await fetchQuizMeta();
+  if (meta && meta.title) {
+    document.getElementById("pageTitle").textContent = "✂️ " + meta.title;
+    document.title = meta.title + " — Great Clips";
+  }
+
   const badge = document.getElementById("quizIdBadge");
   badge.textContent = "Quiz opens Sundays 8:00–11:59 AM (Mountain Time)";
 

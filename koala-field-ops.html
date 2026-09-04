@@ -145,8 +145,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px; }
 .card h2 { margin: 0 0 4px; font-size: 16px; }
 .card .sub { margin: 0 0 12px; font-size: 12.5px; color: var(--text-muted); }
 .row-flex { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 8px; }
 @media (max-width: 720px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
 label.field { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 3px; margin-top: 8px; }
 input[type=text], input[type=date], input[type=time], input[type=email], input[type=tel], input[type=number], select, textarea {
@@ -318,14 +318,7 @@ a.link:hover { text-decoration: underline; }
 <section class="tab-panel" id="tab-settings">
   <div class="card">
     <div class="row-flex">
-      <div><h2>Notification Recipients</h2><p class="sub">Who gets emailed, and for what. Emails send via Resend from fieldops@sonayagroup.com.</p></div>
-      <button class="btn primary" id="btnAddRecipient">+ Add Recipient</button>
-    </div>
-    <div id="recipientList"></div>
-  </div>
-  <div class="card">
-    <div class="row-flex">
-      <div><h2>Employees</h2><p class="sub">Used for job audit crew assignment, PPE checklists, and to-do assignment.</p></div>
+      <div><h2>Employees</h2><p class="sub">Used for job audit crew assignment, PPE checks, and to-do assignment. Edit an employee to also set what they get emailed about (via Resend from fieldops@sonayagroup.com).</p></div>
       <button class="btn primary" id="btnAddEmployee">+ Add Employee</button>
     </div>
     <div id="employeeList"></div>
@@ -403,7 +396,6 @@ const state = {
   ppeChecks: [],
   callbacks: [],
   todos: [],
-  recipients: [],
 };
 
 function localTodayISO() {
@@ -1135,16 +1127,13 @@ async function deleteTodo(id) {
 }
 
 /* ============================== SETTINGS ============================== */
-document.getElementById('btnAddRecipient').addEventListener('click', () => openRecipientModal());
 document.getElementById('btnAddEmployee').addEventListener('click', () => openEmployeeModal());
 
-async function loadRecipients() {
-  state.recipients = await sbSelect('fo_notification_recipients', 'order=created_at.asc');
-}
 async function loadEmployees() {
   state.employees = await sbSelect('fo_employees', 'order=name.asc');
 }
 
+// Which email categories an employee can be subscribed to — set from within Edit Employee.
 const NOTIFY_COLS = [
   ['notify_eod_recap', 'EOD Recap'],
   ['notify_maintenance', 'Maintenance'],
@@ -1154,66 +1143,23 @@ const NOTIFY_COLS = [
   ['notify_todo_assigned', 'To-Do Assigned'],
 ];
 
-function renderRecipients() {
-  const list = document.getElementById('recipientList');
-  if (!state.recipients.length) { list.innerHTML = `<div class="empty-state">No recipients yet — add Mark and Ricardo's emails to start getting notifications.</div>`; return; }
-  list.innerHTML = `<table><thead><tr><th>Name</th><th>Email</th>${NOTIFY_COLS.map(([, l]) => `<th>${l}</th>`).join('')}<th>Active</th><th></th></tr></thead><tbody>
-    ${state.recipients.map(r => `
-      <tr>
-        <td><b>${esc(r.name)}</b></td>
-        <td>${esc(r.email)}</td>
-        ${NOTIFY_COLS.map(([key]) => `<td><input type="checkbox" ${r[key] ? 'checked' : ''} onchange="updateRecipient('${r.id}','${key}',this.checked)"></td>`).join('')}
-        <td><input type="checkbox" ${r.active ? 'checked' : ''} onchange="updateRecipient('${r.id}','active',this.checked)"></td>
-        <td><button class="btn small danger" onclick="deleteRecipient('${r.id}')">Delete</button></td>
-      </tr>`).join('')}
-  </tbody></table>`;
-}
-
-function openRecipientModal() {
-  openModal(`
-    <h3>Add Notification Recipient</h3>
-    <div class="grid-2">
-      ${field('Name', `<input id="r_name">`)}
-      ${field('Email', `<input type="email" id="r_email">`)}
-    </div>
-    <p class="small-note" style="margin-top:10px">Choose what they get notified about:</p>
-    ${NOTIFY_COLS.map(([key, label]) => `<label style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13.5px"><input type="checkbox" id="r_${key}"> ${label}</label>`).join('')}
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn primary" onclick="saveRecipient()">Save</button>
-    </div>`);
-}
-
-async function saveRecipient() {
-  const name = document.getElementById('r_name').value.trim();
-  const email = document.getElementById('r_email').value.trim();
-  if (!name || !email) { alert('Name and email are required'); return; }
-  const payload = { name, email, active: true };
-  NOTIFY_COLS.forEach(([key]) => payload[key] = document.getElementById('r_' + key).checked);
-  await sbInsert('fo_notification_recipients', payload);
-  closeModal(); showToast('Recipient added');
-  await loadRecipients(); renderRecipients();
-}
-
-async function updateRecipient(id, key, value) {
-  await sbUpdate('fo_notification_recipients', id, { [key]: value });
-}
-async function deleteRecipient(id) {
-  if (!confirm('Remove this recipient?')) return;
-  await sbDelete('fo_notification_recipients', id);
-  await loadRecipients(); renderRecipients();
+function notifySummary(e) {
+  const on = NOTIFY_COLS.filter(([key]) => e[key]).map(([, label]) => label);
+  if (!on.length) return '<span class="small-note">No email notifications</span>';
+  return on.map(l => `<span class="badge muted" style="margin:1px 3px 1px 0">${l}</span>`).join('');
 }
 
 function renderEmployees() {
   const list = document.getElementById('employeeList');
   if (!state.employees.length) { list.innerHTML = `<div class="empty-state">No employees yet.</div>`; return; }
-  list.innerHTML = `<table><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Active</th><th></th></tr></thead><tbody>
+  list.innerHTML = `<table><thead><tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Notifications</th><th>Active</th><th></th></tr></thead><tbody>
     ${state.employees.map(e => `
       <tr>
         <td><b>${esc(e.name)}</b></td>
         <td>${esc(e.role) || '—'}</td>
         <td>${esc(e.email) || '—'}</td>
         <td>${esc(e.phone) || '—'}</td>
+        <td>${notifySummary(e)}</td>
         <td><input type="checkbox" ${e.active ? 'checked' : ''} onchange="updateEmployee('${e.id}','active',this.checked)"></td>
         <td style="text-align:right;white-space:nowrap">
           <button class="btn small" onclick="openEmployeeModal('${e.id}')">Edit</button>
@@ -1227,13 +1173,15 @@ function openEmployeeModal(id) {
   const e = id ? state.employees.find(x => x.id === id) : null;
   openModal(`
     <h3>${e ? 'Edit Employee' : 'Add Employee'}</h3>
-    <div class="grid-2">
-      ${field('Name', `<input id="em_name" value="${esc(e && e.name)}">`)}
-      ${field('Role', `<input id="em_role" placeholder="e.g. Installer, Crew Lead" value="${esc(e && e.role)}">`)}
-    </div>
-    <div class="grid-2">
-      ${field('Email', `<input type="email" id="em_email" value="${esc(e && e.email)}">`)}
-      ${field('Phone', `<input id="em_phone" value="${esc(e && e.phone)}">`)}
+    ${field('Name', `<input id="em_name" value="${esc(e && e.name)}">`)}
+    ${field('Role', `<input id="em_role" placeholder="e.g. Installer, Crew Lead" value="${esc(e && e.role)}">`)}
+    ${field('Email', `<input type="email" id="em_email" value="${esc(e && e.email)}">`)}
+    ${field('Phone', `<input id="em_phone" value="${esc(e && e.phone)}">`)}
+    <div style="margin-top:16px">
+      <label class="field" style="margin-top:0">Email Notifications (needs an email above)</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 16px;padding:6px 0">
+        ${NOTIFY_COLS.map(([key, label]) => `<label style="display:flex;align-items:center;gap:7px;font-size:13.5px"><input type="checkbox" id="em_${key}" ${e && e[key] ? 'checked' : ''}> ${label}</label>`).join('')}
+      </div>
     </div>
     <div class="modal-actions">
       ${e ? `<button class="btn danger" style="margin-right:auto" onclick="deleteEmployee('${e.id}')">Delete</button>` : ''}
@@ -1245,12 +1193,14 @@ function openEmployeeModal(id) {
 async function saveEmployee(id) {
   const name = document.getElementById('em_name').value.trim();
   if (!name) { alert('Name is required'); return; }
+  const email = document.getElementById('em_email').value.trim();
   const payload = {
     name,
     role: document.getElementById('em_role').value || 'Installer',
-    email: document.getElementById('em_email').value,
+    email,
     phone: document.getElementById('em_phone').value,
   };
+  NOTIFY_COLS.forEach(([key]) => { payload[key] = email ? document.getElementById('em_' + key).checked : false; });
   if (id) await sbUpdate('fo_employees', id, payload);
   else await sbInsert('fo_employees', payload);
   closeModal(); showToast(id ? 'Employee updated' : 'Employee added');
@@ -1271,8 +1221,8 @@ function renderAllEmployeeDependentTabs() { renderEmployees(); renderAudits(); }
 /* ============================== INIT ============================== */
 async function loadAll() {
   try {
-    await Promise.all([loadEmployees(), loadAudits(), loadEquipment(), loadPickups(), loadCallbacks(), loadTodos(), loadRecipients(), loadPpeChecks()]);
-    renderAudits(); renderEquipment(); renderPickups(); renderCallbacks(); renderTodos(); renderRecipients(); renderEmployees(); renderKpis();
+    await Promise.all([loadEmployees(), loadAudits(), loadEquipment(), loadPickups(), loadCallbacks(), loadTodos(), loadPpeChecks()]);
+    renderAudits(); renderEquipment(); renderPickups(); renderCallbacks(); renderTodos(); renderEmployees(); renderKpis();
     document.getElementById('connPill').textContent = 'connected';
     // ServiceMinder crew roster loads separately (and can fail independently without blocking the rest of the dashboard)
     loadSmCrew();

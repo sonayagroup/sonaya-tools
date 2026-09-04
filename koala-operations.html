@@ -278,7 +278,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       <span>Loading live ServiceMinder data…</span>
     </div>
 
-    <div class="section-title">Revenue Pacing <span class="section-title-sub">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year. Click "On the Books" to see which jobs are included.</span></div>
+    <div class="section-title">Revenue Pacing <span class="section-title-sub" id="pacingSectionSub">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. Click "On the Books" to see which jobs are included.</span></div>
     <div class="callout-row" id="pacingRow"></div>
 
     <div class="section-title">Leads &amp; Sales Performance by Period <span class="section-title-sub">— Revenue, Invoices, and Avg Deal Size are checked to the penny against ServiceMinder's own reports. Estimates Sent and Close Rate are computed here from a raw proposals pull, cohorted by the date each estimate was sent, and reflect that cohort's status as of today.</span></div>
@@ -1184,6 +1184,42 @@ async function loadLiveProposalsSummary() {
   renderSalesTab();
 }
 
+/* Growth-rate-informed revenue trend, used by "Projected Year-End" below. Replaces the old
+   "YTD + On the Books, assume zero new sales for the rest of the year" assumption — Pranav flagged that
+   as unrealistic 2026-09-04 and asked for a calculation that actually uses the monthly revenue history
+   and growth rate, combined with On the Books.
+   Methodology: pulls real monthly revenue (Jan-Jul from the QuickBooks P&L, August from the live
+   full-month ServiceMinder proxy — see loadLiveAugustProxy) and computes two things: (1) a baseline
+   monthly run rate = the simple average across all months on file, and (2) a growth rate = the most
+   recent 3 months' average vs. the 3 months before that (a standard quarter-over-quarter comparison).
+   The run rate is then nudged by that growth rate (run rate × (1 + growth rate)) rather than projecting
+   forward from the recent 3 months alone — this business's revenue is lumpy (single large B2B contracts
+   can swing a month 2x+, e.g. July's $386K vs June's $217K and August's $223K), so anchoring on the
+   full-period average and applying a modest growth adjustment is far less sensitive to one outlier month
+   than either a raw trailing-3-month average or a linear regression across all 8 points (both of which
+   were tried while designing this and produced implausibly steep extrapolations driven by July alone).
+   Needs at least 6 months of history to compute a recent-vs-prior comparison; returns null otherwise. */
+function computeRevenueTrend() {
+  const months = dataStore.financial.months;
+  const history = dataStore.financial.monthOrder
+    .filter(m => months[m])
+    .map(m => ({ key: m, label: months[m].label.split(' ')[0], revenue: months[m].revenue }));
+  if (liveAugustProxy.status === 'ready') history.push({ key: 'aug', label: 'Aug', revenue: liveAugustProxy.revenue });
+  if (history.length < 6) return null;
+  const avg = arr => arr.reduce((a, m) => a + m.revenue, 0) / arr.length;
+  const recent3 = history.slice(-3);
+  const prior3 = history.slice(-6, -3);
+  const avgAll = avg(history);
+  const recentAvg = avg(recent3);
+  const priorAvg = avg(prior3);
+  const growthRatePct = priorAvg ? (recentAvg / priorAvg - 1) * 100 : 0;
+  const runRate = avgAll * (1 + growthRatePct / 100);
+  return {
+    history, avgAll, recentAvg, priorAvg, growthRatePct, runRate,
+    recentLabel: recent3.map(m => m.label).join('-'), priorLabel: prior3.map(m => m.label).join('-'),
+  };
+}
+
 /* ---------------- Render: Sales Performance tab ---------------- */
 function renderSalesTab() {
   const r = dataStore.revenue;
@@ -1219,8 +1255,33 @@ function renderSalesTab() {
   const mtdPct = 100 * mtdInvoiced / r.mtdRevenueBudget;
   const qtdPct = 100 * qtdInvoiced / r.quarterlyRevenueBudget;
   const ytdPct = 100 * ytdInvoiced / r.annualRevenueBudget;
-  const projectedYearEnd = ytdInvoiced + onTheBooksValue;
+
+  // Projected Year-End = YTD Actual + On the Books (already-accepted pipeline) + a growth-rate-informed
+  // projection of new revenue for the rest of the year — see computeRevenueTrend() above for the full
+  // methodology. Falls back to the old YTD + On the Books (zero-new-sales) figure only if there isn't
+  // yet enough monthly history to compute a trend.
+  const trend = computeRevenueTrend();
+  let projectedYearEnd, projectedRemaining = 0, remainingMonthsFraction = 0;
+  if (trend) {
+    const todayD = new Date(localTodayISO() + 'T00:00:00Z');
+    const tomorrowD = new Date(todayD); tomorrowD.setUTCDate(tomorrowD.getUTCDate() + 1);
+    const yearEndD = new Date(Date.UTC(todayD.getUTCFullYear(), 11, 31));
+    const remainingDays = Math.max(0, Math.round((yearEndD - tomorrowD) / 86400000) + 1);
+    remainingMonthsFraction = remainingDays / 30.44;
+    projectedRemaining = trend.runRate * remainingMonthsFraction;
+    projectedYearEnd = ytdInvoiced + onTheBooksValue + projectedRemaining;
+  } else {
+    projectedYearEnd = ytdInvoiced + onTheBooksValue;
+  }
   const projectedPct = 100 * projectedYearEnd / r.annualRevenueBudget;
+
+  const pacingSub = document.getElementById('pacingSectionSub');
+  if (trend) {
+    pacingSub.innerHTML = `— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" = YTD + On the Books + ${fmtMoneyCompact(projectedRemaining)} projected for the rest of the year, based on a ${fmtMoney(trend.runRate)}/mo run rate (avg of ${trend.history.length} months on file, adjusted by ${trend.growthRatePct >= 0 ? '+' : ''}${trend.growthRatePct.toFixed(1)}% growth — ${trend.recentLabel} avg vs ${trend.priorLabel} avg) &times; ${remainingMonthsFraction.toFixed(1)} remaining months. Click "On the Books" to see which jobs are included.`;
+  } else {
+    pacingSub.innerHTML = `— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year (not enough monthly history yet for a trend). Click "On the Books" to see which jobs are included.`;
+  }
+
   document.getElementById('pacingRow').innerHTML = [
     calloutTile('MTD Revenue', fmtMoneyCompact(mtdInvoiced),
       { target: r.mtdRevenueBudget, actual: mtdInvoiced, sentiment: paceSentiment(mtdPct, elapsedPctOfPeriod('month')) }),
@@ -1444,6 +1505,9 @@ async function loadLiveAugustProxy() {
     liveAugustProxy = { status: 'error', error: err.message };
   }
   renderFinancialTab();
+  // Also refreshes the Sales Performance tab's Projected Year-End trend (computeRevenueTrend), which
+  // uses this same August figure as its 8th month of history once it's ready.
+  renderSalesTab();
 }
 
 function renderFinancialTab() {

@@ -333,12 +333,6 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       </table>
     </div>
 
-    <div class="section-title">Weekly Revenue Closed by Sales Rep <span class="metric-badge unvalidated">Unvalidated</span> <span class="section-title-sub">— trailing 8 weeks, by Accepted Date, top reps by total. Independent of the period toggle above.</span></div>
-    <div class="charts-grid">
-      <div class="chart-card" style="grid-column: 1 / -1;">
-        <div class="chart-area" id="chartWeeklyRepRevenue"></div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -685,7 +679,7 @@ const dataStore = {
     ['Sullivan "B" Model', 'B2B New Installation', 7167.16, 'Scheduled', '2026-07-16', 'Mark Aragon'],
     ['Gayle Edmiston', 'Residential Retrofit', 6100.20, 'Accepted', '2026-05-28', 'Gabriel Espinosa'],
     ['608 Posada Ct SE', 'Residential Retrofit', 6068.30, 'Scheduled', '2026-08-31', 'Gabriel Espinosa'],
-    ['Connected Construction', 'Residential New Installation', 5595.49, 'Accepted', '2026-05-18', 'Christopher Williams'],
+    ['Connected Construction', 'Residential New Installation', 5595.49, 'Accepted', '2026-05-18', ''],
     ['David Harbaugh', 'Residential New Installation', 5525.22, 'Scheduled', '2026-08-07', 'Mike Jones'],
     ['Richard Ma', 'Residential Retrofit', 4562.29, 'Scheduled', '2026-08-28', 'Gabriel Espinosa'],
     ['17 Calle Granada Plan 1781', 'B2B New Installation', 4350, 'Accepted', '2026-08-11', 'Jacob Martin'],
@@ -711,18 +705,21 @@ const dataStore = {
   // Proposal Owner is the salesperson who owns the proposal that became each invoice — corrected from
   // "Service Agent" (the installer) per Pranav (Aug 2026). jobs30d = invoice count in the 30-day window,
   // replacing the old (unreliable) appointment count. All 6 people with 30d revenue are included.
+  // Brian Roosenberg removed per Pranav (2026-09-04) — not to be tracked/displayed as a sales rep
+  // anywhere on the dashboard (see EXCLUDED_REPS in the script below, which enforces the same exclusion
+  // on all the live/rep-aggregated views).
   reps: [
     { name: 'Mike Jones',        jobs30d: 16, revenue30d: 88752.14 },
     { name: 'Gabriel Espinosa',  jobs30d: 15, revenue30d: 55120.42 },
     { name: 'Frank Emanuel',     jobs30d: 4,  revenue30d: 41841.32 },
     { name: 'Jacob Martin',      jobs30d: 5,  revenue30d: 19550.00 },
     { name: 'Mark Aragon',       jobs30d: 2,  revenue30d: 14101.02 },
-    { name: 'Brian Roosenberg',  jobs30d: 1,  revenue30d: 13287.24 },
   ],
   // Revenue by Proposal Owner, from ServiceMinder invoices (Subtotal summed, Status != Voided).
   // 30d mirrors the `reps` array above (same window, same source); 7d/90d pulled separately.
-  // Note the 90d roster includes two additional names (Ericka Olvera, Christopher Williams) not present
-  // in the 7d/30d windows — they closed deals earlier in the 90-day period but not in the last 30 days.
+  // Note the 90d roster includes an additional name (Ericka Olvera) not present in the 7d/30d windows —
+  // she closed a deal earlier in the 90-day period but not in the last 30 days. Brian Roosenberg and
+  // Christopher Williams removed per Pranav (2026-09-04) — see the note on `reps` above.
   repRevenueByRange: {
     '7d': {
       label: 'Aug 14–20, 2026',
@@ -740,8 +737,6 @@ const dataStore = {
         { name: 'Frank Emanuel', revenue: 78857.68 },
         { name: 'Mark Aragon', revenue: 67634.62 },
         { name: 'Ericka Olvera', revenue: 30000.00 },
-        { name: 'Brian Roosenberg', revenue: 18550.01 },
-        { name: 'Christopher Williams', revenue: 7607.12 },
       ],
     },
   },
@@ -1053,7 +1048,7 @@ function renderPieChart(containerId, slices) {
 /* ---------------- Sales Performance tab: shared helpers ---------------- */
 // Parses ServiceMinder's M/D/YYYY (non-zero-padded) date strings client-side — mirrors parseUSDate in
 // the serviceminder-revenue edge function. Used to filter/bucket the raw allProposals history (see
-// report=onthebooks) for the period toggle and the Weekly Revenue Closed chart below.
+// report=onthebooks) for the period toggle below.
 function parseSMDate(s) {
   if (!s) return null;
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(s).trim());
@@ -1071,13 +1066,6 @@ function computeRollingRange(days) {
   return { from: isoDate(from), through: todayISO, label: `Last ${days} Days` };
 }
 
-function isoWeekMonday(d) {
-  const day = (d.getUTCDay() + 6) % 7; // days since Monday, Sun counted as 6
-  const monday = new Date(d);
-  monday.setUTCDate(d.getUTCDate() - day);
-  return monday;
-}
-
 function metricBadge(kind) {
   return kind === 'unvalidated'
     ? '<span class="metric-badge unvalidated" title="Computed here from a raw ServiceMinder proposals pull — not yet checked to the penny against a ServiceMinder report the way Revenue/Invoices/Avg Deal Size have been.">Unvalidated</span>'
@@ -1086,6 +1074,12 @@ function metricBadge(kind) {
 
 const PROP_WON = new Set(['Complete', 'Accepted', 'Scheduled', 'Invoiced']);
 const PROP_LOST = new Set(['Declined', 'Expired']);
+
+// Per Pranav (2026-09-04): these two names should not appear anywhere on the dashboard as sales reps —
+// applied everywhere a rep name is aggregated or listed (Sales Rep Breakdown, Revenue by Sales Rep,
+// and the CRM Pipeline tab's Activity by Rep table). Proposals/deals still owned by them still count
+// toward source- and period-level totals; they're just not attributed to a named rep anywhere.
+const EXCLUDED_REPS = new Set(['Brian Roosenberg', 'Christopher Williams']);
 
 // Client-side aggregation over the full-history allProposals array (report=onthebooks, tuple shape
 // [value, status, acceptedDate, owner, leadSource, sentDate] — see the serviceminder-revenue edge
@@ -1114,55 +1108,12 @@ function aggregateProposalCohort(allProposals, fromISO, throughISO) {
     const outcome = PROP_WON.has(status) ? 'won' : PROP_LOST.has(status) ? 'lost' : 'pending';
     overall[outcome]++;
     const sb = bump(bySource, leadSource || '(Unknown)'); sb.sent++; if (outcome !== 'pending') sb[outcome]++;
-    const rb = bump(byRep, owner || '(Unassigned)'); rb.sent++; if (outcome !== 'pending') rb[outcome]++;
+    if (!EXCLUDED_REPS.has(owner)) {
+      const rb = bump(byRep, owner || '(Unassigned)'); rb.sent++; if (outcome !== 'pending') rb[outcome]++;
+    }
   });
   const closeRateOf = b => (b.won + b.lost) > 0 ? b.won / (b.won + b.lost) : null;
   return { cohortSize: cohort.length, overall, closeRate: closeRateOf(overall), bySource, byRep, closeRateOf };
-}
-
-// Weekly revenue closed (won proposals, bucketed by Accepted Date's Monday-start week) by rep, over the
-// trailing `weeks` weeks. Independent of the period toggle above — always trailing, so reps see a
-// consistent recent trend regardless of what range the breakdown tables are viewing. Unvalidated, same
-// basis as aggregateProposalCohort.
-function aggregateWeeklyClosedByRep(allProposals, weeks) {
-  const todayISO = localTodayISO();
-  const today = new Date(todayISO + 'T00:00:00Z');
-  const curMonday = isoWeekMonday(today);
-  const weekKeys = [];
-  for (let i = weeks - 1; i >= 0; i--) {
-    const d = new Date(curMonday); d.setUTCDate(curMonday.getUTCDate() - i * 7);
-    weekKeys.push(isoDate(d));
-  }
-  const windowStart = new Date(weekKeys[0] + 'T00:00:00Z');
-  const byRepWeek = new Map();
-  (allProposals || []).forEach(row => {
-    const value = row[0], status = row[1], acceptedDate = row[2], owner = row[3];
-    if (!PROP_WON.has(status)) return;
-    const d = parseSMDate(acceptedDate);
-    if (!d || d < windowStart) return;
-    const wk = isoDate(isoWeekMonday(d));
-    if (!weekKeys.includes(wk)) return;
-    const repName = owner || '(Unassigned)';
-    if (!byRepWeek.has(repName)) byRepWeek.set(repName, new Map());
-    const m = byRepWeek.get(repName);
-    m.set(wk, (m.get(wk) || 0) + value);
-  });
-  const totals = [...byRepWeek.entries()]
-    .map(([name, m]) => [name, [...m.values()].reduce((a, b) => a + b, 0)])
-    .sort((a, b) => b[1] - a[1]);
-  const topReps = totals.slice(0, 6).map(t => t[0]);
-  return {
-    weekKeys,
-    series: topReps.map((name, i) => ({
-      name,
-      color: `var(--cat-${(i % 8) + 1})`,
-      points: weekKeys.map(wk => ({
-        x: wk,
-        y: (byRepWeek.get(name) || new Map()).get(wk) || 0,
-        label: fmtShortDate(new Date(wk + 'T00:00:00Z')),
-      })),
-    })),
-  };
 }
 
 /* Live fetch for the period-toggle section's VALIDATED figures: revenue/invoices by lead source
@@ -1222,7 +1173,7 @@ async function loadLiveRevenueTiles() {
 }
 
 /* Live auto-refresh for the On-the-Books value/count AND the full-history allProposals array that
-   powers Estimates Sent / Close Rate / the Weekly Revenue Closed chart above. One pull serves all of it
+   powers Estimates Sent / Close Rate above. One pull serves all of it
    (see the report=onthebooks aggregateOnTheBooks() on the edge function side). Fetched on page load and
    on switching into the Sales Performance tab. Falls back to the dataStore.revenue static snapshot for
    On the Books on any error; the allProposals-derived metrics simply show as unavailable. */
@@ -1264,7 +1215,7 @@ function renderSalesTab() {
   } else if (liveRev && liveProp) {
     const asOf = liveRevenue.fetchedAt > liveProposals.fetchedAt ? liveRevenue.fetchedAt : liveProposals.fetchedAt;
     banner.classList.add('connected');
-    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live from ServiceMinder as of ${asOf.toLocaleTimeString('en-US')} (org 4457). Revenue Pacing refreshes automatically on page load and when you switch to this tab. On the Books excludes proposals accepted before May 2026 (stale records never marked Complete). Revenue, Invoices, and Avg Deal Size below are checked to the penny against ServiceMinder's own reports; Estimates Sent, Close Rate, and the Weekly Revenue Closed chart are computed here from a raw proposals pull and are marked ${metricBadge('unvalidated')}.</span>`;
+    banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live from ServiceMinder as of ${asOf.toLocaleTimeString('en-US')} (org 4457). Revenue Pacing refreshes automatically on page load and when you switch to this tab. On the Books excludes proposals accepted before May 2026 (stale records never marked Complete). Revenue, Invoices, and Avg Deal Size below are checked to the penny against ServiceMinder's own reports; Estimates Sent and Close Rate are computed here from a raw proposals pull and are marked ${metricBadge('unvalidated')}.</span>`;
   } else if (liveRevenue.status === 'error' || liveProposals.status === 'error') {
     banner.classList.remove('connected');
     const errMsg = (liveRevenue.error || liveProposals.error || 'unknown error');
@@ -1314,7 +1265,7 @@ function renderSalesTab() {
     : null;
 
   const validatedSources = [...salesRangeData.sources].sort((a, b) => b.revenue - a.revenue);
-  const validatedReps = [...salesRangeData.reps].sort((a, b) => b.revenue - a.revenue);
+  const validatedReps = salesRangeData.reps.filter(rp => !EXCLUDED_REPS.has(rp.name)).sort((a, b) => b.revenue - a.revenue);
   const totalPeriodRevenue = validatedSources.reduce((a, s) => a + s.revenue, 0);
   const totalPeriodInvoices = validatedSources.reduce((a, s) => a + s.invoices, 0);
 
@@ -1383,18 +1334,6 @@ function renderSalesTab() {
       <td>${rp.invoices ? fmtMoney(rp.revenue / rp.invoices) : '&mdash;'}</td>
     </tr>`).join('') : `<tr><td colspan="6" style="color:var(--text-muted);text-align:center;">${salesRangeData.loading ? 'Loading…' : 'No data for this range'}</td></tr>`;
   document.getElementById('salesRepTableTitle').textContent = `Sales Rep Breakdown (${rangeLabel})`;
-
-  // Weekly Revenue Closed by Sales Rep (trailing 8 weeks, unvalidated).
-  if (allProposals) {
-    const weekly = aggregateWeeklyClosedByRep(allProposals, 8);
-    if (weekly.series.length) {
-      renderLineChart('chartWeeklyRepRevenue', weekly.series.map(s => ({ name: s.name, color: s.color, points: s.points })));
-    } else {
-      document.getElementById('chartWeeklyRepRevenue').innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No won proposals in the last 8 weeks.</p>';
-    }
-  } else {
-    document.getElementById('chartWeeklyRepRevenue').innerHTML = `<p style="color:var(--text-muted);font-size:13px;">${liveProposals.status === 'loading' ? 'Loading…' : 'Live data unavailable.'}</p>`;
-  }
 }
 
 /* ---------------- On the Books drill-down modal ---------------- */
@@ -1717,6 +1656,7 @@ function crmKnownReps() {
   const set = new Set();
   crmDeals.forEach(d => (d.reps || []).forEach(r => set.add(r)));
   (dataStore.reps || []).forEach(r => set.add(r.name));
+  EXCLUDED_REPS.forEach(r => set.delete(r));
   return [...set].sort();
 }
 function crmDealsByStage() {
@@ -2001,6 +1941,7 @@ async function renderCrmTab() {
   crmDeals.forEach(d => {
     const isProspect = CRM_PROSPECT_ACTIVE.includes(d.stage) || CRM_PROSPECT_OUTCOMES.includes(d.stage);
     (d.reps || []).forEach(m => {
+      if (EXCLUDED_REPS.has(m)) return;
       if (isProspect) repProspect[m] = (repProspect[m] || 0) + 1;
       else repEstimate[m] = (repEstimate[m] || 0) + 1;
     });

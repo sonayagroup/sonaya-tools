@@ -343,7 +343,8 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <button data-month="apr">Apr</button>
         <button data-month="may">May</button>
         <button data-month="jun">Jun</button>
-        <button data-month="jul" class="active">Jul</button>
+        <button data-month="jul">Jul</button>
+        <button data-month="aug" class="active">Aug</button>
         <button data-month="ytd">YTD</button>
       </div>
     </div>
@@ -352,7 +353,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Revenue &amp; Net Income — Monthly Actuals</h3>
-        <p class="chart-subtitle">Jan–Jul 2026</p>
+        <p class="chart-subtitle" id="chartFinTrendSubtitle">Jan–Aug 2026</p>
         <div class="chart-area" id="chartFinTrend"></div>
       </div>
       <div class="chart-card">
@@ -761,18 +762,39 @@ const dataStore = {
   // Real QuickBooks Online Profit & Loss reports for Patel Insulation LLC. Jan–Jul 2026 were all
   // re-provided by Pranav as corrected PDFs pulled Sep 1 2026 (Jan, Feb, Mar, and May all changed
   // materially from what this dashboard showed before — see finFlags below; April was re-pulled too but
-  // is byte-for-byte identical to what was already here, so it needed no change). June and July are the
-  // first two months QuickBooks reports with an Albuquerque/Corporate/Las Cruces/Not-Specified location
-  // split (see locationByMonth). August is still open in QuickBooks (confirmed 2026-09-04 — the raw Aug
-  // P&L export came back entirely $0 across every line item) — the small tile in the UI live-fetches the
-  // full-month ServiceMinder invoice proxy instead of a hardcoded snapshot; see loadLiveAugustProxy.
+  // is byte-for-byte identical to what was already here, so it needed no change). June, July, and August
+  // are the months QuickBooks reports with an Albuquerque/Corporate/Las Cruces/Not-Specified location
+  // split (see locationByMonth).
   // Expense-bucket splits (Materials / Field Labor / Vehicle & Fuel / Marketing / Admin & Overhead) are
   // derived by category-mapping each month's actual COGS + Expense line items; each month's five buckets
   // sum exactly to that month's COGS + Total Expenses. Marketing = Advertising & Marketing + Brand Fund
   // Contribution exactly (verified against the original bucket methodology on Jan/Feb before this
   // correction, which matched to the penny); the other four buckets follow the same category logic.
+  //
+  // AUGUST — data-recovery note (2026-09-04): the .xlsx export Pranav sent for August's P&L LOOKED
+  // entirely $0 in every cell (including the Jan-Aug YTD column) when read normally — this is what led
+  // to the earlier, wrong conclusion that QuickBooks simply hadn't closed the month yet. Unzipping the
+  // .xlsx and inspecting the raw worksheet XML directly found the real bug: every numeric cell in this
+  // file is a formula (created by "Apache POI" per docProps, not native QuickBooks/Excel), and for the
+  // ~330 leaf dollar-figure cells that formula is literally just the number itself as text (e.g.
+  // <f>4616.28</f>) — but the CACHED value written alongside it (<v>) is 0.0 for all but 14 of them,
+  // regardless of what the formula says. Excel/openpyxl's normal reads (including data_only=True) trust
+  // that cached value, so every normal read came back $0 — a real bug in whatever generated the file, not
+  // stale/unposted data. Recovered the true figures by reading each formula's literal text instead of its
+  // cached value, and re-deriving every subtotal (Total Income, COGS, Gross Profit, Expenses, Net Income)
+  // by summing the corrected leaf values per the sheet's own formula structure. Cross-checked two
+  // independent ways: (1) TOTAL YTD-through-Aug revenue/net income recovered this way ($1,951,247.30 /
+  // $239,784.20) minus the already-verified YTD-through-Jul figures below reconciles to EXACTLY August's
+  // standalone total, to the penny; (2) recovered August revenue ($226,527.51) lands within 1.4% of the
+  // independently-sourced live ServiceMinder invoice proxy for the same month ($223,360.02) — the two
+  // sources were built from nothing in common except both covering August. Expense-bucket categorization
+  // for August was inferred from account names using the same logic as other months (Marketing exactly =
+  // Advertising & Marketing + Brand Fund Contribution, as established above) but the exact bucket
+  // boundaries used for Jan-Jul weren't preserved anywhere I could re-derive precisely, so August's bucket
+  // split, while it sums exactly to COGS + Expenses, may not be perfectly apples-to-apples with earlier
+  // months' bucketing.
   financial: {
-    monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul'],
+    monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'],
     months: {
       jan: { label: 'Jan 2026 (corrected)', revenue: 156946.51, cogs: 87608.45, grossProfit: 69338.06, grossMargin: 44.18, opex: 78306.22, netIncome: -8966.54, netMargin: -5.71,
              buckets: { materials: 56210.76, fieldLabor: 65419.94, vehicleFuel: 4614.62, marketing: 8497.93, admin: 31171.42 } },
@@ -788,14 +810,18 @@ const dataStore = {
              buckets: { materials: 79016.18, fieldLabor: 70124.01, vehicleFuel: 6771.96, marketing: 7172.14, admin: 42519.87 } },
       jul: { label: 'Jul 2026', revenue: 386385.06, cogs: 137232.70, grossProfit: 249152.36, grossMargin: 64.48, opex: 86685.63, netIncome: 162468.22, netMargin: 42.05,
              buckets: { materials: 96317.82, fieldLabor: 75964.31, vehicleFuel: 5597.51, marketing: 10136.42, admin: 35902.27 } },
+      aug: { label: 'Aug 2026 (recovered)', revenue: 226527.51, cogs: 114137.98, grossProfit: 112389.53, grossMargin: 49.61, opex: 106496.25, netIncome: 5896.52, netMargin: 2.60,
+             buckets: { materials: 72445.26, fieldLabor: 86207.03, vehicleFuel: 5283.20, marketing: 9331.03, admin: 47367.71 } },
     },
-    // Officially reported cumulative YTD, read directly off the July 2026 P&L's own "Jan 1 - Jul 31 2026
-    // (YTD)" column (QuickBooks-computed, not derived by us). Both revenue and net income now reconcile
-    // EXACTLY against summing the 7 individual monthly statements above (to the penny on $1.72M revenue
-    // and $233,887.68 net income) — the $189.5K unreconciled gap flagged in the prior version of this
-    // dashboard is resolved by this correction. See the 'ok' flag below.
+    // Officially reported cumulative YTD figures, read directly off each month's own P&L "(YTD)" column
+    // (QuickBooks-computed, not derived by us). ytdThroughJul reconciles exactly against summing the 7
+    // individual Jan-Jul statements above ($1,724,719.79 revenue / $233,887.68 net income, to the penny —
+    // see the 'ok' finFlag below). ytdThroughAug, recovered from the same buggy-cache August export
+    // described above, reconciles the same way: $1,951,247.30 / $239,784.20, which is exactly
+    // ytdThroughJul + August's standalone month above, to the penny both on revenue and net income.
     ytdThroughJul: { label: 'Jan–Jul 2026 YTD (QuickBooks report, from Jul P&L)', revenue: 1724719.79, netIncome: 233887.68 },
-    // June and July 2026 are the two months QuickBooks has reported with a location split so far.
+    ytdThroughAug: { label: 'Jan–Aug 2026 YTD (QuickBooks report, from Aug P&L)', revenue: 1951247.30, netIncome: 239784.20 },
+    // June, July, and August 2026 are the months QuickBooks has reported with a location split so far.
     locationByMonth: {
       jun: [
         { location: 'Albuquerque', revenue: 213229.33, netIncome: 54633.04 },
@@ -808,6 +834,12 @@ const dataStore = {
         { location: 'Las Cruces',  revenue: 14664.79,  netIncome: 4004.38 },
         { location: 'Corporate (overhead)', revenue: 0, netIncome: -34417.65 },
         { location: 'Not Specified', revenue: 0, netIncome: 0 },
+      ],
+      aug: [
+        { location: 'Albuquerque', revenue: 213512.78, netIncome: 35706.56 },
+        { location: 'Las Cruces',  revenue: 13014.73,  netIncome: 9509.76 },
+        { location: 'Corporate (overhead)', revenue: 0, netIncome: -38810.00 },
+        { location: 'Not Specified', revenue: 0, netIncome: -509.80 },
       ],
     },
   },
@@ -857,7 +889,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     // switch into the Sales Performance tab (in addition to the fetch already kicked off on page load —
     // see renderAll below). The Edge Function's own 15-minute cache keeps repeated switches cheap.
     if (btn.dataset.tab === 'sales') { loadLiveProposalsSummary(); loadLiveRevenueTiles(); refreshSalesRangeDefault(); }
-    if (btn.dataset.tab === 'financial') { loadLiveAugustProxy(); }
+    if (btn.dataset.tab === 'financial') { loadLiveCurrentMonthProxy(); }
   });
 });
 
@@ -1188,23 +1220,23 @@ async function loadLiveProposalsSummary() {
    "YTD + On the Books, assume zero new sales for the rest of the year" assumption — Pranav flagged that
    as unrealistic 2026-09-04 and asked for a calculation that actually uses the monthly revenue history
    and growth rate, combined with On the Books.
-   Methodology: pulls real monthly revenue (Jan-Jul from the QuickBooks P&L, August from the live
-   full-month ServiceMinder proxy — see loadLiveAugustProxy) and computes two things: (1) a baseline
-   monthly run rate = the simple average across all months on file, and (2) a growth rate = the most
-   recent 3 months' average vs. the 3 months before that (a standard quarter-over-quarter comparison).
-   The run rate is then nudged by that growth rate (run rate × (1 + growth rate)) rather than projecting
-   forward from the recent 3 months alone — this business's revenue is lumpy (single large B2B contracts
-   can swing a month 2x+, e.g. July's $386K vs June's $217K and August's $223K), so anchoring on the
-   full-period average and applying a modest growth adjustment is far less sensitive to one outlier month
-   than either a raw trailing-3-month average or a linear regression across all 8 points (both of which
-   were tried while designing this and produced implausibly steep extrapolations driven by July alone).
+   Methodology: pulls real monthly revenue straight off dataStore.financial.months (now Jan-Aug — August
+   was recovered as a real P&L on 2026-09-04, see the note above dataStore.financial) and computes two
+   things: (1) a baseline monthly run rate = the simple average across all months on file, and (2) a
+   growth rate = the most recent 3 months' average vs. the 3 months before that (a standard
+   quarter-over-quarter comparison). The run rate is then nudged by that growth rate (run rate × (1 +
+   growth rate)) rather than projecting forward from the recent 3 months alone — this business's revenue
+   is lumpy (single large B2B contracts can swing a month 2x+, e.g. July's $386K vs June's $217K and
+   August's $227K), so anchoring on the full-period average and applying a modest growth adjustment is far
+   less sensitive to one outlier month than either a raw trailing-3-month average or a linear regression
+   across all 8 points (both of which were tried while designing this and produced implausibly steep
+   extrapolations driven by July alone).
    Needs at least 6 months of history to compute a recent-vs-prior comparison; returns null otherwise. */
 function computeRevenueTrend() {
   const months = dataStore.financial.months;
   const history = dataStore.financial.monthOrder
     .filter(m => months[m])
     .map(m => ({ key: m, label: months[m].label.split(' ')[0], revenue: months[m].revenue }));
-  if (liveAugustProxy.status === 'ready') history.push({ key: 'aug', label: 'Aug', revenue: liveAugustProxy.revenue });
   if (history.length < 6) return null;
   const avg = arr => arr.reduce((a, m) => a + m.revenue, 0) / arr.length;
   const recent3 = history.slice(-3);
@@ -1461,7 +1493,7 @@ function renderOnTheBooksModalTable(jobs, meta) {
 }
 
 /* ---------------- Render: Financial tab ---------------- */
-let finMonth = 'jul';
+let finMonth = 'aug';
 const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
 const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
 
@@ -1487,27 +1519,28 @@ function computeYtdSummary() {
   };
 }
 
-/* Live full-month ServiceMinder invoice proxy for August 2026, used only until QuickBooks closes the
-   month. The August P&L pulled directly from QuickBooks on 2026-09-04 came back entirely zeroed out
-   (every line item $0), confirming the month genuinely isn't closed yet — not a data problem on our end.
-   This replaces the old hardcoded "Aug 1-20" snapshot, which was captured 2026-08-20 and then never
-   updated again as the month progressed — flagged by Pranav 2026-09-04 ("you never updated the dashboard
-   with August financials"). Fetched live (full Aug 1-31 range) on page load and whenever the Financial
-   Snapshot tab is opened, same mechanism as the Sales Performance tab's live tiles — see loadLiveRevenueTiles. */
-let liveAugustProxy = { status: 'idle' };
-async function loadLiveAugustProxy() {
-  liveAugustProxy = { status: 'loading' };
+/* Live ServiceMinder invoice proxy for whatever month is CURRENTLY in progress (i.e. the first month not
+   yet in dataStore.financial.months — August was recovered as a real P&L on 2026-09-04, see the note
+   above dataStore.financial, so this now points at September and will keep rolling forward automatically
+   each time a new month's real P&L gets added, rather than needing to be hand-edited every month. Computed
+   via the same computePresetRange('month') helper the Sales tab's MTD tile uses, so the range always
+   matches "the 1st of the current month through today." Fetched on page load and whenever the Financial
+   Snapshot tab is opened, same mechanism as the Sales Performance tab's live tiles — see
+   loadLiveRevenueTiles. Originally this only covered August specifically (see git history / prior
+   comments) — generalized 2026-09-04 once August got a real P&L, so the dashboard doesn't go stale again
+   next month the same way the old hardcoded "Aug 1-20" snapshot did. */
+let liveCurrentMonthProxy = { status: 'idle' };
+async function loadLiveCurrentMonthProxy() {
+  liveCurrentMonthProxy = { status: 'loading' };
   renderFinancialTab();
   try {
-    const result = await callSMEdge({ report: 'pacing', from: '2026-08-01', through: '2026-08-31' });
-    liveAugustProxy = { status: 'ready', fetchedAt: new Date(), revenue: result.revenue, invoiceCount: result.invoiceCount };
+    const range = computePresetRange('month');
+    const result = await callSMEdge({ report: 'pacing', from: range.from, through: range.through });
+    liveCurrentMonthProxy = { status: 'ready', fetchedAt: new Date(), revenue: result.revenue, invoiceCount: result.invoiceCount, label: range.label, from: range.from, through: range.through };
   } catch (err) {
-    liveAugustProxy = { status: 'error', error: err.message };
+    liveCurrentMonthProxy = { status: 'error', error: err.message };
   }
   renderFinancialTab();
-  // Also refreshes the Sales Performance tab's Projected Year-End trend (computeRevenueTrend), which
-  // uses this same August figure as its 8th month of history once it's ready.
-  renderSalesTab();
 }
 
 function renderFinancialTab() {
@@ -1526,8 +1559,9 @@ function renderFinancialTab() {
     kpiTile('Net Income', fmtMoneyCompact(f.netIncome), fmtPct(f.netMargin) + ' margin', f.netIncome >= 0 ? 'good' : 'bad'),
   ].join('');
 
-  // Context row: official YTD-through-July (as reported), sum of all real monthly statements on file, and current month in progress
-  const ytd = dataStore.financial.ytdThroughJul;
+  // Context row: latest official YTD (as reported by QuickBooks), sum of all real monthly statements on
+  // file, and whatever month is currently in progress (live ServiceMinder proxy).
+  const ytd = dataStore.financial.ytdThroughAug || dataStore.financial.ytdThroughJul;
   const presentMonths = dataStore.financial.monthOrder.filter(m => months[m]);
   const sumRevenue = presentMonths.reduce((a, m) => a + months[m].revenue, 0);
   const sumNetIncome = presentMonths.reduce((a, m) => a + months[m].netIncome, 0);
@@ -1535,28 +1569,29 @@ function renderFinancialTab() {
   const sumLast = months[presentMonths[presentMonths.length - 1]].label.split(' ')[0];
   const sumLabel = `${sumFirst}–${sumLast} 2026 (sum of monthly P&Ls)`;
   const deltaLine = (text, color) => `<div style="font-size:13px;font-weight:500;margin-top:6px;color:${color};">${text}</div>`;
-  let augTile;
-  if (liveAugustProxy.status === 'ready') {
-    augTile = `<div class="callout"><div class="callout-label">Aug 2026 (full month) — ServiceMinder proxy</div><div class="callout-value">${fmtMoneyCompact(liveAugustProxy.revenue)}</div>
-      ${deltaLine(liveAugustProxy.invoiceCount + ' invoices — not yet closed in QuickBooks', 'var(--text-muted)')}</div>`;
-  } else if (liveAugustProxy.status === 'error') {
-    augTile = `<div class="callout"><div class="callout-label">Aug 2026 — ServiceMinder proxy</div><div class="callout-value">—</div>
+  let nowTile;
+  if (liveCurrentMonthProxy.status === 'ready') {
+    nowTile = `<div class="callout"><div class="callout-label">${liveCurrentMonthProxy.label} — ServiceMinder proxy</div><div class="callout-value">${fmtMoneyCompact(liveCurrentMonthProxy.revenue)}</div>
+      ${deltaLine(liveCurrentMonthProxy.invoiceCount + ' invoices so far — not yet closed in QuickBooks', 'var(--text-muted)')}</div>`;
+  } else if (liveCurrentMonthProxy.status === 'error') {
+    nowTile = `<div class="callout"><div class="callout-label">Current month — ServiceMinder proxy</div><div class="callout-value">—</div>
       ${deltaLine('Live ServiceMinder pull failed — reload to retry', 'var(--text-muted)')}</div>`;
   } else {
-    augTile = `<div class="callout"><div class="callout-label">Aug 2026 — ServiceMinder proxy</div><div class="callout-value">&hellip;</div>
-      ${deltaLine('Loading live August total…', 'var(--text-muted)')}</div>`;
+    nowTile = `<div class="callout"><div class="callout-label">Current month — ServiceMinder proxy</div><div class="callout-value">&hellip;</div>
+      ${deltaLine('Loading live total…', 'var(--text-muted)')}</div>`;
   }
   document.getElementById('finContextRow').innerHTML = `
     <div class="callout"><div class="callout-label">${sumLabel}</div><div class="callout-value">${fmtMoneyCompact(sumRevenue)}</div>
       ${deltaLine(fmtMoneyCompact(sumNetIncome) + ' net income', 'var(--delta-up-good)')}</div>
     <div class="callout"><div class="callout-label">${ytd.label}</div><div class="callout-value">${fmtMoneyCompact(ytd.revenue)}</div>
       ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income — matches the monthly-sum total at left exactly', 'var(--delta-up-good)')}</div>
-    ${augTile}
+    ${nowTile}
   `;
 
   // Trend: every month with real data on file
   const trendMonths = presentMonths;
   const shortLabel = m => months[m].label.split(' ')[0];
+  document.getElementById('chartFinTrendSubtitle').textContent = `${shortLabel(trendMonths[0])}–${shortLabel(trendMonths[trendMonths.length - 1])} 2026`;
   renderLineChart('chartFinTrend', [
     { name: 'Revenue', color: 'var(--brand-teal)', points: trendMonths.map(m => ({ x: m, y: months[m].revenue, label: shortLabel(m) })) },
     { name: 'Net Income', color: 'var(--brand-amber)', points: trendMonths.map(m => ({ x: m, y: months[m].netIncome, label: shortLabel(m) })) },
@@ -1566,10 +1601,12 @@ function renderFinancialTab() {
   document.getElementById('finExpenseSubtitle').textContent = f.label + ' — share of COGS + operating expenses';
   renderPieChart('chartFinExpense', Object.entries(f.buckets).map(([k, v]) => ({ label: bucketLabels[k], value: v })));
 
-  // Location-split table: only Jun and Jul 2026 have a location breakdown so far. Show it for whichever
-  // of those is selected (or fall back to the most recent, July, when viewing YTD or another month).
+  // Location-split table: only shown for months that have one on file so far (Jun/Jul/Aug 2026). Falls
+  // back to the most recent month with a location split when YTD or another month is selected.
   const locByMonth = dataStore.financial.locationByMonth;
-  const locMonthKey = locByMonth[finMonth] ? finMonth : 'jul';
+  const monthsWithLoc = presentMonths.filter(m => locByMonth[m]);
+  const latestLocMonth = monthsWithLoc[monthsWithLoc.length - 1];
+  const locMonthKey = locByMonth[finMonth] ? finMonth : latestLocMonth;
   const locSection = document.getElementById('finLocationSection');
   if (locByMonth[locMonthKey]) {
     locSection.style.display = '';
@@ -2058,11 +2095,11 @@ renderAll();
 // and cause a visible loading flash for no reason). Per Pranav's approval (2026-09-03): Revenue Pacing &
 // On the Books and the Lead/Rep period breakdown all fetch live ServiceMinder data as soon as the
 // dashboard loads, independent of which tab happens to be active — matching how the CRM Pipeline tab has
-// always auto-loaded on page load. The Financial Snapshot tab's August proxy tile does the same.
+// always auto-loaded on page load. The Financial Snapshot tab's current-month proxy tile does the same.
 loadLiveProposalsSummary();
 loadLiveRevenueTiles();
 refreshSalesRangeDefault();
-loadLiveAugustProxy();
+loadLiveCurrentMonthProxy();
 </script>
 </body>
 </html>

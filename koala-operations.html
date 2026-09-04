@@ -782,17 +782,25 @@ const dataStore = {
   // that cached value, so every normal read came back $0 — a real bug in whatever generated the file, not
   // stale/unposted data. Recovered the true figures by reading each formula's literal text instead of its
   // cached value, and re-deriving every subtotal (Total Income, COGS, Gross Profit, Expenses, Net Income)
-  // by summing the corrected leaf values per the sheet's own formula structure. Cross-checked two
-  // independent ways: (1) TOTAL YTD-through-Aug revenue/net income recovered this way ($1,951,247.30 /
+  // by summing the corrected leaf values per the sheet's own formula structure. Cross-checked three
+  // independent ways now: (1) TOTAL YTD-through-Aug revenue/net income recovered this way ($1,951,247.30 /
   // $239,784.20) minus the already-verified YTD-through-Jul figures below reconciles to EXACTLY August's
   // standalone total, to the penny; (2) recovered August revenue ($226,527.51) lands within 1.4% of the
-  // independently-sourced live ServiceMinder invoice proxy for the same month ($223,360.02) — the two
-  // sources were built from nothing in common except both covering August. Expense-bucket categorization
-  // for August was inferred from account names using the same logic as other months (Marketing exactly =
-  // Advertising & Marketing + Brand Fund Contribution, as established above) but the exact bucket
-  // boundaries used for Jan-Jul weren't preserved anywhere I could re-derive precisely, so August's bucket
-  // split, while it sums exactly to COGS + Expenses, may not be perfectly apples-to-apples with earlier
-  // months' bucketing.
+  // independently-sourced live ServiceMinder invoice proxy for the same month ($223,360.02); (3)
+  // 2026-09-04 — Pranav sent the official QuickBooks-generated August P&L PDF (not the buggy xlsx export),
+  // and every figure on it matches the recovered numbers below EXACTLY to the penny: Total Income
+  // $226,527.51, COGS $114,137.98, Gross Profit $112,389.53, Total Expenses $106,496.25, Net Income
+  // $5,896.52, the Jan-Aug YTD Total Income/Net Income ($1,951,247.30 / $239,784.20), and every location
+  // split (Albuquerque $213,512.78/$35,706.56, Las Cruces $13,014.73/$9,509.76, Corporate $0/-$38,810.00,
+  // Not Specified $0/-$509.80). The expense-bucket split is also now fully verified exact (not inferred) by
+  // matching the PDF's line items against the category rule implied by Jan-Jul's buckets: Materials = all
+  // "material" COGS lines (Batts/BI Fiberglass/BI Cellulose/Other/Spray Foam/Job Supplies/Vapor
+  // Barrier/Attic Hatch/Equipment Rental/Solar Fans/misc COGS) + Material Dumping Fees; Vehicle & Fuel =
+  // Installer Fuel (COGS) + Sales Fuel + Repairs & Maintenance Vehicles; Field Labor = Installer Labor
+  // (COGS) + Sales Labor + Sales Commissions + Manager Wages + Vacation Pay + Incentive Pay + Payroll Taxes
+  // + NM Work Comp Fee + Payroll Processing Fees + Employee Benefits; Marketing = Advertising & Marketing +
+  // Brand Fund Contribution; Admin & Overhead = everything else (incl. COGS Travel + Travel Meals). Every
+  // one of August's five bucket totals reproduces exactly from this rule.
   financial: {
     monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'],
     months: {
@@ -810,7 +818,7 @@ const dataStore = {
              buckets: { materials: 79016.18, fieldLabor: 70124.01, vehicleFuel: 6771.96, marketing: 7172.14, admin: 42519.87 } },
       jul: { label: 'Jul 2026', revenue: 386385.06, cogs: 137232.70, grossProfit: 249152.36, grossMargin: 64.48, opex: 86685.63, netIncome: 162468.22, netMargin: 42.05,
              buckets: { materials: 96317.82, fieldLabor: 75964.31, vehicleFuel: 5597.51, marketing: 10136.42, admin: 35902.27 } },
-      aug: { label: 'Aug 2026 (recovered)', revenue: 226527.51, cogs: 114137.98, grossProfit: 112389.53, grossMargin: 49.61, opex: 106496.25, netIncome: 5896.52, netMargin: 2.60,
+      aug: { label: 'Aug 2026 (verified)', revenue: 226527.51, cogs: 114137.98, grossProfit: 112389.53, grossMargin: 49.61, opex: 106496.25, netIncome: 5896.52, netMargin: 2.60,
              buckets: { materials: 72445.26, fieldLabor: 86207.03, vehicleFuel: 5283.20, marketing: 9331.03, admin: 47367.71 } },
     },
     // Officially reported cumulative YTD figures, read directly off each month's own P&L "(YTD)" column

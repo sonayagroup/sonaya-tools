@@ -225,6 +225,29 @@ input[type=text].field-input:focus,select.field-input:focus{outline:none;border-
       </select>
       <p class="hint" style="margin-top:-8px">Managers see a countdown from the moment they start. Time runs out → their quiz auto-submits with whatever's answered.</p>
 
+      <label class="field">Available on</label>
+      <select class="field-input" id="settingsOpenDay">
+        <option value="0">Sunday</option>
+        <option value="1">Monday</option>
+        <option value="2">Tuesday</option>
+        <option value="3">Wednesday</option>
+        <option value="4">Thursday</option>
+        <option value="5">Friday</option>
+        <option value="6">Saturday</option>
+      </select>
+
+      <div style="display:flex;gap:12px">
+        <div style="flex:1">
+          <label class="field">Opens at</label>
+          <select class="field-input" id="settingsOpenHour"></select>
+        </div>
+        <div style="flex:1">
+          <label class="field">Closes at</label>
+          <select class="field-input" id="settingsCloseHour"></select>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:-8px">All times are Mountain Time. Repeats every week on this day — the quiz only opens during this window.</p>
+
       <label class="field">Status</label>
       <select class="field-input" id="settingsActive">
         <option value="true">Active</option>
@@ -695,18 +718,44 @@ async function unlockApp(){
 }
 
 /* ---------- SETTINGS PANEL ---------- */
+function formatHour12(h){
+  const period = h >= 12 ? "PM" : "AM";
+  let hour12 = h % 12;
+  if (hour12 === 0) hour12 = 12;
+  return `${hour12}:00 ${period}`;
+}
+
+function populateHourSelect(sel){
+  if (sel.options.length) return; // already populated
+  for (let h = 0; h < 24; h++) {
+    const opt = document.createElement("option");
+    opt.value = String(h);
+    opt.textContent = formatHour12(h);
+    sel.appendChild(opt);
+  }
+}
+
 async function loadSettingsPanel(){
   const titleInput = document.getElementById("settingsTitle");
   const timeSelect = document.getElementById("settingsTimeLimit");
   const activeSelect = document.getElementById("settingsActive");
+  const openDaySelect = document.getElementById("settingsOpenDay");
+  const openHourSelect = document.getElementById("settingsOpenHour");
+  const closeHourSelect = document.getElementById("settingsCloseHour");
   const statusEl = document.getElementById("settingsStatus");
 
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/quizzes?slug=eq.${encodeURIComponent(QUIZ_ID)}&select=title,active,time_limit_seconds`, { headers: sbHeaders() });
+  populateHourSelect(openHourSelect);
+  populateHourSelect(closeHourSelect);
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/quizzes?slug=eq.${encodeURIComponent(QUIZ_ID)}&select=title,active,time_limit_seconds,open_day,open_hour,close_hour`, { headers: sbHeaders() });
   const rows = await res.json();
-  const quiz = Array.isArray(rows) && rows[0] ? rows[0] : { title: "", active: true, time_limit_seconds: 480 };
+  const quiz = Array.isArray(rows) && rows[0] ? rows[0] : { title: "", active: true, time_limit_seconds: 480, open_day: 0, open_hour: 8, close_hour: 12 };
 
   titleInput.value = quiz.title || "";
   activeSelect.value = String(quiz.active !== false);
+  openDaySelect.value = String(quiz.open_day ?? 0);
+  openHourSelect.value = String(quiz.open_hour ?? 8);
+  closeHourSelect.value = String(quiz.close_hour ?? 12);
   // pick the closest preset if the stored value isn't one of the dropdown options
   const presets = [...timeSelect.options].map(o => parseInt(o.value, 10));
   const closest = presets.reduce((best, v) => Math.abs(v - quiz.time_limit_seconds) < Math.abs(best - quiz.time_limit_seconds) ? v : best, presets[0]);
@@ -719,6 +768,13 @@ async function loadSettingsPanel(){
       statusEl.textContent = "Quiz name can't be empty.";
       return;
     }
+    const openHour = parseInt(openHourSelect.value, 10);
+    const closeHour = parseInt(closeHourSelect.value, 10);
+    if (closeHour <= openHour) {
+      statusEl.className = "save-status err";
+      statusEl.textContent = "Closing time has to be after the opening time.";
+      return;
+    }
     statusEl.className = "save-status";
     statusEl.textContent = "Saving…";
     try {
@@ -728,7 +784,10 @@ async function loadSettingsPanel(){
         body: JSON.stringify({
           title: newTitle,
           time_limit_seconds: parseInt(timeSelect.value, 10),
-          active: activeSelect.value === "true"
+          active: activeSelect.value === "true",
+          open_day: parseInt(openDaySelect.value, 10),
+          open_hour: openHour,
+          close_hour: closeHour
         })
       });
       document.getElementById("manageTitle").textContent = "📝 " + newTitle;

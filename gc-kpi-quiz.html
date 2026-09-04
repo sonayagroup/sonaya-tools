@@ -179,9 +179,10 @@ const QUIZ_ID = urlParams.get("quiz") || "gc-kpi-quiz"; // which quiz this link 
 const SUPABASE_URL = "https://vcukhvjwsuaqxgqzotwb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE";
 const TIMEZONE = "America/Denver";
-const OPEN_HOUR = 8;   // 8:00 AM
-const CLOSE_HOUR = 12; // 12:00 PM (noon)
-const OPEN_DAY = 0;    // Sunday
+const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+let OPEN_DAY = 0;    // 0=Sunday .. 6=Saturday — default, overridden per-quiz from the quizzes table
+let OPEN_HOUR = 8;   // 24h, America/Denver — default, overridden per-quiz
+let CLOSE_HOUR = 12; // 24h, America/Denver — default, overridden per-quiz
 let QUIZ_TIME_LIMIT_SECONDS = 480; // default — overridden per-quiz from the quizzes table's time_limit_seconds, set in the Quiz Manager's Settings tab
 
 // Master salon list — same 15 salons/names shown in the main dashboard's Salon selector.
@@ -335,13 +336,24 @@ function stopTimer(){
 async function fetchQuizMeta(){
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/quizzes?slug=eq.${QUIZ_ID}&select=title,active,time_limit_seconds`,
+      `${SUPABASE_URL}/rest/v1/quizzes?slug=eq.${QUIZ_ID}&select=title,active,time_limit_seconds,open_day,open_hour,close_hour`,
       { headers: sbHeaders() }
     );
     const rows = await res.json();
     if (Array.isArray(rows) && rows[0]) return rows[0];
   } catch (err) { console.error("Failed to load quiz meta", err); }
   return null;
+}
+
+function formatHour12(h){
+  const period = h >= 12 ? "PM" : "AM";
+  let hour12 = h % 12;
+  if (hour12 === 0) hour12 = 12;
+  return `${hour12}:00 ${period}`;
+}
+
+function windowLabel(){
+  return `${DAY_NAMES[OPEN_DAY]}s, ${formatHour12(OPEN_HOUR)} – ${formatHour12(CLOSE_HOUR)} (Mountain Time)`;
 }
 
 async function showStatus(){
@@ -353,9 +365,12 @@ async function showStatus(){
   if (meta && meta.time_limit_seconds) {
     QUIZ_TIME_LIMIT_SECONDS = meta.time_limit_seconds;
   }
+  if (meta && meta.open_day !== undefined && meta.open_day !== null) OPEN_DAY = meta.open_day;
+  if (meta && meta.open_hour !== undefined && meta.open_hour !== null) OPEN_HOUR = meta.open_hour;
+  if (meta && meta.close_hour !== undefined && meta.close_hour !== null) CLOSE_HOUR = meta.close_hour;
 
   const badge = document.getElementById("quizIdBadge");
-  badge.textContent = "Quiz opens Sundays 8:00–11:59 AM (Mountain Time)";
+  badge.textContent = "Quiz opens " + windowLabel();
 
   const previewBanner = document.getElementById("previewBanner");
   if (PREVIEW) {
@@ -385,8 +400,8 @@ async function showStatus(){
     statusCard.className = "card status-open";
     statusTitle.textContent = PREVIEW ? "✅ Preview — this is the full quiz." : "✅ Quiz is open right now — good luck!";
     statusDetail.textContent = PREVIEW
-      ? "This is exactly what a manager sees once the Sunday window opens."
-      : "Closes at 12:00 PM Mountain Time today. Answer every question — 100% is what wins the reward.";
+      ? "This is exactly what a manager sees once the quiz window opens."
+      : `Closes at ${formatHour12(CLOSE_HOUR)} Mountain Time today. Answer every question — 100% is what wins the reward.`;
     statusDetail.textContent += " Loading questions…";
     form.style.display = "none";
 
@@ -400,8 +415,8 @@ async function showStatus(){
     }
 
     statusDetail.textContent = PREVIEW
-      ? "This is exactly what a manager sees once the Sunday window opens."
-      : "Closes at 12:00 PM Mountain Time today. Answer every question — 100% is what wins the reward.";
+      ? "This is exactly what a manager sees once the quiz window opens."
+      : `Closes at ${formatHour12(CLOSE_HOUR)} Mountain Time today. Answer every question — 100% is what wins the reward.`;
     form.style.display = "block";
     populateSalonDropdown();
     renderQuestions();
@@ -409,7 +424,7 @@ async function showStatus(){
   } else {
     statusCard.className = "card status-closed";
     statusTitle.textContent = "⏳ Quiz is currently closed.";
-    statusDetail.innerHTML = "It's only open <strong>Sundays, 8:00 AM – 12:00 PM (Mountain Time)</strong>. Come back then!";
+    statusDetail.innerHTML = `It's only open <strong>${windowLabel()}</strong>. Come back then!`;
     form.style.display = "none";
   }
 }

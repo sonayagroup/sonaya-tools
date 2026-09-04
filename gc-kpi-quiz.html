@@ -95,6 +95,17 @@ thead th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spaci
 .pw-box button{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:7px;font:inherit;font-weight:700;font-size:.95rem;cursor:pointer}
 .pw-box button:hover{background:var(--blue-dk)}
 .pw-error{color:var(--red-dk);font-size:.82rem;font-weight:600;margin-top:10px;min-height:1em}
+
+/* ---- timer ---- */
+.timer-bar{position:sticky;top:0;z-index:50;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 16px;margin-bottom:16px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.timer-bar .timer-label{font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.timer-bar .timer-clock{font-size:1.3rem;font-weight:800;color:var(--blue-dk);font-variant-numeric:tabular-nums}
+.timer-bar.warn .timer-clock{color:var(--amber)}
+.timer-bar.danger .timer-clock{color:var(--red-dk)}
+.timer-track{height:6px;border-radius:4px;background:var(--line);margin-top:8px;overflow:hidden}
+.timer-fill{height:100%;background:var(--blue);border-radius:4px;transition:width 1s linear,background .3s}
+.timer-bar.warn .timer-fill{background:var(--amber)}
+.timer-bar.danger .timer-fill{background:var(--red-dk)}
 </style>
 </head>
 <body>
@@ -132,6 +143,14 @@ thead th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spaci
     <p class="muted" id="statusDetail"></p>
   </div>
 
+  <div class="timer-bar" id="timerBar" style="display:none;">
+    <div>
+      <div class="timer-label">Time remaining</div>
+      <div class="timer-track"><div class="timer-fill" id="timerFill" style="width:100%"></div></div>
+    </div>
+    <div class="timer-clock" id="timerClock">--:--</div>
+  </div>
+
   <form class="card" id="quizForm" style="display:none;">
     <label for="managerName">Your name</label>
     <input type="text" id="managerName" required>
@@ -162,6 +181,7 @@ const TIMEZONE = "America/Denver";
 const OPEN_HOUR = 8;   // 8:00 AM
 const CLOSE_HOUR = 12; // 12:00 PM (noon)
 const OPEN_DAY = 0;    // Sunday
+const QUIZ_TIME_LIMIT_SECONDS = 480; // 8:00 minutes total — ~40 sec/question for ~12 questions. Change this one number to adjust.
 
 // Master salon list — same 15 salons/names shown in the main dashboard's Salon selector.
 // Update this list here (and in the dashboard) if a salon opens, closes, or is renamed.
@@ -271,6 +291,46 @@ function renderQuestions(){
   });
 }
 
+/* ---------- TIMER ---------- */
+let timerInterval = null;
+let timerDeadline = null;
+
+function formatClock(sec){
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2,"0")}`;
+}
+
+function startTimer(){
+  const bar = document.getElementById("timerBar");
+  const clock = document.getElementById("timerClock");
+  const fill = document.getElementById("timerFill");
+  bar.style.display = "block";
+  timerDeadline = Date.now() + QUIZ_TIME_LIMIT_SECONDS * 1000;
+
+  function tick(){
+    const remainingMs = timerDeadline - Date.now();
+    const remainingSec = Math.max(0, Math.round(remainingMs / 1000));
+    clock.textContent = formatClock(remainingSec);
+    fill.style.width = Math.max(0, (remainingSec / QUIZ_TIME_LIMIT_SECONDS) * 100) + "%";
+    bar.classList.toggle("warn", remainingSec <= 120 && remainingSec > 30);
+    bar.classList.toggle("danger", remainingSec <= 30);
+    if (remainingSec <= 0) {
+      stopTimer();
+      finishQuiz(true);
+    }
+  }
+  tick();
+  timerInterval = setInterval(tick, 1000);
+}
+
+function stopTimer(){
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  const bar = document.getElementById("timerBar");
+  if (bar) bar.style.display = "none";
+}
+
 async function showStatus(){
   const badge = document.getElementById("quizIdBadge");
   badge.textContent = "Quiz opens Sundays 8:00–11:59 AM (Mountain Time)";
@@ -323,6 +383,7 @@ async function showStatus(){
     form.style.display = "block";
     populateSalonDropdown();
     renderQuestions();
+    startTimer();
   } else {
     statusCard.className = "card status-closed";
     statusTitle.textContent = "⏳ Quiz is currently closed.";
@@ -334,18 +395,23 @@ async function showStatus(){
 /* ---------- SUBMIT ---------- */
 document.getElementById("quizForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  await finishQuiz(false);
+});
 
-  if (answers.includes(null)) {
+async function finishQuiz(auto){
+  if (!auto && answers.includes(null)) {
     alert("Please answer every question before submitting.");
     return;
   }
 
   const managerName = document.getElementById("managerName").value.trim();
   const salonName = document.getElementById("salonName").value.trim();
-  if (!managerName || !salonName) {
+  if (!auto && (!managerName || !salonName)) {
     alert("Please enter your name and salon.");
     return;
   }
+
+  stopTimer();
 
   const submitBtn = document.getElementById("submitBtn");
   submitBtn.disabled = true;
@@ -355,12 +421,12 @@ document.getElementById("quizForm").addEventListener("submit", async (e) => {
   QUESTIONS.forEach((item, qi) => {
     const optsWrap = document.getElementById(`opts-${qi}`);
     const correctEl = document.getElementById(`opt-${qi}-${item.correct}`);
-    const chosenEl = document.getElementById(`opt-${qi}-${answers[qi]}`);
-    if (answers[qi] === item.correct) {
+    const chosenEl = answers[qi] !== null ? document.getElementById(`opt-${qi}-${answers[qi]}`) : null;
+    if (answers[qi] !== null && answers[qi] === item.correct) {
       score++;
       chosenEl.classList.add("correct");
     } else {
-      chosenEl.classList.add("incorrect");
+      if (chosenEl) chosenEl.classList.add("incorrect");
       correctEl.classList.add("correct");
     }
     optsWrap.querySelectorAll("input").forEach(i => i.disabled = true);
@@ -369,6 +435,7 @@ document.getElementById("quizForm").addEventListener("submit", async (e) => {
   const total = QUESTIONS.length;
   const percent = Math.round((score / total) * 1000) / 10;
   const passed100 = score === total;
+  const unanswered = answers.filter(a => a === null).length;
 
   if (!PREVIEW) {
     try {
@@ -377,8 +444,8 @@ document.getElementById("quizForm").addEventListener("submit", async (e) => {
         headers: sbHeaders({ "Prefer": "return=minimal" }),
         body: JSON.stringify({
           quiz_id: QUIZ_ID,
-          manager_name: managerName,
-          salon: salonName,
+          manager_name: managerName || "(no name — time expired)",
+          salon: salonName || "",
           score: score,
           total_questions: total,
           percent: percent,
@@ -394,17 +461,18 @@ document.getElementById("quizForm").addEventListener("submit", async (e) => {
 
   const resultCard = document.getElementById("resultCard");
   resultCard.style.display = "block";
+  const timeNote = auto ? `<p class="muted" style="margin-top:6px;">⏱️ Time ran out${unanswered ? ` — ${unanswered} question${unanswered===1?"":"s"} left unanswered` : ""}, so this was submitted automatically.</p>` : "";
   resultCard.className = "card result " + (passed100 ? "win" : "lose");
   resultCard.innerHTML = passed100
-    ? `<div class="trophy">🏆</div><p class="status-title">Perfect score, ${managerName}!</p>
+    ? `<div class="trophy">🏆</div><p class="status-title">Perfect score, ${managerName || "there"}!</p>
        <div class="pct">${percent}%</div>
-       <p class="muted">${score} / ${total} correct${PREVIEW ? " (preview — not saved)" : " — you're a winner this week. Pranav will follow up about your reward."}</p>`
-    : `<p class="status-title">Nice try, ${managerName}.</p>
+       <p class="muted">${score} / ${total} correct${PREVIEW ? " (preview — not saved)" : " — you're a winner this week. Pranav will follow up about your reward."}</p>${timeNote}`
+    : `<p class="status-title">Nice try, ${managerName || "there"}.</p>
        <div class="pct">${percent}%</div>
-       <p class="muted">${score} / ${total} correct${PREVIEW ? " (preview — not saved)." : ". Scroll up to see which ones you missed — review the KPI guide and get 100% next Sunday."}</p>`;
+       <p class="muted">${score} / ${total} correct${PREVIEW ? " (preview — not saved)." : ". Scroll up to see which ones you missed — review the KPI guide and get 100% next Sunday."}</p>${timeNote}`;
 
   document.getElementById("quizForm").scrollIntoView({behavior:"smooth"});
-});
+}
 
 /* ---------- ADMIN RESULTS VIEW ---------- */
 async function renderAdminView(){

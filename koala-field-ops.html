@@ -1217,38 +1217,45 @@ function renderEmployees() {
         <td>${esc(e.email) || '—'}</td>
         <td>${esc(e.phone) || '—'}</td>
         <td><input type="checkbox" ${e.active ? 'checked' : ''} onchange="updateEmployee('${e.id}','active',this.checked)"></td>
-        <td><button class="btn small danger" onclick="deleteEmployee('${e.id}')">Delete</button></td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn small" onclick="openEmployeeModal('${e.id}')">Edit</button>
+          <button class="btn small danger" onclick="deleteEmployee('${e.id}')">Delete</button>
+        </td>
       </tr>`).join('')}
   </tbody></table>`;
 }
 
-function openEmployeeModal() {
+function openEmployeeModal(id) {
+  const e = id ? state.employees.find(x => x.id === id) : null;
   openModal(`
-    <h3>Add Employee</h3>
+    <h3>${e ? 'Edit Employee' : 'Add Employee'}</h3>
     <div class="grid-2">
-      ${field('Name', `<input id="em_name">`)}
-      ${field('Role', `<input id="em_role" placeholder="e.g. Installer, Crew Lead">`)}
+      ${field('Name', `<input id="em_name" value="${esc(e && e.name)}">`)}
+      ${field('Role', `<input id="em_role" placeholder="e.g. Installer, Crew Lead" value="${esc(e && e.role)}">`)}
     </div>
     <div class="grid-2">
-      ${field('Email', `<input type="email" id="em_email">`)}
-      ${field('Phone', `<input id="em_phone">`)}
+      ${field('Email', `<input type="email" id="em_email" value="${esc(e && e.email)}">`)}
+      ${field('Phone', `<input id="em_phone" value="${esc(e && e.phone)}">`)}
     </div>
     <div class="modal-actions">
+      ${e ? `<button class="btn danger" style="margin-right:auto" onclick="deleteEmployee('${e.id}')">Delete</button>` : ''}
       <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn primary" onclick="saveEmployee()">Save</button>
+      <button class="btn primary" onclick="saveEmployee(${e ? `'${e.id}'` : 'null'})">Save</button>
     </div>`);
 }
 
-async function saveEmployee() {
+async function saveEmployee(id) {
   const name = document.getElementById('em_name').value.trim();
   if (!name) { alert('Name is required'); return; }
-  await sbInsert('fo_employees', {
+  const payload = {
     name,
     role: document.getElementById('em_role').value || 'Installer',
     email: document.getElementById('em_email').value,
     phone: document.getElementById('em_phone').value,
-  });
-  closeModal(); showToast('Employee added');
+  };
+  if (id) await sbUpdate('fo_employees', id, payload);
+  else await sbInsert('fo_employees', payload);
+  closeModal(); showToast(id ? 'Employee updated' : 'Employee added');
   await loadEmployees(); renderAllEmployeeDependentTabs();
 }
 
@@ -1258,6 +1265,7 @@ async function updateEmployee(id, key, value) {
 async function deleteEmployee(id) {
   if (!confirm('Remove this employee?')) return;
   await sbDelete('fo_employees', id);
+  closeModal();
   await loadEmployees(); renderAllEmployeeDependentTabs();
 }
 function renderAllEmployeeDependentTabs() { renderEmployees(); renderAudits(); }

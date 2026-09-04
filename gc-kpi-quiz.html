@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Great Clips Manager KPI Quiz</title>
+<style>
+  :root{
+    --red:#e21e26; --red-dark:#b3151b; --ink:#1c1c1c; --paper:#faf8f5;
+    --card:#ffffff; --line:#e6e1da; --muted:#6b6459; --good:#1e7d3c; --bad:#c62828;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.5;}
+  .wrap{max-width:720px;margin:0 auto;padding:32px 20px 80px;}
+  header.top{background:linear-gradient(135deg,var(--red),var(--red-dark));color:#fff;padding:28px 20px;border-radius:14px;margin-bottom:24px;box-shadow:0 6px 18px rgba(178,20,26,.25);}
+  header.top h1{margin:0 0 6px;font-size:1.5rem;}
+  header.top p{margin:0;opacity:.92;font-size:.95rem;}
+  .badge{display:inline-block;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);border-radius:999px;padding:3px 10px;font-size:.75rem;margin-top:10px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:18px;}
+  .status-open{border-left:5px solid var(--good);}
+  .status-closed{border-left:5px solid var(--bad);}
+  .status-title{font-weight:700;font-size:1.05rem;margin:0 0 6px;}
+  .status-open .status-title{color:var(--good);}
+  .status-closed .status-title{color:var(--bad);}
+  .muted{color:var(--muted);font-size:.9rem;}
+  label{display:block;font-weight:600;font-size:.85rem;margin-bottom:6px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;}
+  input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;font-size:1rem;margin-bottom:16px;background:#fff;}
+  input[type=text]:focus{outline:2px solid var(--red);outline-offset:1px;}
+  .q{margin-bottom:22px;padding-bottom:20px;border-bottom:1px solid var(--line);}
+  .q:last-child{border-bottom:none;}
+  .q-num{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--red);color:#fff;font-size:.8rem;font-weight:700;margin-right:8px;}
+  .q-text{font-weight:600;font-size:1rem;}
+  .opts{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+  .opt{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;transition:border-color .15s,background .15s;}
+  .opt:hover{border-color:#c9beae;}
+  .opt input{margin-top:3px;}
+  .opt.selected{border-color:var(--red);background:#fff4f4;}
+  .opt.correct{border-color:var(--good);background:#eefaf0;}
+  .opt.incorrect{border-color:var(--bad);background:#fdeeee;}
+  button.submit{width:100%;padding:14px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:1.05rem;font-weight:700;cursor:pointer;margin-top:6px;}
+  button.submit:hover{background:var(--red-dark);}
+  button.submit:disabled{background:#c9beae;cursor:not-allowed;}
+  .result{text-align:center;padding:10px 0;}
+  .result .pct{font-size:3rem;font-weight:800;margin:6px 0;}
+  .win .pct{color:var(--good);}
+  .lose .pct{color:var(--bad);}
+  .trophy{font-size:2.2rem;}
+  .footer-note{text-align:center;color:var(--muted);font-size:.8rem;margin-top:24px;}
+  .countdown{font-variant-numeric:tabular-nums;font-weight:700;}
+  a.admin-link{color:var(--muted);font-size:.75rem;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>✂️ Great Clips Manager KPI Quiz</h1>
+    <p>Test your knowledge of our salon efficiency KPIs and improvement techniques. Score 100% to win the weekly reward.</p>
+    <span class="badge" id="quizIdBadge">Loading…</span>
+  </header>
+
+  <div class="card" id="statusCard">
+    <p class="status-title" id="statusTitle">Checking availability…</p>
+    <p class="muted" id="statusDetail"></p>
+  </div>
+
+  <form class="card" id="quizForm" style="display:none;">
+    <label for="managerName">Your name</label>
+    <input type="text" id="managerName" placeholder="e.g. Samantha Martin" required>
+    <label for="salonName">Your salon / location</label>
+    <input type="text" id="salonName" placeholder="e.g. Coors & Montano" required>
+    <div id="questions"></div>
+    <button type="submit" class="submit" id="submitBtn">Submit Quiz</button>
+  </form>
+
+  <div class="card" id="resultCard" style="display:none;"></div>
+
+  <p class="footer-note">
+    A new quiz posts here regularly — check back next Sunday.<br>
+    <a class="admin-link" href="?admin=1">Manager results view</a>
+  </p>
+</div>
+
+<script>
+/* ---------- CONFIG ---------- */
+const QUIZ_ID = "gc-kpi-quiz-2026-09-06";
+const SUPABASE_URL = "https://vcukhvjwsuaqxgqzotwb.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE";
+const TIMEZONE = "America/Denver";
+const OPEN_HOUR = 8;   // 8:00 AM
+const CLOSE_HOUR = 12; // 12:00 PM (noon)
+const OPEN_DAY = 0;    // Sunday
+
+/* ---------- QUESTION BANK (from Salon Summary Report Efficiency Guide) ---------- */
+const QUESTIONS = [
+  {
+    q: "What's the maximum weekly admin hours a salon should use to keep payroll on target?",
+    opts: ["4 hours", "6 hours", "8 hours", "10 hours"],
+    correct: 1
+  },
+  {
+    q: "On which days should admin hours be avoided unless the wait time is at zero minutes?",
+    opts: ["Monday & Tuesday", "Wednesday only", "Friday, Saturday, and Sunday", "Any day with a floor stylist scheduled"],
+    correct: 2
+  },
+  {
+    q: "What's the target average haircut time per day for optimal efficiency?",
+    opts: ["10 minutes", "12 minutes", "15 minutes", "20 minutes"],
+    correct: 2
+  },
+  {
+    q: "CPH (customers per hour) should not be allowed to drop below what number on any given day?",
+    opts: ["1.8", "2.0", "2.2", "2.6"],
+    correct: 2
+  },
+  {
+    q: "On a slower day, if stylists are idle for 20+ minutes and have already worked 3+ hours, what's the recommended move?",
+    opts: [
+      "Have them do deep cleaning instead of breaks",
+      "Extend breaks, or send a stylist home / push the next one to come in a little later",
+      "Add more admin hours to keep them busy",
+      "Nothing — wait for it to pick back up"
+    ],
+    correct: 1
+  },
+  {
+    q: "What is described as a 'CPH killer' on a busy day?",
+    opts: ["Taking breaks during a lull", "Using admin time", "Prepay checkout", "Multiple stylists overlapping shifts"],
+    correct: 1
+  },
+  {
+    q: "Wait times over 15 minutes should not happen more than what percentage of the time?",
+    opts: ["5%", "10%", "15%", "25%"],
+    correct: 2
+  },
+  {
+    q: "What's the target payroll percentage for a well-run salon?",
+    opts: ["Around 25%", "Around 30%", "Around 35%", "Around 42%"],
+    correct: 2
+  },
+  {
+    q: "'Minutes Between Customers Waiting' should be kept at what range?",
+    opts: ["0 to 1 minute", "1 to 2 minutes", "2.5 to 3.5 minutes", "5 to 6 minutes"],
+    correct: 2
+  },
+  {
+    q: "Service Discount % should run around what range — anything meaningfully higher may signal coupon fraud?",
+    opts: ["1% to 2%", "3% to 4%", "6% to 8%", "10% to 12%"],
+    correct: 1
+  },
+  {
+    q: "If you ask a customer 'are you military?' at checkout to apply the discount, what must you also do?",
+    opts: [
+      "Nothing further — take their word for it",
+      "Check their ID",
+      "Have them fill out a form",
+      "Only apply it on weekends"
+    ],
+    correct: 1
+  },
+  {
+    q: "If one stylist's discount % is consistently higher than the salon average, what should you audit?",
+    opts: [
+      "Their haircut time log only",
+      "Their receipts and the Coupon Pick List By Employee report",
+      "Nothing — discount % isn't tied to individual stylists",
+      "Their customer wait time report"
+    ],
+    correct: 1
+  }
+];
+
+/* ---------- TIME GATE ---------- */
+function getDenverParts(){
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIMEZONE, weekday: "short", hour: "numeric", hour12: false
+  });
+  const parts = fmt.formatToParts(new Date());
+  const weekdayStr = parts.find(p => p.type === "weekday").value;
+  let hour = parseInt(parts.find(p => p.type === "hour").value, 10);
+  if (hour === 24) hour = 0;
+  const map = {Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6};
+  return { day: map[weekdayStr], hour };
+}
+
+function isOpen(){
+  const { day, hour } = getDenverParts();
+  return day === OPEN_DAY && hour >= OPEN_HOUR && hour < CLOSE_HOUR;
+}
+
+/* ---------- STATE ---------- */
+let answers = new Array(QUESTIONS.length).fill(null);
+const storageKey = "gc_quiz_submitted_" + QUIZ_ID;
+
+function renderQuestions(){
+  const container = document.getElementById("questions");
+  container.innerHTML = "";
+  QUESTIONS.forEach((item, qi) => {
+    const div = document.createElement("div");
+    div.className = "q";
+    div.innerHTML = `<div class="q-text"><span class="q-num">${qi+1}</span>${item.q}</div>
+      <div class="opts" id="opts-${qi}"></div>`;
+    container.appendChild(div);
+    const optsWrap = div.querySelector(`#opts-${qi}`);
+    item.opts.forEach((optText, oi) => {
+      const label = document.createElement("label");
+      label.className = "opt";
+      label.id = `opt-${qi}-${oi}`;
+      label.innerHTML = `<input type="radio" name="q${qi}" value="${oi}"> <span>${optText}</span>`;
+      label.addEventListener("click", () => {
+        answers[qi] = oi;
+        optsWrap.querySelectorAll(".opt").forEach(o => o.classList.remove("selected"));
+        label.classList.add("selected");
+      });
+      optsWrap.appendChild(label);
+    });
+  });
+}
+
+function showStatus(){
+  const badge = document.getElementById("quizIdBadge");
+  badge.textContent = "Quiz opens Sundays 8:00–11:59 AM (Mountain Time)";
+
+  const statusCard = document.getElementById("statusCard");
+  const statusTitle = document.getElementById("statusTitle");
+  const statusDetail = document.getElementById("statusDetail");
+  const form = document.getElementById("quizForm");
+  const resultCard = document.getElementById("resultCard");
+
+  const alreadyDone = localStorage.getItem(storageKey);
+
+  if (alreadyDone) {
+    statusCard.className = "card status-closed";
+    statusTitle.textContent = "You've already submitted this quiz on this device.";
+    statusDetail.textContent = "Only one attempt counts per manager. Check the results view to see how you did, or ask Pranav.";
+    form.style.display = "none";
+    resultCard.style.display = "none";
+    return;
+  }
+
+  if (isOpen()) {
+    statusCard.className = "card status-open";
+    statusTitle.textContent = "✅ Quiz is open right now — good luck!";
+    statusDetail.textContent = "Closes at 12:00 PM Mountain Time today. Answer every question — 100% is what wins the reward.";
+    form.style.display = "block";
+    renderQuestions();
+  } else {
+    statusCard.className = "card status-closed";
+    statusTitle.textContent = "⏳ Quiz is currently closed.";
+    statusDetail.innerHTML = "It's only open <strong>Sundays, 8:00 AM – 12:00 PM (Mountain Time)</strong>. Come back then!";
+    form.style.display = "none";
+  }
+}
+
+/* ---------- SUBMIT ---------- */
+document.getElementById("quizForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  if (answers.includes(null)) {
+    alert("Please answer every question before submitting.");
+    return;
+  }
+
+  const managerName = document.getElementById("managerName").value.trim();
+  const salonName = document.getElementById("salonName").value.trim();
+  if (!managerName || !salonName) {
+    alert("Please enter your name and salon.");
+    return;
+  }
+
+  const submitBtn = document.getElementById("submitBtn");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Submitting…";
+
+  let score = 0;
+  QUESTIONS.forEach((item, qi) => {
+    const optsWrap = document.getElementById(`opts-${qi}`);
+    const correctEl = document.getElementById(`opt-${qi}-${item.correct}`);
+    const chosenEl = document.getElementById(`opt-${qi}-${answers[qi]}`);
+    if (answers[qi] === item.correct) {
+      score++;
+      chosenEl.classList.add("correct");
+    } else {
+      chosenEl.classList.add("incorrect");
+      correctEl.classList.add("correct");
+    }
+    optsWrap.querySelectorAll("input").forEach(i => i.disabled = true);
+  });
+
+  const total = QUESTIONS.length;
+  const percent = Math.round((score / total) * 1000) / 10;
+  const passed100 = score === total;
+
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/quiz_attempts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({
+        quiz_id: QUIZ_ID,
+        manager_name: managerName,
+        salon: salonName,
+        score: score,
+        total_questions: total,
+        percent: percent,
+        passed_100: passed100,
+        answers: answers
+      })
+    });
+  } catch (err) {
+    console.error("Failed to save quiz attempt", err);
+  }
+
+  localStorage.setItem(storageKey, "1");
+
+  const resultCard = document.getElementById("resultCard");
+  resultCard.style.display = "block";
+  resultCard.className = "card result " + (passed100 ? "win" : "lose");
+  resultCard.innerHTML = passed100
+    ? `<div class="trophy">🏆</div><p class="status-title">Perfect score, ${managerName}!</p>
+       <div class="pct">${percent}%</div>
+       <p class="muted">${score} / ${total} correct — you're a winner this week. Pranav will follow up about your reward.</p>`
+    : `<p class="status-title">Nice try, ${managerName}.</p>
+       <div class="pct">${percent}%</div>
+       <p class="muted">${score} / ${total} correct. Scroll up to see which ones you missed — review the KPI guide and get 100% next Sunday.</p>`;
+
+  document.getElementById("quizForm").scrollIntoView({behavior:"smooth"});
+});
+
+/* ---------- ADMIN RESULTS VIEW ---------- */
+async function renderAdminView(){
+  document.querySelector("header.top").innerHTML =
+    `<h1>📊 Manager Results — ${QUIZ_ID}</h1><p>Live attempts from Supabase.</p>`;
+  document.getElementById("statusCard").style.display = "none";
+  document.getElementById("quizForm").style.display = "none";
+
+  const resultCard = document.getElementById("resultCard");
+  resultCard.style.display = "block";
+  resultCard.innerHTML = "<p>Loading…</p>";
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/quiz_attempts?quiz_id=eq.${QUIZ_ID}&order=submitted_at.desc`,
+      { headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}` } }
+    );
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      resultCard.innerHTML = "<p class='muted'>No attempts yet.</p>";
+      return;
+    }
+    let html = "<table style='width:100%;border-collapse:collapse;'>";
+    html += `<tr style="text-align:left;border-bottom:2px solid var(--line);">
+      <th style="padding:8px 6px;">Manager</th><th style="padding:8px 6px;">Salon</th>
+      <th style="padding:8px 6px;">Score</th><th style="padding:8px 6px;">Time</th></tr>`;
+    rows.forEach(r => {
+      const win = r.passed_100 ? "🏆 " : "";
+      const t = new Date(r.submitted_at).toLocaleString("en-US", {timeZone: TIMEZONE, month:"short", day:"numeric", hour:"numeric", minute:"2-digit"});
+      html += `<tr style="border-bottom:1px solid var(--line);">
+        <td style="padding:8px 6px;">${win}${r.manager_name}</td>
+        <td style="padding:8px 6px;">${r.salon || ""}</td>
+        <td style="padding:8px 6px;">${r.score}/${r.total_questions} (${r.percent}%)</td>
+        <td style="padding:8px 6px;" class="muted">${t}</td></tr>`;
+    });
+    html += "</table>";
+    resultCard.innerHTML = html;
+  } catch (err) {
+    resultCard.innerHTML = "<p class='muted'>Couldn't load results.</p>";
+  }
+}
+
+/* ---------- INIT ---------- */
+const params = new URLSearchParams(window.location.search);
+if (params.get("admin") === "1") {
+  renderAdminView();
+} else {
+  showStatus();
+}
+</script>
+</body>
+</html>

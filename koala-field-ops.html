@@ -653,13 +653,12 @@ function ppeGridHtml(crewNames) {
   if (!crewNames.length) {
     return `<p class="small-note">No crew assigned to this job — edit the job to check off who worked it, so PPE can be tracked per employee.</p>`;
   }
-  return `<div class="ppe-grid"><table><thead><tr><th>Employee</th>${PPE_ITEMS.map(([, l]) => `<th>${l}</th>`).join('')}<th>Issue / why not replaced</th><th>Sig</th></tr></thead><tbody>
+  return `<div class="ppe-grid"><table><thead><tr><th>Employee</th>${PPE_ITEMS.map(([, l]) => `<th>${l}</th>`).join('')}<th>Comments</th></tr></thead><tbody>
     ${crewNames.map((name, i) => `
       <tr>
         <td><b>${esc(name)}</b></td>
         ${PPE_ITEMS.map(([key]) => `<td class="checklist-cell"><select id="ppe_${i}_${key}">${PPE_STATUS_OPTIONS.map(s => `<option value="${s}" ${s === 'ok' ? 'selected' : ''}>${PPE_STATUS_LABEL[s]}</option>`).join('')}</select></td>`).join('')}
-        <td><input id="ppe_${i}_issue_reason" placeholder="if missing/damaged, why?"></td>
-        <td><input id="ppe_${i}_employee_signature" placeholder="initials"></td>
+        <td><input id="ppe_${i}_issue_reason" placeholder="notes, or why missing/damaged"></td>
       </tr>`).join('')}
   </tbody></table></div>`;
 }
@@ -709,7 +708,6 @@ async function completeAudit(id) {
       const row = { job_audit_id: id, employee_name: name };
       PPE_ITEMS.forEach(([key]) => { row[key] = document.getElementById(`ppe_${i}_${key}`).value; });
       row.issue_reason = document.getElementById(`ppe_${i}_issue_reason`).value.trim();
-      row.employee_signature = document.getElementById(`ppe_${i}_employee_signature`).value.trim();
       return row;
     });
     await sbInsert('fo_ppe_checks', ppeRows);

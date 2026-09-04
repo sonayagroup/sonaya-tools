@@ -289,13 +289,23 @@ async function loadHub(){
 function copyToClipboard(text, btnEl){
   const orig = btnEl.textContent;
   const showResult = (ok) => {
-    btnEl.textContent = ok ? "Copied!" : "Couldn't copy";
-    setTimeout(() => { btnEl.textContent = orig; }, 2000);
+    btnEl.textContent = ok ? "Copied!" : "Couldn't copy — link is in the table below";
+    setTimeout(() => { btnEl.textContent = orig; }, 2200);
   };
+  // Try the synchronous legacy method first — it works immediately from a real click
+  // with no permission prompt. Only fall back to the async Clipboard API (with a
+  // timeout guard, since it can hang waiting on a permission prompt) if that fails.
+  if (legacyCopy(text)) {
+    showResult(true);
+    return;
+  }
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => showResult(true)).catch(() => showResult(legacyCopy(text)));
+    Promise.race([
+      navigator.clipboard.writeText(text).then(() => true),
+      new Promise(resolve => setTimeout(() => resolve(false), 1500))
+    ]).then(showResult).catch(() => showResult(false));
   } else {
-    showResult(legacyCopy(text));
+    showResult(false);
   }
 }
 function legacyCopy(text){

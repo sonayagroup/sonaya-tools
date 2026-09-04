@@ -975,10 +975,7 @@ body {
       <button class="nav-link" data-view="hashtags">
         <span class="nav-icon">#</span> Hashtags
       </button>
-      <button class="nav-link" data-view="equipment">
-        <span class="nav-icon">&#128247;</span> Equipment
-      </button>
-      <button class="nav-link" data-view="stores">
+<button class="nav-link" data-view="stores">
         <span class="nav-icon">&#127978;</span> Store Rotation
       </button>
     </div>
@@ -1646,69 +1643,6 @@ function renderHashtags() {
 }
 
 // ── Equipment ──
-function renderEquipment() {
-  const items = filterByBrand(S.equipment);
-  let html = `<div class="view-header"><h1>Equipment</h1>
-    <p class="view-subtitle">Production equipment and gear tracking</p></div>
-    <div class="view-body">`;
-
-  if (items.length === 0) {
-    html += `<div class="empty-state"><div class="empty-state-icon">&#128247;</div>
-      <div class="empty-state-text">No equipment tracked.</div></div>`;
-  } else {
-    // Group by tier
-    const byTier = {};
-    items.forEach(e => {
-      const tier = e.tier || 'Other';
-      if (!byTier[tier]) byTier[tier] = [];
-      byTier[tier].push(e);
-    });
-
-    const tierOrder = ['essential', 'recommended', 'nice-to-have', 'Other'];
-    const tierColors = {
-      essential: { bg: '#f0fdf4', color: '#16a34a', label: 'Essential' },
-      recommended: { bg: 'var(--accent-subtle)', color: 'var(--accent-ink)', label: 'Recommended' },
-      'nice-to-have': { bg: '#fffbeb', color: '#d97706', label: 'Nice to Have' },
-      Other: { bg: 'var(--surface-0)', color: 'var(--ink-2)', label: 'Other' }
-    };
-
-    tierOrder.forEach(tier => {
-      if (!byTier[tier]) return;
-      const tc = tierColors[tier] || tierColors.Other;
-      html += `<div style="margin-bottom:24px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          <h3 style="font-family:Outfit;font-size:16px;font-weight:600;color:var(--ink-1)">${tc.label}</h3>
-          <span class="content-card-badge" style="background:${tc.bg};color:${tc.color}">${byTier[tier].length} items</span>
-        </div>
-        <div class="data-table-wrap"><div style="overflow-x:auto"><table class="data-table"><thead><tr>
-          <th>Item</th><th>Category</th><th>Brand</th><th>Est. Cost</th><th>Owned</th><th>Description</th></tr></thead><tbody>`;
-      byTier[tier].forEach(e => {
-        const br = brandById(e.brand_id);
-        html += `<tr>
-          <td style="font-weight:500;color:var(--ink-1)">${escHtml(e.name)}</td>
-          <td>${escHtml(e.category||'')}</td>
-          <td>${br?br.name:'—'}</td>
-          <td>${e.cost_estimate ? '$'+fmtNum(e.cost_estimate) : '—'}</td>
-          <td>${e.is_owned ? '<span style="color:#16a34a;font-weight:600">Yes</span>' : '<span style="color:var(--ink-3)">No</span>'}</td>
-          <td style="max-width:240px;white-space:normal">${escHtml(e.description||'')}</td></tr>`;
-      });
-      html += `</tbody></table></div></div></div>`;
-    });
-
-    // Total cost summary
-    const totalCost = items.reduce((s, e) => s + (e.cost_estimate || 0), 0);
-    const ownedCost = items.filter(e => e.is_owned).reduce((s, e) => s + (e.cost_estimate || 0), 0);
-    const neededCost = totalCost - ownedCost;
-    html += `<div class="stat-row" style="grid-template-columns:repeat(3,1fr);margin-top:16px">
-      <div class="stat-tile"><div class="stat-label">Total Equipment Value</div><div class="stat-value">$${fmtNum(totalCost)}</div></div>
-      <div class="stat-tile"><div class="stat-label">Already Owned</div><div class="stat-value">$${fmtNum(ownedCost)}</div></div>
-      <div class="stat-tile"><div class="stat-label">Still Needed</div><div class="stat-value">$${fmtNum(neededCost)}</div></div>
-    </div>`;
-  }
-
-  html += `</div>`;
-  document.getElementById('main').innerHTML = html;
-}
 
 // ── Store Rotation ──
 function renderStores() {
@@ -1977,7 +1911,6 @@ function render() {
     case 'team': renderTeam(); break;
     case 'themes': renderThemes(); break;
     case 'hashtags': renderHashtags(); break;
-    case 'equipment': renderEquipment(); break;
     case 'stores': renderStores(); break;
   }
 }

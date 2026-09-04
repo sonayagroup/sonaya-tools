@@ -1,0 +1,2021 @@
+<title>Social Command Center</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap">
+
+<style>
+/* ── Tokens ── */
+:root {
+  --sidebar-bg: #0f172a;
+  --sidebar-border: #1e293b;
+  --sidebar-text: #94a3b8;
+  --sidebar-text-bright: #e2e8f0;
+  --sidebar-hover: rgba(255,255,255,0.04);
+  --sidebar-active: rgba(99,102,241,0.12);
+
+  --surface-0: #eef1f5;
+  --surface-1: #ffffff;
+  --surface-1-hover: #f8fafc;
+  --surface-border: #e2e8f0;
+  --surface-shadow: 0 1px 3px rgba(15,23,42,0.04);
+
+  --ink-1: #0f172a;
+  --ink-2: #475569;
+  --ink-3: #94a3b8;
+
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-subtle: #eef2ff;
+  --accent-ink: #4338ca;
+
+  --brand-dt: #e11d48;
+  --brand-dt-subtle: #fff1f2;
+  --brand-koala: #16a34a;
+  --brand-koala-subtle: #f0fdf4;
+
+  --plat-ig: #E1306C;
+  --plat-tt: #25F4EE;
+  --plat-fb: #1877F2;
+  --plat-yt: #FF0000;
+
+  --st-idea: #94a3b8;
+  --st-draft: #f59e0b;
+  --st-review: #f97316;
+  --st-approved: #22c55e;
+  --st-scheduled: #6366f1;
+  --st-posted: #10b981;
+  --st-rejected: #ef4444;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --chart-surface: #ffffff;
+  --chart-grid: #e2e8f0;
+  --chart-text: #64748b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-0: #0c1121;
+    --surface-1: #162032;
+    --surface-1-hover: #1c2a40;
+    --surface-border: #283548;
+    --surface-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    --ink-1: #f1f5f9;
+    --ink-2: #94a3b8;
+    --ink-3: #64748b;
+    --accent: #818cf8;
+    --accent-hover: #6366f1;
+    --accent-subtle: #1e1b4b;
+    --accent-ink: #a5b4fc;
+    --brand-dt-subtle: #350a18;
+    --brand-koala-subtle: #052e16;
+    --sidebar-bg: #070c17;
+    --sidebar-border: #162032;
+    --chart-surface: #162032;
+    --chart-grid: #283548;
+    --chart-text: #94a3b8;
+  }
+}
+:root[data-theme="dark"] {
+  --surface-0: #0c1121;
+  --surface-1: #162032;
+  --surface-1-hover: #1c2a40;
+  --surface-border: #283548;
+  --surface-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --ink-1: #f1f5f9;
+  --ink-2: #94a3b8;
+  --ink-3: #64748b;
+  --accent: #818cf8;
+  --accent-hover: #6366f1;
+  --accent-subtle: #1e1b4b;
+  --accent-ink: #a5b4fc;
+  --brand-dt-subtle: #350a18;
+  --brand-koala-subtle: #052e16;
+  --sidebar-bg: #070c17;
+  --sidebar-border: #162032;
+  --chart-surface: #162032;
+  --chart-grid: #283548;
+  --chart-text: #94a3b8;
+}
+
+/* ── Base ── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  background: var(--surface-0);
+  color: var(--ink-1);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ── Layout ── */
+#app {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 14px 16px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--sidebar-border); border-radius: 2px; }
+
+.sidebar-header { padding: 0 8px; margin-bottom: 24px; }
+.sidebar-eyebrow {
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.sidebar-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--sidebar-text-bright);
+  line-height: 1.25;
+}
+
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sidebar-text);
+  padding: 0 10px;
+  margin: 20px 0 6px;
+}
+
+.brand-pills {
+  display: flex;
+  gap: 4px;
+  padding: 0 4px;
+}
+.brand-pill {
+  flex: 1;
+  padding: 6px 4px;
+  border: none;
+  background: transparent;
+  color: var(--sidebar-text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+  white-space: nowrap;
+}
+.brand-pill:hover { background: var(--sidebar-hover); color: var(--sidebar-text-bright); }
+.brand-pill.active { background: var(--sidebar-active); color: var(--accent); }
+
+.nav-links { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.nav-link:hover { background: var(--sidebar-hover); color: var(--sidebar-text-bright); }
+.nav-link.active { background: var(--sidebar-active); color: var(--accent); }
+.nav-icon { width: 18px; text-align: center; font-size: 14px; }
+
+.sidebar-spacer { flex: 1; }
+
+.new-post-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin: 0 4px;
+}
+.new-post-btn:hover { background: var(--accent-hover); }
+
+/* ── Main ── */
+#main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.view-header {
+  padding: 28px 32px 0;
+}
+.view-header h1 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink-1);
+  margin-bottom: 4px;
+}
+.view-subtitle { font-size: 14px; color: var(--ink-3); }
+
+.view-body { padding: 20px 32px 40px; flex: 1; }
+
+/* ── Stat Tiles ── */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.stat-tile {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+}
+.stat-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.stat-value {
+  font-family: 'Outfit', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--ink-1);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-sub {
+  font-size: 12px;
+  color: var(--ink-3);
+  margin-top: 4px;
+}
+
+/* ── Calendar ── */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.cal-nav-btn {
+  width: 36px; height: 36px;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-1);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--ink-2);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.cal-nav-btn:hover { background: var(--surface-1-hover); border-color: var(--ink-3); }
+.cal-month-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  min-width: 200px;
+}
+.cal-today-btn {
+  padding: 6px 14px;
+  background: var(--accent-subtle);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cal-today-btn:hover { background: var(--accent); color: #fff; }
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface-border);
+  gap: 1px;
+}
+.cal-dow {
+  background: var(--surface-1);
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cal-day {
+  background: var(--surface-1);
+  min-height: 110px;
+  padding: 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+}
+.cal-day:hover { background: var(--surface-1-hover); }
+.cal-day.outside { opacity: 0.35; }
+.cal-day.today { box-shadow: inset 0 2px 0 var(--accent); }
+.cal-day-num {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.cal-day.today .cal-day-num { color: var(--accent); font-weight: 700; }
+
+.cal-post-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: filter 0.1s;
+  color: var(--ink-1);
+}
+.cal-post-pill:hover { filter: brightness(0.92); }
+.cal-post-pill .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.cal-overflow {
+  font-size: 11px;
+  color: var(--ink-3);
+  padding: 2px 6px;
+  font-weight: 500;
+}
+
+/* ── Pipeline ── */
+.pipeline-board {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  overflow-x: auto;
+}
+.pipeline-col {
+  min-width: 170px;
+  background: var(--surface-0);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  border: 1px solid var(--surface-border);
+}
+.pipeline-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--surface-border);
+}
+.pipeline-col-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.pipeline-col-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  background: var(--surface-1);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.pipeline-card {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: var(--surface-shadow);
+}
+.pipeline-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(99,102,241,0.1);
+}
+.pipeline-card-brand {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 6px;
+}
+.pipeline-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-1);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+.pipeline-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pipeline-card-plat {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.pipeline-card-date {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.pipeline-card .metrics-btn {
+  font-size: 11px;
+  color: var(--accent-ink);
+  background: var(--accent-subtle);
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  font-family: inherit;
+  margin-top: 8px;
+}
+.pipeline-card .metrics-btn:hover { background: var(--accent); color: #fff; }
+
+/* ── Charts ── */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.chart-card {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+}
+.chart-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-1);
+  margin-bottom: 16px;
+}
+
+/* ── Table ── */
+.data-table-wrap {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.data-table-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-1);
+  padding: 16px 20px 12px;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.data-table th {
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--surface-border);
+  background: var(--surface-0);
+}
+.data-table td {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--surface-border);
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--surface-1-hover); }
+
+/* ── Content Cards ── */
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+.content-card {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.content-card:hover { border-color: var(--accent); }
+.content-card-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--surface-border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.content-card-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-1);
+  line-height: 1.3;
+}
+.content-card-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.content-card-body {
+  padding: 16px 20px;
+}
+.content-card-body p {
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.content-card-body p:last-child { margin-bottom: 0; }
+
+/* ── Strategy Sections ── */
+.strategy-section {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.strategy-section-header {
+  padding: 16px 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.1s;
+}
+.strategy-section-header:hover { background: var(--surface-1-hover); }
+.strategy-section-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+.strategy-section-toggle {
+  font-size: 14px;
+  color: var(--ink-3);
+  transition: transform 0.2s;
+}
+.strategy-section-body {
+  padding: 0 20px 16px;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+/* ── Checklist ── */
+.checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.checklist-bullet {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--surface-border);
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Tags ── */
+.tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 2px;
+  background: var(--surface-0);
+  color: var(--ink-2);
+  border: 1px solid var(--surface-border);
+}
+.tag-primary { background: var(--accent-subtle); color: var(--accent-ink); border-color: transparent; }
+
+/* ── Team Card ── */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.team-card {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.team-card-name {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-1);
+}
+.team-card-role {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.team-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── Theme Card ── */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.theme-card {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
+}
+.theme-card.peak { border-left: 3px solid var(--accent); }
+.theme-card-month {
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-1);
+  margin-bottom: 4px;
+}
+.theme-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  margin-bottom: 4px;
+}
+.theme-card-desc {
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+/* ── Tab Bar ── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--surface-border);
+}
+.tab-btn {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.15s;
+}
+.tab-btn:hover { color: var(--ink-1); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* ── Modal ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.modal-panel {
+  background: var(--surface-1);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--surface-border);
+}
+.modal-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink-1);
+}
+.modal-close {
+  width: 32px; height: 32px;
+  border: none;
+  background: var(--surface-0);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--ink-3);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-close:hover { background: var(--surface-border); }
+.modal-body { padding: 20px 24px; }
+.modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--surface-border);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* ── Forms ── */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.form-row.full { grid-template-columns: 1fr; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.form-input, .form-select, .form-textarea {
+  padding: 9px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--ink-1);
+  background: var(--surface-0);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
+}
+.form-textarea { resize: vertical; min-height: 80px; }
+
+.btn {
+  padding: 9px 20px;
+  border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--surface-border); }
+.btn-ghost:hover { background: var(--surface-0); }
+.btn-danger { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.btn-danger:hover { background: #fee2e2; }
+
+/* ── Status Badges ── */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ── Empty State ── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--ink-3);
+}
+.empty-state-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.5; }
+.empty-state-text { font-size: 15px; margin-bottom: 16px; }
+.empty-state .btn { display: inline-flex; }
+
+/* ── Loading ── */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px;
+  color: var(--ink-3);
+  font-size: 15px;
+  gap: 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--surface-border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* ── Responsive ── */
+@media (max-width: 1100px) {
+  .pipeline-board { grid-template-columns: repeat(3, 1fr); }
+  .stat-row { grid-template-columns: repeat(2, 1fr); }
+  .charts-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  #app { grid-template-columns: 1fr; }
+  #sidebar {
+    position: fixed; left: -270px; width: 260px; z-index: 50;
+    transition: left 0.25s;
+  }
+  #sidebar.open { left: 0; }
+  .mobile-header {
+    display: flex !important;
+    align-items: center;
+    padding: 16px 20px;
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--surface-border);
+  }
+  .mobile-toggle {
+    width: 36px; height: 36px; border: 1px solid var(--surface-border);
+    background: var(--surface-1); border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 18px; color: var(--ink-2);
+  }
+  .pipeline-board { grid-template-columns: 1fr 1fr; }
+  .content-grid { grid-template-columns: 1fr; }
+  .team-grid { grid-template-columns: 1fr; }
+  .theme-grid { grid-template-columns: 1fr; }
+}
+.mobile-header { display: none; }
+</style>
+
+<div class="mobile-header">
+  <button class="mobile-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">&#9776;</button>
+  <span style="margin-left:12px;font-family:Outfit;font-weight:700;font-size:16px">Social Command Center</span>
+</div>
+
+<div id="app">
+  <nav id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-eyebrow">Sonaya Group</div>
+      <div class="sidebar-title">Social Command Center</div>
+    </div>
+
+    <div class="sidebar-section-label">Brand</div>
+    <div class="brand-pills" id="brand-pills"></div>
+
+    <div class="sidebar-section-label">Content</div>
+    <div class="nav-links" id="nav-links">
+      <button class="nav-link active" data-view="calendar">
+        <span class="nav-icon">&#128197;</span> Calendar
+      </button>
+      <button class="nav-link" data-view="pipeline">
+        <span class="nav-icon">&#9654;</span> Pipeline
+      </button>
+      <button class="nav-link" data-view="analytics">
+        <span class="nav-icon">&#128202;</span> Analytics
+      </button>
+    </div>
+
+    <div class="sidebar-section-label">Production</div>
+    <div class="nav-links" id="nav-links-prod">
+      <button class="nav-link" data-view="strategy">
+        <span class="nav-icon">&#128218;</span> Strategy
+      </button>
+      <button class="nav-link" data-view="production">
+        <span class="nav-icon">&#127916;</span> Shot Lists & Briefs
+      </button>
+      <button class="nav-link" data-view="themes">
+        <span class="nav-icon">&#127793;</span> Monthly Themes
+      </button>
+    </div>
+
+    <div class="sidebar-section-label">Resources</div>
+    <div class="nav-links" id="nav-links-res">
+      <button class="nav-link" data-view="team">
+        <span class="nav-icon">&#128101;</span> Team
+      </button>
+      <button class="nav-link" data-view="hashtags">
+        <span class="nav-icon">#</span> Hashtags
+      </button>
+      <button class="nav-link" data-view="equipment">
+        <span class="nav-icon">&#128247;</span> Equipment
+      </button>
+      <button class="nav-link" data-view="stores">
+        <span class="nav-icon">&#127978;</span> Store Rotation
+      </button>
+    </div>
+
+    <div class="sidebar-spacer"></div>
+    <button class="new-post-btn" id="new-post-btn">+ New Post</button>
+  </nav>
+
+  <main id="main">
+    <div class="loading"><div class="spinner"></div> Loading&hellip;</div>
+  </main>
+</div>
+
+<div id="modal-overlay" class="modal-overlay" hidden>
+  <div class="modal-panel" id="modal-panel"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SB_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
+const sb = supabase.createClient(SB_URL, SB_KEY);
+
+const S = {
+  view: 'calendar',
+  brandFilter: 'all',
+  calMonth: new Date().getMonth(),
+  calYear: new Date().getFullYear(),
+  brands: [], platforms: [], pillars: [], posts: [], metrics: [], members: [],
+  strategies: [], shotLists: [], briefs: [], themes: [], hashtags: [], equipment: [], stores: []
+};
+
+const STATUS_META = {
+  idea: { label: 'Ideas', color: 'var(--st-idea)' },
+  draft: { label: 'Drafts', color: 'var(--st-draft)' },
+  pending_approval: { label: 'In Review', color: 'var(--st-review)' },
+  approved: { label: 'Approved', color: 'var(--st-approved)' },
+  scheduled: { label: 'Scheduled', color: 'var(--st-scheduled)' },
+  posted: { label: 'Published', color: 'var(--st-posted)' }
+};
+const STATUS_ORDER = ['idea','draft','pending_approval','approved','scheduled','posted'];
+const PLAT_COLORS = { Instagram:'var(--plat-ig)', TikTok:'var(--plat-tt)', Facebook:'var(--plat-fb)', YouTube:'var(--plat-yt)' };
+const PLAT_HEX = { Instagram:'#E1306C', TikTok:'#00C9B1', Facebook:'#1877F2', YouTube:'#FF0000' };
+const MEDIA_TYPES = ['image','video','carousel','reel','story','short','text'];
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// ── Data ──
+async function loadAll() {
+  const [b,p,pl,po,m,t,str,sl,br,th,ht,eq,st] = await Promise.all([
+    sb.from('sm_brands').select('*'),
+    sb.from('sm_platforms').select('*'),
+    sb.from('sm_content_pillars').select('*').order('sort_order', {ascending:true, nullsFirst:false}),
+    sb.from('sm_posts').select('*').order('scheduled_date', {ascending:true, nullsFirst:false}),
+    sb.from('sm_post_metrics').select('*'),
+    sb.from('sm_team_members').select('*'),
+    sb.from('sm_strategies').select('*').order('sort_order', {ascending:true}),
+    sb.from('sm_shot_lists').select('*').order('sort_order', {ascending:true}),
+    sb.from('sm_content_briefs').select('*').order('sort_order', {ascending:true}),
+    sb.from('sm_monthly_themes').select('*').order('year', {ascending:true}).order('month', {ascending:true}),
+    sb.from('sm_hashtags').select('*').order('category', {ascending:true}),
+    sb.from('sm_equipment').select('*').order('tier', {ascending:true}),
+    sb.from('sm_store_locations').select('*').order('store_number', {ascending:true})
+  ]);
+  S.brands = b.data||[]; S.platforms = p.data||[]; S.pillars = pl.data||[];
+  S.posts = po.data||[]; S.metrics = m.data||[]; S.members = t.data||[];
+  S.strategies = str.data||[]; S.shotLists = sl.data||[]; S.briefs = br.data||[];
+  S.themes = th.data||[]; S.hashtags = ht.data||[]; S.equipment = eq.data||[];
+  S.stores = st.data||[];
+}
+
+function brandById(id) { return S.brands.find(b=>b.id===id); }
+function platById(id) { return S.platforms.find(p=>p.id===id); }
+function pillarById(id) { return S.pillars.find(p=>p.id===id); }
+function metricsForPost(pid) { return S.metrics.find(m=>m.post_id===pid); }
+function brandSlug(id) { const b = brandById(id); return b ? b.slug : ''; }
+
+function filteredPosts() {
+  if (S.brandFilter === 'all') return S.posts;
+  return S.posts.filter(p => {
+    const b = brandById(p.brand_id);
+    return b && b.slug === S.brandFilter;
+  });
+}
+function filterByBrand(arr) {
+  if (S.brandFilter === 'all') return arr;
+  return arr.filter(item => {
+    const b = brandById(item.brand_id);
+    return b && b.slug === S.brandFilter;
+  });
+}
+
+// ── Render Sidebar ──
+function renderBrandPills() {
+  const c = document.getElementById('brand-pills');
+  let h = `<button class="brand-pill ${S.brandFilter==='all'?'active':''}" data-brand="all">All</button>`;
+  S.brands.forEach(b => {
+    h += `<button class="brand-pill ${S.brandFilter===b.slug?'active':''}" data-brand="${b.slug}">${b.logo_emoji} ${b.name.split(' ')[0]}</button>`;
+  });
+  c.innerHTML = h;
+}
+
+// ── Calendar ──
+function renderCalendar() {
+  const posts = filteredPosts();
+  const y = S.calYear, m = S.calMonth;
+  const first = new Date(y, m, 1);
+  const last = new Date(y, m+1, 0);
+  const startDow = first.getDay();
+  const daysInMonth = last.getDate();
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+  const byDate = {};
+  posts.forEach(p => {
+    if (p.scheduled_date) {
+      if (!byDate[p.scheduled_date]) byDate[p.scheduled_date] = [];
+      byDate[p.scheduled_date].push(p);
+    }
+  });
+
+  let html = `<div class="view-header"><h1>Content Calendar</h1>
+    <p class="view-subtitle">Plan and schedule content across brands and platforms</p></div>
+    <div class="view-body">
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="cal-prev">&#8249;</button>
+      <span class="cal-month-label">${MONTH_NAMES[m]} ${y}</span>
+      <button class="cal-nav-btn" id="cal-next">&#8250;</button>
+      <button class="cal-today-btn" id="cal-today">Today</button>
+    </div>
+    <div class="cal-grid">`;
+
+  const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  dows.forEach(d => { html += `<div class="cal-dow">${d}</div>`; });
+
+  const prevLast = new Date(y, m, 0).getDate();
+  for (let i = startDow - 1; i >= 0; i--) {
+    html += `<div class="cal-day outside"><div class="cal-day-num">${prevLast - i}</div></div>`;
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dateStr === todayStr;
+    const dayPosts = byDate[dateStr] || [];
+    html += `<div class="cal-day${isToday?' today':''}" data-date="${dateStr}">`;
+    html += `<div class="cal-day-num">${d}</div>`;
+    const show = dayPosts.slice(0, 3);
+    show.forEach(p => {
+      const br = brandById(p.brand_id);
+      const bgColor = br ? (br.slug==='del-taco'?'var(--brand-dt-subtle)':'var(--brand-koala-subtle)') : 'var(--accent-subtle)';
+      const dotColor = br ? br.color : 'var(--accent)';
+      html += `<div class="cal-post-pill" style="background:${bgColor}" data-post-id="${p.id}" title="${escAttr(p.title)}">
+        <span class="dot" style="background:${dotColor}"></span>
+        ${escHtml(p.title.substring(0,18))}
+      </div>`;
+    });
+    if (dayPosts.length > 3) html += `<div class="cal-overflow">+${dayPosts.length-3} more</div>`;
+    html += `</div>`;
+  }
+
+  const totalCells = startDow + daysInMonth;
+  const remaining = (7 - (totalCells % 7)) % 7;
+  for (let i = 1; i <= remaining; i++) {
+    html += `<div class="cal-day outside"><div class="cal-day-num">${i}</div></div>`;
+  }
+
+  html += `</div></div>`;
+  document.getElementById('main').innerHTML = html;
+
+  document.getElementById('cal-prev').onclick = () => { S.calMonth--; if(S.calMonth<0){S.calMonth=11;S.calYear--;} render(); };
+  document.getElementById('cal-next').onclick = () => { S.calMonth++; if(S.calMonth>11){S.calMonth=0;S.calYear++;} render(); };
+  document.getElementById('cal-today').onclick = () => { S.calMonth=today.getMonth(); S.calYear=today.getFullYear(); render(); };
+
+  document.querySelectorAll('.cal-post-pill').forEach(el => {
+    el.onclick = (e) => { e.stopPropagation(); openPostModal(el.dataset.postId); };
+  });
+  document.querySelectorAll('.cal-day:not(.outside)').forEach(el => {
+    el.onclick = () => { openPostModal(null, el.dataset.date); };
+  });
+}
+
+// ── Pipeline ──
+function renderPipeline() {
+  const posts = filteredPosts();
+  let html = `<div class="view-header"><h1>Content Pipeline</h1>
+    <p class="view-subtitle">Track posts through your workflow</p></div>
+    <div class="view-body"><div class="pipeline-board">`;
+
+  STATUS_ORDER.forEach(status => {
+    const meta = STATUS_META[status];
+    const col = posts.filter(p => p.status === status);
+    html += `<div class="pipeline-col">
+      <div class="pipeline-col-header">
+        <span class="pipeline-col-title" style="color:${meta.color}">${meta.label}</span>
+        <span class="pipeline-col-count">${col.length}</span>
+      </div>`;
+
+    if (col.length === 0) {
+      html += `<div style="text-align:center;padding:20px 0;color:var(--ink-3);font-size:12px">No posts</div>`;
+    }
+    col.forEach(p => {
+      const br = brandById(p.brand_id);
+      const pl = platById(p.platform_id);
+      const pil = pillarById(p.content_pillar_id);
+      const brandBg = br ? (br.slug==='del-taco'?'var(--brand-dt-subtle)':'var(--brand-koala-subtle)') : 'var(--accent-subtle)';
+      const brandColor = br ? br.color : 'var(--accent)';
+      html += `<div class="pipeline-card" data-post-id="${p.id}">
+        <span class="pipeline-card-brand" style="background:${brandBg};color:${brandColor}">${br?br.name:'—'}</span>
+        <div class="pipeline-card-title">${escHtml(p.title)}</div>
+        <div class="pipeline-card-meta">
+          <span class="pipeline-card-plat">${pl?pl.name:'—'}</span>
+          ${p.scheduled_date ? `<span class="pipeline-card-date">${fmtDate(p.scheduled_date)}</span>` : ''}
+        </div>
+        ${pil ? `<div style="margin-top:6px;font-size:10px;font-weight:600;color:${pil.color}">${escHtml(pil.name)}</div>` : ''}
+        ${status==='posted' && !metricsForPost(p.id) ? `<button class="metrics-btn" onclick="event.stopPropagation();openMetricsModal('${p.id}')">Log Metrics</button>` : ''}
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  html += `</div></div>`;
+  document.getElementById('main').innerHTML = html;
+
+  document.querySelectorAll('.pipeline-card').forEach(el => {
+    el.onclick = () => openPostModal(el.dataset.postId);
+  });
+}
+
+// ── Analytics ──
+function renderAnalytics() {
+  const posts = filteredPosts();
+  const posted = posts.filter(p => p.status === 'posted');
+  const withMetrics = posted.map(p => ({ ...p, m: metricsForPost(p.id) })).filter(x => x.m);
+
+  const totalPosts = posted.length;
+  const totalReach = withMetrics.reduce((s,x) => s + (x.m.reach||0), 0);
+  const totalFollowers = withMetrics.reduce((s,x) => s + (x.m.followers_gained||0), 0);
+  const avgEngagement = withMetrics.length > 0
+    ? (withMetrics.reduce((s,x) => s + parseFloat(x.m.engagement_rate||0), 0) / withMetrics.length).toFixed(1)
+    : '0.0';
+
+  const platStats = {};
+  S.platforms.forEach(p => { platStats[p.id] = { name:p.name, posts:0, reach:0, engagement:0, count:0 }; });
+  posted.forEach(p => { if(platStats[p.platform_id]) platStats[p.platform_id].posts++; });
+  withMetrics.forEach(x => {
+    if(platStats[x.platform_id]) {
+      platStats[x.platform_id].reach += (x.m.reach||0);
+      platStats[x.platform_id].engagement += parseFloat(x.m.engagement_rate||0);
+      platStats[x.platform_id].count++;
+    }
+  });
+
+  let html = `<div class="view-header"><h1>Analytics</h1>
+    <p class="view-subtitle">Track performance across platforms and brands</p></div>
+    <div class="view-body">`;
+
+  html += `<div class="stat-row">
+    <div class="stat-tile"><div class="stat-label">Published Posts</div><div class="stat-value">${totalPosts}</div>
+      <div class="stat-sub">${posts.filter(p=>p.status==='scheduled').length} scheduled</div></div>
+    <div class="stat-tile"><div class="stat-label">Avg Engagement Rate</div><div class="stat-value">${avgEngagement}%</div>
+      <div class="stat-sub">${withMetrics.length} posts with metrics</div></div>
+    <div class="stat-tile"><div class="stat-label">Total Reach</div><div class="stat-value">${fmtNum(totalReach)}</div>
+      <div class="stat-sub">Across all platforms</div></div>
+    <div class="stat-tile"><div class="stat-label">Followers Gained</div><div class="stat-value">+${fmtNum(totalFollowers)}</div>
+      <div class="stat-sub">Net new followers</div></div>
+  </div>`;
+
+  const platArr = Object.values(platStats);
+  const maxPosts = Math.max(...platArr.map(p=>p.posts), 1);
+  const maxEng = Math.max(...platArr.map(p=> p.count>0 ? p.engagement/p.count : 0), 1);
+
+  html += `<div class="charts-row">`;
+  html += `<div class="chart-card"><div class="chart-title">Posts by Platform</div>${drawBarChart(
+    platArr.map(p => ({ label:p.name, value:p.posts, color: PLAT_HEX[p.name]||'#6366f1' })), maxPosts
+  )}</div>`;
+  html += `<div class="chart-card"><div class="chart-title">Avg Engagement Rate by Platform</div>${drawBarChart(
+    platArr.map(p => ({ label:p.name, value: p.count>0 ? parseFloat((p.engagement/p.count).toFixed(1)) : 0, color: PLAT_HEX[p.name]||'#6366f1' })),
+    Math.max(maxEng, 0.1), '%'
+  )}</div>`;
+  html += `</div>`;
+
+  const sorted = [...withMetrics].sort((a,b) => (b.m.reach||0) - (a.m.reach||0)).slice(0,10);
+  html += `<div class="data-table-wrap"><div class="data-table-title">Top Performing Posts</div>`;
+  if (sorted.length === 0) {
+    html += `<div style="padding:30px;text-align:center;color:var(--ink-3);font-size:14px">No posts with metrics yet. Publish content and log metrics to see performance data.</div>`;
+  } else {
+    html += `<div style="overflow-x:auto"><table class="data-table"><thead><tr>
+      <th>Post</th><th>Brand</th><th>Platform</th><th>Reach</th><th>Eng. Rate</th><th>Likes</th><th>Comments</th><th>Shares</th></tr></thead><tbody>`;
+    sorted.forEach(x => {
+      const br = brandById(x.brand_id);
+      const pl = platById(x.platform_id);
+      html += `<tr>
+        <td style="font-weight:500;color:var(--ink-1)">${escHtml(x.title)}</td>
+        <td>${br?br.name:'—'}</td><td>${pl?pl.name:'—'}</td>
+        <td>${fmtNum(x.m.reach)}</td><td>${x.m.engagement_rate}%</td>
+        <td>${fmtNum(x.m.likes)}</td><td>${fmtNum(x.m.comments)}</td>
+        <td>${fmtNum(x.m.shares)}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+  html += `</div></div>`;
+
+  document.getElementById('main').innerHTML = html;
+}
+
+// ── Strategy ──
+function renderStrategy() {
+  const strats = filterByBrand(S.strategies);
+  const grouped = {};
+  strats.forEach(s => {
+    const br = brandById(s.brand_id);
+    const key = br ? br.id : 'unknown';
+    if (!grouped[key]) grouped[key] = { brand: br, items: [] };
+    grouped[key].items.push(s);
+  });
+
+  let html = `<div class="view-header"><h1>Strategy Reference</h1>
+    <p class="view-subtitle">Content strategies and playbooks for each brand</p></div>
+    <div class="view-body">`;
+
+  const groups = Object.values(grouped);
+  if (groups.length === 0) {
+    html += `<div class="empty-state"><div class="empty-state-icon">&#128218;</div>
+      <div class="empty-state-text">No strategy documents loaded yet.</div></div>`;
+  } else {
+    groups.forEach(g => {
+      const brandColor = g.brand ? g.brand.color : 'var(--accent)';
+      const brandBg = g.brand ? (g.brand.slug==='del-taco'?'var(--brand-dt-subtle)':'var(--brand-koala-subtle)') : 'var(--accent-subtle)';
+      html += `<div style="margin-bottom:28px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <span style="font-size:20px">${g.brand?g.brand.logo_emoji:''}</span>
+          <h2 style="font-family:Outfit;font-size:20px;font-weight:700;color:var(--ink-1)">${escHtml(g.brand?g.brand.name:'Unknown')}</h2>
+          <span class="content-card-badge" style="background:${brandBg};color:${brandColor}">${g.items.length} sections</span>
+        </div>`;
+
+      g.items.forEach((s, idx) => {
+        html += `<div class="strategy-section" data-strat-idx="${idx}">
+          <div class="strategy-section-header" onclick="toggleStrategy(this)">
+            <span class="strategy-section-title">${escHtml(s.title)}</span>
+            <span class="strategy-section-toggle">&#9660;</span>
+          </div>
+          <div class="strategy-section-body" hidden>${escHtml(s.content)}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+  }
+
+  // Content Pillars summary
+  const pillars = filterByBrand(S.pillars);
+  if (pillars.length > 0) {
+    html += `<div style="margin-top:32px">
+      <h2 style="font-family:Outfit;font-size:18px;font-weight:700;color:var(--ink-1);margin-bottom:16px">Content Pillars</h2>
+      <div class="data-table-wrap"><div style="overflow-x:auto"><table class="data-table"><thead><tr>
+        <th>Pillar</th><th>Brand</th><th>Target Mix</th><th>Frequency</th></tr></thead><tbody>`;
+    pillars.forEach(p => {
+      const br = brandById(p.brand_id);
+      html += `<tr>
+        <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color||'var(--accent)'};margin-right:8px;vertical-align:middle"></span>
+        <span style="font-weight:500;color:var(--ink-1)">${escHtml(p.name)}</span></td>
+        <td>${br?br.name:'—'}</td>
+        <td>${p.target_mix||'—'}</td>
+        <td>${p.frequency||'—'}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  }
+
+  html += `</div>`;
+  document.getElementById('main').innerHTML = html;
+}
+
+function toggleStrategy(el) {
+  const body = el.nextElementSibling;
+  const arrow = el.querySelector('.strategy-section-toggle');
+  body.hidden = !body.hidden;
+  arrow.style.transform = body.hidden ? '' : 'rotate(180deg)';
+}
+
+// ── Production (Shot Lists & Briefs) ──
+function renderProduction() {
+  let html = `<div class="view-header"><h1>Shot Lists & Content Briefs</h1>
+    <p class="view-subtitle">Shoot guides, talking points, and content templates</p></div>
+    <div class="view-body">`;
+
+  // Tab bar
+  html += `<div class="tab-bar" id="prod-tabs">
+    <button class="tab-btn active" data-ptab="shotlists">Shot Lists</button>
+    <button class="tab-btn" data-ptab="briefs">Content Briefs</button>
+  </div>`;
+
+  html += `<div id="prod-content"></div></div>`;
+  document.getElementById('main').innerHTML = html;
+
+  document.getElementById('prod-tabs').addEventListener('click', e => {
+    const btn = e.target.closest('.tab-btn');
+    if (!btn) return;
+    document.querySelectorAll('#prod-tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    if (btn.dataset.ptab === 'shotlists') renderShotLists();
+    else renderBriefs();
+  });
+
+  renderShotLists();
+}
+
+function renderShotLists() {
+  const lists = filterByBrand(S.shotLists);
+  const el = document.getElementById('prod-content');
+  if (lists.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">&#127916;</div>
+      <div class="empty-state-text">No shot lists available for this brand.</div></div>`;
+    return;
+  }
+  let html = `<div class="content-grid">`;
+  lists.forEach(sl => {
+    const br = brandById(sl.brand_id);
+    const pil = sl.pillar_id ? pillarById(sl.pillar_id) : null;
+    const brandColor = br ? br.color : 'var(--accent)';
+    const brandBg = br ? (br.slug==='del-taco'?'var(--brand-dt-subtle)':'var(--brand-koala-subtle)') : 'var(--accent-subtle)';
+    const items = Array.isArray(sl.items) ? sl.items : [];
+    html += `<div class="content-card">
+      <div class="content-card-header">
+        <div>
+          <div class="content-card-title">${escHtml(sl.title)}</div>
+          ${sl.session_type ? `<div style="font-size:12px;color:var(--ink-3);margin-top:2px">${escHtml(sl.session_type)}</div>` : ''}
+        </div>
+        <span class="content-card-badge" style="background:${brandBg};color:${brandColor}">${br?br.name:'—'}</span>
+      </div>
+      <div class="content-card-body">
+        ${sl.description ? `<p>${escHtml(sl.description)}</p>` : ''}
+        ${pil ? `<p style="font-size:12px"><strong>Pillar:</strong> ${escHtml(pil.name)}</p>` : ''}`;
+    if (items.length > 0) {
+      html += `<div style="margin-top:8px">`;
+      items.forEach(item => {
+        const label = typeof item === 'string' ? item : (item.title || item.name || item.label || JSON.stringify(item));
+        const desc = typeof item === 'object' && item.description ? item.description : '';
+        html += `<div class="checklist-item">
+          <div class="checklist-bullet"></div>
+          <div><span style="font-weight:500;color:var(--ink-1)">${escHtml(label)}</span>
+          ${desc ? `<div style="font-size:12px;color:var(--ink-3);margin-top:1px">${escHtml(desc)}</div>` : ''}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    html += `</div></div>`;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function renderBriefs() {
+  const briefs = filterByBrand(S.briefs);
+  const el = document.getElementById('prod-content');
+  if (briefs.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">&#128196;</div>
+      <div class="empty-state-text">No content briefs available for this brand.</div></div>`;
+    return;
+  }
+  let html = `<div class="content-grid">`;
+  briefs.forEach(brief => {
+    const br = brandById(brief.brand_id);
+    const pil = brief.pillar_id ? pillarById(brief.pillar_id) : null;
+    const brandColor = br ? br.color : 'var(--accent)';
+    const brandBg = br ? (br.slug==='del-taco'?'var(--brand-dt-subtle)':'var(--brand-koala-subtle)') : 'var(--accent-subtle)';
+    const talkingPts = Array.isArray(brief.talking_points) ? brief.talking_points : [];
+    const platforms = Array.isArray(brief.platforms) ? brief.platforms : [];
+    html += `<div class="content-card">
+      <div class="content-card-header">
+        <div>
+          <div class="content-card-title">${escHtml(brief.title)}</div>
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
+            ${brief.is_template ? `<span class="tag tag-primary">Template</span>` : ''}
+            ${brief.episode_type ? `<span class="tag">${escHtml(brief.episode_type)}</span>` : ''}
+            ${brief.session_type ? `<span class="tag">${escHtml(brief.session_type)}</span>` : ''}
+          </div>
+        </div>
+        <span class="content-card-badge" style="background:${brandBg};color:${brandColor}">${br?br.name:'—'}</span>
+      </div>
+      <div class="content-card-body">`;
+
+    if (brief.hook) {
+      html += `<div style="background:var(--accent-subtle);padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--accent-ink);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:2px">Hook</div>
+        <div style="font-size:13px;color:var(--ink-1);font-weight:500">${escHtml(brief.hook)}</div>
+      </div>`;
+    }
+
+    if (talkingPts.length > 0) {
+      html += `<div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Talking Points</div>`;
+      talkingPts.forEach(tp => {
+        const label = typeof tp === 'string' ? tp : (tp.point || tp.text || JSON.stringify(tp));
+        html += `<div class="checklist-item"><div class="checklist-bullet"></div><span>${escHtml(label)}</span></div>`;
+      });
+      html += `</div>`;
+    }
+
+    if (brief.caption) {
+      html += `<div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px">Caption</div>
+        <p style="font-style:italic">${escHtml(brief.caption)}</p>
+      </div>`;
+    }
+    if (brief.cta) {
+      html += `<div style="margin-bottom:10px">
+        <div style="font-size:11px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px">Call to Action</div>
+        <p style="font-weight:600;color:var(--accent-ink)">${escHtml(brief.cta)}</p>
+      </div>`;
+    }
+    if (platforms.length > 0) {
+      html += `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">`;
+      platforms.forEach(pl => { html += `<span class="tag">${escHtml(pl)}</span>`; });
+      html += `</div>`;
+    }
+    if (pil) {
+      html += `<div style="margin-top:8px;font-size:12px;color:var(--ink-3)">Pillar: <span style="font-weight:500">${escHtml(pil.name)}</span></div>`;
+    }
+
+    html += `</div></div>`;
+  });
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+// ── Team ──
+function renderTeam() {
+  const members = filterByBrand(S.members);
+  // Also include members without brand_id when filtering
+  const allMembers = S.brandFilter === 'all' ? S.members : S.members.filter(m => {
+    if (!m.brand_id) return true;
+    const b = brandById(m.brand_id);
+    return b && b.slug === S.brandFilter;
+  });
+
+  let html = `<div class="view-header"><h1>Team</h1>
+    <p class="view-subtitle">Your content team, roles, and capabilities</p></div>
+    <div class="view-body">`;
+
+  if (allMembers.length === 0) {
+    html += `<div class="empty-state"><div class="empty-state-icon">&#128101;</div>
+      <div class="empty-state-text">No team members loaded.</div></div>`;
+  } else {
+    // Quick stats
+    const spanishSpeakers = allMembers.filter(m => m.speaks_spanish);
+    const onCamera = allMembers.filter(m => m.on_camera);
+    html += `<div class="stat-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+      <div class="stat-tile"><div class="stat-label">Team Members</div><div class="stat-value">${allMembers.length}</div></div>
+      <div class="stat-tile"><div class="stat-label">Spanish Speakers</div><div class="stat-value">${spanishSpeakers.length}</div>
+        <div class="stat-sub">Available for Spanish content</div></div>
+      <div class="stat-tile"><div class="stat-label">On Camera</div><div class="stat-value">${onCamera.length}</div>
+        <div class="stat-sub">Ready to film</div></div>
+    </div>`;
+
+    html += `<div class="team-grid">`;
+    allMembers.forEach(m => {
+      const br = m.brand_id ? brandById(m.brand_id) : null;
+      const brandColor = br ? br.color : 'var(--ink-3)';
+      const brandBg = br ? (br.slug==='del-taco'?'var(--brand-dt-subtle)':'var(--brand-koala-subtle)') : 'var(--surface-0)';
+      html += `<div class="team-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="team-card-name">${escHtml(m.name)}</div>
+            <div class="team-card-role">${escHtml(m.title||m.role||'')}</div>
+          </div>
+          ${br ? `<span class="content-card-badge" style="background:${brandBg};color:${brandColor}">${br.name.split(' ')[0]}</span>` : ''}
+        </div>
+        ${m.bio ? `<p style="font-size:12px;color:var(--ink-3);line-height:1.5">${escHtml(m.bio)}</p>` : ''}
+        <div class="team-card-badges">
+          ${m.speaks_spanish ? `<span class="tag tag-primary">Spanish</span>` : ''}
+          ${m.on_camera ? `<span class="tag" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0">On Camera</span>` : ''}
+          ${m.on_camera === false ? `<span class="tag" style="background:#fef2f2;color:#dc2626;border-color:#fecaca">Off Camera</span>` : ''}
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  html += `</div>`;
+  document.getElementById('main').innerHTML = html;
+}
+
+// ── Monthly Themes ──
+function renderThemes() {
+  const themes = filterByBrand(S.themes);
+  let html = `<div class="view-header"><h1>Monthly Themes</h1>
+    <p class="view-subtitle">Seasonal content themes and posting cadence</p></div>
+    <div class="view-body">`;
+
+  if (themes.length === 0) {
+    html += `<div class="empty-state"><div class="empty-state-icon">&#127793;</div>
+      <div class="empty-state-text">No monthly themes loaded.</div></div>`;
+  } else {
+    // Group by brand
+    const grouped = {};
+    themes.forEach(t => {
+      const key = t.brand_id || 'unknown';
+      if (!grouped[key]) grouped[key] = { brand: brandById(t.brand_id), items: [] };
+      grouped[key].items.push(t);
+    });
+
+    Object.values(grouped).forEach(g => {
+      html += `<div style="margin-bottom:28px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <span style="font-size:20px">${g.brand?g.brand.logo_emoji:''}</span>
+          <h2 style="font-family:Outfit;font-size:20px;font-weight:700;color:var(--ink-1)">${escHtml(g.brand?g.brand.name:'Unknown')}</h2>
+        </div>
+        <div class="theme-grid">`;
+
+      g.items.forEach(t => {
+        html += `<div class="theme-card${t.is_peak?' peak':''}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div class="theme-card-month">${MONTH_NAMES[t.month-1]} ${t.year}</div>
+            ${t.is_peak ? `<span class="tag tag-primary" style="font-size:10px">Peak</span>` : ''}
+          </div>
+          <div class="theme-card-title">${escHtml(t.theme)}</div>
+          ${t.description ? `<div class="theme-card-desc">${escHtml(t.description)}</div>` : ''}
+          ${t.posts_per_week ? `<div style="margin-top:8px;font-size:12px;color:var(--ink-3)">${t.posts_per_week} posts/week</div>` : ''}
+        </div>`;
+      });
+      html += `</div></div>`;
+    });
+  }
+
+  html += `</div>`;
+  document.getElementById('main').innerHTML = html;
+}
+
+// ── Hashtags ──
+function renderHashtags() {
+  const tags = filterByBrand(S.hashtags);
+  let html = `<div class="view-header"><h1>Hashtag Library</h1>
+    <p class="view-subtitle">Curated hashtags organized by category</p></div>
+    <div class="view-body">`;
+
+  if (tags.length === 0) {
+    html += `<div class="empty-state"><div class="empty-state-icon">#</div>
+      <div class="empty-state-text">No hashtags loaded.</div></div>`;
+  } else {
+    // Group by category then brand
+    const byCategory = {};
+    tags.forEach(t => {
+      const cat = t.category || 'Uncategorized';
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(t);
+    });
+
+    Object.entries(byCategory).forEach(([cat, items]) => {
+      html += `<div style="margin-bottom:24px">
+        <h3 style="font-family:Outfit;font-size:16px;font-weight:600;color:var(--ink-1);margin-bottom:12px;text-transform:capitalize">${escHtml(cat)}</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">`;
+      items.forEach(t => {
+        const br = brandById(t.brand_id);
+        const brandColor = br ? br.color : 'var(--accent)';
+        const isPrimary = t.is_primary;
+        html += `<span class="tag${isPrimary?' tag-primary':''}" style="cursor:pointer;${isPrimary?'':`border-color:${brandColor}30`}"
+          onclick="navigator.clipboard.writeText('${escAttr(t.tag)}').then(()=>this.style.transform='scale(1.05)').then(()=>setTimeout(()=>this.style.transform='',200))"
+          title="Click to copy">${escHtml(t.tag)}</span>`;
+      });
+      html += `</div></div>`;
+    });
+
+    html += `<p style="font-size:12px;color:var(--ink-3);margin-top:8px">Click any hashtag to copy it to clipboard</p>`;
+  }
+
+  html += `</div>`;
+  document.getElementById('main').innerHTML = html;
+}
+
+// ── Equipment ──
+function renderEquipment() {
+  const items = filterByBrand(S.equipment);
+  let html = `<div class="view-header"><h1>Equipment</h1>
+    <p class="view-subtitle">Production equipment and gear tracking</p></div>
+    <div class="view-body">`;
+
+  if (items.length === 0) {
+    html += `<div class="empty-state"><div class="empty-state-icon">&#128247;</div>
+      <div class="empty-state-text">No equipment tracked.</div></div>`;
+  } else {
+    // Group by tier
+    const byTier = {};
+    items.forEach(e => {
+      const tier = e.tier || 'Other';
+      if (!byTier[tier]) byTier[tier] = [];
+      byTier[tier].push(e);
+    });
+
+    const tierOrder = ['essential', 'recommended', 'nice-to-have', 'Other'];
+    const tierColors = {
+      essential: { bg: '#f0fdf4', color: '#16a34a', label: 'Essential' },
+      recommended: { bg: 'var(--accent-subtle)', color: 'var(--accent-ink)', label: 'Recommended' },
+      'nice-to-have': { bg: '#fffbeb', color: '#d97706', label: 'Nice to Have' },
+      Other: { bg: 'var(--surface-0)', color: 'var(--ink-2)', label: 'Other' }
+    };
+
+    tierOrder.forEach(tier => {
+      if (!byTier[tier]) return;
+      const tc = tierColors[tier] || tierColors.Other;
+      html += `<div style="margin-bottom:24px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <h3 style="font-family:Outfit;font-size:16px;font-weight:600;color:var(--ink-1)">${tc.label}</h3>
+          <span class="content-card-badge" style="background:${tc.bg};color:${tc.color}">${byTier[tier].length} items</span>
+        </div>
+        <div class="data-table-wrap"><div style="overflow-x:auto"><table class="data-table"><thead><tr>
+          <th>Item</th><th>Category</th><th>Brand</th><th>Est. Cost</th><th>Owned</th><th>Description</th></tr></thead><tbody>`;
+      byTier[tier].forEach(e => {
+        const br = brandById(e.brand_id);
+        html += `<tr>
+          <td style="font-weight:500;color:var(--ink-1)">${escHtml(e.name)}</td>
+          <td>${escHtml(e.category||'')}</td>
+          <td>${br?br.name:'—'}</td>
+          <td>${e.cost_estimate ? '$'+fmtNum(e.cost_estimate) : '—'}</td>
+          <td>${e.is_owned ? '<span style="color:#16a34a;font-weight:600">Yes</span>' : '<span style="color:var(--ink-3)">No</span>'}</td>
+          <td style="max-width:240px;white-space:normal">${escHtml(e.description||'')}</td></tr>`;
+      });
+      html += `</tbody></table></div></div></div>`;
+    });
+
+    // Total cost summary
+    const totalCost = items.reduce((s, e) => s + (e.cost_estimate || 0), 0);
+    const ownedCost = items.filter(e => e.is_owned).reduce((s, e) => s + (e.cost_estimate || 0), 0);
+    const neededCost = totalCost - ownedCost;
+    html += `<div class="stat-row" style="grid-template-columns:repeat(3,1fr);margin-top:16px">
+      <div class="stat-tile"><div class="stat-label">Total Equipment Value</div><div class="stat-value">$${fmtNum(totalCost)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Already Owned</div><div class="stat-value">$${fmtNum(ownedCost)}</div></div>
+      <div class="stat-tile"><div class="stat-label">Still Needed</div><div class="stat-value">$${fmtNum(neededCost)}</div></div>
+    </div>`;
+  }
+
+  html += `</div>`;
+  document.getElementById('main').innerHTML = html;
+}
+
+// ── Store Rotation ──
+function renderStores() {
+  const stores = filterByBrand(S.stores);
+  let html = `<div class="view-header"><h1>Store Rotation</h1>
+    <p class="view-subtitle">Del Taco filming locations and rotation schedule</p></div>
+    <div class="view-body">`;
+
+  if (stores.length === 0) {
+    html += `<div class="empty-state"><div class="empty-state-icon">&#127978;</div>
+      <div class="empty-state-text">No store locations loaded. Store rotation is used for Del Taco content shoots.</div></div>`;
+  } else {
+    html += `<div class="data-table-wrap"><div class="data-table-title">Store Locations</div>
+      <div style="overflow-x:auto"><table class="data-table"><thead><tr>
+        <th>Store #</th><th>Name</th><th>Market</th><th>Video Owner</th><th>Rotation Weeks</th></tr></thead><tbody>`;
+    stores.forEach(s => {
+      const weeks = Array.isArray(s.rotation_weeks) ? s.rotation_weeks.join(', ') : (s.rotation_weeks||'—');
+      html += `<tr>
+        <td style="font-weight:600;color:var(--ink-1)">#${s.store_number||''}</td>
+        <td>${escHtml(s.name)}</td>
+        <td><span class="tag">${escHtml(s.market||'')}</span></td>
+        <td>${escHtml(s.video_owner||'—')}</td>
+        <td style="font-variant-numeric:tabular-nums">${weeks}</td></tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+
+    // Market summary
+    const markets = {};
+    stores.forEach(s => {
+      const m = s.market || 'Unknown';
+      if (!markets[m]) markets[m] = 0;
+      markets[m]++;
+    });
+    html += `<div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap">`;
+    Object.entries(markets).forEach(([m, count]) => {
+      html += `<div class="stat-tile" style="flex:1;min-width:140px"><div class="stat-label">${escHtml(m)}</div><div class="stat-value">${count}</div>
+        <div class="stat-sub">stores</div></div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  document.getElementById('main').innerHTML = html;
+}
+
+// ── Bar Chart ──
+function drawBarChart(data, maxVal, suffix='') {
+  const W = 500, H = 200, pad = {t:10, r:20, b:40, l:10};
+  const cw = W-pad.l-pad.r, ch = H-pad.t-pad.b;
+  const barW = Math.min(60, (cw / data.length) * 0.6);
+  const gap = (cw - barW * data.length) / (data.length + 1);
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block">`;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + ch - (ch * i / 4);
+    svg += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="var(--chart-grid)" stroke-width="1"/>`;
+  }
+  data.forEach((d, i) => {
+    const x = pad.l + gap + i * (barW + gap);
+    const barH = maxVal > 0 ? (d.value / maxVal) * ch : 0;
+    const y = pad.t + ch - barH;
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="3" fill="${d.color}" opacity="0.85"/>`;
+    svg += `<text x="${x+barW/2}" y="${y-6}" text-anchor="middle" fill="var(--chart-text)" font-size="11" font-weight="600" font-family="DM Sans,sans-serif">${d.value}${suffix}</text>`;
+    svg += `<text x="${x+barW/2}" y="${H-pad.b+18}" text-anchor="middle" fill="var(--chart-text)" font-size="11" font-family="DM Sans,sans-serif">${d.label}</text>`;
+  });
+  svg += `</svg>`;
+  return svg;
+}
+
+// ── Modals ──
+function openPostModal(postId, prefillDate) {
+  const post = postId ? S.posts.find(p=>p.id===postId) : null;
+  const isEdit = !!post;
+  const panel = document.getElementById('modal-panel');
+
+  let html = `<div class="modal-header">
+    <span class="modal-title">${isEdit?'Edit Post':'New Post'}</span>
+    <button class="modal-close" onclick="closeModal()">&#10005;</button>
+  </div><div class="modal-body"><form id="post-form">`;
+
+  html += `<div class="form-row">
+    <div class="form-group"><label class="form-label">Brand</label>
+      <select class="form-select" name="brand_id" required id="post-brand">
+        ${S.brands.map(b=>`<option value="${b.id}" ${post&&post.brand_id===b.id?'selected':''}>${b.logo_emoji} ${b.name}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label class="form-label">Platform</label>
+      <select class="form-select" name="platform_id" required>
+        ${S.platforms.map(p=>`<option value="${p.id}" ${post&&post.platform_id===p.id?'selected':''}>${p.name}</option>`).join('')}
+      </select></div></div>`;
+
+  const brandId = post ? post.brand_id : (S.brands[0]?.id||'');
+  const pillarsForBrand = S.pillars.filter(p => p.brand_id === brandId);
+  html += `<div class="form-row">
+    <div class="form-group"><label class="form-label">Content Pillar</label>
+      <select class="form-select" name="content_pillar_id" id="post-pillar">
+        <option value="">— None —</option>
+        ${pillarsForBrand.map(p=>`<option value="${p.id}" ${post&&post.content_pillar_id===p.id?'selected':''}>${p.name}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label class="form-label">Media Type</label>
+      <select class="form-select" name="media_type">
+        <option value="">— None —</option>
+        ${MEDIA_TYPES.map(t=>`<option value="${t}" ${post&&post.media_type===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}
+      </select></div></div>`;
+
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Title</label>
+    <input class="form-input" name="title" required value="${escAttr(post?.title||'')}" placeholder="Post title"></div></div>`;
+
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Caption</label>
+    <textarea class="form-textarea" name="caption" placeholder="Write your caption...">${escHtml(post?.caption||'')}</textarea></div></div>`;
+
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Hashtags</label>
+    <input class="form-input" name="hashtags" value="${escAttr(post?.hashtags||'')}" placeholder="#hashtag1 #hashtag2"></div></div>`;
+
+  html += `<div class="form-row">
+    <div class="form-group"><label class="form-label">Scheduled Date</label>
+      <input class="form-input" type="date" name="scheduled_date" value="${post?.scheduled_date||prefillDate||''}"></div>
+    <div class="form-group"><label class="form-label">Scheduled Time</label>
+      <input class="form-input" type="time" name="scheduled_time" value="${post?.scheduled_time||'09:00'}"></div></div>`;
+
+  html += `<div class="form-row">
+    <div class="form-group"><label class="form-label">Status</label>
+      <select class="form-select" name="status">
+        ${STATUS_ORDER.map(s=>`<option value="${s}" ${post&&post.status===s?'selected':(!post&&s==='idea'?'selected':'')}>${STATUS_META[s].label}</option>`).join('')}
+        <option value="rejected" ${post&&post.status==='rejected'?'selected':''}>Rejected</option>
+      </select></div>
+    <div class="form-group"><label class="form-label">Assigned To</label>
+      <select class="form-select" name="created_by">
+        <option value="">— None —</option>
+        ${S.members.map(m=>`<option value="${m.id}" ${post&&post.created_by===m.id?'selected':''}>${m.name}</option>`).join('')}
+      </select></div></div>`;
+
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Notes</label>
+    <textarea class="form-textarea" name="notes" placeholder="Internal notes...">${escHtml(post?.notes||'')}</textarea></div></div>`;
+
+  html += `</form></div>
+  <div class="modal-footer">
+    ${isEdit ? `<button class="btn btn-danger" onclick="deletePost('${post.id}')">Delete</button><div style="flex:1"></div>` : ''}
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="savePost('${post?.id||''}')">${isEdit?'Update':'Create'} Post</button>
+  </div>`;
+
+  panel.innerHTML = html;
+  document.getElementById('modal-overlay').hidden = false;
+
+  document.getElementById('post-brand').onchange = function() {
+    const sel = document.getElementById('post-pillar');
+    const pils = S.pillars.filter(p => p.brand_id === this.value);
+    sel.innerHTML = `<option value="">— None —</option>` + pils.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  };
+}
+
+function openMetricsModal(postId) {
+  const post = S.posts.find(p=>p.id===postId);
+  if(!post) return;
+  const existing = metricsForPost(postId);
+  const br = brandById(post.brand_id);
+  const pl = platById(post.platform_id);
+  const panel = document.getElementById('modal-panel');
+
+  const fields = [
+    ['reach','Reach'],['impressions','Impressions'],['likes','Likes'],['comments','Comments'],
+    ['shares','Shares'],['saves','Saves'],['clicks','Link Clicks'],['video_views','Video Views'],['followers_gained','Followers Gained']
+  ];
+
+  let html = `<div class="modal-header">
+    <span class="modal-title">Log Metrics</span>
+    <button class="modal-close" onclick="closeModal()">&#10005;</button>
+  </div><div class="modal-body">
+  <div style="margin-bottom:16px;padding:12px;background:var(--surface-0);border-radius:var(--radius-sm)">
+    <div style="font-weight:600;color:var(--ink-1);margin-bottom:2px">${escHtml(post.title)}</div>
+    <div style="font-size:13px;color:var(--ink-3)">${br?br.name:'—'} · ${pl?pl.name:'—'}${post.scheduled_date ? ' · '+fmtDate(post.scheduled_date) : ''}</div>
+  </div>
+  <form id="metrics-form">`;
+
+  for (let i = 0; i < fields.length; i += 2) {
+    html += `<div class="form-row">`;
+    for (let j = i; j < Math.min(i+2, fields.length); j++) {
+      const [key, label] = fields[j];
+      const val = existing ? (existing[key]||0) : '';
+      html += `<div class="form-group"><label class="form-label">${label}</label>
+        <input class="form-input" type="number" name="${key}" value="${val}" min="0" placeholder="0"></div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `</form></div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveMetrics('${postId}', ${existing?'true':'false'})">${existing?'Update':'Save'} Metrics</button>
+  </div>`;
+
+  panel.innerHTML = html;
+  document.getElementById('modal-overlay').hidden = false;
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').hidden = true;
+}
+
+// ── CRUD ──
+async function savePost(existingId) {
+  const form = document.getElementById('post-form');
+  const fd = new FormData(form);
+  const data = {};
+  ['brand_id','platform_id','content_pillar_id','created_by','title','caption','hashtags','media_type','status','scheduled_date','scheduled_time','notes'].forEach(k => {
+    const v = fd.get(k);
+    data[k] = v === '' ? null : v;
+  });
+
+  if (!data.title) { alert('Title is required'); return; }
+
+  if (data.status === 'posted' && !data.posted_at) {
+    data.posted_at = new Date().toISOString();
+  }
+
+  try {
+    if (existingId) {
+      await sb.from('sm_posts').update(data).eq('id', existingId);
+    } else {
+      await sb.from('sm_posts').insert(data);
+    }
+    closeModal();
+    await loadAll();
+    render();
+  } catch(e) { alert('Error saving: ' + e.message); }
+}
+
+async function deletePost(id) {
+  if (!confirm('Delete this post?')) return;
+  await sb.from('sm_post_metrics').delete().eq('post_id', id);
+  await sb.from('sm_posts').delete().eq('id', id);
+  closeModal();
+  await loadAll();
+  render();
+}
+
+async function saveMetrics(postId, isUpdate) {
+  const form = document.getElementById('metrics-form');
+  const fd = new FormData(form);
+  const data = { post_id: postId };
+  ['reach','impressions','likes','comments','shares','saves','clicks','video_views','followers_gained'].forEach(k => {
+    data[k] = parseInt(fd.get(k)) || 0;
+  });
+
+  try {
+    if (isUpdate) {
+      await sb.from('sm_post_metrics').update(data).eq('post_id', postId);
+    } else {
+      await sb.from('sm_post_metrics').insert(data);
+    }
+    closeModal();
+    await loadAll();
+    render();
+  } catch(e) { alert('Error saving metrics: ' + e.message); }
+}
+
+// ── Render ──
+function render() {
+  renderBrandPills();
+  switch(S.view) {
+    case 'calendar': renderCalendar(); break;
+    case 'pipeline': renderPipeline(); break;
+    case 'analytics': renderAnalytics(); break;
+    case 'strategy': renderStrategy(); break;
+    case 'production': renderProduction(); break;
+    case 'team': renderTeam(); break;
+    case 'themes': renderThemes(); break;
+    case 'hashtags': renderHashtags(); break;
+    case 'equipment': renderEquipment(); break;
+    case 'stores': renderStores(); break;
+  }
+}
+
+// ── Utils ──
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+function escAttr(s) { return (s||'').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+function fmtDate(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+}
+function fmtNum(n) {
+  if (n == null) return '0';
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+  return String(n);
+}
+
+// ── Events ──
+document.querySelectorAll('.nav-links').forEach(container => {
+  container.addEventListener('click', e => {
+    const btn = e.target.closest('.nav-link');
+    if (!btn) return;
+    document.querySelectorAll('.nav-link').forEach(n=>n.classList.remove('active'));
+    btn.classList.add('active');
+    S.view = btn.dataset.view;
+    render();
+  });
+});
+
+document.getElementById('brand-pills').addEventListener('click', e => {
+  const btn = e.target.closest('.brand-pill');
+  if (!btn) return;
+  S.brandFilter = btn.dataset.brand;
+  render();
+});
+
+document.getElementById('new-post-btn').addEventListener('click', () => openPostModal(null));
+
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+// ── Init ──
+(async () => {
+  await loadAll();
+  render();
+})();
+</script>

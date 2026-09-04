@@ -1643,10 +1643,10 @@ function renderCalendarMonth() {
     html += `<div class="cal-day-num-row"><div class="cal-day-num">${d}</div>${dayPosts.length ? `<span class="cal-day-count">${dayPosts.length}</span>` : ''}</div>`;
     const show = dayPosts.slice(0, 4);
     show.forEach(p => {
-      const pl = platById(p.platform_id);
-      const dotColor = pl ? (PLAT_HEX[pl.name]||'#6366f1') : '#6366f1';
+      const pids = p.platform_ids || (p.platform_id ? [p.platform_id] : []);
+      const plats = pids.map(id=>platById(id)).filter(Boolean);
       html += `<div class="cal-post-row" data-post-id="${p.id}" title="${escAttr(p.title)}">
-        <span class="cal-plat-dot" style="background:${dotColor}"></span>
+        ${plats.length ? plats.map(pl=>`<span class="cal-plat-dot" style="background:${PLAT_HEX[pl.name]||'#6366f1'}"></span>`).join('') : `<span class="cal-plat-dot" style="background:#6366f1"></span>`}
         ${escHtml(p.title.substring(0,16))}
       </div>`;
     });
@@ -1706,13 +1706,14 @@ function renderCalendarWeek() {
     } else {
       dayPosts.forEach(p => {
         const br = brandById(p.brand_id);
-        const pl = platById(p.platform_id);
+        const pids = p.platform_ids || (p.platform_id ? [p.platform_id] : []);
+        const plats = pids.map(id=>platById(id)).filter(Boolean);
         const meta = STATUS_META[p.status] || { label: p.status, color: 'var(--ink-3)' };
         html += `<div class="week-card" data-post-id="${p.id}">
           ${p.scheduled_time ? `<div class="week-card-time">${fmtTime(p.scheduled_time)}</div>` : ''}
           <div class="week-card-title">${escHtml(p.title)}</div>
           <div class="week-card-badges">
-            ${pl ? `<span class="week-card-plat" style="background:${PLAT_HEX[pl.name]||'#6366f1'}" title="${escAttr(pl.name)}"></span>` : ''}
+            ${plats.length ? plats.map(pl=>`<span class="week-card-plat" style="background:${PLAT_HEX[pl.name]||'#6366f1'}" title="${escAttr(pl.name)}"></span>`).join('') : ''}
             ${br ? `<span style="font-size:10px;color:var(--ink-3)">${escHtml(br.name.split(' ')[0])}</span>` : ''}
             <span class="week-card-status" style="background:${meta.color};color:#fff;margin-left:auto">${meta.label}</span>
           </div>
@@ -1763,7 +1764,8 @@ function renderCalendarList() {
     html += `</tr></thead><tbody>`;
     upcoming.forEach(p => {
       const br = brandById(p.brand_id);
-      const pl = platById(p.platform_id);
+      const pids = p.platform_ids || (p.platform_id ? [p.platform_id] : []);
+      const plats = pids.map(id=>platById(id)).filter(Boolean);
       const pil = pillarById(p.content_pillar_id);
       const meta = STATUS_META[p.status] || { label: p.status, color: 'var(--ink-3)' };
       html += `<tr class="list-row" data-post-id="${p.id}" style="cursor:pointer">
@@ -1771,7 +1773,7 @@ function renderCalendarList() {
         <td>${p.scheduled_time?fmtTime(p.scheduled_time):'—'}</td>
         <td style="font-weight:500;color:var(--ink-1)">${escHtml(p.title)}</td>
         <td>${br?escHtml(br.name):'—'}</td>
-        <td>${pl ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PLAT_HEX[pl.name]||'#6366f1'};margin-right:6px;vertical-align:middle"></span>${escHtml(pl.name)}` : '—'}</td>
+        <td>${plats.length ? plats.map(pl=>`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PLAT_HEX[pl.name]||'#6366f1'};margin-right:4px;vertical-align:middle"></span>`).join('')+plats.map(pl=>escHtml(pl.name)).join(', ') : '—'}</td>
         <td>${pil?escHtml(pil.name):'—'}</td>
         <td><span class="status-badge" style="background:${meta.color};color:#fff">${meta.label}</span></td>
       </tr>`;
@@ -1813,10 +1815,10 @@ function renderPipeline() {
     }
     col.forEach(p => {
       const br = brandById(p.brand_id);
-      const pl = platById(p.platform_id);
+      const pids = p.platform_ids || (p.platform_id ? [p.platform_id] : []);
+      const plats = pids.map(id=>platById(id)).filter(Boolean);
       const pil = pillarById(p.content_pillar_id);
       const brandColor = br ? br.color : 'var(--accent)';
-      const platColor = pl ? (PLAT_HEX[pl.name]||'#6366f1') : '#94a3b8';
       html += `<div class="pipeline-card" data-post-id="${p.id}">
         <div class="pipeline-card-top">
           <span class="pipeline-card-brand" style="background:${brandBg(br)};color:${brandColor}">${br?br.name:'—'}</span>
@@ -1828,7 +1830,7 @@ function renderPipeline() {
           ${escHtml(p.title)}
         </div>
         <div class="pipeline-card-meta">
-          ${pl ? `<span class="pipeline-plat-dot" style="background:${platColor}" title="${escAttr(pl.name)}"></span><span style="font-size:11px;color:var(--ink-3)">${escHtml(pl.name)}</span>` : ''}
+          ${plats.length ? plats.map(pl=>`<span class="pipeline-plat-dot" style="background:${PLAT_HEX[pl.name]||'#6366f1'}" title="${escAttr(pl.name)}"></span>`).join('')+`<span style="font-size:11px;color:var(--ink-3)">${plats.map(pl=>pl.name).join(', ')}</span>` : ''}
           ${p.scheduled_date ? `<span class="pipeline-card-date">${fmtDate(p.scheduled_date)}</span>` : ''}
         </div>
         ${status==='posted' && !metricsForPost(p.id) ? `<button class="metrics-btn" onclick="event.stopPropagation();openMetricsModal('${p.id}')">Log Metrics</button>` : ''}
@@ -1884,13 +1886,19 @@ function renderAnalytics() {
   // Platform comparison + content type donut
   const platStats = {};
   S.platforms.forEach(p => { platStats[p.id] = { name:p.name, posts:0, reach:0, engagement:0, count:0 }; });
-  posted.forEach(p => { if(platStats[p.platform_id]) platStats[p.platform_id].posts++; });
+  posted.forEach(p => {
+    const pids = p.platform_ids || (p.platform_id ? [p.platform_id] : []);
+    pids.forEach(pid => { if(platStats[pid]) platStats[pid].posts++; });
+  });
   withMetrics.forEach(x => {
-    if(platStats[x.platform_id]) {
-      platStats[x.platform_id].reach += (x.m.reach||0);
-      platStats[x.platform_id].engagement += parseFloat(x.m.engagement_rate||0);
-      platStats[x.platform_id].count++;
-    }
+    const xpids = x.platform_ids || (x.platform_id ? [x.platform_id] : []);
+    xpids.forEach(pid => {
+      if(platStats[pid]) {
+        platStats[pid].reach += (x.m.reach||0);
+        platStats[pid].engagement += parseFloat(x.m.engagement_rate||0);
+        platStats[pid].count++;
+      }
+    });
   });
   const platArr = Object.values(platStats);
 
@@ -1921,12 +1929,13 @@ function renderAnalytics() {
       <th>#</th><th>Post</th><th>Brand</th><th>Platform</th><th>Reach</th><th>Eng. Rate</th><th>Likes</th><th>Comments</th><th>Shares</th></tr></thead><tbody>`;
     sorted.forEach((x,i) => {
       const br = brandById(x.brand_id);
-      const pl = platById(x.platform_id);
+      const xpids = x.platform_ids || (x.platform_id ? [x.platform_id] : []);
+      const xplats = xpids.map(id=>platById(id)).filter(Boolean);
       html += `<tr>
         <td><span class="rank-badge">${i+1}</span></td>
         <td style="font-weight:500;color:var(--ink-1)">${escHtml(x.title)}</td>
         <td>${br?br.name:'—'}</td>
-        <td>${pl ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PLAT_HEX[pl.name]||'#6366f1'};margin-right:6px;vertical-align:middle"></span>${pl.name}` : '—'}</td>
+        <td>${xplats.length ? xplats.map(pl=>`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PLAT_HEX[pl.name]||'#6366f1'};margin-right:4px;vertical-align:middle"></span>`).join('')+xplats.map(pl=>pl.name).join(', ') : '—'}</td>
         <td>${fmtNum(x.m.reach)}</td><td>${x.m.engagement_rate}%</td>
         <td>${fmtNum(x.m.likes)}</td><td>${fmtNum(x.m.comments)}</td>
         <td>${fmtNum(x.m.shares)}</td></tr>`;
@@ -2770,7 +2779,8 @@ function renderTeam() {
 function renderThemes() {
   const themes = filterByBrand(S.themes);
   let html = `<div class="view-header"><h1>Monthly Themes</h1>
-    <p class="view-subtitle">Seasonal content themes and posting cadence</p></div>
+    <p class="view-subtitle">Seasonal content themes and posting cadence</p>
+    <button class="btn btn-primary" onclick="openThemeModal()" style="margin-left:auto">+ Add Theme</button></div>
     <div class="view-body">`;
 
   if (themes.length === 0) {
@@ -2792,10 +2802,14 @@ function renderThemes() {
         <div class="theme-grid">`;
 
       g.items.forEach(t => {
-        html += `<div class="theme-card${t.is_peak?' peak':''}">
+        html += `<div class="theme-card${t.is_peak?' peak':''}" style="position:relative">
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div class="theme-card-month">${MONTH_NAMES[t.month-1]} ${t.year}</div>
-            ${t.is_peak ? `<span class="tag tag-primary" style="font-size:10px">Peak</span>` : ''}
+            <div style="display:flex;gap:4px;align-items:center">
+              ${t.is_peak ? `<span class="tag tag-primary" style="font-size:10px">Peak</span>` : ''}
+              <button onclick="event.stopPropagation();openThemeModal('${t.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--ink-3);padding:2px 4px" title="Edit">&#9998;</button>
+              <button onclick="event.stopPropagation();deleteTheme('${t.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--ink-3);padding:2px 4px" title="Delete">&#128465;</button>
+            </div>
           </div>
           <div class="theme-card-title">${escHtml(t.theme)}</div>
           ${t.description ? `<div class="theme-card-desc">${escHtml(t.description)}</div>` : ''}
@@ -2808,6 +2822,90 @@ function renderThemes() {
 
   html += `</div>`;
   document.getElementById('main-view').innerHTML = html;
+}
+
+function openThemeModal(themeId) {
+  const theme = themeId ? S.themes.find(t=>t.id===themeId) : null;
+  const isEdit = !!theme;
+  const panel = document.getElementById('modal-panel');
+  panel.classList.remove('wide');
+  const curMonth = theme ? theme.month : new Date().getMonth()+1;
+  const curYear = theme ? theme.year : new Date().getFullYear();
+
+  let html = `<div class="modal-header">
+    <span class="modal-title">${isEdit?'Edit':'New'} Monthly Theme</span>
+    <button class="modal-close" onclick="closeModal()">&#10005;</button>
+  </div><div class="modal-body"><form id="theme-form">`;
+
+  html += `<div class="form-row two-col">
+    <div class="form-group"><label class="form-label">Brand</label>
+      <select class="form-select" name="brand_id" required>
+        ${S.brands.map(b=>`<option value="${b.id}" ${theme&&theme.brand_id===b.id?'selected':''}>${b.logo_emoji} ${b.name}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label class="form-label">Month</label>
+      <select class="form-select" name="month" required>
+        ${MONTH_NAMES.map((m,i)=>`<option value="${i+1}" ${curMonth===i+1?'selected':''}>${m}</option>`).join('')}
+      </select></div></div>`;
+
+  html += `<div class="form-row two-col">
+    <div class="form-group"><label class="form-label">Year</label>
+      <input class="form-input" type="number" name="year" value="${curYear}" min="2024" max="2030" required></div>
+    <div class="form-group"><label class="form-label">Posts Per Week</label>
+      <input class="form-input" type="number" name="posts_per_week" value="${theme?.posts_per_week||''}" min="1" max="30" placeholder="e.g. 5"></div></div>`;
+
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Theme Name</label>
+    <input class="form-input" name="theme" required value="${escAttr(theme?.theme||'')}" placeholder="e.g. Summer Kickoff"></div></div>`;
+
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Description</label>
+    <textarea class="form-textarea" name="description" placeholder="Theme description and goals...">${escHtml(theme?.description||'')}</textarea></div></div>`;
+
+  html += `<div class="form-row full"><div class="form-group">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+      <input type="checkbox" name="is_peak" ${theme&&theme.is_peak?'checked':''} style="accent-color:var(--accent)"> Mark as Peak Season
+    </label></div></div>`;
+
+  html += `</form></div>
+  <div class="modal-footer">
+    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveTheme('${theme?.id||''}')">${isEdit?'Update':'Create'} Theme</button>
+  </div>`;
+
+  panel.innerHTML = html;
+  document.getElementById('modal-overlay').hidden = false;
+}
+
+async function saveTheme(existingId) {
+  const form = document.getElementById('theme-form');
+  const fd = new FormData(form);
+  const data = {
+    brand_id: fd.get('brand_id'),
+    month: parseInt(fd.get('month')),
+    year: parseInt(fd.get('year')),
+    theme: fd.get('theme'),
+    description: fd.get('description') || null,
+    posts_per_week: fd.get('posts_per_week') ? parseInt(fd.get('posts_per_week')) : null,
+    is_peak: form.querySelector('[name=is_peak]').checked
+  };
+  if (!data.theme) { alert('Theme name is required'); return; }
+  try {
+    if (existingId) {
+      await sb.from('sm_monthly_themes').update(data).eq('id', existingId);
+    } else {
+      await sb.from('sm_monthly_themes').insert(data);
+    }
+    closeModal();
+    await loadAll();
+    render();
+  } catch(e) { alert('Error saving theme: ' + e.message); }
+}
+
+async function deleteTheme(themeId) {
+  if (!confirm('Delete this monthly theme?')) return;
+  try {
+    await sb.from('sm_monthly_themes').delete().eq('id', themeId);
+    await loadAll();
+    render();
+  } catch(e) { alert('Error deleting theme: ' + e.message); }
 }
 
 // ── Hashtags ──
@@ -2853,11 +2951,11 @@ function renderHashtags() {
 function renderStores() {
   const stores = filterByBrand(S.stores);
   let html = `<div class="view-header"><h1>Store Rotation</h1>
-    <p class="view-subtitle">Del Taco filming locations and rotation schedule</p></div>
+    <p class="view-subtitle">Filming locations and rotation schedule</p></div>
     <div class="view-body">`;
 
   if (stores.length === 0) {
-    html += emptyState('&#127978;', 'No store locations loaded. Store rotation is used for Del Taco content shoots.');
+    html += emptyState('&#127978;', 'No store locations loaded. Store rotation is used for content shoots.');
   } else {
     html += `<div class="data-table-wrap"><div class="data-table-title">Store Locations</div>
       <div style="overflow-x:auto"><table class="data-table"><thead><tr>
@@ -2916,10 +3014,17 @@ function openPostModal(postId, prefillDate, isQuickIdea) {
       <select class="form-select" name="brand_id" required id="post-brand">
         ${S.brands.map(b=>`<option value="${b.id}" ${post&&post.brand_id===b.id?'selected':''}>${b.logo_emoji} ${b.name}</option>`).join('')}
       </select></div>
-    <div class="form-group"><label class="form-label">Platform</label>
-      <select class="form-select" name="platform_id" required>
-        ${S.platforms.map(p=>`<option value="${p.id}" ${post&&post.platform_id===p.id?'selected':''}>${p.name}</option>`).join('')}
-      </select></div></div>`;
+    <div class="form-group"><label class="form-label">Platforms</label>
+      <div class="platform-checks" style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0">
+        ${S.platforms.map(p=>{
+          const checked = post ? (post.platform_ids||[]).includes(p.id) || post.platform_id===p.id : false;
+          return `<label class="platform-check-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 12px;border-radius:var(--radius-sm);border:1px solid var(--border-1);background:var(--surface-0);transition:all .15s">
+            <input type="checkbox" name="platform_ids" value="${p.id}" ${checked?'checked':''} style="accent-color:var(--accent)">
+            <span class="plat-dot-mini" style="width:8px;height:8px;border-radius:50%;background:${PLAT_HEX[p.name]||'#6366f1'}"></span>
+            ${escHtml(p.name)}
+          </label>`;
+        }).join('')}
+      </div></div></div>`;
 
   const brandId = post ? post.brand_id : (S.brands[0]?.id||'');
   const pillarsForBrand = S.pillars.filter(p => p.brand_id === brandId);
@@ -2971,6 +3076,17 @@ function openPostModal(postId, prefillDate, isQuickIdea) {
         <option value="">— None —</option>
         ${S.members.map(m=>`<option value="${m.id}" ${post&&post.created_by===m.id?'selected':''}>${m.name}</option>`).join('')}
       </select></div></div>`;
+
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Crew / Team Members</label>
+    <div class="crew-checks" style="display:flex;flex-wrap:wrap;gap:8px;padding:6px 0">
+      ${S.members.map(m=>{
+        const checked = post && Array.isArray(post.crew_members) && post.crew_members.includes(m.id);
+        return `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 12px;border-radius:var(--radius-sm);border:1px solid var(--border-1);background:var(--surface-0)">
+          <input type="checkbox" name="crew_members" value="${m.id}" ${checked?'checked':''} style="accent-color:var(--accent)">
+          ${escHtml(m.name)}
+        </label>`;
+      }).join('')}
+    </div></div></div>`;
 
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Notes</label>
     <textarea class="form-textarea" name="notes" placeholder="Internal notes...">${escHtml(post?.notes||'')}</textarea></div></div>`;
@@ -3027,7 +3143,9 @@ function openMetricsModal(postId) {
   if(!post) return;
   const existing = metricsForPost(postId);
   const br = brandById(post.brand_id);
-  const pl = platById(post.platform_id);
+  const pids = post.platform_ids || (post.platform_id ? [post.platform_id] : []);
+  const plats = pids.map(id=>platById(id)).filter(Boolean);
+  const platNames = plats.length ? plats.map(p=>p.name).join(', ') : '—';
   const panel = document.getElementById('modal-panel');
   panel.classList.remove('wide');
 
@@ -3042,7 +3160,7 @@ function openMetricsModal(postId) {
   </div><div class="modal-body">
   <div style="margin-bottom:16px;padding:12px;background:var(--surface-0);border-radius:var(--radius-sm)">
     <div style="font-weight:600;color:var(--ink-1);margin-bottom:2px">${escHtml(post.title)}</div>
-    <div style="font-size:13px;color:var(--ink-3)">${br?br.name:'—'} · ${pl?pl.name:'—'}${post.scheduled_date ? ' · '+fmtDate(post.scheduled_date) : ''}</div>
+    <div style="font-size:13px;color:var(--ink-3)">${br?br.name:'—'} · ${platNames}${post.scheduled_date ? ' · '+fmtDate(post.scheduled_date) : ''}</div>
   </div>
   <form id="metrics-form">`;
 
@@ -3076,10 +3194,17 @@ async function savePost(existingId) {
   const form = document.getElementById('post-form');
   const fd = new FormData(form);
   const data = {};
-  ['brand_id','platform_id','content_pillar_id','created_by','title','caption','hashtags','media_type','status','scheduled_date','scheduled_time','notes'].forEach(k => {
+  ['brand_id','content_pillar_id','created_by','title','caption','hashtags','media_type','status','scheduled_date','scheduled_time','notes'].forEach(k => {
     const v = fd.get(k);
     data[k] = v === '' ? null : v;
   });
+  // Multi-platform: collect checked platforms
+  const platformIds = fd.getAll('platform_ids').filter(Boolean);
+  data.platform_ids = platformIds.length ? platformIds : null;
+  data.platform_id = platformIds[0] || null; // keep legacy field in sync
+  // Crew members: collect checked members
+  const crewIds = fd.getAll('crew_members').filter(Boolean);
+  data.crew_members = crewIds.length ? crewIds : null;
 
   if (!data.title) { alert('Title is required'); return; }
 

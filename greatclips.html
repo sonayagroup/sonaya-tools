@@ -110,6 +110,11 @@ tbody tr.clickrow{cursor:pointer}
 .aa-detail-wrap table{width:100%;border-collapse:collapse;font-size:11.5px}
 .aa-detail-wrap th{text-align:left;color:var(--muted);font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.3px;padding:4px 8px;border-bottom:1px solid var(--line)}
 .aa-detail-wrap td{padding:4px 8px;border-bottom:1px solid #eef1f4;color:var(--ink)}
+.aa-detail-wrap td:last-child,#aaAllTable td:last-child,#aaAllTable th:last-child{text-align:left}
+.aa-cash-row{background:#fdf1f1}
+.cash-flag{display:inline-block;background:var(--red-dk);color:#fff;font-weight:800;padding:1px 7px;border-radius:4px;font-size:10.5px;white-space:nowrap;margin-right:2px}
+.aa-chip.aa-cash-chip{background:var(--red-dk);border-color:#8a0018;color:#fff}
+.aa-chip.aa-cash-chip b{color:#fff}
 .aa-toggle-all{background:none;border:1px solid var(--line);border-radius:7px;padding:5px 11px;font:inherit;font-size:12px;font-weight:600;color:var(--blue-dk);cursor:pointer;margin:10px 0 4px}
 .aa-toggle-all:hover{background:#f0f3f7}
 </style></head>
@@ -1031,8 +1036,22 @@ function aaFmtDetail(r){
   if(!keys.length)return "—";
   return keys.map(k=>{
     const label=k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+    if(k==="tender_type"&&String(d[k]).toLowerCase()==="cash"){
+      return label+": <span class=\"cash-flag\">💵 CASH</span>";
+    }
     return label+": "+d[k];
   }).join(" · ");
+}
+// Cash-tendered invoice-lowering/tip-adjustment alerts are higher risk than card ones:
+// a card transaction leaves a processor record if amounts are manipulated, but a cash
+// ticket that's quietly lowered (or a cash tip adjusted after the fact) leaves no such
+// trail — the difference can simply be pocketed. Flag those distinctly everywhere.
+const AA_CASH_RISK_TYPES=new Set(["invoice_lower_before_payment","invoice_lower_after_payment","tip_adjusted_after_payment"]);
+function aaIsCashRisk(r){
+  return AA_CASH_RISK_TYPES.has(r.alert_type)&&r.detail&&String(r.detail.tender_type).toLowerCase()==="cash";
+}
+function aaCashRiskCount(sid,weeks){
+  return collectAAAlerts(sid,weeks).filter(aaIsCashRisk).length;
 }
 function aaFmtDate(r){
   if(!r.event_time)return "—";
@@ -1067,8 +1086,10 @@ function buildAACallouts(sid,weeks){
       const what=g.type==="child_senior_pct_exceeds"?"Child/Sr discount":"Stylist discount";
       items.push({sev:"red",score:100+topV,text:`<b>${g.nm}</b> — ${what} ${topV>=0?topV.toFixed(1)+"%":""}${cfg?" (threshold "+cfg+")":""}`});
     } else if(g.type==="invoice_lower_before_payment"||g.type==="invoice_lower_after_payment"||g.type==="tip_adjusted_after_payment"){
-      const sev=g.count>=3?"red":"amber";
-      items.push({sev,score:(sev==="red"?60:30)+g.count,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} occurrence${g.count>1?"s":""}`});
+      const cashCount=g.rows.filter(aaIsCashRisk).length;
+      const sev=(g.count>=3||cashCount>=1)?"red":"amber";
+      const cashNote=cashCount>0?` — <span class="cash-flag">💵 ${cashCount} on CASH</span>`:"";
+      items.push({sev,score:(sev==="red"?60:30)+g.count+cashCount*25,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} occurrence${g.count>1?"s":""}${cashNote}`});
     } else if(g.type==="discounted_100pct"){
       items.push({sev:"amber",score:20+g.count,text:`<b>${g.nm}</b> — ${g.count} 100%-discounted ticket${g.count>1?"s":""}`});
     } else if(g.type==="customers_bypassed"){
@@ -1151,7 +1172,7 @@ function computeAAEmployeeAgg(sid,weeks){
 function aaCountCls(n){return n>=3?"flag":n>=1?"warn":"";}
 function aaBuildDetailTable(rows){
   if(!rows.length)return '<div class="aa-detail-wrap">No individual alert rows recorded for this stylist in range.</div>';
-  const body=rows.map(r=>`<tr><td>${aaFmtDate(r)}</td><td>${AA_TYPE_LABELS[r.alert_type]||r.alert_type}</td><td>${r.invoice_id||"—"}</td><td>${aaFmtAmount(r)}</td><td>${aaFmtDetail(r)}</td></tr>`).join("");
+  const body=rows.map(r=>`<tr class="${aaIsCashRisk(r)?"aa-cash-row":""}"><td>${aaFmtDate(r)}</td><td>${AA_TYPE_LABELS[r.alert_type]||r.alert_type}</td><td>${r.invoice_id||"—"}</td><td>${aaFmtAmount(r)}</td><td>${aaFmtDetail(r)}</td></tr>`).join("");
   return `<div class="aa-detail-wrap"><table><thead><tr><th>Date/Time</th><th>Alert Type</th><th>Invoice #</th><th>Amount</th><th>Detail</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 let aaAllOpen=false;
@@ -1159,7 +1180,7 @@ function renderAAAllTable(range){
   const raws=range&&current?collectAAAlerts(current,range.weeks):[];
   const sorted=raws.slice().sort((a,b)=>(b.event_time||"").localeCompare(a.event_time||""));
   const tb=$("#aaAllTable tbody");
-  tb.innerHTML=sorted.length?sorted.map(r=>`<tr><td>${aaFmtDate(r)}</td><td>${r.employee_name||"(unassigned)"}</td><td>${AA_TYPE_LABELS[r.alert_type]||r.alert_type}</td><td>${r.invoice_id||"—"}</td><td>${aaFmtAmount(r)}</td><td>${aaFmtDetail(r)}</td></tr>`).join(""):'<tr><td colspan="6" class="na">No alert events in this range.</td></tr>';
+  tb.innerHTML=sorted.length?sorted.map(r=>`<tr class="${aaIsCashRisk(r)?"aa-cash-row":""}"><td>${aaFmtDate(r)}</td><td>${r.employee_name||"(unassigned)"}</td><td>${AA_TYPE_LABELS[r.alert_type]||r.alert_type}</td><td>${r.invoice_id||"—"}</td><td>${aaFmtAmount(r)}</td><td>${aaFmtDetail(r)}</td></tr>`).join(""):'<tr><td colspan="6" class="na">No alert events in this range.</td></tr>';
   $("#aaAllNote").textContent=sorted.length?sorted.length+" individual alert event(s) shown for "+sName(current)+", "+(range?range.label:"")+".":"";
 }
 function renderAA(){
@@ -1170,8 +1191,10 @@ function renderAA(){
   const callouts=range&&current?buildAACallouts(current,range.weeks):[];
   $("#aaCallouts").innerHTML=callouts.length?callouts.map(c=>`<div class="aa-callout sev-${c.sev}"><span class="ico">${c.sev==="red"?"🚩":"⚠️"}</span><span>${c.text}</span></div>`).join(""):'<div class="aa-none">No notable loss-prevention call-outs for this range.</div>';
   const gh=$("#aaGroups");
+  const cashRiskN=range&&current?aaCashRiskCount(current,range.weeks):0;
   gh.innerHTML=AA_GROUPS.map(g=>{const n=g[1].reduce((a,k)=>a+((sums&&sums[k])||0),0);
-    return `<div class="aa-chip${n>0?" aa-hot":""}"><b>${n}</b>${g[0]}</div>`;}).join("");
+    return `<div class="aa-chip${n>0?" aa-hot":""}"><b>${n}</b>${g[0]}</div>`;}).join("")
+    +(cashRiskN>0?`<div class="aa-chip aa-cash-chip"><b>${cashRiskN}</b>💵 CASH RISK</div>`:"");
   const total=sums?AA_SUMMARY_COLS.reduce((a,k)=>a+(sums[k]||0),0):0;
   const rows=(range&&current?computeAAEmployeeAgg(current,range.weeks):[]).sort((a,b)=>(b[1]+b[2]+b[3]+b[4]+b[7]+b[8]+b[9])-(a[1]+a[2]+a[3]+a[4]+a[7]+a[8]+a[9]));
   const tb=$("#aaTable tbody");tb.innerHTML="";

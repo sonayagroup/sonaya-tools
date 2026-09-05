@@ -88,6 +88,10 @@ tbody tr.clickrow{cursor:pointer}
 .det-mode button{background:#fff;color:var(--muted);border:none;padding:6px 18px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
 .det-mode button+button{border-left:1px solid var(--line)}
 .det-mode button.active{background:var(--blue);color:#fff}
+.aa-groups{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 12px}
+.aa-chip{background:#f0f3f7;border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:11.5px;color:var(--muted);font-weight:600}
+.aa-chip b{color:var(--blue-dk);font-size:15px;font-weight:800;margin-right:5px}
+.aa-chip.aa-hot{background:#fdecec;border-color:#f3c9c9}.aa-chip.aa-hot b{color:var(--red-dk)}
 </style></head>
 <body>
 <header><div class="hdr-inner">
@@ -214,21 +218,22 @@ tbody tr.clickrow{cursor:pointer}
   </div>
 
   <div class="card" style="margin-top:16px">
-    <div class="sec-title" id="redTitle" style="margin-bottom:2px"></div>
+    <div class="sec-title" id="aaTitle" style="margin-bottom:2px"></div>
     <div class="modebar">
       <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">Range</span>
-      <span class="det-mode" id="redModeToggle"><button data-mode="week" class="active">Week</button><button data-mode="month">Month</button><button data-mode="ytd">YTD</button><button data-mode="custom">Custom</button></span>
-      <span id="redCustomRange" style="display:none;margin-left:8px">
-        <input type="date" id="redFrom"> <span style="color:var(--muted);font-size:12px">to</span> <input type="date" id="redTo">
+      <span class="det-mode" id="aaModeToggle"><button data-mode="week" class="active">Week</button><button data-mode="month">Month</button><button data-mode="ytd">YTD</button><button data-mode="custom">Custom</button></span>
+      <span id="aaCustomRange" style="display:none;margin-left:8px">
+        <input type="date" id="aaFrom"> <span style="color:var(--muted);font-size:12px">to</span> <input type="date" id="aaTo">
       </span>
-      <span id="redModeHint" style="font-size:12px;color:var(--muted)"></span>
+      <span id="aaModeHint" style="font-size:12px;color:var(--muted)"></span>
     </div>
-    <div id="redSummary" class="legend-note" style="margin-bottom:10px"></div>
+    <div id="aaGroups" class="aa-groups"></div>
+    <div id="aaSummary" class="legend-note" style="margin-bottom:10px"></div>
     <div class="tbl-scroll">
-      <table id="redTable"><thead><tr>
-        <th>Stylist</th><th>Svc Disc %</th><th>Svc Disc $</th><th>Changed Inv #</th><th>Changed $</th><th>Redos $</th><th>Voids $</th><th>Refunds $</th><th>Short Cuts</th><th>Long Svc</th>
+      <table id="aaTable"><thead><tr>
+        <th>Stylist</th><th>Inv Lower (Before Pmt)</th><th>Inv Lower (After Pmt)</th><th>Tip Adj (After Pmt)</th><th>100% Discounts</th><th>Child/Sr %</th><th>Stylist Disc %</th><th>Short HC</th><th>Long Svc Times</th><th>Bypassed</th>
       </tr></thead><tbody></tbody></table>
-      <div class="legend-note"><span class="flag">&nbsp;red&nbsp;</span> = discount % &ge; 10, or any changed invoice / redo / void / refund. <span class="warn">&nbsp;amber&nbsp;</span> = 5+ short or long service-time occurrences. Month/YTD/Custom sum dollar &amp; count fields across weeks; disc % is averaged across weeks.</div>
+      <div class="legend-note"><span class="flag">&nbsp;red&nbsp;</span> = 3+ invoice-lowering/tip-adjustment occurrences, or any Child/Sr % or Stylist Discount % alert (already pre-filtered by the audit at its configured threshold). <span class="warn">&nbsp;amber&nbsp;</span> = 1-2 invoice-lowering/tip-adjustment occurrences, any 100%-discounted ticket, 5+ short-haircut or long-service-time occurrences, or any bypassed customer. Month/YTD/Custom sum alert counts across weeks; Child/Sr % and Stylist Disc % show the highest value seen in the range.</div>
     </div>
   </div>
 
@@ -282,7 +287,7 @@ const money=n=>"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,max
 const money0=n=>"$"+Math.round(n).toLocaleString("en-US");
 const sign=n=>(n>0?"+":"")+Number(n).toFixed(1)+"%";
 const cls=n=>n>=0?"up":"down";
-let SALONS={},SALONAM={},DATES=[],WEEKS=[],DAY={SAL:[],STY:{},WAIT:{}},WEEK={EPP:{},REDF:{},WSAL:{}},recaps=[];
+let SALONS={},SALONAM={},DATES=[],WEEKS=[],DAY={SAL:[],STY:{},WAIT:{}},WEEK={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}},recaps=[];
 let current=null,curDate=null,curWeek=null,charts={},detMode="day";
 // WeeklySalon row (WeeklySalon schema minus weekEnding+salonId) metric -> column index
 const WS={salonName:0,serviceSales:1,productSales:2,totalSales:3,cust:4,newCust:5,floorHours:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,payrollPct:12,avgMinBtwn:13,voidsPct:14,svcDiscPct:15,overShort:16,newRetPct:17,repRetPct:18,floorHoursGrowth:19,custGrowthPct:20,salesGrowthPct:21};
@@ -320,10 +325,11 @@ async function supaFetchAll(table,orderCol){
   }return all;
 }
 async function loadData(){
-  const[dSal,dSty,dWait,wSal,wEpp,dRed,dAtt]=await Promise.all([
+  const[dSal,dSty,dWait,wSal,wEpp,aAlerts,aSummary,dAtt]=await Promise.all([
     supaFetchAll("daily_salon","date"),supaFetchAll("daily_stylist","date"),
     supaFetchAll("daily_wait","date"),supaFetchAll("weekly_salon","week_ending"),
-    supaFetchAll("weekly_epp","week_ending"),supaFetchAll("daily_redflag","date"),
+    supaFetchAll("weekly_epp","week_ending"),supaFetchAll("audit_alerts","week_ending"),
+    supaFetchAll("audit_summary","week_ending"),
     supaFetchAll("daily_attendance","date").catch(()=>[])]);
   const salons={},salonAm={},datesSet=new Set(),weeksSet=new Set(),days={},weeklies={};
   dSal.forEach(r=>{const d=r.date,sid=String(r.salon_id);datesSet.add(d);
@@ -343,40 +349,30 @@ async function loadData(){
     if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};if(!days[d].ATT[sid])days[d].ATT[sid]=[];
     days[d].ATT[sid].push([r.stylist_name,r.no_show_count||0,r.late_count||0,r.not_scheduled_count||0]);});
   wSal.forEach(r=>{const wk=r.week_ending,sid=String(r.salon_id);weeksSet.add(wk);
-    if(!weeklies[wk])weeklies[wk]={EPP:{},REDF:{},WSAL:{}};
+    if(!weeklies[wk])weeklies[wk]={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};
     weeklies[wk].WSAL[sid]=[r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.new_cust,r.floor_hours,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.payroll_pct,r.avg_min_btwn,r.voids_pct,r.svc_disc_pct,r.over_short,r.new_ret_pct,r.rep_ret_pct,r.floor_hours_growth,r.cust_growth_pct,r.sales_growth_pct];});
   wEpp.forEach(r=>{const wk=r.week_ending,sid=String(r.salon_id);
-    if(!weeklies[wk])weeklies[wk]={EPP:{},REDF:{},WSAL:{}};
+    if(!weeklies[wk])weeklies[wk]={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};
     if(!weeklies[wk].EPP[sid])weeklies[wk].EPP[sid]=[];
     weeklies[wk].EPP[sid].push([r.stylist_name,r.floor_hrs,r.cust,r.avg_hc,r.cph,r.std_prod_pct,r.svc_disc_pct,r.prodvity,r.payroll_pct,r.new_ret_pct,r.rep_ret_pct,r.avg_min_btwn]);});
-  // daily_redflag is per-day/per-stylist; the Red Flags tab is weekly, so roll each day
-  // up into the GC week (Sat–Fri) it falls in, keyed the same way weekly_salon is
-  // (week_ending = the Friday). Short Cuts / Long Svc have no source column yet, so
-  // those two are always 0 ("—" on the table) until that data is tracked.
-  const redAcc={};
-  dRed.forEach(r=>{
-    const d=r.date,sid=String(r.salon_id),wk=weekEndingFor(d);
-    weeksSet.add(wk);
-    if(!redAcc[wk])redAcc[wk]={};
-    if(!redAcc[wk][sid])redAcc[wk][sid]={};
-    const nm=r.stylist_name;
-    if(!redAcc[wk][sid][nm])redAcc[wk][sid][nm]={discPctSum:0,discPctN:0,discDollars:0,chgCount:0,chgDollars:0,redosDollars:0,voidedDollars:0,refundDollars:0};
-    const a=redAcc[wk][sid][nm];
-    if(typeof r.svc_disc_pct==="number"){a.discPctSum+=r.svc_disc_pct;a.discPctN++;}
-    a.discDollars+=r.svc_disc_dollars||0;a.chgCount+=r.changed_inv_count||0;a.chgDollars+=r.changed_dollars||0;
-    a.redosDollars+=r.redos_dollars||0;a.voidedDollars+=r.voided_dollars||0;a.refundDollars+=r.refund_dollars||0;
+  // audit_summary: one row per salon/week with 17 pre-counted alert columns — cheap source
+  // for the Loss Prevention summary strip (Month/YTD/Custom just sum these across weeks).
+  aSummary.forEach(r=>{
+    const wk=r.week_ending,sid=String(r.salon_id);weeksSet.add(wk);
+    if(!weeklies[wk])weeklies[wk]={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};
+    weeklies[wk].AUDSUM[sid]=r;
   });
-  Object.keys(redAcc).forEach(wk=>{
-    if(!weeklies[wk])weeklies[wk]={EPP:{},REDF:{},WSAL:{}};
-    Object.keys(redAcc[wk]).forEach(sid=>{
-      weeklies[wk].REDF[sid]=Object.keys(redAcc[wk][sid]).map(nm=>{const a=redAcc[wk][sid][nm];
-        return [nm,a.discPctN?a.discPctSum/a.discPctN:0,a.discDollars,a.chgCount,a.chgDollars,a.redosDollars,a.voidedDollars,a.refundDollars,0,0];});
-    });
+  // audit_alerts: one row per individual alert occurrence, used only for the per-stylist
+  // drill-down table (audit_summary has no employee breakdown). Kept as raw rows (not
+  // pre-aggregated) since detail/amount shapes vary by alert_type.
+  aAlerts.forEach(r=>{
+    const wk=r.week_ending,sid=String(r.salon_id);weeksSet.add(wk);
+    if(!weeklies[wk])weeklies[wk]={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};
+    if(!weeklies[wk].AUDALERTS[sid])weeklies[wk].AUDALERTS[sid]=[];
+    weeklies[wk].AUDALERTS[sid].push(r);
   });
   DATA={dates:[...datesSet],weeks:[...weeksSet],salons,salonAm,days,weeklies};return DATA;
 }
-// Given a date string YYYY-MM-DD, return the GC week's Friday end-date (week_ending key)
-function weekEndingFor(dateStr){const s=gcWeekStart(dateStr);const d=new Date(s+"T12:00:00");d.setDate(d.getDate()+6);return d.toISOString().slice(0,10);}
 // SAL row (DailySalon minus 'date') metric -> column index, for client-side trends
 const SALIDX={serviceSales:2,productSales:3,totalSales:4,cust:5,payrollPct:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,custGrowthPct:12,salesGrowthPct:13,cashOverShort:14};
 function dTrend(salon,metric){const idx=SALIDX[metric];if(idx==null)return [];const out=[];
@@ -491,7 +487,7 @@ function onBoot(b){
   const ds=$("#dateSel");ds.innerHTML="";DATES.forEach(d=>opt(ds,d,fmtDate(d)));
   const ws=$("#weekSel");ws.innerHTML="";WEEKS.forEach(w=>opt(ws,w,"wk "+fmtDate(w)));
   curDate=DATES[0]||null;curWeek=latestDataWeek();if(curDate)ds.value=curDate;if(curWeek)ws.value=curWeek;
-  ss.onchange=()=>{current=ss.value;[renderDetail,renderReps,renderTeam,renderRed,renderRecap,loadTrend].forEach(function(fn){try{fn();}catch(e){}});};
+  ss.onchange=()=>{current=ss.value;[renderDetail,renderReps,renderTeam,renderAA,renderRecap,loadTrend].forEach(function(fn){try{fn();}catch(e){}});};
   ds.onchange=()=>{curDate=ds.value;loadDay();};
   ws.onchange=()=>{curWeek=ws.value;loadWeek();};
   $("#trendMetric").onchange=loadTrend;
@@ -510,7 +506,7 @@ function fmtDate(iso){if(!iso)return"";const p=String(iso).split("-");return p.l
 function updMeta(){$("#hdrMeta").innerHTML="Day <b>"+(curDate?fmtDate(curDate):"—")+"</b> · Week <b>"+(curWeek?fmtDate(curWeek):"—")+"</b>";}
 
 function loadDay(){ DAY=(!curDate?null:(DATA.days&&DATA.days[curDate]))||{SAL:[],STY:{},WAIT:{}};renderAll();updMeta(); }
-function loadWeek(){ WEEK=(!curWeek?null:(DATA.weeklies&&DATA.weeklies[curWeek]))||{EPP:{},REDF:{},WSAL:{}};if(!WEEK.WSAL)WEEK.WSAL={};renderTeam();renderRed();if(detMode==="week")renderDetail();updMeta(); }
+function loadWeek(){ WEEK=(!curWeek?null:(DATA.weeklies&&DATA.weeklies[curWeek]))||{EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};if(!WEEK.WSAL)WEEK.WSAL={};renderTeam();renderAA();if(detMode==="week")renderDetail();updMeta(); }
 function renderAll(){renderPort();renderDetail();renderReps();renderTeam();}
 
 function salById(id){return (DAY.SAL||[]).find(r=>String(r[0])===String(id));}
@@ -596,7 +592,7 @@ function renderPort(){
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
       <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
-    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderRed();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
+    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">Google ratings updated ${GRATE_ASOF}</td></tr>`:"";
   $("#hSales").textContent=curDate?fmtDate(curDate):"";
@@ -652,7 +648,7 @@ function renderPortWTD(){
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
       <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
-    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderRed();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
+    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">WTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth) · ${wtd.daysInWeek} of 7 days</td></tr>`:"";
   $("#hSales").textContent="WTD "+label;
@@ -954,72 +950,117 @@ document.querySelectorAll("#attModeToggle button").forEach(b=>b.onclick=()=>{
 $("#attFrom").onchange=renderAttendance;
 $("#attTo").onchange=renderAttendance;
 
-// RED FLAGS (weekly, rolled up to Week/Month/YTD/Custom)
-// Same Week-mode-uses-the-global-week convention as Team Performance. Month/YTD/Custom sum the
-// dollar & count fields across weeks (they're already weekly totals, so summing is correct);
-// disc % has no per-week weight retained, so it's a simple average across the selected weeks.
-let redMode="week";
-function redRange(){
-  if(redMode==="week"){
+// LOSS PREVENTION / AUDIT ALERTS (weekly, rolled up to Week/Month/YTD/Custom)
+// Same Week-mode-uses-the-global-week convention as Team Performance & Attendance.
+// audit_summary (17 pre-counted columns per salon/week) drives the group-summary strip —
+// far cheaper than tallying audit_alerts directly. audit_alerts (one row per occurrence)
+// drives the per-stylist drill-down table, since audit_summary has no employee breakdown.
+// Month/YTD/Custom sum counts across weeks; the two %-snapshot alert types (child/senior %,
+// stylist discount %) show the highest value seen across the selected weeks instead of a sum.
+let aaMode="week";
+const AA_SUMMARY_COLS=["coupon_after_close","discounted_100pct","invoice_lower_before_payment","invoice_lower_after_payment","tip_adjusted_after_payment","store_forward_declined","refund_cash","neck_trim_over","bang_trim_over","beard_trim_over","tender_employee_changed","child_senior_pct_exceeds","haircut_time_under","stylist_discount_high","security_role_changed","no_logout","great_card_zero_giftcard","customers_bypassed"];
+const AA_GROUPS=[
+  ["DISCOUNTS",["coupon_after_close","discounted_100pct"]],
+  ["INVOICE",["invoice_lower_before_payment","invoice_lower_after_payment","tip_adjusted_after_payment"]],
+  ["PAYMENTS",["store_forward_declined","refund_cash"]],
+  ["OPERATIONS",["neck_trim_over","bang_trim_over","beard_trim_over","tender_employee_changed","child_senior_pct_exceeds","haircut_time_under"]],
+  ["SECURITY",["stylist_discount_high","security_role_changed"]],
+  ["CHECK IN/OUT",["no_logout"]],
+  ["GIFT CARD",["great_card_zero_giftcard"]],
+  ["BYPASS",["customers_bypassed"]]
+];
+function aaRange(){
+  if(aaMode==="week"){
     if(!curWeek)return null;
     return {weeks:[curWeek],label:"week ending "+fmtDate(curWeek)};
   }
-  if(redMode==="month"){
+  if(aaMode==="month"){
     const ref=curWeek||WEEKS[0];if(!ref)return null;
     const ym=ref.slice(0,7);
     const weeks=WEEKS.filter(w=>w.slice(0,7)===ym);
     const mNames=["","January","February","March","April","May","June","July","August","September","October","November","December"];
     return {weeks,label:mNames[+ym.split("-")[1]]+" "+ym.split("-")[0]};
   }
-  if(redMode==="ytd"){
+  if(aaMode==="ytd"){
     const ref=curWeek||WEEKS[0];if(!ref)return null;
     const yr=ref.slice(0,4);
     const weeks=WEEKS.filter(w=>w.slice(0,4)===yr&&w<=ref);
     return {weeks,label:yr+" YTD through week ending "+fmtDate(ref)};
   }
-  const f=$("#redFrom").value,t=$("#redTo").value;
+  const f=$("#aaFrom").value,t=$("#aaTo").value;
   if(!f||!t)return null;
   const weeks=WEEKS.filter(w=>w>=f&&w<=t);
   return {weeks,label:fmtDate(f)+" – "+fmtDate(t)};
 }
-function computeRedAgg(sid,weeks){
+function computeAASummary(sid,weeks){
+  const sums={};AA_SUMMARY_COLS.forEach(k=>sums[k]=0);
+  weeks.forEach(wk=>{
+    const r=(DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].AUDSUM&&DATA.weeklies[wk].AUDSUM[sid])||null;
+    if(!r)return;
+    AA_SUMMARY_COLS.forEach(k=>{sums[k]+=r[k]||0;});
+  });
+  return sums;
+}
+// Pull a numeric value out of an alert row for the two %-snapshot alert types — prefer the
+// amount column, fall back to the jsonb detail field the report uses for that pct.
+function aaPctValue(r){
+  if(typeof r.amount==="number")return r.amount;
+  const d=r.detail||{};
+  if(typeof d.child_senior_pct==="number")return d.child_senior_pct;
+  if(typeof d.service_discount_pct==="number")return d.service_discount_pct;
+  if(typeof d.salon_discount_pct==="number")return d.salon_discount_pct;
+  return null;
+}
+function computeAAEmployeeAgg(sid,weeks){
   const acc={};
   weeks.forEach(wk=>{
-    const rows=(DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].REDF&&DATA.weeklies[wk].REDF[sid])||[];
+    const rows=(DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].AUDALERTS&&DATA.weeklies[wk].AUDALERTS[sid])||[];
     rows.forEach(r=>{
-      const nm=r[0];if(!acc[nm])acc[nm]={discPctSum:0,discPctN:0,discDollars:0,chgCount:0,chgDollars:0,redosDollars:0,voidedDollars:0,refundDollars:0,shortCuts:0,longSvc:0};
-      const a=acc[nm];
-      if(typeof r[1]==="number"){a.discPctSum+=r[1];a.discPctN++;}
-      a.discDollars+=r[2]||0;a.chgCount+=r[3]||0;a.chgDollars+=r[4]||0;
-      a.redosDollars+=r[5]||0;a.voidedDollars+=r[6]||0;a.refundDollars+=r[7]||0;
-      a.shortCuts+=r[8]||0;a.longSvc+=r[9]||0;
+      const nm=r.employee_name||"(unassigned)";
+      if(!acc[nm])acc[nm]={invLowBefore:0,invLowAfter:0,tipAdj:0,disc100:0,childSrPct:null,styDiscPct:null,hcUnder:0,longSvc:0,bypassed:0};
+      const a=acc[nm],t=r.alert_type;
+      if(t==="invoice_lower_before_payment")a.invLowBefore++;
+      else if(t==="invoice_lower_after_payment")a.invLowAfter++;
+      else if(t==="tip_adjusted_after_payment")a.tipAdj++;
+      else if(t==="discounted_100pct")a.disc100++;
+      else if(t==="child_senior_pct_exceeds"){const v=aaPctValue(r);if(v!=null)a.childSrPct=a.childSrPct==null?v:Math.max(a.childSrPct,v);}
+      else if(t==="stylist_discount_high"){const v=aaPctValue(r);if(v!=null)a.styDiscPct=a.styDiscPct==null?v:Math.max(a.styDiscPct,v);}
+      else if(t==="haircut_time_under")a.hcUnder++;
+      else if(t==="neck_trim_over"||t==="bang_trim_over"||t==="beard_trim_over")a.longSvc++;
+      else if(t==="customers_bypassed")a.bypassed++;
     });
   });
   return Object.keys(acc).sort().map(nm=>{const a=acc[nm];
-    return [nm,a.discPctN?a.discPctSum/a.discPctN:0,a.discDollars,a.chgCount,a.chgDollars,a.redosDollars,a.voidedDollars,a.refundDollars,a.shortCuts,a.longSvc];});
+    return [nm,a.invLowBefore,a.invLowAfter,a.tipAdj,a.disc100,a.childSrPct,a.styDiscPct,a.hcUnder,a.longSvc,a.bypassed];});
 }
-function renderRed(){
-  const range=redRange();
-  $("#redModeHint").textContent=range?range.label:(redMode==="custom"?"Pick a from/to date above.":"No week selected.");
-  $("#redTitle").textContent=(current||"")+" — "+sName(current)+" · Red Flags by employee"+(range?" ("+range.label+")":"");
-  const rows=(range&&current?computeRedAgg(current,range.weeks):[]).sort((a,b)=>b[1]-a[1]);const tb=$("#redTable tbody");tb.innerHTML="";
-  let chg=0,rd=0,vd=0,rf=0;
-  rows.forEach(r=>{const dC=r[1]>=10?"flag":"",cn=r[3]>0?"flag":"",rdc=r[5]>0?"flag":"",vc=r[6]>0?"flag":"",rfc=r[7]>0?"flag":"",sh=r[8]>=5?"warn":"",lg=r[9]>=5?"warn":"";
-    chg+=r[3];rd+=r[5];vd+=r[6];rf+=r[7];
-    tb.innerHTML+=`<tr><td>${r[0]}</td><td class="${dC}">${r[1].toFixed(1)}%</td><td>${money(r[2])}</td>
-      <td class="${cn}">${r[3]||"—"}</td><td>${r[4]?money(r[4]):"—"}</td><td class="${rdc}">${r[5]?money(r[5]):"—"}</td>
-      <td class="${vc}">${r[6]?money(r[6]):"—"}</td><td class="${rfc}">${r[7]?money(r[7]):"—"}</td>
-      <td class="${sh}">${r[8]||"—"}</td><td class="${lg}">${r[9]||"—"}</td></tr>`;});
-  $("#redSummary").innerHTML=rows.length?`${rows.length} stylists · changed invoices ${chg} · redos ${money(rd)} · voids ${money(vd)} · refunds ${money(rf)}`:(range?"No red-flag data for this salon/range.":"No week selected.");
+function aaCountCls(n){return n>=3?"flag":n>=1?"warn":"";}
+function renderAA(){
+  const range=aaRange();
+  $("#aaModeHint").textContent=range?range.label:(aaMode==="custom"?"Pick a from/to date above.":"No week selected.");
+  $("#aaTitle").textContent=(current||"")+" — "+sName(current)+" · Loss Prevention (Audit Alerts)"+(range?" ("+range.label+")":"");
+  const sums=range&&current?computeAASummary(current,range.weeks):null;
+  const gh=$("#aaGroups");
+  gh.innerHTML=AA_GROUPS.map(g=>{const n=g[1].reduce((a,k)=>a+((sums&&sums[k])||0),0);
+    return `<div class="aa-chip${n>0?" aa-hot":""}"><b>${n}</b>${g[0]}</div>`;}).join("");
+  const total=sums?AA_SUMMARY_COLS.reduce((a,k)=>a+(sums[k]||0),0):0;
+  const rows=(range&&current?computeAAEmployeeAgg(current,range.weeks):[]).sort((a,b)=>(b[1]+b[2]+b[3]+b[4]+b[7]+b[8]+b[9])-(a[1]+a[2]+a[3]+a[4]+a[7]+a[8]+a[9]));
+  const tb=$("#aaTable tbody");tb.innerHTML="";
+  rows.forEach(r=>{
+    const pctCell=v=>v==null?'<td class="na">—</td>':`<td class="flag">${v.toFixed(1)}%</td>`;
+    tb.innerHTML+=`<tr><td>${r[0]}</td><td class="${aaCountCls(r[1])}">${r[1]||"—"}</td><td class="${aaCountCls(r[2])}">${r[2]||"—"}</td>
+      <td class="${aaCountCls(r[3])}">${r[3]||"—"}</td><td class="${r[4]>0?"warn":""}">${r[4]||"—"}</td>
+      ${pctCell(r[5])}${pctCell(r[6])}
+      <td class="${r[7]>=5?"warn":""}">${r[7]||"—"}</td><td class="${r[8]>=5?"warn":""}">${r[8]||"—"}</td><td class="${r[9]>0?"warn":""}">${r[9]||"—"}</td></tr>`;});
+  $("#aaSummary").innerHTML=range?(total+" total alert(s) across "+rows.length+" stylist(s) with activity"+(range.weeks.length?" · "+range.weeks.length+" week(s) in range":"")):"No week selected.";
 }
-document.querySelectorAll("#redModeToggle button").forEach(b=>b.onclick=()=>{
-  redMode=b.dataset.mode;
-  document.querySelectorAll("#redModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
-  $("#redCustomRange").style.display=redMode==="custom"?"":"none";
-  renderRed();
+document.querySelectorAll("#aaModeToggle button").forEach(b=>b.onclick=()=>{
+  aaMode=b.dataset.mode;
+  document.querySelectorAll("#aaModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  $("#aaCustomRange").style.display=aaMode==="custom"?"":"none";
+  renderAA();
 });
-$("#redFrom").onchange=renderRed;
-$("#redTo").onchange=renderRed;
+$("#aaFrom").onchange=renderAA;
+$("#aaTo").onchange=renderAA;
 
 // TRENDS
 // Benchmarks: {value, dir:"max"|"min", label} — max=must stay at or below, min=must stay at or above

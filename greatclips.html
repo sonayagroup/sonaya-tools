@@ -92,6 +92,26 @@ tbody tr.clickrow{cursor:pointer}
 .aa-chip{background:#f0f3f7;border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:11.5px;color:var(--muted);font-weight:600}
 .aa-chip b{color:var(--blue-dk);font-size:15px;font-weight:800;margin-right:5px}
 .aa-chip.aa-hot{background:#fdecec;border-color:#f3c9c9}.aa-chip.aa-hot b{color:var(--red-dk)}
+.aa-callouts{margin:0 0 14px;display:flex;flex-direction:column;gap:6px}
+.aa-callout{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid;font-size:12.5px;line-height:1.4}
+.aa-callout.sev-red{background:#fdecec;border-color:#f3c9c9;color:var(--red-dk)}
+.aa-callout.sev-amber{background:#fff6e6;border-color:#f0dca8;color:#7a5300}
+.aa-callout .ico{flex:0 0 auto;font-size:13px}
+.aa-callout b{font-weight:800}
+.aa-callout .aa-c-meta{color:var(--muted);font-weight:600}
+.aa-callout.sev-red .aa-c-meta{color:#c1636f}
+.aa-callout.sev-amber .aa-c-meta{color:#a1813f}
+.aa-none{font-size:12px;color:var(--muted);padding:2px 0 4px}
+.aa-row-click{cursor:pointer}
+.aa-row-click:hover{background:#f4f7fa}
+.aa-row-click .aa-caret{display:inline-block;width:12px;color:var(--muted);font-size:10px}
+.aa-detail-row td{background:#fafcfd;padding:0}
+.aa-detail-wrap{padding:8px 14px 12px 30px}
+.aa-detail-wrap table{width:100%;border-collapse:collapse;font-size:11.5px}
+.aa-detail-wrap th{text-align:left;color:var(--muted);font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.3px;padding:4px 8px;border-bottom:1px solid var(--line)}
+.aa-detail-wrap td{padding:4px 8px;border-bottom:1px solid #eef1f4;color:var(--ink)}
+.aa-toggle-all{background:none;border:1px solid var(--line);border-radius:7px;padding:5px 11px;font:inherit;font-size:12px;font-weight:600;color:var(--blue-dk);cursor:pointer;margin:10px 0 4px}
+.aa-toggle-all:hover{background:#f0f3f7}
 </style></head>
 <body>
 <header><div class="hdr-inner">
@@ -227,13 +247,23 @@ tbody tr.clickrow{cursor:pointer}
       </span>
       <span id="aaModeHint" style="font-size:12px;color:var(--muted)"></span>
     </div>
+    <div id="aaCallouts" class="aa-callouts"></div>
     <div id="aaGroups" class="aa-groups"></div>
     <div id="aaSummary" class="legend-note" style="margin-bottom:10px"></div>
     <div class="tbl-scroll">
       <table id="aaTable"><thead><tr>
-        <th>Stylist</th><th>Inv Lower (Before Pmt)</th><th>Inv Lower (After Pmt)</th><th>Tip Adj (After Pmt)</th><th>100% Discounts</th><th>Child/Sr %</th><th>Stylist Disc %</th><th>Short HC</th><th>Long Svc Times</th><th>Bypassed</th>
+        <th></th><th>Stylist</th><th>Inv Lower (Before Pmt)</th><th>Inv Lower (After Pmt)</th><th>Tip Adj (After Pmt)</th><th>100% Discounts</th><th>Child/Sr %</th><th>Stylist Disc %</th><th>Short HC</th><th>Long Svc Times</th><th>Bypassed</th>
       </tr></thead><tbody></tbody></table>
-      <div class="legend-note"><span class="flag">&nbsp;red&nbsp;</span> = 3+ invoice-lowering/tip-adjustment occurrences, or any Child/Sr % or Stylist Discount % alert (already pre-filtered by the audit at its configured threshold). <span class="warn">&nbsp;amber&nbsp;</span> = 1-2 invoice-lowering/tip-adjustment occurrences, any 100%-discounted ticket, 5+ short-haircut or long-service-time occurrences, or any bypassed customer. Month/YTD/Custom sum alert counts across weeks; Child/Sr % and Stylist Disc % show the highest value seen in the range.</div>
+      <div class="legend-note"><span class="flag">&nbsp;red&nbsp;</span> = 3+ invoice-lowering/tip-adjustment occurrences, or any Child/Sr % or Stylist Discount % alert (already pre-filtered by the audit at its configured threshold). <span class="warn">&nbsp;amber&nbsp;</span> = 1-2 invoice-lowering/tip-adjustment occurrences, any 100%-discounted ticket, 5+ short-haircut or long-service-time occurrences, or any bypassed customer. Month/YTD/Custom sum alert counts across weeks; Child/Sr % and Stylist Disc % show the highest value seen in the range. Click a stylist row to see the individual flagged transactions.</div>
+    </div>
+    <button class="aa-toggle-all" id="aaShowAllBtn">Show all alert events (raw detail) ▾</button>
+    <div id="aaAllWrap" style="display:none">
+      <div class="tbl-scroll">
+        <table id="aaAllTable"><thead><tr>
+          <th>Date/Time</th><th>Stylist</th><th>Alert Type</th><th>Invoice #</th><th>Amount</th><th>Detail</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+      <div class="legend-note" id="aaAllNote"></div>
     </div>
   </div>
 
@@ -969,6 +999,91 @@ const AA_GROUPS=[
   ["GIFT CARD",["great_card_zero_giftcard"]],
   ["BYPASS",["customers_bypassed"]]
 ];
+const AA_TYPE_LABELS={
+  coupon_after_close:"Coupon Applied After Close",
+  discounted_100pct:"100% Discount",
+  invoice_lower_before_payment:"Invoice Lowered (Before Pmt)",
+  invoice_lower_after_payment:"Invoice Lowered (After Pmt)",
+  tip_adjusted_after_payment:"Tip Adjusted (After Pmt)",
+  store_forward_declined:"Store/Forward Declined",
+  refund_cash:"Cash Refund",
+  neck_trim_over:"Neck Trim Time Over",
+  bang_trim_over:"Bang Trim Time Over",
+  beard_trim_over:"Beard Trim Time Over",
+  tender_employee_changed:"Tender Employee Changed",
+  child_senior_pct_exceeds:"Child/Sr Discount % Exceeded",
+  haircut_time_under:"Haircut Time Under Threshold",
+  stylist_discount_high:"Stylist Discount % High",
+  security_role_changed:"Security Role Changed",
+  no_logout:"No Logout Recorded",
+  great_card_zero_giftcard:"Great Card / $0 Gift Card",
+  customers_bypassed:"Customer Bypassed"
+};
+const AA_PCT_TYPES=new Set(["child_senior_pct_exceeds","stylist_discount_high"]);
+function aaFmtAmount(r){
+  if(AA_PCT_TYPES.has(r.alert_type)){const v=aaPctValue(r);return v!=null?v.toFixed(1)+"%":"—";}
+  if(typeof r.amount==="number"&&r.amount!==0)return "$"+r.amount.toFixed(2);
+  return r.amount!=null&&r.amount!==0?String(r.amount):"—";
+}
+function aaFmtDetail(r){
+  const d=r.detail||{};
+  const keys=Object.keys(d);
+  if(!keys.length)return "—";
+  return keys.map(k=>{
+    const label=k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+    return label+": "+d[k];
+  }).join(" · ");
+}
+function aaFmtDate(r){
+  if(!r.event_time)return "—";
+  try{const dt=new Date(r.event_time);return dt.toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}catch(e){return String(r.event_time);}
+}
+function collectAAAlerts(sid,weeks){
+  const out=[];
+  weeks.forEach(wk=>{
+    const rows=(DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].AUDALERTS&&DATA.weeklies[wk].AUDALERTS[sid])||[];
+    rows.forEach(r=>out.push(r));
+  });
+  return out;
+}
+// Auto-generated plain-language call-outs for the top of the card — surfaces the
+// highest-severity individual findings instead of making a manager read the whole table.
+function buildAACallouts(sid,weeks){
+  const raws=collectAAAlerts(sid,weeks);
+  const byEmpType={};
+  raws.forEach(r=>{
+    const nm=r.employee_name||"(unassigned)";
+    const key=nm+"|"+r.alert_type;
+    if(!byEmpType[key])byEmpType[key]={nm,type:r.alert_type,count:0,rows:[]};
+    byEmpType[key].count++;byEmpType[key].rows.push(r);
+  });
+  const items=[];
+  Object.values(byEmpType).forEach(g=>{
+    const label=AA_TYPE_LABELS[g.type]||g.type;
+    if(g.type==="child_senior_pct_exceeds"||g.type==="stylist_discount_high"){
+      let top=null,topV=-1;
+      g.rows.forEach(r=>{const v=aaPctValue(r);if(v!=null&&v>topV){topV=v;top=r;}});
+      const cfg=top&&top.detail&&top.detail.configured_value;
+      const what=g.type==="child_senior_pct_exceeds"?"Child/Sr discount":"Stylist discount";
+      items.push({sev:"red",score:100+topV,text:`<b>${g.nm}</b> — ${what} ${topV>=0?topV.toFixed(1)+"%":""}${cfg?" (threshold "+cfg+")":""}`});
+    } else if(g.type==="invoice_lower_before_payment"||g.type==="invoice_lower_after_payment"||g.type==="tip_adjusted_after_payment"){
+      const sev=g.count>=3?"red":"amber";
+      items.push({sev,score:(sev==="red"?60:30)+g.count,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} occurrence${g.count>1?"s":""}`});
+    } else if(g.type==="discounted_100pct"){
+      items.push({sev:"amber",score:20+g.count,text:`<b>${g.nm}</b> — ${g.count} 100%-discounted ticket${g.count>1?"s":""}`});
+    } else if(g.type==="customers_bypassed"){
+      items.push({sev:"amber",score:15+g.count,text:`<b>${g.nm}</b> — ${g.count} customer${g.count>1?"s":""} bypassed`});
+    } else if(g.type==="security_role_changed"||g.type==="no_logout"||g.type==="tender_employee_changed"||g.type==="store_forward_declined"||g.type==="refund_cash"){
+      items.push({sev:"red",score:70+g.count,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} event${g.count>1?"s":""}`});
+    } else if(g.type==="haircut_time_under"||g.type==="neck_trim_over"||g.type==="bang_trim_over"||g.type==="beard_trim_over"){
+      if(g.count>=5)items.push({sev:"amber",score:10+g.count,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} occurrences`});
+    } else if(g.type==="great_card_zero_giftcard"){
+      items.push({sev:"amber",score:15+g.count,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} occurrence${g.count>1?"s":""}`});
+    }
+  });
+  items.sort((a,b)=>b.score-a.score);
+  return items.slice(0,8);
+}
 function aaRange(){
   if(aaMode==="week"){
     if(!curWeek)return null;
@@ -1034,11 +1149,26 @@ function computeAAEmployeeAgg(sid,weeks){
     return [nm,a.invLowBefore,a.invLowAfter,a.tipAdj,a.disc100,a.childSrPct,a.styDiscPct,a.hcUnder,a.longSvc,a.bypassed];});
 }
 function aaCountCls(n){return n>=3?"flag":n>=1?"warn":"";}
+function aaBuildDetailTable(rows){
+  if(!rows.length)return '<div class="aa-detail-wrap">No individual alert rows recorded for this stylist in range.</div>';
+  const body=rows.map(r=>`<tr><td>${aaFmtDate(r)}</td><td>${AA_TYPE_LABELS[r.alert_type]||r.alert_type}</td><td>${r.invoice_id||"—"}</td><td>${aaFmtAmount(r)}</td><td>${aaFmtDetail(r)}</td></tr>`).join("");
+  return `<div class="aa-detail-wrap"><table><thead><tr><th>Date/Time</th><th>Alert Type</th><th>Invoice #</th><th>Amount</th><th>Detail</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+let aaAllOpen=false;
+function renderAAAllTable(range){
+  const raws=range&&current?collectAAAlerts(current,range.weeks):[];
+  const sorted=raws.slice().sort((a,b)=>(b.event_time||"").localeCompare(a.event_time||""));
+  const tb=$("#aaAllTable tbody");
+  tb.innerHTML=sorted.length?sorted.map(r=>`<tr><td>${aaFmtDate(r)}</td><td>${r.employee_name||"(unassigned)"}</td><td>${AA_TYPE_LABELS[r.alert_type]||r.alert_type}</td><td>${r.invoice_id||"—"}</td><td>${aaFmtAmount(r)}</td><td>${aaFmtDetail(r)}</td></tr>`).join(""):'<tr><td colspan="6" class="na">No alert events in this range.</td></tr>';
+  $("#aaAllNote").textContent=sorted.length?sorted.length+" individual alert event(s) shown for "+sName(current)+", "+(range?range.label:"")+".":"";
+}
 function renderAA(){
   const range=aaRange();
   $("#aaModeHint").textContent=range?range.label:(aaMode==="custom"?"Pick a from/to date above.":"No week selected.");
   $("#aaTitle").textContent=(current||"")+" — "+sName(current)+" · Loss Prevention (Audit Alerts)"+(range?" ("+range.label+")":"");
   const sums=range&&current?computeAASummary(current,range.weeks):null;
+  const callouts=range&&current?buildAACallouts(current,range.weeks):[];
+  $("#aaCallouts").innerHTML=callouts.length?callouts.map(c=>`<div class="aa-callout sev-${c.sev}"><span class="ico">${c.sev==="red"?"🚩":"⚠️"}</span><span>${c.text}</span></div>`).join(""):'<div class="aa-none">No notable loss-prevention call-outs for this range.</div>';
   const gh=$("#aaGroups");
   gh.innerHTML=AA_GROUPS.map(g=>{const n=g[1].reduce((a,k)=>a+((sums&&sums[k])||0),0);
     return `<div class="aa-chip${n>0?" aa-hot":""}"><b>${n}</b>${g[0]}</div>`;}).join("");
@@ -1047,11 +1177,31 @@ function renderAA(){
   const tb=$("#aaTable tbody");tb.innerHTML="";
   rows.forEach(r=>{
     const pctCell=v=>v==null?'<td class="na">—</td>':`<td class="flag">${v.toFixed(1)}%</td>`;
-    tb.innerHTML+=`<tr><td>${r[0]}</td><td class="${aaCountCls(r[1])}">${r[1]||"—"}</td><td class="${aaCountCls(r[2])}">${r[2]||"—"}</td>
+    const tr=document.createElement("tr");
+    tr.className="aa-row-click";
+    tr.innerHTML=`<td class="aa-caret">▸</td><td>${r[0]}</td><td class="${aaCountCls(r[1])}">${r[1]||"—"}</td><td class="${aaCountCls(r[2])}">${r[2]||"—"}</td>
       <td class="${aaCountCls(r[3])}">${r[3]||"—"}</td><td class="${r[4]>0?"warn":""}">${r[4]||"—"}</td>
       ${pctCell(r[5])}${pctCell(r[6])}
-      <td class="${r[7]>=5?"warn":""}">${r[7]||"—"}</td><td class="${r[8]>=5?"warn":""}">${r[8]||"—"}</td><td class="${r[9]>0?"warn":""}">${r[9]||"—"}</td></tr>`;});
+      <td class="${r[7]>=5?"warn":""}">${r[7]||"—"}</td><td class="${r[8]>=5?"warn":""}">${r[8]||"—"}</td><td class="${r[9]>0?"warn":""}">${r[9]||"—"}</td>`;
+    const detailTr=document.createElement("tr");
+    detailTr.className="aa-detail-row";detailTr.style.display="none";
+    const td=document.createElement("td");td.colSpan=11;detailTr.appendChild(td);
+    tr.onclick=()=>{
+      const open=detailTr.style.display!=="none";
+      const caret=tr.querySelector(".aa-caret");
+      if(open){detailTr.style.display="none";caret.textContent="▸";return;}
+      if(!td.dataset.built){
+        const empRows=collectAAAlerts(current,range.weeks).filter(x=>(x.employee_name||"(unassigned)")===r[0])
+          .sort((a,b)=>(b.event_time||"").localeCompare(a.event_time||""));
+        td.innerHTML=aaBuildDetailTable(empRows);
+        td.dataset.built="1";
+      }
+      detailTr.style.display="";caret.textContent="▾";
+    };
+    tb.appendChild(tr);tb.appendChild(detailTr);
+  });
   $("#aaSummary").innerHTML=range?(total+" total alert(s) across "+rows.length+" stylist(s) with activity"+(range.weeks.length?" · "+range.weeks.length+" week(s) in range":"")):"No week selected.";
+  renderAAAllTable(range);
 }
 document.querySelectorAll("#aaModeToggle button").forEach(b=>b.onclick=()=>{
   aaMode=b.dataset.mode;
@@ -1061,6 +1211,11 @@ document.querySelectorAll("#aaModeToggle button").forEach(b=>b.onclick=()=>{
 });
 $("#aaFrom").onchange=renderAA;
 $("#aaTo").onchange=renderAA;
+$("#aaShowAllBtn").onclick=()=>{
+  aaAllOpen=!aaAllOpen;
+  $("#aaAllWrap").style.display=aaAllOpen?"":"none";
+  $("#aaShowAllBtn").textContent=aaAllOpen?"Hide all alert events (raw detail) ▴":"Show all alert events (raw detail) ▾";
+};
 
 // TRENDS
 // Benchmarks: {value, dir:"max"|"min", label} — max=must stay at or below, min=must stay at or above

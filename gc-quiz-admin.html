@@ -43,12 +43,34 @@ nav.tabs{background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--sh
 table{width:100%;border-collapse:collapse;font-size:12.8px}
 th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line)}
 thead th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;background:#f0f5f3;cursor:pointer}
+thead th.no-sort{cursor:default}
 tbody tr:hover{background:#f7fafd}
 .win-row{background:#f0faf4}
 .tbl-scroll{overflow-x:auto}
 .muted{color:var(--muted);font-size:.88rem}
 .badge-win{background:var(--green);color:#fff;font-size:10.5px;font-weight:700;border-radius:20px;padding:2px 8px}
 .empty{text-align:center;color:var(--muted);padding:30px 10px}
+.view-btn{background:#fff;border:1px solid var(--line);color:var(--blue-dk);border-radius:6px;padding:5px 10px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+.view-btn:hover{border-color:var(--blue);background:#eefaf6}
+
+/* ---- answers modal ---- */
+.ans-overlay{position:fixed;inset:0;background:rgba(7,59,58,.55);display:flex;align-items:flex-start;justify-content:center;z-index:1000;padding:30px 16px;overflow-y:auto}
+.ans-modal{background:#fff;border-radius:12px;max-width:640px;width:100%;padding:24px 26px 26px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+.ans-modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;gap:10px}
+.ans-modal-head h3{font-size:1.05rem;color:var(--blue-dk)}
+.ans-modal-sub{font-size:.82rem;color:var(--muted);margin-bottom:18px}
+.ans-close{background:none;border:none;font-size:1.3rem;line-height:1;cursor:pointer;color:var(--muted);flex:none}
+.ans-close:hover{color:var(--ink)}
+.ans-q{margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.ans-q:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.ans-q-text{font-weight:600;font-size:.9rem;margin-bottom:8px}
+.ans-opt{padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:.85rem;margin-bottom:6px}
+.ans-opt.correct{border-color:var(--green);background:#f0faf4;color:var(--blue-dk)}
+.ans-opt.incorrect{border-color:var(--red);background:#fdeeee;color:var(--red-dk)}
+.ans-opt .tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-left:6px}
+.ans-opt.correct .tag{color:var(--green)}
+.ans-opt.incorrect .tag{color:var(--red-dk)}
+.ans-blank{font-size:.82rem;color:var(--red-dk);font-style:italic;margin-top:2px}
 
 /* edit tab (question editor) */
 .edit-q{position:relative}
@@ -186,6 +208,7 @@ input[type=text].field-input:focus,select.field-input:focus{outline:none;border-
             <th data-k="salon">Salon</th>
             <th data-k="percent">Score</th>
             <th data-k="submitted_at">Submitted</th>
+            <th class="no-sort">Answers</th>
           </tr></thead>
           <tbody id="resultsBody"></tbody>
         </table>
@@ -193,6 +216,8 @@ input[type=text].field-input:focus,select.field-input:focus{outline:none;border-
       <div id="resultsEmpty" class="empty" style="display:none">No attempts match this filter.</div>
     </div>
   </section>
+
+  <div id="ansOverlay" class="ans-overlay" style="display:none"></div>
 
   <!-- ===== QUESTIONS PANEL ===== -->
   <section class="panel" id="questions">
@@ -509,6 +534,7 @@ function renderResultsTable(){
       <td>${escapeHtml(r.salon || "")}</td>
       <td>${r.score}/${r.total_questions} (${r.percent}%)</td>
       <td class="muted">${t}</td>
+      <td><button type="button" class="view-btn" data-id="${r.id}">View</button></td>
     </tr>`;
   }).join("");
 }
@@ -517,11 +543,88 @@ document.getElementById("searchBox").addEventListener("input", renderResultsTabl
 document.getElementById("weekFilter").addEventListener("change", renderResultsTable);
 document.getElementById("scoreFilter").addEventListener("change", renderResultsTable);
 document.querySelectorAll("#resultsTable thead th").forEach(th => {
+  if (!th.dataset.k) return;
   th.addEventListener("click", () => {
     const k = th.dataset.k;
     if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = 1; }
     renderResultsTable();
   });
+});
+
+/* ---------- INDIVIDUAL ANSWER VIEWER ---------- */
+let QUESTION_BANK = null;
+async function ensureQuestionBank(){
+  if (QUESTION_BANK) return QUESTION_BANK;
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/quiz_questions?quiz_id=eq.${QUIZ_ID}&order=position.asc`,
+    { headers: sbHeaders() }
+  );
+  const rows = await res.json();
+  QUESTION_BANK = Array.isArray(rows) ? rows : [];
+  return QUESTION_BANK;
+}
+
+function closeAnswersModal(){
+  const overlay = document.getElementById("ansOverlay");
+  overlay.style.display = "none";
+  overlay.innerHTML = "";
+}
+
+async function openAnswersModal(attemptId){
+  const attempt = ATTEMPTS.find(a => String(a.id) === String(attemptId));
+  if (!attempt) return;
+  const overlay = document.getElementById("ansOverlay");
+  overlay.style.display = "flex";
+  overlay.innerHTML = `<div class="ans-modal"><p class="muted">Loading…</p></div>`;
+
+  const questions = await ensureQuestionBank();
+  const answers = Array.isArray(attempt.answers) ? attempt.answers : [];
+  const t = new Date(attempt.submitted_at).toLocaleString("en-US", { timeZone: TIMEZONE, month:"short", day:"numeric", hour:"numeric", minute:"2-digit" });
+
+  const body = questions.map((q, qi) => {
+    const chosen = answers[qi] === undefined ? null : answers[qi];
+    const optsHtml = (q.options || []).map((optText, oi) => {
+      let cls = "";
+      let tag = "";
+      if (oi === q.correct_index) { cls = "correct"; tag = `<span class="tag">Correct answer</span>`; }
+      if (chosen === oi && oi !== q.correct_index) { cls = "incorrect"; tag = `<span class="tag">Their answer</span>`; }
+      if (chosen === oi && oi === q.correct_index) { tag = `<span class="tag">Correct — their answer</span>`; }
+      return `<div class="ans-opt ${cls}">${escapeHtml(optText)}${tag}</div>`;
+    }).join("");
+    const blank = chosen === null ? `<div class="ans-blank">Left unanswered</div>` : "";
+    return `<div class="ans-q">
+      <div class="ans-q-text">${qi + 1}. ${escapeHtml(q.question)}</div>
+      ${optsHtml}
+      ${blank}
+    </div>`;
+  }).join("");
+
+  overlay.innerHTML = `<div class="ans-modal">
+    <div class="ans-modal-head">
+      <div>
+        <h3>${escapeHtml(attempt.manager_name)}${attempt.salon ? " — " + escapeHtml(attempt.salon) : ""}</h3>
+        <div class="ans-modal-sub">${attempt.score}/${attempt.total_questions} correct (${attempt.percent}%) · submitted ${t}</div>
+      </div>
+      <button type="button" class="ans-close" aria-label="Close">&times;</button>
+    </div>
+    ${body || "<p class='muted'>This quiz has no questions on record.</p>"}
+  </div>`;
+
+  overlay.querySelector(".ans-close").addEventListener("click", closeAnswersModal);
+}
+
+document.getElementById("resultsBody").addEventListener("click", (e) => {
+  const btn = e.target.closest(".view-btn");
+  if (!btn) return;
+  openAnswersModal(btn.dataset.id);
+});
+
+document.getElementById("ansOverlay").addEventListener("click", (e) => {
+  if (e.target.id === "ansOverlay") closeAnswersModal();
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeAnswersModal();
 });
 
 /* ---------- QUESTIONS EDITOR ---------- */

@@ -129,7 +129,7 @@ tbody tr.clickrow{cursor:pointer}
   <a class="hdr-back" href="https://tools.sonayagroup.com/greatclips.html">← Performance Dashboard</a>
   <span class="hdr-title">Great Clips · Stylist CRM</span>
   <div class="global-search-wrap">
-    <input type="search" id="globalSearch" placeholder="🔍 Search all contacts…" autocomplete="off">
+    <input type="search" id="globalSearch" placeholder="🔍 Search name, phone, city, zip…" autocomplete="off">
     <div id="globalSearchResults" class="global-search-results"></div>
   </div>
   <div class="hdr-meta">
@@ -169,6 +169,7 @@ tbody tr.clickrow{cursor:pointer}
 <section class="panel" id="panel-pipeline">
   <div class="sec-title">Active Recruit Pipeline</div>
   <div class="hint" style="color:var(--muted);font-size:12px;margin-bottom:14px">Contacts currently being tracked as recruits. Click a card to open the contact.</div>
+  <div id="pipelineFunnel" style="margin-bottom:20px"></div>
   <div id="pipelineReport" class="kpis"></div>
   <div id="pipelineBoard" class="pipe-cols"></div>
 </section>
@@ -305,13 +306,15 @@ function setupGlobalSearch(){
     const q = input.value.trim().toLowerCase();
     if(!q){ results.classList.remove('open'); results.innerHTML=''; return; }
     const matches = STATE.contacts.filter(c=>
-      (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q) || (c.email||'').toLowerCase().includes(q)
+      (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q) || (c.email||'').toLowerCase().includes(q) || (c.city||'').toLowerCase().includes(q) || (c.zip||'').includes(q)
     ).slice(0,8);
-    results.innerHTML = matches.length ? matches.map(c=>`
-      <div class="gsr-row" data-id="${c.id}">
+    results.innerHTML = matches.length ? matches.map(c=>{
+      const loc = [c.city,c.state,c.zip].filter(Boolean).join(', ');
+      return `<div class="gsr-row" data-id="${c.id}">
         <div class="gsr-name">${esc(c.name)}</div>
-        <div class="gsr-meta">${esc(c.phone||c.email||'')}</div>
-      </div>`).join('') : '<div class="gsr-empty">No matches</div>';
+        <div class="gsr-meta">${esc(c.phone||c.email||'')}${loc?' · '+esc(loc):''}</div>
+      </div>`;
+    }).join('') : '<div class="gsr-empty">No matches</div>';
     results.classList.add('open');
     results.querySelectorAll('.gsr-row').forEach(r=>{
       r.onclick = ()=>{ goToContact(r.dataset.id); results.classList.remove('open'); input.value=''; };
@@ -358,21 +361,48 @@ async function renderToday(){
   document.getElementById('kpiDueToday').onclick = ()=>goTasks('open');
   document.getElementById('kpiOverdue').onclick = ()=>goTasks('overdue');
 
-  const dueList = dueToday.concat(overdue).slice(0,12);
+  const dueList = dueToday.concat(overdue.sort((a,b)=>a.due_date.localeCompare(b.due_date))).slice(0,20);
   document.getElementById('todayTasks').innerHTML = dueList.length ? dueList.map(t=>{
     const isOverdue = !t.completed && t.due_date && t.due_date<today;
+    const daysOverdue = isOverdue ? Math.floor((new Date(today+'T00:00:00') - new Date(t.due_date+'T00:00:00'))/(86400000)) : 0;
     return `<div class="task-row">
       <span class="ttl">${esc(t.title)} — <a href="javascript:void(0)" class="gotoContact" data-cid="${t.contact_id}">${esc(t.gc_crm_contacts?.name||'—')}</a></span>
       <span style="font-size:11.5px;color:var(--muted)">${t.assignee?.name?esc(t.assignee.name):''}</span>
-      <span class="due ${isOverdue?'overdue':''}">${t.due_date?fmtDate(t.due_date):''}</span>
+      <span class="due ${isOverdue?'overdue':''}">${isOverdue?daysOverdue+'d overdue':t.due_date?fmtDate(t.due_date):''}</span>
     </div>`;
   }).join('') : '<div class="empty">Nothing due — all caught up.</div>';
 
-  const {data:recentNotes} = await sb.from('gc_crm_notes').select('*, gc_crm_contacts(id,name), author:author_id(name)').order('created_at', {ascending:false}).limit(12);
-  document.getElementById('todayActivity').innerHTML = (recentNotes||[]).length ? recentNotes.map(n=>`
-    <div class="hist-item"><span class="avatar">${n.author?initials(n.author.name):'?'}</span>
-      <div class="hist-body"><div class="hist-meta"><span>${n.author?esc(n.author.name):'Someone'} on <a href="javascript:void(0)" class="gotoContact" data-cid="${n.contact_id}">${esc(n.gc_crm_contacts?.name||'—')}</a></span><span>${fmtDateTime(n.created_at)}</span></div>
-      <div class="hist-content">${esc((n.body||'').slice(0,140))}${(n.body||'').length>140?'…':''}</div></div></div>`).join('') : '<div class="empty">No recent activity.</div>';
+  const [{data:recentNotes},{data:recentTasksDone},{data:newContacts}] = await Promise.all([
+    sb.from('gc_crm_notes').select('*, gc_crm_contacts(id,name), author:author_id(name)').order('created_at', {ascending:false}).limit(10),
+    sb.from('gc_crm_tasks').select('*, gc_crm_contacts(id,name)').eq('completed',true).order('completed_at', {ascending:false}).limit(8),
+    sb.from('gc_crm_contacts').select('id,name,created_at').order('created_at', {ascending:false}).limit(8)
+  ]);
+  const feed = [];
+  (recentNotes||[]).forEach(n=>feed.push({ts:n.created_at, type:'note', d:n}));
+  (recentTasksDone||[]).forEach(t=>feed.push({ts:t.completed_at, type:'task', d:t}));
+  (newContacts||[]).forEach(c=>feed.push({ts:c.created_at, type:'contact', d:c}));
+  feed.sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  document.getElementById('todayActivity').innerHTML = feed.length ? feed.slice(0,15).map(it=>{
+    if(it.type==='note'){
+      const n=it.d;
+      return `<div class="hist-item"><span class="avatar">${n.author?initials(n.author.name):'?'}</span>
+        <div class="hist-body"><div class="hist-meta"><span>${n.author?esc(n.author.name):'Someone'} on <a href="javascript:void(0)" class="gotoContact" data-cid="${n.contact_id}">${esc(n.gc_crm_contacts?.name||'—')}</a></span><span>${fmtDateTime(it.ts)}</span></div>
+        <div class="hist-content">${esc((n.body||'').slice(0,140))}${(n.body||'').length>140?'…':''}</div></div></div>`;
+    }
+    if(it.type==='task'){
+      const t=it.d;
+      return `<div class="hist-item"><span class="avatar" style="background:#089f4522;color:#089f45">✓</span>
+        <div class="hist-body"><div class="hist-meta"><span>Task completed on <a href="javascript:void(0)" class="gotoContact" data-cid="${t.contact_id}">${esc(t.gc_crm_contacts?.name||'—')}</a></span><span>${fmtDateTime(it.ts)}</span></div>
+        <div class="hist-content task">${esc(t.title)}</div></div></div>`;
+    }
+    if(it.type==='contact'){
+      const c=it.d;
+      return `<div class="hist-item"><span class="avatar" style="background:#0ea5e922;color:#0ea5e9">+</span>
+        <div class="hist-body"><div class="hist-meta"><span>New contact added</span><span>${fmtDateTime(it.ts)}</span></div>
+        <div class="hist-content"><a href="javascript:void(0)" class="gotoContact" data-cid="${c.id}">${esc(c.name)}</a></div></div></div>`;
+    }
+    return '';
+  }).join('') : '<div class="empty">No recent activity.</div>';
 
   document.querySelectorAll('#panel-today .gotoContact').forEach(a=>{
     a.onclick = ()=>goToContact(a.dataset.cid);
@@ -385,6 +415,7 @@ const SORT_GETTERS = {
   phone: c=>(c.phone||''),
   email: c=>(c.email||'').toLowerCase(),
   salon: c=>(c.salon_id||''),
+  city: c=>(c.city||'').toLowerCase(),
   owner: c=>(STATE.users.find(u=>u.id===c.assigned_to)?.name||'').toLowerCase()
 };
 
@@ -396,9 +427,11 @@ function renderContactsList(){
   const selected = new Set();
   wrap.innerHTML = `
     <div class="toolbar">
-      <input type="search" id="contactSearch" placeholder="Search by name, phone, email…" style="min-width:260px">
+      <input type="search" id="contactSearch" placeholder="Search by name, phone, email, city, zip…" style="min-width:280px">
       <select id="groupFilter"><option value="">All groups</option>${groupOpts}</select>
       <select id="ownerFilter"><option value="">All owners</option><option value="__unassigned">Unassigned</option>${ownerOpts}</select>
+      <input type="text" id="cityFilter" placeholder="City" style="width:120px">
+      <input type="text" id="zipFilter" placeholder="Zip" style="width:90px">
       <button class="btn" id="newContactBtn">+ New Contact</button>
       <span style="margin-left:auto;color:var(--muted);font-size:12.5px" id="contactCount"></span>
     </div>
@@ -415,6 +448,7 @@ function renderContactsList(){
       <th class="sortable" data-sort="phone">Phone</th>
       <th class="sortable" data-sort="email">Email</th>
       <th class="sortable" data-sort="salon">Salon</th>
+      <th class="sortable" data-sort="city">City/Zip</th>
       <th>Groups</th>
       <th class="sortable" data-sort="owner">Assigned to</th>
     </tr></thead><tbody id="contactsTbody"></tbody></table></div>`;
@@ -422,6 +456,8 @@ function renderContactsList(){
   document.getElementById('contactSearch').addEventListener('input', drawRows);
   document.getElementById('groupFilter').addEventListener('change', drawRows);
   document.getElementById('ownerFilter').addEventListener('change', drawRows);
+  document.getElementById('cityFilter').addEventListener('input', drawRows);
+  document.getElementById('zipFilter').addEventListener('input', drawRows);
   document.querySelectorAll('th.sortable').forEach(th=>{
     th.style.cursor = 'pointer';
     th.addEventListener('click', ()=>{
@@ -472,11 +508,15 @@ function renderContactsList(){
     const q = document.getElementById('contactSearch').value.trim().toLowerCase();
     const gf = document.getElementById('groupFilter').value;
     const of = document.getElementById('ownerFilter').value;
+    const cf = document.getElementById('cityFilter').value.trim().toLowerCase();
+    const zf = document.getElementById('zipFilter').value.trim();
     let rows = STATE.contacts;
-    if(q) rows = rows.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q) || (c.email||'').toLowerCase().includes(q));
+    if(q) rows = rows.filter(c => (c.name||'').toLowerCase().includes(q) || (c.phone||'').includes(q) || (c.email||'').toLowerCase().includes(q) || (c.city||'').toLowerCase().includes(q) || (c.zip||'').includes(q));
     if(gf) rows = rows.filter(c => (c.gc_crm_contact_groups||[]).some(x=>x.group_id===gf));
     if(of==='__unassigned') rows = rows.filter(c => !c.assigned_to);
     else if(of) rows = rows.filter(c => c.assigned_to===of);
+    if(cf) rows = rows.filter(c => (c.city||'').toLowerCase().includes(cf));
+    if(zf) rows = rows.filter(c => (c.zip||'').startsWith(zf));
     const getter = SORT_GETTERS[sortField] || SORT_GETTERS.name;
     rows = rows.slice().sort((a,b)=>{
       const av=getter(a), bv=getter(b);
@@ -497,10 +537,11 @@ function renderContactsList(){
         <td>${esc(c.phone||'')}</td>
         <td>${esc(c.email||'')}</td>
         <td>${esc(c.salon_id||'')}</td>
+        <td style="font-size:12px">${esc(c.city||'')}${c.city&&c.zip?', ':''}${esc(c.zip||'')}</td>
         <td>${cgroups.map(g=>`<span class="badge" style="${groupBadgeStyle(groupColor(g))}">${esc(g.name)}</span>`).join('')}</td>
         <td>${ownerName?esc(ownerName):''}</td>
       </tr>`;
-    }).join('') || `<tr><td colspan="8" class="empty">No contacts found.</td></tr>`;
+    }).join('') || `<tr><td colspan="9" class="empty">No contacts found.</td></tr>`;
     document.querySelectorAll('#contactsTbody tr.clickrow').forEach(tr=>{
       tr.addEventListener('click', (e)=>{ if(e.target.classList.contains('rowSelect')) return; openContact(tr.dataset.id); });
     });
@@ -660,6 +701,7 @@ async function openContact(id){
           <div class="info-row"><div class="k">Email</div><div class="v">${esc(c.email||'—')}</div></div>
           <div class="info-row"><div class="k">Phone</div><div class="v">${esc(c.phone||'—')}</div></div>
           <div class="info-row"><div class="k">Address</div><div class="v">${esc(c.address||'—')}</div></div>
+          <div class="info-row"><div class="k">City / State / Zip</div><div class="v">${[c.city,c.state,c.zip].filter(Boolean).map(v=>esc(v)).join(', ')||'—'}</div></div>
           <div class="info-row"><div class="k">Birthday</div><div class="v">${c.birthday?fmtDate(c.birthday):'—'}</div></div>
           <div class="info-row"><div class="k">Salon</div><div class="v">${esc(salonLabel||'—')}</div></div>
           <div class="info-row"><div class="k">Company / Job title</div><div class="v">${esc(c.company_name||'—')}${c.job_title?' — '+esc(c.job_title):''}</div></div>
@@ -971,6 +1013,11 @@ function openEditContactModal(c){
       <div class="field"><label>Website</label><input type="text" id="ecWebsite" value="${esc(c.website||'')}"></div>
     </div>
     <div class="field"><label>Address</label><input type="text" id="ecAddress" value="${esc(c.address||'')}"></div>
+    <div class="two-col">
+      <div class="field"><label>City</label><input type="text" id="ecCity" value="${esc(c.city||'')}"></div>
+      <div class="field"><label>State</label><input type="text" id="ecState" value="${esc(c.state||'')}" style="width:80px"></div>
+      <div class="field"><label>Zip</label><input type="text" id="ecZip" value="${esc(c.zip||'')}" style="width:100px"></div>
+    </div>
     <div class="field"><label>License Details</label><input type="text" id="ecLicense" value="${esc(c.license_details||'')}"></div>
     <div class="field"><label>School Details</label><input type="text" id="ecSchool" value="${esc(c.school_details||'')}"></div>
     <div class="field"><label>Background Info</label><textarea id="ecBg">${esc(c.background_info||'')}</textarea></div>
@@ -991,6 +1038,9 @@ function openEditContactModal(c){
       job_title: document.getElementById('ecJob').value.trim()||null,
       website: document.getElementById('ecWebsite').value.trim()||null,
       address: document.getElementById('ecAddress').value.trim()||null,
+      city: document.getElementById('ecCity').value.trim()||null,
+      state: document.getElementById('ecState').value.trim()||null,
+      zip: document.getElementById('ecZip').value.trim()||null,
       license_details: document.getElementById('ecLicense').value.trim()||null,
       school_details: document.getElementById('ecSchool').value.trim()||null,
       background_info: document.getElementById('ecBg').value.trim()||null,
@@ -1053,6 +1103,38 @@ async function renderPipeline(){
   }
   const active = STATE.statuses.filter(s=>s.category==='active');
 
+  // Visual funnel
+  const funnel = document.getElementById('pipelineFunnel');
+  const activeStatuses = STATE.statuses.filter(s=>s.category==='active');
+  const closedStatuses = STATE.statuses.filter(s=>s.category==='closed');
+  const maxCount = Math.max(...activeStatuses.map(s=>(entries||[]).filter(e=>e.status_id===s.id).length), 1);
+  const totalActive = entries.filter(e=>activeStatuses.some(s=>s.id===e.status_id)).length;
+  const totalClosed = entries.filter(e=>closedStatuses.some(s=>s.id===e.status_id)).length;
+  const FUNNEL_COLORS = ['#048667','#06a17d','#089f45','#10b981','#34d399','#6ee7b7','#a7f3d0','#d1fae5'];
+  funnel.innerHTML = `<div class="card" style="margin-bottom:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="margin:0">Pipeline Funnel</h3>
+      <span style="font-size:12px;color:var(--muted)">${totalActive} active · ${totalClosed} closed · ${entries.length} total</span>
+    </div>
+    ${activeStatuses.map((s,i)=>{
+      const n = entries.filter(e=>e.status_id===s.id).length;
+      const pct = Math.max((n/maxCount)*100, 8);
+      const color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
+      return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <div style="width:130px;font-size:12.5px;font-weight:600;text-align:right;flex-shrink:0">${esc(s.name)}</div>
+        <div style="flex:1;position:relative;height:28px">
+          <div style="width:${pct}%;background:${color};height:100%;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;min-width:32px">${n}</div>
+        </div>
+      </div>`;
+    }).join('')}
+    ${closedStatuses.length ? `<div style="border-top:1px solid var(--line);margin-top:8px;padding-top:8px;display:flex;gap:16px;flex-wrap:wrap">
+      ${closedStatuses.map(s=>{
+        const n = entries.filter(e=>e.status_id===s.id).length;
+        return `<span style="font-size:12px"><span style="font-weight:600">${esc(s.name)}:</span> ${n}</span>`;
+      }).join('')}
+    </div>` : ''}
+  </div>`;
+
   const report = document.getElementById('pipelineReport');
   report.innerHTML = STATE.statuses.map(s=>{
     const n = (entries||[]).filter(e=>e.status_id===s.id).length;
@@ -1094,11 +1176,12 @@ async function renderTasks(){
   const wrap = document.getElementById('taskList');
   wrap.innerHTML = rows.length ? rows.map(t=>{
     const overdue = !t.completed && t.due_date && t.due_date<today;
+    const daysOver = overdue ? Math.floor((new Date(today+'T00:00:00') - new Date(t.due_date+'T00:00:00'))/(86400000)) : 0;
     return `<div class="task-row ${t.completed?'done':''}">
       <input type="checkbox" data-tid="${t.id}" class="taskCb" ${t.completed?'checked':''}>
       <span class="ttl">${esc(t.title)} — <a href="javascript:void(0)" class="taskContactLink" data-cid="${t.contact_id}">${esc(t.gc_crm_contacts?.name||'—')}</a></span>
       <span style="font-size:11.5px;color:var(--muted)">${t.assignee?.name?esc(t.assignee.name):''}</span>
-      <span class="due ${overdue?'overdue':''}">${t.due_date?fmtDate(t.due_date):'No due date'}</span>
+      <span class="due ${overdue?'overdue':''}">${overdue?daysOver+'d overdue':t.due_date?fmtDate(t.due_date):'No due date'}</span>
     </div>`;
   }).join('') : '<div class="empty">No tasks here.</div>';
 

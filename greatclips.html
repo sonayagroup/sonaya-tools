@@ -34,6 +34,9 @@ section.panel{display:none;padding-top:20px}section.panel.active{display:block}
 .chart-box{position:relative;height:260px}.chart-box.tall{height:420px}
 table{width:100%;border-collapse:collapse;font-size:12.7px}
 th,td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+#styTable th,#styTable td{padding:3px 2px;font-size:10.5px}
+#styTable th:first-child,#styTable td:first-child{white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis}
+#styTable th{font-size:9px;letter-spacing:0;padding:4px 2px}
 th:first-child,td:first-child{text-align:left}
 thead th{background:#f0f3f7;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;position:sticky;top:0;vertical-align:top;padding-top:9px}
 thead th:hover{color:var(--blue)}
@@ -191,8 +194,8 @@ tbody tr.clickrow{cursor:pointer}
     <div id="teamSummary" class="legend-note" style="margin-bottom:10px"></div>
     <div class="tbl-scroll">
       <table id="styTable"><thead><tr>
-        <th>Stylist</th><th>Floor Hrs</th><th>Admin</th><th>Close</th><th>Unpaid Breaks #</th><th>Unpaid Breaks Min</th><th>Payroll %</th><th>CPH</th><th>Service $</th><th>Svc Disc $</th><th>Disc %</th>
-        <th>Stnd Prod %</th><th>Cust</th><th>Avg HC</th><th>Avg Min Btwn</th>
+        <th>Stylist</th><th>Flr Hrs</th><th>Adm</th><th>Cls</th><th>UB #</th><th>UB Min</th><th>Pay %</th><th>CPH</th><th>Svc $</th><th>Disc $</th><th>Disc %</th>
+        <th>Std Prod %</th><th>Cust</th><th>Avg HC</th><th>Min Btwn</th>
       </tr></thead><tbody></tbody><tfoot></tfoot></table>
       <table id="teamTable" style="display:none"><thead><tr>
         <th>Stylist</th><th>Floor Hrs</th><th>Cust</th><th>Avg HC</th><th>CPH</th><th>Std Prod %</th><th>Avg Min Btwn</th><th>Payroll %</th><th>New Ret %</th><th>Repeat Ret %</th>
@@ -825,15 +828,16 @@ $("#repsCopy").onclick=()=>{const t=$("#repsText");t.focus();t.select();const do
 let teamMode="day";
 function renderStyDayTable(){
   const s=salById(current);
-  const rows=(DAY.STY&&DAY.STY[current])||[];const tb=$("#styTable tbody");tb.innerHTML="";let svc=0,disc=0,cust=0,ubc=0,ubm=0;
+  const rows=(DAY.STY&&DAY.STY[current])||[];const tb=$("#styTable tbody");tb.innerHTML="";let svc=0,disc=0,cust=0,ubc=0,ubm=0,mibSum=0,mibCnt=0;
   rows.forEach(r=>{const hasUb=typeof r[14]==="number"||typeof r[15]==="number";
     tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td>${typeof r[12]==="number"?r[12].toFixed(2):"—"}</td><td>${typeof r[13]==="number"?r[13].toFixed(2):"—"}</td>
     <td class="${typeof r[14]==="number"&&r[14]===0?"kr":""}">${typeof r[14]==="number"?r[14]:"—"}</td><td class="${typeof r[15]==="number"&&r[15]<20?"kr":""}">${typeof r[15]==="number"?r[15]:"—"}</td>
     <td class="${kpi('payroll',r[2])}">${r[2].toFixed(1)}%</td>
     <td class="${kpi('cuts',r[3])}">${r[3].toFixed(1)}</td><td>${money(r[4])}</td><td>${money(r[5])}</td><td>${r[6].toFixed(1)}%</td>
     <td class="${kpi('stdprod',r[7])}">${r[7].toFixed(1)}%</td><td>${r[8]}</td><td class="${kpi('avghc',r[9])}">${r[9].toFixed(1)}</td><td>${r[11].toFixed(1)}</td></tr>`;
-    svc+=r[4];disc+=r[5];cust+=r[8];if(hasUb){ubc+=r[14]||0;ubm+=r[15]||0;}});
-  $("#styTable tfoot").innerHTML=s?`<tr><td>Totals / Avg</td><td></td><td></td><td></td><td>${ubc||""}</td><td>${ubm||""}</td><td>${s[6].toFixed(1)}%</td><td>${s[8].toFixed(1)}</td><td>${money(svc)}</td><td>${money(disc)}</td><td></td><td></td><td>${cust}</td><td>${s[7].toFixed(1)}</td><td></td></tr>`:"";
+    svc+=r[4];disc+=r[5];cust+=r[8];if(hasUb){ubc+=r[14]||0;ubm+=r[15]||0;}if(typeof r[11]==="number"&&r[8]>0){mibSum+=r[11]*r[8];mibCnt+=r[8];}});
+  const mibAvg=mibCnt?mibSum/mibCnt:null;
+  $("#styTable tfoot").innerHTML=s?`<tr><td>Totals / Avg</td><td></td><td></td><td></td><td>${ubc||""}</td><td>${ubm||""}</td><td>${s[6].toFixed(1)}%</td><td>${s[8].toFixed(1)}</td><td>${money(svc)}</td><td>${money(disc)}</td><td></td><td></td><td>${cust}</td><td>${s[7].toFixed(1)}</td><td>${mibAvg!==null?mibAvg.toFixed(1):""}</td></tr>`:"";
   return rows.length;
 }
 function teamRange(){

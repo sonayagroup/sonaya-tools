@@ -376,7 +376,6 @@ tbody tr.clickrow{cursor:pointer}
   <div class="ct-bar">
     <button class="btn btn-sm" onclick="ctAddStaff()">+ Add Staff</button>
     <button class="btn-outline btn-sm" onclick="ctAddVendor()">+ Add Vendor</button>
-    <button class="btn-outline btn-sm" onclick="ctLinkVendor()">🔗 Link Vendors</button>
     <button class="btn-outline btn-sm" onclick="ctPrint()">🖨️ Print PDF</button>
     <span class="savemsg" id="ctMsg"></span>
   </div>
@@ -1530,6 +1529,16 @@ function ctRender(){
 
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
 function fmtDob(s){if(!s)return'';const m=s.match(/^(\w+)\s+(\d+)/);if(!m)return s;const d=parseInt(m[2]),sx=d%10===1&&d!==11?'st':d%10===2&&d!==12?'nd':d%10===3&&d!==13?'rd':'th';return m[1]+' '+d+sx;}
+const DOB_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOB_ABBR={jan:'January',feb:'February',mar:'March',apr:'April',may:'May',jun:'June',jul:'July',aug:'August',sep:'September',oct:'October',nov:'November',dec:'December'};
+function normDob(s){if(!s)return'';s=s.trim().replace(/\s+/g,' ');
+  // "6/1" or "6-1" → month num / day
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})$/);if(m){const mi=parseInt(m[1]),d=parseInt(m[2]);if(mi>=1&&mi<=12&&d>=1&&d<=31)return DOB_MONTHS[mi-1]+' '+d;}
+  // "Jun 1" or "Jun 1st" or "june 1"
+  m=s.match(/^([a-zA-Z]+)\s+(\d{1,2})\s*\w*$/);if(m){const k=m[1].toLowerCase().slice(0,3),d=parseInt(m[2]);if(DOB_ABBR[k]&&d>=1&&d<=31)return DOB_ABBR[k]+' '+d;}
+  // "1 June" or "1st June"
+  m=s.match(/^(\d{1,2})\s*\w*\s+([a-zA-Z]+)$/);if(m){const k=m[2].toLowerCase().slice(0,3),d=parseInt(m[1]);if(DOB_ABBR[k]&&d>=1&&d<=31)return DOB_ABBR[k]+' '+d;}
+  return s;}
 
 function ctModal(html){
   const bg=document.createElement("div");bg.className="ct-modal-bg";bg.innerHTML='<div class="ct-modal">'+html+'</div>';
@@ -1541,17 +1550,17 @@ function ctModal(html){
 function ctAddStaff(){
   const m=ctModal(`<h3>Add Staff Contact</h3>
     <label>Name</label><input id="ctfName">
-    <label>Role</label><input id="ctfRole" placeholder="Stylist, Manager, etc.">
+    <label>Role</label><select id="ctfRole"><option value="">— Select —</option><option>Area Manager</option><option>Salon Manager</option><option>Assistant Manager</option><option>Lead Stylist</option><option>Stylist</option></select>
     <label>Phone</label><input id="ctfPhone">
     <label>Email</label><input id="ctfEmail">
-    <label>Birthday</label><input id="ctfDob" placeholder="e.g. January 17">
+    <label>Birthday</label><input id="ctfDob" placeholder="e.g. June 1 or 6/1">
     <div class="btn-row"><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn" onclick="ctSaveStaff(this)">Save</button></div>`);
 }
 
 async function ctSaveStaff(btn){
   const bg=btn.closest('.ct-modal-bg');
-  const body={salon_id:current,name:bg.querySelector('#ctfName').value.trim(),role:bg.querySelector('#ctfRole').value.trim(),
-    phone:bg.querySelector('#ctfPhone').value.trim(),email:bg.querySelector('#ctfEmail').value.trim(),dob:bg.querySelector('#ctfDob').value.trim()};
+  const body={salon_id:current,name:bg.querySelector('#ctfName').value.trim(),role:bg.querySelector('#ctfRole').value,
+    phone:bg.querySelector('#ctfPhone').value.trim(),email:bg.querySelector('#ctfEmail').value.trim(),dob:normDob(bg.querySelector('#ctfDob').value.trim())};
   if(!body.name){alert("Name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
   const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
@@ -1564,7 +1573,7 @@ function ctEditStaff(id){
   const c=CT_STAFF.find(x=>x.id===id);if(!c)return;
   const m=ctModal(`<h3>Edit Staff Contact</h3>
     <label>Name</label><input id="ctfName" value="${esc(c.name)}">
-    <label>Role</label><input id="ctfRole" value="${esc(c.role||'')}">
+    <label>Role</label><select id="ctfRole">${['Area Manager','Salon Manager','Assistant Manager','Lead Stylist','Stylist'].map(r=>`<option${(c.role||'')===r?' selected':''}>${r}</option>`).join('')}</select>
     <label>Phone</label><input id="ctfPhone" value="${esc(c.phone||'')}">
     <label>Email</label><input id="ctfEmail" value="${esc(c.email||'')}">
     <label>Birthday</label><input id="ctfDob" value="${esc(c.dob||'')}">
@@ -1573,8 +1582,8 @@ function ctEditStaff(id){
 
 async function ctUpdateStaff(id,btn){
   const bg=btn.closest('.ct-modal-bg');
-  const body={name:bg.querySelector('#ctfName').value.trim(),role:bg.querySelector('#ctfRole').value.trim(),
-    phone:bg.querySelector('#ctfPhone').value.trim(),email:bg.querySelector('#ctfEmail').value.trim(),dob:bg.querySelector('#ctfDob').value.trim()};
+  const body={name:bg.querySelector('#ctfName').value.trim(),role:bg.querySelector('#ctfRole').value,
+    phone:bg.querySelector('#ctfPhone').value.trim(),email:bg.querySelector('#ctfEmail').value.trim(),dob:normDob(bg.querySelector('#ctfDob').value.trim())};
   if(!body.name){alert("Name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
   const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
@@ -1657,39 +1666,6 @@ async function ctUnlinkVendor(vid){
   const r=await fetch(SUPA_URL+"/rest/v1/salon_vendors?salon_id=eq."+current+"&vendor_id=eq."+vid,{method:"DELETE",headers:h});
   if(r.ok){CT_JUNCTIONS=CT_JUNCTIONS.filter(j=>!(String(j.salon_id)===current&&j.vendor_id===vid));ctRender();ctFlash("Vendor unlinked");}
   else alert("Error unlinking vendor");
-}
-
-// --- Link existing vendors to this salon ---
-function ctLinkVendor(){
-  const sid=current;
-  const linked=new Set(CT_JUNCTIONS.filter(j=>String(j.salon_id)===sid).map(j=>j.vendor_id));
-  const sorted=[...CT_VENDORS].sort((a,b)=>a.company.localeCompare(b.company));
-  const checks=sorted.map(v=>`<label><input type="checkbox" value="${v.id}" ${linked.has(v.id)?'checked':''}> ${esc(v.company)}${v.role?' — '+esc(v.role):''}</label>`).join('');
-  const m=ctModal(`<h3>Link Vendors to Salon #${sid}</h3>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:6px">Check vendors used by this salon. Changes save automatically.</p>
-    <div class="ct-vl-grid">${checks}</div>
-    <div class="btn-row"><button class="btn" onclick="ctSaveLinks(this)">Save</button></div>`);
-}
-
-async function ctSaveLinks(btn){
-  const bg=btn.closest('.ct-modal-bg');const sid=current;
-  const checked=new Set([...bg.querySelectorAll('input[type=checkbox]:checked')].map(cb=>Number(cb.value)));
-  const wasLinked=new Set(CT_JUNCTIONS.filter(j=>String(j.salon_id)===sid).map(j=>j.vendor_id));
-  const toAdd=[...checked].filter(id=>!wasLinked.has(id));
-  const toRemove=[...wasLinked].filter(id=>!checked.has(id));
-  btn.disabled=true;btn.textContent="Saving…";
-  const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
-  // Add new links
-  for(const vid of toAdd){
-    const r=await fetch(SUPA_URL+"/rest/v1/salon_vendors",{method:"POST",headers:h,body:JSON.stringify({salon_id:sid,vendor_id:vid})});
-    if(r.ok){const rows=await r.json();CT_JUNCTIONS.push(rows[0]);}
-  }
-  // Remove unlinked
-  for(const vid of toRemove){
-    await fetch(SUPA_URL+"/rest/v1/salon_vendors?salon_id=eq."+sid+"&vendor_id=eq."+vid,{method:"DELETE",headers:{apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY}});
-    CT_JUNCTIONS=CT_JUNCTIONS.filter(j=>!(String(j.salon_id)===sid&&j.vendor_id===vid));
-  }
-  bg.remove();ctRender();ctFlash(toAdd.length+" linked, "+toRemove.length+" unlinked");
 }
 
 function ctFlash(msg){const m=$("#ctMsg");m.textContent="✓ "+msg;m.style.color=GREEN;setTimeout(()=>m.textContent="",3000);}

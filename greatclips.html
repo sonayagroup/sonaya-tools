@@ -1498,7 +1498,7 @@ async function ctLoad(){
 function ctRender(){
   const sid=current;
   // Staff — sort Area Manager, Manager, Asst Manager to top
-  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('area manager'))return 0;if(r.includes('salon manager')||r==='manager')return 1;if(r.includes('assistant manager')||r.includes('asst manager'))return 2;return 9;};
+  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('area manager'))return 0;if(r.includes('salon manager')||r==='manager')return 1;if(r.includes('assistant manager')||r.includes('asst manager'))return 2;if(r.includes('lead stylist'))return 3;return 9;};
   const staff=CT_STAFF.filter(c=>String(c.salon_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
   const sb=document.querySelector("#ctStaffTbl tbody");
   sb.innerHTML=staff.length?staff.map(c=>`<tr>
@@ -1698,10 +1698,8 @@ function ctFlash(msg){const m=$("#ctMsg");m.textContent="✓ "+msg;m.style.color
 function ctPrint(){
   const sid=current;
   const sname=CT_SALON_NAMES[sid]||SALONS[sid]||sid;
-  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('area manager'))return 0;if(r.includes('salon manager')||r==='manager')return 1;if(r.includes('assistant manager')||r.includes('asst manager'))return 2;return 9;};
+  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('area manager'))return 0;if(r.includes('salon manager')||r==='manager')return 1;if(r.includes('assistant manager')||r.includes('asst manager'))return 2;if(r.includes('lead stylist'))return 3;return 9;};
   const staff=CT_STAFF.filter(c=>String(c.salon_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
-  const linkedIds=new Set(CT_JUNCTIONS.filter(j=>String(j.salon_id)===sid).map(j=>j.vendor_id));
-  const vendors=CT_VENDORS.filter(v=>linkedIds.has(v.id));
   const today=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
   const w=window.open('','_blank');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contacts — Salon #${sid}</title>
@@ -1734,10 +1732,6 @@ a{color:#048667;text-decoration:none}
 <h2>Staff Contacts<span>(${staff.length})</span></h2>
 <table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th></tr></thead><tbody>
 ${staff.map(c=>'<tr><td><b>'+esc(c.name)+'</b></td><td>'+esc(c.role||'')+'</td><td>'+esc(c.phone||'')+'</td><td>'+(c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'')+'</td><td>'+esc(fmtDob(c.dob))+'</td></tr>').join('')}
-</tbody></table>
-<h2>Vendor Contacts<span>(${vendors.length})</span></h2>
-<table><thead><tr><th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th></tr></thead><tbody>
-${vendors.map(v=>'<tr><td><b>'+esc(v.company)+'</b></td><td>'+esc(v.contact_name||'')+'</td><td>'+esc(v.role||'')+'</td><td>'+esc(v.phone||'')+'</td><td>'+esc(v.mobile||'')+'</td><td>'+(v.email?'<a href="mailto:'+esc(v.email)+'">'+esc(v.email)+'</a>':'')+'</td><td>'+esc(v.account_num||'')+'</td></tr>').join('')}
 </tbody></table>
 </body></html>`);
   w.document.close();

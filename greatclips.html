@@ -151,17 +151,22 @@ tbody tr.clickrow{cursor:pointer}
 .ct-vl-grid input[type=checkbox]{width:16px;height:16px;cursor:pointer}
 /* Print styles */
 @media print{
-  header,nav.tabs,.footer,.ct-bar,.ct-act,.modebar,.hdr-meta,.ctrls,#emptyBanner{display:none!important}
-  .wrap{max-width:100%;padding:0}
-  section.panel{display:none!important}section.panel#contacts{display:block!important}
-  .ct-print-hdr{display:flex!important;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid var(--blue)}
-  .ct-print-hdr img{height:48px}
-  .ct-print-hdr .ct-print-title{font-size:18px;font-weight:800;color:var(--blue-dk)}
-  .ct-print-hdr .ct-print-sub{font-size:12px;color:var(--muted)}
-  .ct-tbl{font-size:11px}
-  .ct-tbl th{padding:5px 6px;font-size:9.5px}
-  .ct-tbl td{padding:4px 6px}
-  .ct-sec{page-break-inside:avoid}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  body{margin:0;padding:20px;background:#fff;font-size:11px}
+  header,nav.tabs,.footer,.ct-bar,.ct-act,.modebar,.hdr-meta,.ctrls,#emptyBanner,.ss-wrap,select#salon{display:none!important}
+  .wrap{max-width:100%;padding:0;margin:0}
+  section.panel{display:none!important}section.panel#contacts{display:block!important;padding:0;margin:0}
+  .ct-print-hdr{display:flex!important;align-items:center;gap:14px;margin-bottom:8px;padding-bottom:10px;border-bottom:3px solid #048667}
+  .ct-print-hdr svg{height:48px}
+  .ct-print-hdr .ct-print-title{font-size:18px;font-weight:800;color:#1a3a5c}
+  .ct-print-hdr .ct-print-sub{font-size:11px;color:#888}
+  .ct-disclaimer{display:block!important;background:#fff3cd;border:1px solid #e6c200;border-radius:5px;padding:8px 14px;margin-bottom:14px;font-size:10.5px;color:#856404;text-align:center}
+  .ct-tbl{font-size:10.5px;width:100%;border-collapse:collapse;margin-bottom:10px}
+  .ct-tbl th{padding:5px 6px;font-size:9px;background:#f0f3f7!important;border-bottom:2px solid #ddd}
+  .ct-tbl td{padding:4px 6px;border-bottom:1px solid #eee}
+  .ct-sec{page-break-inside:avoid;margin-bottom:14px}
+  .ct-sec h3{font-size:13px;margin:10px 0 6px;color:#1a3a5c;border-bottom:1px solid #ddd;padding-bottom:4px}
+  @page{size:letter portrait;margin:0.5in}
 }
 .aa-chip.aa-cash-chip b{color:#fff}
 .aa-toggle-all{background:none;border:1px solid var(--line);border-radius:7px;padding:5px 11px;font:inherit;font-size:12px;font-weight:600;color:var(--blue-dk);cursor:pointer;margin:10px 0 4px}
@@ -367,6 +372,7 @@ tbody tr.clickrow{cursor:pointer}
     <svg viewBox="0 0 200 40" style="height:48px;width:auto"><rect width="200" height="40" rx="6" fill="#048667"/><text x="100" y="28" text-anchor="middle" fill="#fff" font-family="Poppins,Arial,sans-serif" font-weight="800" font-size="22">GREAT CLIPS</text></svg>
     <div><div class="ct-print-title" id="ctPrintName"></div><div class="ct-print-sub" id="ctPrintSub"></div></div>
   </div>
+  <div class="ct-disclaimer" style="display:none"><strong>***Under no situation are employee phone numbers to be given to non Great Clips employees.***</strong></div>
   <div class="ct-bar">
     <button class="btn btn-sm" onclick="ctAddStaff()">+ Add Staff</button>
     <button class="btn-outline btn-sm" onclick="ctAddVendor()">+ Add Vendor</button>
@@ -1491,13 +1497,14 @@ async function ctLoad(){
 
 function ctRender(){
   const sid=current;
-  // Staff
-  const staff=CT_STAFF.filter(c=>String(c.salon_id)===sid);
+  // Staff — sort Area Manager, Manager, Asst Manager to top
+  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('area manager'))return 0;if(r.includes('salon manager')||r==='manager')return 1;if(r.includes('assistant manager')||r.includes('asst manager'))return 2;return 9;};
+  const staff=CT_STAFF.filter(c=>String(c.salon_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
   const sb=document.querySelector("#ctStaffTbl tbody");
   sb.innerHTML=staff.length?staff.map(c=>`<tr>
     <td><b>${esc(c.name)}</b></td><td>${esc(c.role||'')}</td><td>${esc(c.phone||'')}</td>
     <td>${c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':''}</td>
-    <td>${esc(c.dob||'')}</td>
+    <td>${esc(fmtDob(c.dob))}</td>
     <td class="act-col"><button class="ct-act" title="Edit" onclick="ctEditStaff(${c.id})">✏️</button><button class="ct-act" title="Delete" onclick="ctDelStaff(${c.id})">🗑️</button></td>
   </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">No staff contacts yet — click + Add Staff</td></tr>';
   $("#ctStaffCount").textContent=staff.length;
@@ -1522,6 +1529,7 @@ function ctRender(){
 }
 
 function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+function fmtDob(s){if(!s)return'';const m=s.match(/^(\w+)\s+(\d+)/);if(!m)return s;const d=parseInt(m[2]),sx=d%10===1&&d!==11?'st':d%10===2&&d!==12?'nd':d%10===3&&d!==13?'rd':'th';return m[1]+' '+d+sx;}
 
 function ctModal(html){
   const bg=document.createElement("div");bg.className="ct-modal-bg";bg.innerHTML='<div class="ct-modal">'+html+'</div>';
@@ -1688,13 +1696,51 @@ function ctFlash(msg){const m=$("#ctMsg");m.textContent="✓ "+msg;m.style.color
 
 // --- Print to PDF ---
 function ctPrint(){
-  // Make contacts tab active for print, then trigger browser print
-  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
-  $("#contacts").classList.add("active");
-  // Hide action buttons in print
-  const style=document.createElement("style");style.id="ctPrintStyle";
-  style.textContent=".ct-act{display:none!important}";document.head.appendChild(style);
-  setTimeout(()=>{window.print();setTimeout(()=>{const ps=document.getElementById("ctPrintStyle");if(ps)ps.remove();},500);},200);
+  const sid=current;
+  const sname=CT_SALON_NAMES[sid]||SALONS[sid]||sid;
+  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('area manager'))return 0;if(r.includes('salon manager')||r==='manager')return 1;if(r.includes('assistant manager')||r.includes('asst manager'))return 2;return 9;};
+  const staff=CT_STAFF.filter(c=>String(c.salon_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
+  const linkedIds=new Set(CT_JUNCTIONS.filter(j=>String(j.salon_id)===sid).map(j=>j.vendor_id));
+  const vendors=CT_VENDORS.filter(v=>linkedIds.has(v.id));
+  const today=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contacts — Salon #${sid}</title>
+<style>
+*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:32px 40px;color:#222;font-size:12px;line-height:1.4}
+.hdr{display:flex;align-items:center;gap:16px;margin-bottom:10px;padding-bottom:12px;border-bottom:3px solid #048667}
+.hdr svg{height:48px;width:auto}
+.hdr h1{font-size:19px;font-weight:800;color:#1a3a5c;margin:0}
+.hdr .sub{font-size:11px;color:#888;margin-top:2px}
+.disclaimer{background:#fff3cd;border:1px solid #e6c200;border-radius:5px;padding:8px 16px;margin-bottom:16px;font-size:11px;color:#856404;text-align:center;font-weight:600}
+h2{font-size:14px;color:#1a3a5c;margin:18px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}
+h2 span{font-weight:400;font-size:11px;color:#888;margin-left:6px}
+table{width:100%;border-collapse:collapse;margin-bottom:8px}
+th{background:#f0f3f7;padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#555;text-align:left;border-bottom:2px solid #ddd}
+td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
+a{color:#048667;text-decoration:none}
+@media print{@page{size:letter portrait;margin:0.5in}}
+.no-print{text-align:center;margin-bottom:20px}
+.no-print button{padding:10px 28px;font-size:14px;background:#048667;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600}
+.no-print button:hover{background:#036d55}
+@media print{.no-print{display:none}}
+</style></head><body>
+<div class="no-print"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>
+<div class="hdr">
+  <svg viewBox="0 0 200 40"><rect width="200" height="40" rx="6" fill="#048667"/><text x="100" y="28" text-anchor="middle" fill="#fff" font-family="Poppins,Arial,sans-serif" font-weight="800" font-size="22">GREAT CLIPS</text></svg>
+  <div><h1>Salon #${esc(sid)} — ${esc(sname)}</h1><div class="sub">Contact Directory · Printed ${esc(today)}</div></div>
+</div>
+<div class="disclaimer">***Under no situation are employee phone numbers to be given to non Great Clips employees.***</div>
+<h2>Staff Contacts<span>(${staff.length})</span></h2>
+<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th></tr></thead><tbody>
+${staff.map(c=>'<tr><td><b>'+esc(c.name)+'</b></td><td>'+esc(c.role||'')+'</td><td>'+esc(c.phone||'')+'</td><td>'+(c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'')+'</td><td>'+esc(fmtDob(c.dob))+'</td></tr>').join('')}
+</tbody></table>
+<h2>Vendor Contacts<span>(${vendors.length})</span></h2>
+<table><thead><tr><th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th></tr></thead><tbody>
+${vendors.map(v=>'<tr><td><b>'+esc(v.company)+'</b></td><td>'+esc(v.contact_name||'')+'</td><td>'+esc(v.role||'')+'</td><td>'+esc(v.phone||'')+'</td><td>'+esc(v.mobile||'')+'</td><td>'+(v.email?'<a href="mailto:'+esc(v.email)+'">'+esc(v.email)+'</a>':'')+'</td><td>'+esc(v.account_num||'')+'</td></tr>').join('')}
+</tbody></table>
+</body></html>`);
+  w.document.close();
 }
 
 </script>

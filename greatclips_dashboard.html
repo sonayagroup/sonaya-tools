@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<base target="_top">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#048667;--blue-dk:#073b3a;--red:#e4002b;--red-dk:#b30020;--green:#089f45;--amber:#e9a049;
+--bg:#f4f7f5;--card:#fff;--line:#e1ece8;--ink:#12302c;--muted:#5f716d;--shadow:0 1px 3px rgba(7,59,58,.08),0 1px 2px rgba(7,59,58,.06);}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Poppins",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:1220px;margin:0 auto;padding:0 18px 60px}
+header{background:linear-gradient(135deg,var(--blue),var(--blue-dk));color:#fff;padding:16px 0 14px;box-shadow:var(--shadow)}
+.hdr-inner{max-width:1220px;margin:0 auto;padding:0 18px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.hdr-meta{font-size:12.5px;opacity:.85;margin-left:auto;text-align:right}
+.ctrls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:rgba(255,255,255,.14);padding:6px 10px;border-radius:8px}
+.ctrls label{font-size:11.5px;opacity:.9}
+select{font-size:13.5px;padding:5px 8px;border-radius:6px;border:1px solid #cfd8e3;background:#fff;color:var(--ink);font-weight:600}
+nav.tabs{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
+.tabs-inner{max-width:1220px;margin:0 auto;padding:0 10px;display:flex;flex-wrap:wrap}
+.tab{padding:12px 15px;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;user-select:none;font-size:13.5px}
+.tab:hover{color:var(--blue)}.tab.active{color:var(--blue-dk);border-bottom-color:var(--green)}
+.tab-link{padding:12px 15px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;user-select:none;font-size:13.5px;text-decoration:none;display:inline-block}
+.tab-link:hover{color:var(--blue)}
+section.panel{display:none;padding-top:20px}section.panel.active{display:block}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 14px;box-shadow:var(--shadow)}
+.kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600}
+.kpi .val{font-size:23px;font-weight:700;margin-top:3px}.kpi .sub{font-size:12px;margin-top:2px;color:var(--muted)}
+.up{color:var(--green);font-weight:600}.down{color:var(--red);font-weight:600}
+.grid{display:grid;gap:16px;margin-bottom:18px}.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
+.card h3{font-size:14px;font-weight:700;margin-bottom:2px;color:var(--blue-dk)}.card .hint{font-size:11.5px;color:var(--muted);margin-bottom:12px}
+.chart-box{position:relative;height:260px}.chart-box.tall{height:420px}
+table{width:100%;border-collapse:collapse;font-size:12.7px}
+th,td{padding:7px 9px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+#styTable th,#styTable td{padding:6px 5px;font-size:11.8px}
+#styTable th:first-child,#styTable td:first-child{white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+th:first-child,td:first-child{text-align:left}
+thead th{background:#f0f3f7;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;position:sticky;top:0;vertical-align:top;padding-top:9px}
+thead th:hover{color:var(--blue)}
+.kpi-ideal{display:block;width:fit-content;max-width:100%;font-weight:800;letter-spacing:0;color:#fff;background:var(--blue-dk);padding:1.5px 6px;border-radius:8px;font-size:10px;margin:4px 0 0 auto;text-transform:none;white-space:nowrap}
+.kpi-ideal b{font-weight:800;opacity:.75;margin-right:3px}
+thead th:first-child .kpi-ideal{margin-left:0}
+tbody tr:hover{background:#f7fafd}tfoot td{font-weight:700;border-top:2px solid var(--blue);background:#f0f3f7}
+tbody tr.clickrow{cursor:pointer}
+.flag{background:#fdecec;color:var(--red-dk);font-weight:700}.warn{background:#fff5e6}
+.kg{background:#c5ecd0}.ky{background:#f8e7ad}.kr{background:#f6bfbf}.na{color:#aab2bb}
+.tbl-scroll{overflow-x:auto}
+.sec-title{font-size:15px;font-weight:700;color:var(--blue-dk);margin:4px 0 10px}
+.legend-note{font-size:11.5px;color:var(--muted);margin-top:8px}
+.mini-list{list-style:none}.mini-list li{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);font-size:12.7px}
+.mini-list li:last-child{border-bottom:none}.mini-list .k{color:var(--muted)}.mini-list .v{font-weight:600}
+.footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:26px;line-height:1.7}
+.recap-grid{display:grid;gap:14px}
+.recap-q{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow)}
+.recap-q label{display:block;font-weight:700;color:var(--blue-dk);font-size:13.5px;margin-bottom:7px}
+.recap-q textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:7px;padding:9px 10px;font:inherit;font-size:13px;resize:vertical;background:#fcfdfe}
+.recap-q textarea:focus{outline:none;border-color:var(--blue);background:#fff}
+.recap-missing{border-color:var(--red)!important;box-shadow:0 0 0 2px rgba(220,53,69,.18)!important}
+.recap-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:6px 0 14px}
+.recap-bar input{border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px}
+.oos-wrap{margin:2px 0 20px}
+.oos-h{font-weight:800;color:var(--blue-dk);font-size:15px;margin:16px 0 9px;display:flex;align-items:center;gap:8px}
+.oos-badge{background:var(--red);color:#fff;border-radius:20px;padding:1px 9px;font-size:12px;font-weight:700}
+.oos-item{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--red);border-radius:9px;padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow)}
+.oos-item .hd{font-weight:700;color:var(--ink);font-size:13.5px;margin-bottom:3px}
+.oos-item .meta{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.oos-item textarea{width:100%;min-height:56px;border:1px solid var(--line);border-radius:7px;padding:8px 10px;font:inherit;font-size:13px;resize:vertical;background:#fcfdfe}
+.oos-item textarea:focus{outline:none;border-color:var(--blue);background:#fff}
+.oos-ok{background:#f0faf4;border:1px solid #cdeede;border-left:4px solid var(--green);border-radius:9px;padding:11px 14px;color:var(--blue-dk);font-size:13px;font-weight:600}
+.oos-neutral{background:#fbfaf3;border:1px solid #ece7cf;border-left:4px solid var(--amber);border-radius:9px;padding:11px 14px;color:#7a6a2f;font-size:13px}
+.oos-emp{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;background:var(--card);box-shadow:var(--shadow)}
+.oos-emp .nm{font-size:13px;font-weight:600;color:var(--ink)}
+.oos-emp select{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px;font-weight:600}
+.rev-item{border-bottom:1px solid var(--line);padding:10px 0}.rev-item:last-child{border-bottom:none}
+.rev-top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+.rev-name{font-weight:700;font-size:13px;color:var(--ink)}
+.rev-stars{color:var(--amber);font-size:12.5px;letter-spacing:1px}
+.rev-date{font-size:11.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.rev-text{font-size:12.5px;color:#3a4a47;line-height:1.5;white-space:normal}
+.btn{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;font-size:13.5px;cursor:pointer}
+.btn:hover{background:var(--blue-dk)}.btn:disabled{opacity:.5;cursor:not-allowed}
+.savemsg{font-size:12.5px;font-weight:600}
+.banner{padding:10px 13px;border-radius:8px;font-size:12.7px;border:1px solid;margin-bottom:14px}
+.banner.warn{background:#fff6e6;border-color:#f0dca8;color:#7a5300}
+.loading{padding:40px;text-align:center;color:var(--muted)}
+.modebar{display:flex;align-items:center;gap:10px;margin:2px 0 14px}
+.det-mode{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.det-mode button{background:#fff;color:var(--muted);border:none;padding:6px 18px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.det-mode button+button{border-left:1px solid var(--line)}
+.det-mode button.active{background:var(--blue);color:#fff}
+.aa-groups{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 12px}
+.aa-chip{background:#f0f3f7;border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:11.5px;color:var(--muted);font-weight:600}
+.aa-chip b{color:var(--blue-dk);font-size:15px;font-weight:800;margin-right:5px}
+.aa-chip.aa-hot{background:#fdecec;border-color:#f3c9c9}.aa-chip.aa-hot b{color:var(--red-dk)}
+.aa-callouts{margin:0 0 14px;display:flex;flex-direction:column;gap:6px}
+.aa-callout{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid;font-size:12.5px;line-height:1.4}
+.aa-callout.sev-red{background:#fdecec;border-color:#f3c9c9;color:var(--red-dk)}
+.aa-callout.sev-amber{background:#fff6e6;border-color:#f0dca8;color:#7a5300}
+.aa-callout .ico{flex:0 0 auto;font-size:13px}
+.aa-callout b{font-weight:800}
+.aa-callout .aa-c-meta{color:var(--muted);font-weight:600}
+.aa-callout.sev-red .aa-c-meta{color:#c1636f}
+.aa-callout.sev-amber .aa-c-meta{color:#a1813f}
+.aa-none{font-size:12px;color:var(--muted);padding:2px 0 4px}
+.aa-row-click{cursor:pointer}
+.aa-row-click:hover{background:#f4f7fa}
+.aa-row-click .aa-caret{display:inline-block;width:12px;color:var(--muted);font-size:10px}
+.aa-detail-row td{background:#fafcfd;padding:0}
+.aa-detail-wrap{padding:8px 14px 12px 30px}
+.aa-detail-wrap table{width:100%;border-collapse:collapse;font-size:11.5px}
+.aa-detail-wrap th{text-align:left;color:var(--muted);font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.3px;padding:4px 8px;border-bottom:1px solid var(--line)}
+.aa-detail-wrap td{padding:4px 8px;border-bottom:1px solid #eef1f4;color:var(--ink)}
+.aa-detail-wrap td:last-child,#aaAllTable td:last-child,#aaAllTable th:last-child{text-align:left}
+.aa-cash-row{background:#fdf1f1}
+.cash-flag{display:inline-block;background:var(--red-dk);color:#fff;font-weight:800;padding:1px 7px;border-radius:4px;font-size:10.5px;white-space:nowrap;margin-right:2px}
+.aa-chip.aa-cash-chip{background:var(--red-dk);border-color:#8a0018;color:#fff}
+.aa-chip.aa-cash-chip b{color:#fff}
+.aa-toggle-all{background:none;border:1px solid var(--line);border-radius:7px;padding:5px 11px;font:inherit;font-size:12px;font-weight:600;color:var(--blue-dk);cursor:pointer;margin:10px 0 4px}
+.aa-toggle-all:hover{background:#f0f3f7}
+</style></head>
+<body>
+<header><div class="hdr-inner">
+  <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQwAAAAwCAQAAABOSox6AAAC+klEQVR42u2c627sIAyEmYj3f+Xpr93T0wSwzT3YUqVqt2xg+DDjhC2CJJh8B8GjrFJaJ66qJcxDdUD0Kt112g4MdgHtbCieVNoKDHZBzaF4UonZ1yZqeTXG4hwoOAC3iXMRRVCgy6p5X67Ae1SKhe6XkhkOBESv04YqxcxwNTscjsGjRieJSljDY6AJFrtOMaqxQEPMllL8Ora2YIM2L1Ypnjbgii3vBJX4GVc8MFu0cUJ4LRQMIQA3odD4Qn93com10q5NjUNi1vZhcL54vsGF70+NH9L1n1/bi8B/hLQHg8JyDeLVDPX6hzpXSMHopxKN1R6MOfKOYwgIvLrlC2n3+Os3KtvrWry7mGZCDb1GyFUl43d2qj9D16IlFlgYjzo/9c1QcToWKLgEVt574MN2OcuwDq0rVGqH/x1GQByKBRJS57Yz3P4WBi+xwYNuc7ai2hch8T6/cBgzBpVdf3oVidWMDM3Sq6GI0psCDwsN4paJhXJN4/z5VQja/y54/WhhrrqDeWYGmk9NWVtvAXE8Gvr6ZAIYeL3ou/RbDEd89PCrFFurVhA7uJZPH/FYwqIMBgxCYvhUyCbGjyUGoXUvwvGOM59M3vfra+522fCgP/QdC8Xg+js5BeXbKdtJ6ZmIYlO5Nk/IvK0MLIXtahlFfHvsWsIzWK/LYrpc3yrP31aYyxjmsmbiOhx/c7uVSn3UbfqF0muxFcHFVyoqJ7mfSWbb5RiL5sRyfqqmnMoXUm0fo1sMpKn4644zMwbclE1jcdCpw3jsPMw630MTGjIh56pE1bPk1KioA6NUuvaCIbUKNXkGhZYf2NDgXFf+hEf/QtmyTbAmY5QHHQai0U4uNr5W/aesVFRDBkYNHKgcEFVXQcV/8WCzKeBCUNwPOZmPP8dGw0azYWlOfSNz7pxGydARj3FIyBRFm66OO0+eNnO5v4XqHZ3hnKtS7qsYlhnEXIY9esA2aMYuV93DwfBwMDwcDA8Hw8PB8HAwPBwMDwfDw8HweF38ANCiCWc/qeQQAAAAAElFTkSuQmCC" alt="Great Clips" style="height:28px;filter:brightness(0) invert(1)">
+  <span style="font-size:15px;font-weight:600;opacity:.92;white-space:nowrap">Salon Performance Dashboard</span>
+  <div class="ctrls">
+    <label>Salon</label><select id="salonSel"></select>
+    <label>Day</label><select id="dateSel"></select>
+    <label>Week</label><select id="weekSel"></select>
+  </div>
+  <div class="hdr-meta" id="hdrMeta"></div>
+</div></header>
+<nav class="tabs"><div class="tabs-inner">
+  <div class="tab active" data-t="portfolio">Portfolio</div>
+  <div class="tab" data-t="reps">Daily REPS</div>
+  <div class="tab" data-t="detail">Salon Detail</div>
+  <div class="tab" data-t="recap">Weekly Recap</div>
+  <a href="https://tools.sonayagroup.com/gc-crm.html" class="tab-link">👥 Stylist CRM</a>
+  <a href="https://tools.sonayagroup.com/gc-quiz-admin.html" class="tab-link">📝 Manager Quiz</a>
+</div></nav>
+<div class="wrap">
+
+<div id="emptyBanner"></div>
+
+<section class="panel active" id="portfolio">
+  <div class="modebar">
+    <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
+    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="ytd">YTD</button></span>
+    <span id="portModeHint" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div class="kpis" id="portKpis"></div>
+  <div class="sec-title" id="portTitle"></div>
+  <div class="card tbl-scroll" style="margin-bottom:18px">
+    <table id="portTable"><thead><tr>
+      <th data-k="0">Salon</th><th data-k="4">Total Sales</th><th data-k="5">Cust</th><th data-k="6">Payroll %<span class="kpi-ideal"><b>Goal</b>&lt;40%</span></th>
+      <th data-k="7">Avg HC<span class="kpi-ideal"><b>Goal</b>&lt;16 min</span></th><th data-k="8">CPH<span class="kpi-ideal"><b>Goal</b>≥2.4</span></th><th title="Product sales as a % of the salon's total sales for the day">Product %<span class="kpi-ideal"><b>Goal</b>≥5%</span></th>
+      <th data-k="11">Waits<span class="kpi-ideal"><b>Goal</b>&lt;15%</span></th><th data-k="12">Cust Gr%<span class="kpi-ideal"><b>Goal</b>≥5%</span></th><th data-k="13">Sales Gr%<span class="kpi-ideal"><b>Goal</b>≥5%</span></th><th title="Overall health score (1-5) from payroll %, CPH, avg HC time, wait &gt;15%, and customer growth vs. targets">Health</th><th class="gcol" title="Live Google rating (snapshot)">Google ★</th>
+    </tr></thead><tbody></tbody><tfoot></tfoot></table>
+  </div>
+  <div class="grid g2">
+    <div class="card"><h3>Total Customers by Salon</h3><div class="hint" id="hSales"></div><div class="chart-box tall"><canvas id="cSales"></canvas></div></div>
+    <div class="card"><h3>Payroll % vs 40% Target</h3><div class="hint">Red = over target</div><div class="chart-box tall"><canvas id="cPay"></canvas></div></div>
+  </div>
+</section>
+
+<section class="panel" id="reps">
+  <div class="sec-title" id="repsTitle"></div>
+  <div class="legend-note" style="margin-bottom:8px">Auto-built from the selected day with ✅ on-target / 🤔 watch / 🚩 below flags and top-stylist shout-outs. Edit anything, then copy into WhatsApp.</div>
+  <div style="margin-bottom:10px"><button class="btn" id="repsCopy">📋 Copy message</button> <span class="savemsg" id="repsMsg"></span></div>
+  <textarea id="repsText" style="width:100%;min-height:340px;border:1px solid var(--line);border-radius:8px;padding:14px;font:inherit;font-size:14px;line-height:1.55;background:#fff;white-space:pre-wrap"></textarea>
+</section>
+
+<section class="panel" id="detail">
+  <div class="modebar">
+    <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
+    <span class="det-mode" id="detModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="week">Week</button><button data-mode="ytd">YTD</button></span>
+    <span id="detModeHint" style="font-size:12px;color:var(--muted)"></span>
+  </div>
+  <div class="kpis" id="detKpis"></div>
+  <div class="sec-title" id="detTitle"></div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="sec-title" id="teamTitle" style="margin-bottom:2px"></div>
+    <div class="modebar">
+      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">Range</span>
+      <span class="det-mode" id="teamModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="week">Week</button><button data-mode="month">Month</button><button data-mode="ytd">YTD</button><button data-mode="custom">Custom</button></span>
+      <span id="teamCustomRange" style="display:none;margin-left:8px">
+        <input type="date" id="teamFrom"> <span style="color:var(--muted);font-size:12px">to</span> <input type="date" id="teamTo">
+      </span>
+      <span id="teamModeHint" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+    <div id="teamSummary" class="legend-note" style="margin-bottom:10px"></div>
+    <div class="tbl-scroll">
+      <table id="styTable"><thead><tr>
+        <th>Stylist</th><th>Floor Hrs</th><th>Admin</th><th>Close</th><th>Unpaid Breaks #</th><th>Unpaid Breaks Min</th><th>Payroll %</th><th>CPH</th><th>Service $</th><th>Svc Disc $</th><th>Disc %</th>
+        <th>Stnd Prod %</th><th>Cust</th><th>Avg HC</th><th>Avg Min Btwn</th>
+      </tr></thead><tbody></tbody><tfoot></tfoot></table>
+      <table id="teamTable" style="display:none"><thead><tr>
+        <th>Stylist</th><th>Floor Hrs</th><th>Cust</th><th>Avg HC</th><th>CPH</th><th>Std Prod %</th><th>Avg Min Btwn</th><th>Payroll %</th><th>New Ret %</th><th>Repeat Ret %</th>
+      </tr></thead><tbody></tbody></table>
+      <div class="legend-note" id="dayLegend">Cells colored by KPI thresholds — <span class="kg">&nbsp;green&nbsp;</span> on target, <span class="ky">&nbsp;yellow&nbsp;</span> watch, <span class="kr">&nbsp;red&nbsp;</span> below (payroll, CPH, std prod %, avg HC). Unpaid Breaks # flagged <span class="kr">&nbsp;red&nbsp;</span> at 0 (a break should have been taken); Unpaid Breaks Min flagged <span class="kr">&nbsp;red&nbsp;</span> under 20 minutes (break too short), fine at 20+.</div>
+      <div class="legend-note" id="teamLegend" style="display:none">Cells colored by KPI thresholds. <span class="na">n/a</span> = too few eligible customers for a return rate. Month/YTD/Custom roll up multiple weeks (rate metrics are floor-hour or customer-count weighted averages, not simple sums).</div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="modebar">
+        <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">Attendance</span>
+        <span class="det-mode" id="attModeToggle"><button data-mode="week" class="active">Week</button><button data-mode="month">Month</button><button data-mode="ytd">YTD</button><button data-mode="custom">Custom</button></span>
+        <span id="attCustomRange" style="display:none;margin-left:8px">
+          <input type="date" id="attFrom"> <span style="color:var(--muted);font-size:12px">to</span> <input type="date" id="attTo">
+        </span>
+        <span id="attModeHint" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div class="card tbl-scroll" style="margin-top:10px;box-shadow:none;border:1px solid var(--line)">
+        <table id="attTable"><thead><tr>
+          <th>Stylist</th><th>No-Shows</th><th>Late (&gt;10 min)</th><th>Not Scheduled</th>
+        </tr></thead><tbody></tbody><tfoot></tfoot></table>
+        <div class="legend-note" id="attNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="detDay">
+    <div class="grid g2">
+      <div class="card"><h3>Wait-Time Distribution</h3><div class="hint">All customers, selected day</div><div class="chart-box"><canvas id="cDetWait"></canvas></div></div>
+      <div class="card"><h3>At a glance</h3><div class="hint">Salon totals</div><ul class="mini-list" id="detList"></ul></div>
+    </div>
+  </div>
+
+  <div id="detWeek" style="display:none">
+    <div class="legend-note" style="margin-bottom:12px">Per-stylist weekly performance lives in the Stylist Performance card at the top of this page (with Day/Week/Month/YTD/Custom ranges) — it's the same weekly_epp data, shown once instead of twice.</div>
+    <div class="grid g2">
+      <div class="card"><h3>Weekly wait &amp; pace</h3><div class="hint" id="detWeekWaitHint"></div><ul class="mini-list" id="detWeekWait"></ul></div>
+      <div class="card"><h3>At a glance</h3><div class="hint">Weekly totals</div><ul class="mini-list" id="detWeekList"></ul></div>
+    </div>
+  </div>
+
+  <div id="detYTD" style="display:none">
+    <div class="grid g2">
+      <div class="card"><h3>Monthly Payroll %</h3><div class="chart-box"><canvas id="cYtdPay"></canvas></div></div>
+      <div class="card"><h3>Monthly CPH</h3><div class="chart-box"><canvas id="cYtdCph"></canvas></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>YTD at a glance</h3><div class="hint">Calendar year to date</div><ul class="mini-list" id="detYtdList"></ul></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="sec-title" id="aaTitle" style="margin-bottom:2px"></div>
+    <div class="modebar">
+      <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">Range</span>
+      <span class="det-mode" id="aaModeToggle"><button data-mode="week" class="active">Week</button><button data-mode="month">Month</button><button data-mode="ytd">YTD</button><button data-mode="custom">Custom</button></span>
+      <span id="aaCustomRange" style="display:none;margin-left:8px">
+        <input type="date" id="aaFrom"> <span style="color:var(--muted);font-size:12px">to</span> <input type="date" id="aaTo">
+      </span>
+      <span id="aaModeHint" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+    <div id="aaCallouts" class="aa-callouts"></div>
+    <div id="aaGroups" class="aa-groups"></div>
+    <div id="aaSummary" class="legend-note" style="margin-bottom:10px"></div>
+    <div class="tbl-scroll">
+      <table id="aaTable"><thead><tr>
+        <th></th><th>Stylist</th><th>Inv Lower (Before Pmt)</th><th>Inv Lower (After Pmt)</th><th>Tip Adj (After Pmt)</th><th>100% Discounts</th><th>Child/Sr %</th><th>Stylist Disc %</th><th>Short HC</th><th>Long Svc Times</th><th>Bypassed</th>
+      </tr></thead><tbody></tbody></table>
+      <div class="legend-note"><span class="flag">&nbsp;red&nbsp;</span> = 3+ invoice-lowering/tip-adjustment occurrences, or any Child/Sr % or Stylist Discount % alert (already pre-filtered by the audit at its configured threshold). <span class="warn">&nbsp;amber&nbsp;</span> = 1-2 invoice-lowering/tip-adjustment occurrences, any 100%-discounted ticket, 5+ short-haircut or long-service-time occurrences, or any bypassed customer. Month/YTD/Custom sum alert counts across weeks; Child/Sr % and Stylist Disc % show the highest value seen in the range. Click a stylist row to see the individual flagged transactions.</div>
+    </div>
+    <button class="aa-toggle-all" id="aaShowAllBtn">Show all alert events (raw detail) ▾</button>
+    <div id="aaAllWrap" style="display:none">
+      <div class="tbl-scroll">
+        <table id="aaAllTable"><thead><tr>
+          <th>Date/Time</th><th>Stylist</th><th>Alert Type</th><th>Invoice #</th><th>Amount</th><th>Detail</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+      <div class="legend-note" id="aaAllNote"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="sec-title" style="margin-bottom:2px">Monthly Trends</div>
+    <div class="recap-bar">
+      <label style="font-size:12.5px;color:var(--muted)">Month</label>
+      <select id="trendMonth"></select>
+      <label style="font-size:12.5px;color:var(--muted);margin-left:8px">Metric</label>
+      <select id="trendMetric">
+        <option value="payrollPct">Payroll %</option>
+        <option value="cust">Customers</option>
+        <option value="totalSales">Total Sales</option>
+        <option value="cutsHr">CPH</option>
+        <option value="avgHC">Avg HC time</option>
+        <option value="waitOver15Pct">Wait &gt;15 %</option>
+        <option value="custGrowthPct">Cust Growth %</option>
+      </select>
+    </div>
+    <div class="chart-box tall"><canvas id="cTrend"></canvas></div>
+    <div class="legend-note" id="trendNote"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px"><h3>Recent Google Reviews</h3><div class="hint" id="revHint"></div><div id="revList"></div></div>
+</section>
+
+<section class="panel" id="recap">
+  <div class="sec-title" id="recapTitle"></div>
+  <div id="recapBanner"></div>
+  <div class="recap-bar">
+    <span style="font-size:12.5px;color:var(--muted)">Week ending</span>
+    <input type="date" id="recapWeek">
+    <button class="btn" id="recapSave">Save recap</button>
+    <span class="savemsg" id="recapMsg"></span>
+  </div>
+  <div id="oosSection"></div>
+  <div class="recap-grid">
+    <div class="recap-q"><label>What actionable items did you take this week to work on these metrics?</label><textarea id="q_actions"></textarea></div>
+    <div class="recap-q"><label>What actions have you completed to add more floor hours in the short term and long term?</label><textarea id="q_floorhours"></textarea></div>
+    <div class="recap-q"><label>Are schedules up to date and entered?</label><textarea id="q_schedules"></textarea></div>
+  </div>
+</section>
+
+<div class="footer">Great Clips salon dashboard · live from your data store · history builds daily.</div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const BLUE="#048667",RED="#e4002b",AMBER="#e9a049",GREEN="#089f45";
+const money=n=>"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const money0=n=>"$"+Math.round(n).toLocaleString("en-US");
+const sign=n=>(n>0?"+":"")+Number(n).toFixed(1)+"%";
+const cls=n=>n>=0?"up":"down";
+let SALONS={},SALONAM={},DATES=[],WEEKS=[],DAY={SAL:[],STY:{},WAIT:{}},WEEK={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}},recaps=[];
+let current=null,curDate=null,curWeek=null,charts={},detMode="day";
+// WeeklySalon row (WeeklySalon schema minus weekEnding+salonId) metric -> column index
+const WS={salonName:0,serviceSales:1,productSales:2,totalSales:3,cust:4,newCust:5,floorHours:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,payrollPct:12,avgMinBtwn:13,voidsPct:14,svcDiscPct:15,overShort:16,newRetPct:17,repRetPct:18,floorHoursGrowth:19,custGrowthPct:20,salesGrowthPct:21};
+
+// ===== DATA LAYER (Supabase live backend) =====
+const SUPA_URL="https://vcukhvjwsuaqxgqzotwb.supabase.co";
+const SUPA_KEY=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9","eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30","Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE"].join(".");
+const supaReady=()=>true;
+const SALON_AM={'0200':'Liza','0933':'Liza','3781':'Liza','6110':'Liza',
+  '2092':'Samantha','2850':'Samantha','5809':'Samantha','7741':'Samantha','3999':'Samantha',
+  '0646':'Tanya','6101':'Tanya','6116':'Tanya','6117':'Tanya','7700':'Tanya','8914':'Tanya'};
+let DATA={dates:[],weeks:[],salons:{},salonAm:{},days:{},weeklies:{}};
+let GRATE={}, GREVIEWS={}, GRATE_ASOF="";
+async function loadGoogleData(){
+  const hdrs={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY};
+  const[ratR,revR]=await Promise.all([
+    fetch(SUPA_URL+"/rest/v1/google_ratings?select=*",{headers:hdrs}).then(r=>r.json()),
+    fetch(SUPA_URL+"/rest/v1/google_reviews?select=*&order=updated_at.desc",{headers:hdrs}).then(r=>r.json())
+  ]);
+  GRATE={};let newest="";
+  ratR.forEach(r=>{GRATE[r.salon_id]=[Number(r.rating),r.review_count];if(r.updated_at>newest)newest=r.updated_at;});
+  GRATE_ASOF=newest?new Date(newest).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"—";
+  GREVIEWS={};
+  revR.forEach(r=>{const sid=r.salon_id;if(!GREVIEWS[sid])GREVIEWS[sid]=[];
+    if(GREVIEWS[sid].length<5)GREVIEWS[sid].push([r.reviewer_name,r.stars,r.relative_date||"",r.review_text||""]);});
+}
+async function supaFetchAll(table,orderCol){
+  const PAGE=1000;let all=[],off=0;
+  while(true){
+    const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?select=*&order="+orderCol+"&offset="+off+"&limit="+PAGE,
+      {headers:{apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY}});
+    if(!r.ok)throw new Error(table+": "+r.status);
+    const rows=await r.json();all=all.concat(rows);
+    if(rows.length<PAGE)break;off+=PAGE;
+  }return all;
+}
+async function loadData(){
+  const[dSal,dSty,dWait,wSal,wEpp,aAlerts,aSummary,dAtt]=await Promise.all([
+    supaFetchAll("daily_salon","date"),supaFetchAll("daily_stylist","date"),
+    supaFetchAll("daily_wait","date"),supaFetchAll("weekly_salon","week_ending"),
+    supaFetchAll("weekly_epp","week_ending"),supaFetchAll("audit_alerts","week_ending"),
+    supaFetchAll("audit_summary","week_ending"),
+    supaFetchAll("daily_attendance","date").catch(()=>[])]);
+  const salons={},salonAm={},datesSet=new Set(),weeksSet=new Set(),days={},weeklies={};
+  dSal.forEach(r=>{const d=r.date,sid=String(r.salon_id);datesSet.add(d);
+    salons[sid]=r.salon_name;salonAm[sid]=SALON_AM[sid]||"";
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};
+    days[d].SAL.push([sid,r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.payroll_pct,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.cust_growth_pct,r.sales_growth_pct,r.cash_over_short]);});
+  dSty.forEach(r=>{const d=r.date,sid=String(r.salon_id);
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};if(!days[d].STY[sid])days[d].STY[sid]=[];
+    days[d].STY[sid].push([r.stylist_name,r.floor_hrs,r.payroll_pct,r.cph,r.service_sales,r.svc_disc,r.disc_pct,r.std_prod_pct,r.cust,r.avg_hc,r.prodvity,r.avg_min_btwn,r.admin_hrs,r.close_hrs,r.unpaid_breaks_count,r.unpaid_breaks_min]);});
+  dWait.forEach(r=>{const d=r.date,sid=String(r.salon_id);
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};
+    days[d].WAIT[sid]=[r.b1_lte10,r.b2_10_15,r.b3_15_20,r.b4_20_25,r.b5_25_30,r.b6_30_40,r.b7_40plus];});
+  // Attendance: no-shows, late (>10 min) arrivals, and unscheduled ("picked up") shifts —
+  // one row per stylist per day, so it rolls up cleanly into week/month/YTD/custom ranges
+  // via computeAttendance() the same way daily_salon rolls up into WTD/YTD.
+  (dAtt||[]).forEach(r=>{const d=r.date,sid=String(r.salon_id);datesSet.add(d);
+    if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};if(!days[d].ATT[sid])days[d].ATT[sid]=[];
+    days[d].ATT[sid].push([r.stylist_name,r.no_show_count||0,r.late_count||0,r.not_scheduled_count||0]);});
+  wSal.forEach(r=>{const wk=r.week_ending,sid=String(r.salon_id);weeksSet.add(wk);
+    if(!weeklies[wk])weeklies[wk]={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};
+    weeklies[wk].WSAL[sid]=[r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.new_cust,r.floor_hours,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.payroll_pct,r.avg_min_btwn,r.voids_pct,r.svc_disc_pct,r.over_short,r.new_ret_pct,r.rep_ret_pct,r.floor_hours_growth,r.cust_growth_pct,r.sales_growth_pct];});
+  wEpp.forEach(r=>{const wk=r.week_ending,sid=String(r.salon_id);
+    if(!weeklies[wk])weeklies[wk]={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};
+    if(!weeklies[wk].EPP[sid])weeklies[wk].EPP[sid]=[];
+    weeklies[wk].EPP[sid].push([r.stylist_name,r.floor_hrs,r.cust,r.avg_hc,r.cph,r.std_prod_pct,r.svc_disc_pct,r.prodvity,r.payroll_pct,r.new_ret_pct,r.rep_ret_pct,r.avg_min_btwn]);});
+  // audit_summary: one row per salon/week with 17 pre-counted alert columns — cheap source
+  // for the Loss Prevention summary strip (Month/YTD/Custom just sum these across weeks).
+  aSummary.forEach(r=>{
+    const wk=r.week_ending,sid=String(r.salon_id);weeksSet.add(wk);
+    if(!weeklies[wk])weeklies[wk]={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};
+    weeklies[wk].AUDSUM[sid]=r;
+  });
+  // audit_alerts: one row per individual alert occurrence, used only for the per-stylist
+  // drill-down table (audit_summary has no employee breakdown). Kept as raw rows (not
+  // pre-aggregated) since detail/amount shapes vary by alert_type.
+  aAlerts.forEach(r=>{
+    const wk=r.week_ending,sid=String(r.salon_id);weeksSet.add(wk);
+    if(!weeklies[wk])weeklies[wk]={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};
+    if(!weeklies[wk].AUDALERTS[sid])weeklies[wk].AUDALERTS[sid]=[];
+    weeklies[wk].AUDALERTS[sid].push(r);
+  });
+  DATA={dates:[...datesSet],weeks:[...weeksSet],salons,salonAm,days,weeklies};return DATA;
+}
+// SAL row (DailySalon minus 'date') metric -> column index, for client-side trends
+const SALIDX={serviceSales:2,productSales:3,totalSales:4,cust:5,payrollPct:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,custGrowthPct:12,salesGrowthPct:13,cashOverShort:14};
+function dTrend(salon,metric){const idx=SALIDX[metric];if(idx==null)return [];const out=[];
+  Object.keys(DATA.days||{}).sort().forEach(d=>{const sal=((DATA.days[d]||{}).SAL||[]).find(r=>String(r[0])===String(salon));if(sal&&typeof sal[idx]==="number")out.push([d,sal[idx]]);});
+  return out;}
+// --- YTD aggregation ---
+let portMode="day";
+function ytdYear(){return DATES.length?DATES[0].slice(0,4):String(new Date().getFullYear());}
+function computeYTD(){
+  const yr=ytdYear(),prefix=yr+"-";
+  const sids=Object.keys(DATA.salons||{});
+  // per-salon accumulators: {sid: {sales,cust,paySum,hcSum,cphSum,prodSum,waitSum,w15Sum,cgSum,sgSum,days,monthly:{YYYY-MM:{sales,cust,paySum,cphSum,days}}}}
+  const acc={};sids.forEach(id=>{acc[id]={sales:0,svcSales:0,prodSales:0,cust:0,paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,days:0,monthly:{}};});
+  Object.keys(DATA.days||{}).sort().forEach(d=>{
+    if(!d.startsWith(prefix))return;
+    const mo=d.slice(0,7);
+    (DATA.days[d].SAL||[]).forEach(s=>{
+      const id=String(s[0]);if(!acc[id])return;const a=acc[id];
+      a.sales+=s[4]||0;a.svcSales+=s[2]||0;a.prodSales+=s[3]||0;a.cust+=s[5]||0;
+      if(typeof s[6]==="number"){a.paySum+=s[6];a.hcSum+=s[7];a.cphSum+=s[8];a.prodSum+=s[9];a.waitSum+=s[10];a.w15Sum+=s[11];a.cgSum+=s[12];a.sgSum+=s[13];a.days++;}
+      if(!a.monthly[mo])a.monthly[mo]={sales:0,cust:0,paySum:0,cphSum:0,days:0};
+      const m=a.monthly[mo];m.sales+=s[4]||0;m.cust+=s[5]||0;if(typeof s[6]==="number"){m.paySum+=s[6];m.cphSum+=s[8];m.days++;}
+    });
+  });
+  // Build SAL-like rows for portfolio table: [sid, name, svcSales, prodSales, totalSales, cust, avgPayroll, avgHC, avgCPH, avgProdvity, avgWait, avgW15, avgCG, avgSG]
+  const rows=[];
+  sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
+    rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,a.paySum/n,a.hcSum/n,a.cphSum/n,a.prodSum/n,a.waitSum/n,a.w15Sum/n,a.cgSum/n,a.sgSum/n]);
+  });
+  return {rows,acc,year:yr};
+}
+// --- WTD (Week-to-Date) aggregation — GC weeks run Sat–Fri ---
+function gcWeekStart(dateStr){
+  // Given a date string YYYY-MM-DD, return the Saturday that starts this GC week
+  const d=new Date(dateStr+"T12:00:00");const dow=d.getDay(); // 0=Sun..6=Sat
+  const diff=dow>=6?0:(dow+1); // Sat=0 back, Sun=1 back, Mon=2 back, etc.
+  d.setDate(d.getDate()-diff);
+  return d.toISOString().slice(0,10);
+}
+function computeWTD(){
+  // Find the most recent date in data
+  const latest=DATES[0]; // DATES is sorted descending
+  if(!latest)return {rows:[],weekStart:"",weekEnd:"",daysInWeek:0};
+  const wkStart=gcWeekStart(latest);
+  // Collect all dates in this week (from wkStart up to latest)
+  const sids=Object.keys(DATA.salons||{});
+  const acc={};sids.forEach(id=>{acc[id]={sales:0,svcSales:0,prodSales:0,cust:0,paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,cashOS:0,days:0};});
+  let daysInWeek=0;
+  Object.keys(DATA.days||{}).sort().forEach(d=>{
+    if(d<wkStart||d>latest)return;
+    daysInWeek=Math.max(daysInWeek,(DATA.days[d].SAL||[]).length>0?daysInWeek+1:daysInWeek);
+    (DATA.days[d].SAL||[]).forEach(s=>{
+      const id=String(s[0]);if(!acc[id])return;const a=acc[id];
+      a.sales+=s[4]||0;a.svcSales+=s[2]||0;a.prodSales+=s[3]||0;a.cust+=s[5]||0;
+      if(typeof s[6]==="number"){a.paySum+=s[6];a.hcSum+=s[7];a.cphSum+=s[8];a.prodSum+=s[9];a.waitSum+=s[10];a.w15Sum+=s[11];a.cgSum+=s[12];a.sgSum+=s[13];a.cashOS+=(s[14]||0);a.days++;}
+    });
+  });
+  // Count unique dates with data
+  const weekDates=Object.keys(DATA.days||{}).filter(d=>d>=wkStart&&d<=latest&&(DATA.days[d].SAL||[]).length>0).sort();
+  daysInWeek=weekDates.length;
+  const rows=[];
+  sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
+    rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,a.paySum/n,a.hcSum/n,a.cphSum/n,a.prodSum/n,a.waitSum/n,a.w15Sum/n,a.cgSum/n,a.sgSum/n,a.cashOS]);
+  });
+  // Compute the Friday end of this week
+  const wkEndD=new Date(wkStart+"T12:00:00");wkEndD.setDate(wkEndD.getDate()+6);
+  return {rows,acc,weekStart:wkStart,weekEnd:wkEndD.toISOString().slice(0,10),daysInWeek,weekDates};
+}
+// --- Supabase recaps (read + upsert) ---
+function supaHeaders(extra){return Object.assign({apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},extra||{});}
+function mapRecapRow(x){return {salonId:x.salon_id,weekEnding:x.week_ending,areaManager:x.area_manager,
+  actions:x.actions,floorhours:x.floorhours,schedules:x.schedules,cphdays:x.cphdays,stylistflags:x.stylistflags,
+  quality:x.quality,reach:x.reach,updatedBy:x.updated_by,updatedAt:x.updated_at};}
+function fetchRecaps(){ if(!supaReady())return Promise.resolve([]);
+  return fetch(SUPA_URL+"/rest/v1/recaps?select=*",{headers:supaHeaders()}).then(r=>r.ok?r.json():[]).then(rows=>(rows||[]).map(mapRecapRow)).catch(()=>[]);}
+function upsertRecap(p){ if(!supaReady())return Promise.reject(new Error("Supabase not configured yet (add your URL + anon key)"));
+  const body={salon_id:p.salon,week_ending:p.week,area_manager:p.areaManager||"",actions:p.actions||"",floorhours:p.floorhours||"",schedules:p.schedules||"",cphdays:p.cphdays||"",stylistflags:p.stylistflags||"",quality:p.quality||"",reach:p.reach||"",updated_by:p.updatedBy||"",updated_at:new Date().toISOString()};
+  return fetch(SUPA_URL+"/rest/v1/recaps",{method:"POST",headers:supaHeaders({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(body)})
+    .then(r=>{if(!r.ok)throw new Error("save failed ("+r.status+")");return {ok:true};});}
+
+// tabs
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");$("#"+t.dataset.t).classList.add("active");window.scrollTo({top:0});
+  if(t.dataset.t==="recap")renderRecap();
+});
+
+function opt(sel,val,txt){const o=document.createElement("option");o.value=val;o.textContent=txt;sel.appendChild(o);}
+
+window.onload=()=>{ Promise.all([loadData(),loadGoogleData()]).then(([b])=>{onBoot(b);loadRecaps();}).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
+
+// WEEKS includes every week_ending with any rolled-up data, including the current
+// in-progress GC week (Sat–Fri) whose week_ending Friday hasn't happened yet — that entry
+// only carries a partial "week to date" Weekly Summary upload, if today's has landed at all.
+// Defaults (curWeek, and everything downstream that starts from it — Employee/Stylist
+// Performance, Attendance, Red Flags "Week" mode) should land on the last FULLY completed
+// week instead, so the app doesn't open on a half-filled in-progress week. A week counts as
+// complete once its week_ending date has actually occurred; users can still pick the current
+// week manually from the week dropdown.
+function latestDataWeek(){
+  const todayStr=new Date().toISOString().slice(0,10);
+  const completed=WEEKS.filter(w=>w<=todayStr);
+  return completed[0]||WEEKS[0]||null;
+}
+function onBoot(b){
+  SALONS=b.salons||{};SALONAM=b.salonAm||{};
+  DATES=(b.dates||[]).slice().sort().reverse();
+  WEEKS=(b.weeks||[]).slice().sort().reverse();
+  const ss=$("#salonSel");ss.innerHTML="";Object.keys(SALONS).sort().forEach(id=>opt(ss,id,id+" — "+SALONS[id]));
+  current=ss.value=Object.keys(SALONS).sort()[0];
+  const ds=$("#dateSel");ds.innerHTML="";DATES.forEach(d=>opt(ds,d,fmtDate(d)));
+  const ws=$("#weekSel");ws.innerHTML="";WEEKS.forEach(w=>opt(ws,w,"wk "+fmtDate(w)));
+  curDate=DATES[0]||null;curWeek=latestDataWeek();if(curDate)ds.value=curDate;if(curWeek)ws.value=curWeek;
+  ss.onchange=()=>{current=ss.value;[renderDetail,renderReps,renderTeam,renderAA,renderRecap,loadTrend].forEach(function(fn){try{fn();}catch(e){}});};
+  ds.onchange=()=>{curDate=ds.value;loadDay();};
+  ws.onchange=()=>{curWeek=ws.value;loadWeek();};
+  $("#trendMetric").onchange=loadTrend;
+  $("#trendMonth").onchange=loadTrend;
+  // Populate month picker from available dates
+  const moSet=new Set();DATES.forEach(d=>moSet.add(d.slice(0,7)));
+  const months=[...moSet].sort().reverse();
+  const tm=$("#trendMonth");tm.innerHTML="";
+  const mNames=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  months.forEach(m=>{const o=document.createElement("option");o.value=m;const[y,mn]=m.split("-");o.textContent=mNames[+mn]+" "+y;tm.appendChild(o);});
+  updMeta();
+  if(!DATES.length&&!WEEKS.length){$("#emptyBanner").innerHTML='<div class="banner warn">No data stored yet. Once the daily/weekly tasks run (or a day is ingested), pick a date here and it appears.</div>';}
+  loadDay();loadWeek();
+}
+function fmtDate(iso){if(!iso)return"";const p=String(iso).split("-");return p.length===3?(+p[1])+"/"+(+p[2])+"/"+p[0]:iso;}
+function updMeta(){$("#hdrMeta").innerHTML="Day <b>"+(curDate?fmtDate(curDate):"—")+"</b> · Week <b>"+(curWeek?fmtDate(curWeek):"—")+"</b>";}
+
+function loadDay(){ DAY=(!curDate?null:(DATA.days&&DATA.days[curDate]))||{SAL:[],STY:{},WAIT:{}};renderAll();updMeta(); }
+function loadWeek(){ WEEK=(!curWeek?null:(DATA.weeklies&&DATA.weeklies[curWeek]))||{EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};if(!WEEK.WSAL)WEEK.WSAL={};renderTeam();renderAA();if(detMode==="week")renderDetail();updMeta(); }
+function renderAll(){renderPort();renderDetail();renderReps();renderTeam();}
+
+function salById(id){return (DAY.SAL||[]).find(r=>String(r[0])===String(id));}
+function sName(id){return SALONS[id]||id;}
+
+// KPI thresholds
+function kpi(m,v){ if(v===null||v===undefined||v==="")return"";
+  if(m==="payroll")return v<40?"kg":(v<41?"ky":"kr");
+  if(m==="cuts")return v>=2.4?"kg":(v>=2?"ky":"kr");
+  if(m==="avghc")return v<16?"kg":(v<19?"ky":"kr");
+  if(m==="wait15")return v<15?"kg":(v<19?"ky":"kr");
+  if(m==="custgrowth")return v>=5?"kg":(v>=0?"ky":"kr");
+  if(m==="salesgrowth")return v>=5?"kg":(v>=0?"ky":"kr");
+  if(m==="prodsales")return v>=5?"kg":(v>=3?"ky":"kr");
+  if(m==="stdprod")return v>5?"kg":(v>=3?"ky":"kr");
+  if(m==="newret")return v>=26?"kg":(v>=21?"ky":"kr");
+  if(m==="repret")return v>=78?"kg":(v>=72?"ky":"kr");
+  if(m==="cashshort")return v<-10?"kr":"";
+  return""; }
+function kcolor(m,v){const c=kpi(m,v);return c==="kg"?GREEN:c==="ky"?AMBER:c==="kr"?RED:BLUE;}
+// Portfolio table cells below use `num()` (a null-safe .toFixed wrapper defined further
+// down, in the DETAIL section) instead of calling .toFixed() directly on salon fields.
+// This is safe even though `num` is defined later in the file: renderPort/YTD/WTD only
+// ever run after the whole script has finished executing top-to-bottom (via onBoot or a
+// later event handler), by which point `num` is already initialized. A source report can
+// legitimately be missing a field for one salon on one day (e.g. a Weekly Summary export
+// with no Totals row for that salon), and it must render as "—" rather than throw and take
+// down the whole page's data load — that happened for real: salon 8914's
+// payroll_pct/avg_hc/prodvity were NULL for 2026-08-24 and crashed the Portfolio Day-view
+// table with "Cannot read properties of null (reading 'toFixed')", which the top-level
+// catch then mislabeled as a Supabase load failure even though the load itself succeeded.
+
+// HEALTH SCORE (Portfolio) — 1-5 scale rolling up payroll %, CPH, avg HC, wait >15%, and cust growth
+function healthScore(s){
+  const checks=[kpi('payroll',s[6]),kpi('cuts',s[8]),kpi('avghc',s[7]),kpi('wait15',s[11]),kpi('custgrowth',s[12])];
+  let pts=0,n=0;checks.forEach(c=>{if(!c)return;n++;pts+=c==="kg"?1:(c==="ky"?0.5:0);});
+  if(!n)return null;
+  return Math.max(1,Math.min(5,Math.round(1+(pts/n)*4)));
+}
+function healthCell(s){const sc=healthScore(s);if(sc==null)return'<td class="na">n/a</td>';
+  const col=sc>=4?GREEN:sc>=3?AMBER:RED;
+  return `<td><span style="display:inline-block;min-width:28px;padding:2px 9px;border-radius:12px;font-weight:700;color:#fff;background:${col}">${sc}/5</span></td>`;}
+
+// GOOGLE RATINGS + REVIEWS (loaded from Supabase — see loadGoogleData())
+function grate(id){const g=GRATE[id];if(!g)return'<span class="sub">—</span>';
+  const r=g[0],col=r>=4.3?GREEN:(r>=4.0?AMBER:RED);
+  return `<span style="color:${col};font-weight:600">★ ${r.toFixed(1)}</span> <span class="sub">(${g[1].toLocaleString()})</span>`;}
+function renderReviews(id){
+  const host=$("#revList"); if(!host)return;
+  const list=GREVIEWS[id]||[];
+  $("#revHint").textContent=list.length?("Recent Google reviews · updated "+GRATE_ASOF):"No reviews captured for this salon.";
+  host.innerHTML=list.map(r=>{const st="★".repeat(r[1])+"☆".repeat(5-r[1]);
+    return '<div class="rev-item"><div class="rev-top"><span class="rev-name">'+esc(r[0])+'</span><span class="rev-stars">'+st+'</span><span class="rev-date">'+esc(r[2])+'</span></div><div class="rev-text">'+esc(r[3])+'</div></div>';}).join("");
+}
+
+// PORTFOLIO
+let sortK=4,sortDir=-1;
+document.querySelectorAll("#portModeToggle button").forEach(b=>b.onclick=()=>{
+  portMode=b.dataset.mode;
+  document.querySelectorAll("#portModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  renderPort();
+});
+function renderPort(){
+  if(portMode==="ytd")return renderPortYTD();
+  if(portMode==="wtd")return renderPortWTD();
+  const SAL=DAY.SAL||[];
+  $("#portModeHint").textContent=curDate?fmtDate(curDate):"";
+  $("#portTitle").textContent="All salons — "+(curDate?fmtDate(curDate):"no day selected")+"  · click a row to open its detail";
+  let t={sales:0,cust:0,pay:0,payN:0,cg:0,sg:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];if(s[6]!==null&&s[6]!==undefined){t.pay+=s[6];t.payN++;}t.cg+=s[12];t.sg+=s[13];});
+  const over=SAL.filter(s=>s[6]>40).length;
+  const avgCg=t.cg/t.n,avgSg=t.sg/t.n,avgPay=t.payN?t.pay/t.payN:null;
+  $("#portKpis").innerHTML=[["Total Sales",money0(t.sales),"selected day"],
+    ["Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
+    ["Over payroll",over+" of "+SAL.length,"above 40%"],
+    ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
+    ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
+    .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
+  const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
+  const tb=$("#portTable tbody");tb.innerHTML="";
+  rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    const pp=s[4]?s[3]/s[4]*100:null;
+    tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
+      <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
+      <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
+      <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
+    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
+    tb.appendChild(tr);});
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">Google ratings updated ${GRATE_ASOF}</td></tr>`:"";
+  $("#hSales").textContent=curDate?fmtDate(curDate):"";
+  portCharts(SAL);
+}
+function renderPortYTD(){
+  const ytd=computeYTD();const SAL=ytd.rows;const yr=ytd.year;
+  $("#portModeHint").textContent="Jan 1 – "+fmtDate(DATES[0]||"")+" "+yr;
+  $("#portTitle").textContent="All salons — YTD "+yr+"  · click a row to open its detail";
+  let t={sales:0,cust:0,pay:0,payN:0,cg:0,sg:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];if(s[6]!==null&&s[6]!==undefined){t.pay+=s[6];t.payN++;}t.cg+=s[12];t.sg+=s[13];});
+  const over=SAL.filter(s=>s[6]>40).length;
+  const totalDays=Object.values(ytd.acc).reduce((a,v)=>Math.max(a,v.days),0);
+  const avgCg=t.cg/t.n,avgSg=t.sg/t.n,avgPay=t.payN?t.pay/t.payN:null;
+  $("#portKpis").innerHTML=[["YTD Sales",money0(t.sales),totalDays+" day(s)"],
+    ["YTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
+    ["Over payroll",over+" of "+SAL.length,"avg above 40%"],
+    ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
+    ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
+    .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
+  const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
+  const tb=$("#portTable tbody");tb.innerHTML="";
+  rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    const pp=s[4]?s[3]/s[4]*100:null;
+    tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
+      <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
+      <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
+      <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
+    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];detMode="ytd";document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x.dataset.mode==="ytd"));$("#detDay").style.display="none";$("#detWeek").style.display="none";$("#detYTD").style.display="";renderDetail();document.querySelector('.tab[data-t="detail"]').click();};
+    tb.appendChild(tr);});
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">YTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth)</td></tr>`:"";
+  $("#hSales").textContent="YTD "+yr;
+  portCharts(SAL);
+}
+function renderPortWTD(){
+  const wtd=computeWTD();const SAL=wtd.rows;
+  const label=wtd.weekStart?fmtDate(wtd.weekStart)+" – "+fmtDate(wtd.weekEnd||""):"";
+  $("#portModeHint").textContent=label;
+  $("#portTitle").textContent="All salons — Week to Date ("+wtd.daysInWeek+" day"+(wtd.daysInWeek!==1?"s":"")+")  · click a row to open its detail";
+  let t={sales:0,cust:0,pay:0,payN:0,cg:0,sg:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];if(s[6]!==null&&s[6]!==undefined){t.pay+=s[6];t.payN++;}t.cg+=s[12];t.sg+=s[13];});
+  const over=SAL.filter(s=>s[6]>40).length;
+  const avgCg=t.cg/t.n,avgSg=t.sg/t.n,avgPay=t.payN?t.pay/t.payN:null;
+  $("#portKpis").innerHTML=[["WTD Sales",money0(t.sales),wtd.daysInWeek+" day(s)"],
+    ["WTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
+    ["Over payroll",over+" of "+SAL.length,"above 40%"],
+    ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
+    ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
+    .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
+  const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
+  const tb=$("#portTable tbody");tb.innerHTML="";
+  rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    const pp=s[4]?s[3]/s[4]*100:null;
+    tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
+      <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
+      <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
+      <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
+    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
+    tb.appendChild(tr);});
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">WTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth) · ${wtd.daysInWeek} of 7 days</td></tr>`:"";
+  $("#hSales").textContent="WTD "+label;
+  portCharts(SAL);
+}
+document.querySelectorAll("#portTable thead th").forEach(th=>th.onclick=()=>{if(th.dataset.k===undefined)return;const k=+th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=(k===0?1:-1);}renderPort();});
+function portCharts(SAL){
+  const bs=[...SAL].sort((a,b)=>b[5]-a[5]);
+  mk("cSales","bar",bs.map(s=>s[0]),[{label:"Total customers",data:bs.map(s=>s[5]),backgroundColor:BLUE}],{indexAxis:"y",x:v=>v});
+  const bp=[...SAL].sort((a,b)=>b[6]-a[6]);
+  mk("cPay","bar",bp.map(s=>s[0]),[{label:"Payroll %",data:bp.map(s=>s[6]),backgroundColor:bp.map(s=>kcolor("payroll",s[6]))},
+    {label:"Target 40%",type:"line",data:bp.map(()=>40),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{indexAxis:"y",x:v=>v+"%"});
+}
+function mk(id,type,labels,datasets,opt){opt=opt||{};if(charts[id])charts[id].destroy();const horiz=opt.indexAxis==="y";
+  charts[id]=new Chart($("#"+id),{type,data:{labels,datasets},options:{indexAxis:opt.indexAxis||"x",responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:datasets.length>1,labels:{boxWidth:12,padding:8}}},
+    scales:{x:{grid:{display:!horiz,color:"#eef1f5"},ticks:opt.x?{callback:opt.x}:{}},y:{grid:{display:horiz,color:"#eef1f5"},ticks:opt.y?{callback:opt.y}:{}}}}});}
+
+// DETAIL
+Chart.defaults.font.family="Poppins,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif";Chart.defaults.font.size=11.5;Chart.defaults.color="#66707a";
+const num=(v,d=1)=>typeof v==="number"?v.toFixed(d):"—";
+document.querySelectorAll("#detModeToggle button").forEach(b=>b.onclick=()=>{
+  detMode=b.dataset.mode;
+  document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  $("#detDay").style.display=detMode==="day"?"":"none";
+  $("#detWeek").style.display=detMode==="week"?"":"none";
+  $("#detYTD").style.display=detMode==="ytd"?"":"none";
+  renderDetail();
+});
+function renderDetail(){ renderReviews(current); if(detMode==="ytd")renderDetailYTD(); else if(detMode==="week")renderDetailWeek(); else renderDetailDay(); loadTrend(); }
+function renderDetailDay(){
+  const s=salById(current);
+  $("#detModeHint").textContent=curDate?fmtDate(curDate):"no day selected";
+  $("#detTitle").textContent=(current||"")+" — "+sName(current)+" · salon day summary"+(curDate?" · "+fmtDate(curDate):"");
+  const k=$("#detKpis");
+  if(s){k.innerHTML=[["Total Sales",money(s[4]),`<span class="${cls(s[13])}">${sign(s[13])}</span> YoY`],
+    ["Customers",s[5],`<span class="${cls(s[12])}">${sign(s[12])}</span> YoY`],
+    ["Payroll %",num(s[6])+"%",(s[6]>40?'<span class="down">over</span>':'<span class="up">under</span>')+" 40%"],
+    ["Avg HC Time",num(s[7]),"min"],["CPH",num(s[8]),(s[8]<2.4?'<span class="down">below</span>':'<span class="up">at/above</span>')+" 2.4"],
+    ["Avg Wait",s[10]+" min",num(s[11])+"% >15 min"],
+    ["Cash Over/Short",(typeof s[14]==="number"?'<span class="'+(s[14]<0?'down':'up')+'">'+(s[14]<0?'−':'+')+'$'+Math.abs(s[14]).toFixed(2)+'</span>':'—'),"vs expected drawer"]].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");}
+  else k.innerHTML="";
+  const w=(DAY.WAIT&&DAY.WAIT[current])||[0,0,0,0,0,0,0];const tot=w.reduce((a,b)=>a+b,0)||1;
+  mkWait(w,tot);
+  $("#detList").innerHTML=s?[["Service Sales",money(s[2])],["Product Sales",money(s[3])],["Total Sales",money(s[4])],["Customers",s[5]],["Productivity ($/floor hr)",money(s[9])],["Payroll %",num(s[6])+"%"],["Avg wait",s[10]+" min"],["Wait > 15 min",num(s[11])+"%"]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):"";
+}
+function renderDetailWeek(){
+  const w=(WEEK.WSAL&&WEEK.WSAL[current])||null;
+  $("#detModeHint").textContent=curWeek?("week ending "+fmtDate(curWeek)):"no week selected";
+  $("#detTitle").textContent=(current||"")+" — "+sName(current)+" · salon weekly summary"+(curWeek?" · week ending "+fmtDate(curWeek):"");
+  const k=$("#detKpis");
+  if(w){const g=m=>w[WS[m]];const growth=(v,lbl)=>typeof v==="number"?`<span class="${cls(v)}">${sign(v)}</span> ${lbl}`:lbl;
+    k.innerHTML=[
+      ["Total Sales",money(g("totalSales")),growth(g("salesGrowthPct"),"YoY")],
+      ["Customers",(typeof g("cust")==="number"?g("cust").toLocaleString():"—"),growth(g("custGrowthPct"),"YoY")],
+      ["Payroll %",num(g("payrollPct"))+"%",(g("payrollPct")>40?'<span class="down">over</span>':'<span class="up">under</span>')+" 40%"],
+      ["Avg HC Time",num(g("avgHC")),"min"],
+      ["CPH",num(g("cutsHr")),(g("cutsHr")<2.4?'<span class="down">below</span>':'<span class="up">at/above</span>')+" 2.4"],
+      ["Avg Wait",num(g("avgWait"),0)+" min",num(g("waitOver15Pct"))+"% >15 min"],
+      ["Avg Min Btwn",num(g("avgMinBtwn")),"between waiting cust"],
+      ["Cash Over/Short",(typeof g("overShort")==="number"?'<span class="'+(g("overShort")<0?'down':'up')+'">'+(g("overShort")<0?'−':'+')+'$'+Math.abs(g("overShort")).toFixed(2)+'</span>':'—'),"vs expected drawer"]
+    ].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");}
+  else k.innerHTML='<div class="banner warn" style="grid-column:1/-1">No Weekly Salon Summary stored for '+sName(current)+(curWeek?(" for the week ending "+fmtDate(curWeek)):"")+" yet. It fills in after Saturday's pull.</div>";
+  // weekly wait & pace + at-a-glance (per-stylist weekly breakdown now shown once, in the Stylist Performance card)
+  const g=w?(m=>w[WS[m]]):(()=>undefined);const mo=v=>typeof v==="number"?money(v):"—";
+  $("#detWeekWaitHint").textContent=curWeek?("week ending "+fmtDate(curWeek)):"";
+  $("#detWeekWait").innerHTML=w?[["Avg wait",num(g("avgWait"),0)+" min"],["Wait > 15 min",num(g("waitOver15Pct"))+"%"],["Avg min between waiting cust",num(g("avgMinBtwn"))],["Floor hours",num(g("floorHours"),2)],["Floor hours growth",(typeof g("floorHoursGrowth")==="number"?g("floorHoursGrowth").toFixed(2):"—")]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):'<li><span class="k">—</span></li>';
+  $("#detWeekList").innerHTML=w?[["Service Sales",mo(g("serviceSales"))],["Product Sales",mo(g("productSales"))],["Total Sales",mo(g("totalSales"))],["Customers",(typeof g("cust")==="number"?g("cust").toLocaleString():"—")],["New Customers",(g("newCust")!=null?g("newCust"):"—")],["Productivity ($/floor hr)",mo(g("prodvity"))],["Payroll %",num(g("payrollPct"))+"%"],["New Cust Return %",num(g("newRetPct"))+"%"],["Repeat Cust Return %",num(g("repRetPct"))+"%"]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):'<li><span class="k">—</span></li>';
+}
+function renderDetailYTD(){
+  const ytd=computeYTD();const yr=ytd.year;const a=ytd.acc[current];
+  $("#detModeHint").textContent="Jan 1 – "+fmtDate(DATES[0]||"")+" "+yr;
+  $("#detTitle").textContent=(current||"")+" — "+sName(current)+" · YTD "+yr;
+  const k=$("#detKpis");
+  if(a&&a.days){const n=a.days;
+    k.innerHTML=[
+      ["YTD Sales",money(a.sales),"across "+n+" day(s)"],
+      ["YTD Customers",a.cust.toLocaleString(),""],
+      ["Avg Payroll %",(a.paySum/n).toFixed(1)+"%",((a.paySum/n)>40?'<span class="down">over</span>':'<span class="up">under</span>')+" 40%"],
+      ["Avg HC Time",(a.hcSum/n).toFixed(1),"min"],
+      ["Avg CPH",(a.cphSum/n).toFixed(1),((a.cphSum/n)<2.4?'<span class="down">below</span>':'<span class="up">at/above</span>')+" 2.4"],
+      ["Avg Wait >15%",(a.w15Sum/n).toFixed(1)+"%",""],
+      ["Avg Cust Growth",(a.cgSum/n).toFixed(1)+"%","YoY"],
+      ["Avg Sales Growth",(a.sgSum/n).toFixed(1)+"%","YoY"]
+    ].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");
+    // Monthly trend charts
+    const mos=Object.keys(a.monthly).sort();
+    const mNames=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const mLabels=mos.map(m=>{const mn=+m.split("-")[1];return mNames[mn];});
+    const mPay=mos.map(m=>a.monthly[m].days?a.monthly[m].paySum/a.monthly[m].days:0);
+    const mCph=mos.map(m=>a.monthly[m].days?a.monthly[m].cphSum/a.monthly[m].days:0);
+    mk("cYtdPay","bar",mLabels,[{label:"Payroll %",data:mPay,backgroundColor:mPay.map(v=>kcolor("payroll",v))},{label:"40% target",type:"line",data:mPay.map(()=>40),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{y:v=>v+"%"});
+    mk("cYtdCph","bar",mLabels,[{label:"CPH",data:mCph,backgroundColor:mCph.map(v=>kcolor("cuts",v))},{label:"2.0 standard",type:"line",data:mCph.map(()=>2.0),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{});
+    // At a glance
+    $("#detYtdList").innerHTML=[["Service Sales",money(a.svcSales)],["Product Sales",money(a.prodSales)],["Total Sales",money(a.sales)],["Customers",a.cust.toLocaleString()],["Avg Productivity ($/floor hr)",money(a.prodSum/n)],["Avg Payroll %",(a.paySum/n).toFixed(1)+"%"],["Avg Wait >15%",(a.w15Sum/n).toFixed(1)+"%"],["Days of data",n]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join("");
+  }else{
+    k.innerHTML='<div class="banner warn" style="grid-column:1/-1">No YTD data for '+sName(current)+' in '+yr+'.</div>';
+    ["cYtdPay","cYtdCph"].forEach(c=>{if(charts[c])charts[c].destroy();});
+    $("#detYtdList").innerHTML="";
+  }
+}
+function mkWait(w,tot){const labels=["≤10","10-15","15-20","20-25","25-30","30-40","40+"];const colors=w.map((v,i)=>i<2?GREEN:i<3?AMBER:RED);
+  if(charts.cDetWait)charts.cDetWait.destroy();
+  charts.cDetWait=new Chart($("#cDetWait"),{type:"bar",data:{labels,datasets:[{label:"# customers",data:w,backgroundColor:colors}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+" cust · "+(c.parsed.y/tot*100).toFixed(1)+"%"}}},scales:{x:{grid:{display:false}},y:{grid:{color:"#eef1f5"}}}}});}
+
+// REPS
+function repsE(m,v){const c=kpi(m,v);return c==="kg"?"✅":c==="ky"?"🤔":c==="kr"?"🚩":"";}
+function firstName(n){const p=n.split(",");return p.length>1?p[1].trim().split(" ")[0]:p[0];}
+function salProd(id){const r=(DAY.STY&&DAY.STY[id])||[];let a=0,c=0;r.forEach(x=>{a+=x[7]*x[8];c+=x[8];});return c?a/c:0;}
+function salMin(id){const r=(DAY.STY&&DAY.STY[id])||[];let a=0,c=0;r.forEach(x=>{a+=x[11]*x[8];c+=x[8];});return c?a/c:0;}
+function renderReps(){
+  const s=salById(current);const rt=$("#repsTitle");
+  if(!s){rt.textContent=(current||"")+" — no data for the selected day";$("#repsText").value="";return;}
+  rt.textContent=s[0]+" — "+s[1]+" · Daily REPS"+(curDate?" · "+fmtDate(curDate):"");
+  const cust=s[5],hc=s[7],cph=s[8],wait=s[11],prod=salProd(s[0]),mib=salMin(s[0]);
+  const sty=((DAY.STY&&DAY.STY[s[0]])||[]).filter(x=>x[8]>=3);
+  const topCph=[...sty].sort((a,b)=>b[3]-a[3])[0];
+  const bestHc=[...sty].filter(x=>x[9]>=12).sort((a,b)=>a[9]-b[9])[0];
+  const topProd=[...sty].sort((a,b)=>b[7]-a[7])[0];
+  const sh=[];
+  if(topCph&&topCph[3]>=2.0)sh.push("@~"+firstName(topCph[0])+" "+topCph[3].toFixed(1)+" CPH! "+(topCph[3]>=2.4?"🔥":"👏"));
+  if(bestHc&&bestHc!==topCph&&bestHc[9]<19)sh.push("@~"+firstName(bestHc[0])+" "+bestHc[9].toFixed(1)+" min hc time! 👏");
+  if(topProd&&topProd[7]>=3&&topProd!==topCph&&topProd!==bestHc)sh.push("@~"+firstName(topProd[0])+" "+topProd[7].toFixed(1)+"% in product! 🙌");
+  const L=["REPs for "+(curDate?fmtDate(curDate):"the day"),"Customer count: "+cust,
+    "Hc times: "+hc.toFixed(1)+" "+repsE("avghc",hc),"CPH: "+cph.toFixed(1)+" "+repsE("cuts",cph),
+    "Product: "+prod.toFixed(1)+"% "+repsE("stdprod",prod),"Mins in between: "+mib.toFixed(1)+" "+(mib<=2.5?"✅":mib<=3.5?"🤔":"🚩"),
+    "Waits >15 min: "+wait.toFixed(1)+"% "+repsE("wait15",wait),"","Great job!",...sh];
+  $("#repsText").value=L.join("\n");
+}
+$("#repsCopy").onclick=()=>{const t=$("#repsText");t.focus();t.select();const done=()=>{$("#repsMsg").textContent="✓ Copied";$("#repsMsg").style.color=GREEN;setTimeout(()=>$("#repsMsg").textContent="",2000);};try{navigator.clipboard.writeText(t.value).then(done,()=>{document.execCommand("copy");done();});}catch(e){document.execCommand("copy");done();}};
+
+// TEAM (weekly EPP, rolled up to Week/Month/YTD/Custom)
+// Week mode uses exactly the globally-selected week (matches the rest of the app). Month/YTD/Custom
+// sum multiple weekly_epp weeks: floor hours & customers sum; rate metrics (avg HC, CPH, std prod %,
+// payroll %, avg min btwn) are floor-hour-weighted averages; return-rate metrics are customer-weighted
+// averages — there's no daily source for EPP, only pre-aggregated weekly rows, so this is the best
+// available rollup (same weighting approach as the rest of the dashboard's per-day averages).
+let teamMode="day";
+function renderStyDayTable(){
+  const s=salById(current);
+  const rows=(DAY.STY&&DAY.STY[current])||[];const tb=$("#styTable tbody");tb.innerHTML="";let svc=0,disc=0,cust=0,ubc=0,ubm=0,mibSum=0,mibCnt=0;
+  rows.forEach(r=>{const hasUb=typeof r[14]==="number"||typeof r[15]==="number";
+    tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td>${typeof r[12]==="number"?r[12].toFixed(2):"—"}</td><td>${typeof r[13]==="number"?r[13].toFixed(2):"—"}</td>
+    <td class="${typeof r[14]==="number"&&r[14]===0?"kr":""}">${typeof r[14]==="number"?r[14]:"—"}</td><td class="${typeof r[15]==="number"&&r[15]<20?"kr":""}">${typeof r[15]==="number"?r[15]:"—"}</td>
+    <td class="${kpi('payroll',r[2])}">${r[2].toFixed(1)}%</td>
+    <td class="${kpi('cuts',r[3])}">${r[3].toFixed(1)}</td><td>${money(r[4])}</td><td>${money(r[5])}</td><td>${r[6].toFixed(1)}%</td>
+    <td class="${kpi('stdprod',r[7])}">${r[7].toFixed(1)}%</td><td>${r[8]}</td><td class="${kpi('avghc',r[9])}">${r[9].toFixed(1)}</td><td>${r[11].toFixed(1)}</td></tr>`;
+    svc+=r[4];disc+=r[5];cust+=r[8];if(hasUb){ubc+=r[14]||0;ubm+=r[15]||0;}if(typeof r[11]==="number"&&r[8]>0){mibSum+=r[11]*r[8];mibCnt+=r[8];}});
+  const mibAvg=mibCnt?mibSum/mibCnt:null;
+  $("#styTable tfoot").innerHTML=s?`<tr><td>Totals / Avg</td><td></td><td></td><td></td><td>${ubc||""}</td><td>${ubm||""}</td><td>${s[6].toFixed(1)}%</td><td>${s[8].toFixed(1)}</td><td>${money(svc)}</td><td>${money(disc)}</td><td></td><td></td><td>${cust}</td><td>${s[7].toFixed(1)}</td><td>${mibAvg!==null?mibAvg.toFixed(1):""}</td></tr>`:"";
+  return rows.length;
+}
+function teamRange(){
+  if(teamMode==="week"){
+    if(!curWeek)return null;
+    return {weeks:[curWeek],label:"week ending "+fmtDate(curWeek)};
+  }
+  if(teamMode==="month"){
+    const ref=curWeek||WEEKS[0];if(!ref)return null;
+    const ym=ref.slice(0,7);
+    const weeks=WEEKS.filter(w=>w.slice(0,7)===ym);
+    const mNames=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+    return {weeks,label:mNames[+ym.split("-")[1]]+" "+ym.split("-")[0]};
+  }
+  if(teamMode==="ytd"){
+    const ref=curWeek||WEEKS[0];if(!ref)return null;
+    const yr=ref.slice(0,4);
+    const weeks=WEEKS.filter(w=>w.slice(0,4)===yr&&w<=ref);
+    return {weeks,label:yr+" YTD through week ending "+fmtDate(ref)};
+  }
+  const f=$("#teamFrom").value,t=$("#teamTo").value;
+  if(!f||!t)return null;
+  const weeks=WEEKS.filter(w=>w>=f&&w<=t);
+  return {weeks,label:fmtDate(f)+" – "+fmtDate(t)};
+}
+function computeTeamAgg(sid,weeks){
+  const acc={};
+  weeks.forEach(wk=>{
+    const rows=(DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].EPP&&DATA.weeklies[wk].EPP[sid])||[];
+    rows.forEach(r=>{
+      const nm=r[0];if(!acc[nm])acc[nm]={floorHrs:0,cust:0,hcW:0,cphW:0,prodW:0,payW:0,newRetW:0,repRetW:0,mibW:0};
+      const a=acc[nm];const fh=r[1]||0,cu=r[2]||0;
+      a.floorHrs+=fh;a.cust+=cu;
+      if(typeof r[3]==="number")a.hcW+=r[3]*cu;
+      if(typeof r[4]==="number")a.cphW+=r[4]*fh;
+      if(typeof r[5]==="number")a.prodW+=r[5]*fh;
+      if(typeof r[8]==="number")a.payW+=r[8]*fh;
+      if(typeof r[9]==="number")a.newRetW+=r[9]*cu;
+      if(typeof r[10]==="number")a.repRetW+=r[10]*cu;
+      if(typeof r[11]==="number")a.mibW+=r[11]*cu;
+    });
+  });
+  return Object.keys(acc).sort().map(nm=>{const a=acc[nm];
+    return [nm,a.floorHrs,a.cust,a.cust?a.hcW/a.cust:null,a.floorHrs?a.cphW/a.floorHrs:null,a.floorHrs?a.prodW/a.floorHrs:null,
+      null,null,a.floorHrs?a.payW/a.floorHrs:null,a.cust?a.newRetW/a.cust:null,a.cust?a.repRetW/a.cust:null,a.cust?a.mibW/a.cust:null];});
+}
+function renderTeam(){
+  if(teamMode==="day"){
+    $("#styTable").style.display="";$("#teamTable").style.display="none";
+    $("#dayLegend").style.display="";$("#teamLegend").style.display="none";
+    $("#teamModeHint").textContent=curDate?fmtDate(curDate):"no day selected";
+    $("#teamTitle").textContent=(current||"")+" — "+sName(current)+" · Stylist Performance"+(curDate?" · "+fmtDate(curDate):"");
+    const n=renderStyDayTable();
+    $("#teamSummary").innerHTML=n?n+" stylist(s) · colored vs Brand Measures thresholds":"No stylist data for this salon/day.";
+    renderAttendance();
+    return;
+  }
+  $("#styTable").style.display="none";$("#teamTable").style.display="";
+  $("#dayLegend").style.display="none";$("#teamLegend").style.display="";
+  const range=teamRange();
+  $("#teamModeHint").textContent=range?range.label:(teamMode==="custom"?"Pick a from/to date above.":"No week selected.");
+  $("#teamTitle").textContent=(current||"")+" — "+sName(current)+" · Stylist Performance"+(range?" ("+range.label+")":"");
+  const cell=(m,v,suf="")=>v===null||v===undefined?`<td class="na">n/a</td>`:`<td class="${kpi(m,v)}">${v.toFixed(1)}${suf}</td>`;
+  const rows=range&&current?computeTeamAgg(current,range.weeks):[];
+  const tb=$("#teamTable tbody");tb.innerHTML="";
+  rows.forEach(r=>{tb.innerHTML+=`<tr><td>${r[0]}</td><td>${r[1].toFixed(2)}</td><td>${r[2]}</td>
+    ${cell("avghc",r[3])}${cell("cuts",r[4])}${cell("stdprod",r[5],"%")}<td>${r[11]!=null?r[11].toFixed(1):"—"}</td>${cell("payroll",r[8],"%")}
+    ${cell("newret",r[9],"%")}${cell("repret",r[10],"%")}</tr>`;});
+  $("#teamSummary").innerHTML=rows.length?rows.length+" stylists · colored vs Brand Measures thresholds":(range?"No weekly data for this salon/range.":"No week selected.");
+  renderAttendance();
+}
+document.querySelectorAll("#teamModeToggle button").forEach(b=>b.onclick=()=>{
+  teamMode=b.dataset.mode;
+  document.querySelectorAll("#teamModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  $("#teamCustomRange").style.display=teamMode==="custom"?"":"none";
+  renderTeam();
+});
+$("#teamFrom").onchange=renderTeam;
+$("#teamTo").onchange=renderTeam;
+
+// ATTENDANCE (no-shows, late >10 min, not-scheduled/picked-up shifts) — daily rows rolled
+// up over a chosen range. Ranges: Week (the selected week_ending, Sat-Fri), Month (calendar
+// month of the selected Day), YTD (Jan 1 of that year through the selected Day), Custom (pick).
+let attMode="week";
+function attRange(){
+  if(attMode==="week"){
+    if(!curWeek)return null;
+    const end=new Date(curWeek+"T12:00:00");const start=new Date(end);start.setDate(start.getDate()-6);
+    return {from:start.toISOString().slice(0,10),to:curWeek,label:"week ending "+fmtDate(curWeek)};
+  }
+  if(attMode==="month"){
+    const ref=curDate||DATES[0];if(!ref)return null;
+    const ym=ref.slice(0,7);
+    const first=ym+"-01";
+    const d=new Date(ym+"-01T12:00:00");d.setMonth(d.getMonth()+1);d.setDate(0);
+    const last=d.toISOString().slice(0,10);
+    const mNames=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+    return {from:first,to:last,label:mNames[+ym.split("-")[1]]+" "+ym.split("-")[0]};
+  }
+  if(attMode==="ytd"){
+    const ref=curDate||DATES[0];if(!ref)return null;
+    const yr=ref.slice(0,4);
+    return {from:yr+"-01-01",to:ref,label:yr+" YTD through "+fmtDate(ref)};
+  }
+  // custom
+  const f=$("#attFrom").value,t=$("#attTo").value;
+  if(!f||!t)return null;
+  return {from:f,to:t,label:fmtDate(f)+" – "+fmtDate(t)};
+}
+function computeAttendance(sid,from,to){
+  const acc={};
+  Object.keys(DATA.days||{}).forEach(d=>{
+    if(d<from||d>to)return;
+    ((DATA.days[d].ATT||{})[sid]||[]).forEach(r=>{
+      if(!acc[r[0]])acc[r[0]]={noShow:0,late:0,notSched:0};
+      acc[r[0]].noShow+=r[1]||0;acc[r[0]].late+=r[2]||0;acc[r[0]].notSched+=r[3]||0;
+    });
+  });
+  return Object.keys(acc).sort().map(nm=>[nm,acc[nm].noShow,acc[nm].late,acc[nm].notSched]);
+}
+// Attendance color standards (rate-adjusted to the selected range, so a Week and a YTD
+// view score the same stylist consistently instead of YTD just accumulating more red):
+//  - No-Shows / Late (>10 min): 0 = green · >0 up to 1/wk on average = yellow (watch) ·
+//    more than 1/wk on average = red (flag). "1/wk" scales with the range length below.
+//  - Not Scheduled (picked up an unscheduled shift): informational, not a violation — any
+//    count is shown in green as a positive (covering a call-out), 0 is left uncolored.
+function attRateClass(count,weeks){ if(count<=0)return"kg"; return (count/weeks)<=1?"ky":"kr"; }
+function renderAttendance(){
+  const range=attRange();
+  const tb=$("#attTable tbody");tb.innerHTML="";
+  if(!range){$("#attModeHint").textContent="";$("#attNote").textContent=attMode==="custom"?"Pick a from/to date above.":"No date selected.";return;}
+  $("#attModeHint").textContent=range.label;
+  const spanDays=Math.max(1,Math.round((new Date(range.to+"T12:00:00")-new Date(range.from+"T12:00:00"))/86400000)+1);
+  const weeks=Math.max(spanDays/7,1/7);
+  const rows=current?computeAttendance(current,range.from,range.to):[];
+  rows.forEach(r=>{
+    tb.innerHTML+=`<tr><td>${r[0]}</td><td class="${attRateClass(r[1],weeks)}">${r[1]}</td><td class="${attRateClass(r[2],weeks)}">${r[2]}</td><td class="${r[3]>0?"kg":""}">${r[3]}</td></tr>`;
+  });
+  $("#attNote").textContent=rows.length
+    ? rows.length+" stylist(s) with attendance data for this range. No-Shows/Late: green = none, yellow = up to ~1/wk, red = more than 1/wk (rate-adjusted to the range length). Not Scheduled shown in green — informational, not a violation."
+    : "No attendance data ingested yet for this range — daily attendance CSVs feed this table.";
+}
+document.querySelectorAll("#attModeToggle button").forEach(b=>b.onclick=()=>{
+  attMode=b.dataset.mode;
+  document.querySelectorAll("#attModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  $("#attCustomRange").style.display=attMode==="custom"?"":"none";
+  renderAttendance();
+});
+$("#attFrom").onchange=renderAttendance;
+$("#attTo").onchange=renderAttendance;
+
+// LOSS PREVENTION / AUDIT ALERTS (weekly, rolled up to Week/Month/YTD/Custom)
+// Same Week-mode-uses-the-global-week convention as Team Performance & Attendance.
+// audit_summary (17 pre-counted columns per salon/week) drives the group-summary strip —
+// far cheaper than tallying audit_alerts directly. audit_alerts (one row per occurrence)
+// drives the per-stylist drill-down table, since audit_summary has no employee breakdown.
+// Month/YTD/Custom sum counts across weeks; the two %-snapshot alert types (child/senior %,
+// stylist discount %) show the highest value seen across the selected weeks instead of a sum.
+let aaMode="week";
+const AA_SUMMARY_COLS=["coupon_after_close","discounted_100pct","invoice_lower_before_payment","invoice_lower_after_payment","tip_adjusted_after_payment","store_forward_declined","refund_cash","neck_trim_over","bang_trim_over","beard_trim_over","tender_employee_changed","child_senior_pct_exceeds","haircut_time_under","stylist_discount_high","security_role_changed","no_logout","great_card_zero_giftcard","customers_bypassed"];
+const AA_GROUPS=[
+  ["DISCOUNTS",["coupon_after_close","discounted_100pct"]],
+  ["INVOICE",["invoice_lower_before_payment","invoice_lower_after_payment","tip_adjusted_after_payment"]],
+  ["PAYMENTS",["store_forward_declined","refund_cash"]],
+  ["OPERATIONS",["neck_trim_over","bang_trim_over","beard_trim_over","tender_employee_changed","child_senior_pct_exceeds","haircut_time_under"]],
+  ["SECURITY",["stylist_discount_high","security_role_changed"]],
+  ["CHECK IN/OUT",["no_logout"]],
+  ["GIFT CARD",["great_card_zero_giftcard"]],
+  ["BYPASS",["customers_bypassed"]]
+];
+const AA_TYPE_LABELS={
+  coupon_after_close:"Coupon Applied After Close",
+  discounted_100pct:"100% Discount",
+  invoice_lower_before_payment:"Invoice Lowered (Before Pmt)",
+  invoice_lower_after_payment:"Invoice Lowered (After Pmt)",
+  tip_adjusted_after_payment:"Tip Adjusted (After Pmt)",
+  store_forward_declined:"Store/Forward Declined",
+  refund_cash:"Cash Refund",
+  neck_trim_over:"Neck Trim Time Over",
+  bang_trim_over:"Bang Trim Time Over",
+  beard_trim_over:"Beard Trim Time Over",
+  tender_employee_changed:"Tender Employee Changed",
+  child_senior_pct_exceeds:"Child/Sr Discount % Exceeded",
+  haircut_time_under:"Haircut Time Under Threshold",
+  stylist_discount_high:"Stylist Discount % High",
+  security_role_changed:"Security Role Changed",
+  no_logout:"No Logout Recorded",
+  great_card_zero_giftcard:"Great Card / $0 Gift Card",
+  customers_bypassed:"Customer Bypassed"
+};
+const AA_PCT_TYPES=new Set(["child_senior_pct_exceeds","stylist_discount_high"]);
+function aaFmtAmount(r){
+  if(AA_PCT_TYPES.has(r.alert_type)){const v=aaPctValue(r);return v!=null?v.toFixed(1)+"%":"—";}
+  if(typeof r.amount==="number"&&r.amount!==0)return "$"+r.amount.toFixed(2);
+  return r.amount!=null&&r.amount!==0?String(r.amount):"—";
+}
+function aaFmtDetail(r){
+  const d=r.detail||{};
+  const keys=Object.keys(d);
+  if(!keys.length)return "—";
+  return keys.map(k=>{
+    const label=k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+    if(k==="tender_type"&&String(d[k]).toLowerCase()==="cash"){
+      return label+": <span class=\"cash-flag\">💵 CASH</span>";
+    }
+    return label+": "+d[k];
+  }).join(" · ");
+}
+// Cash-tendered invoice-lowering/tip-adjustment alerts are higher risk than card ones:
+// a card transaction leaves a processor record if amounts are manipulated, but a cash
+// ticket that's quietly lowered (or a cash tip adjusted after the fact) leaves no such
+// trail — the difference can simply be pocketed. Flag those distinctly everywhere.
+const AA_CASH_RISK_TYPES=new Set(["invoice_lower_before_payment","invoice_lower_after_payment","tip_adjusted_after_payment"]);
+function aaIsCashRisk(r){
+  return AA_CASH_RISK_TYPES.has(r.alert_type)&&r.detail&&String(r.detail.tender_type).toLowerCase()==="cash";
+}
+function aaCashRiskCount(sid,weeks){
+  return collectAAAlerts(sid,weeks).filter(aaIsCashRisk).length;
+}
+function aaFmtDate(r){
+  if(!r.event_time)return "—";
+  try{const dt=new Date(r.event_time);return dt.toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});}catch(e){return String(r.event_time);}
+}
+function collectAAAlerts(sid,weeks){
+  const out=[];
+  weeks.forEach(wk=>{
+    const rows=(DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].AUDALERTS&&DATA.weeklies[wk].AUDALERTS[sid])||[];
+    rows.forEach(r=>out.push(r));
+  });
+  return out;
+}
+// Auto-generated plain-language call-outs for the top of the card — surfaces the
+// highest-severity individual findings instead of making a manager read the whole table.
+function buildAACallouts(sid,weeks){
+  const raws=collectAAAlerts(sid,weeks);
+  const byEmpType={};
+  raws.forEach(r=>{
+    const nm=r.employee_name||"(unassigned)";
+    const key=nm+"|"+r.alert_type;
+    if(!byEmpType[key])byEmpType[key]={nm,type:r.alert_type,count:0,rows:[]};
+    byEmpType[key].count++;byEmpType[key].rows.push(r);
+  });
+  const items=[];
+  Object.values(byEmpType).forEach(g=>{
+    const label=AA_TYPE_LABELS[g.type]||g.type;
+    if(g.type==="child_senior_pct_exceeds"){
+      // Our normal customer mix runs ~30% child/senior, so a raw % over the configured
+      // 20% threshold is often just organic mix, not misconduct — too noisy to call out
+      // on its own (nearly every stylist trips it). Only surface this as a call-out when
+      // we can also see the mechanism: a cash-tendered ticket where a regular haircut was
+      // swapped to a Senior/Child Haircut, which both inflates this % AND is how the
+      // stylist can quietly pocket the price difference (see AA_CASH_RISK_TYPES note).
+      const cashSwaps=raws.filter(r=>(r.employee_name||"(unassigned)")===g.nm
+        &&(r.alert_type==="invoice_lower_before_payment"||r.alert_type==="invoice_lower_after_payment")
+        &&r.detail&&String(r.detail.tender_type).toLowerCase()==="cash"
+        &&/senior|child/i.test(String(r.detail.change_details||"")));
+      if(cashSwaps.length){
+        let top=null,topV=-1;
+        g.rows.forEach(r=>{const v=aaPctValue(r);if(v!=null&&v>topV){topV=v;top=r;}});
+        const cfg=top&&top.detail&&top.detail.configured_value;
+        items.push({sev:"red",score:120+topV+cashSwaps.length*10,text:`<b>${g.nm}</b> — Child/Sr discount ${topV>=0?topV.toFixed(1)+"%":""}${cfg?" (threshold "+cfg+")":""} — <span class="cash-flag">💵 ${cashSwaps.length} cash Senior/Child switch${cashSwaps.length>1?"es":""}</span>`});
+      }
+    } else if(g.type==="stylist_discount_high"){
+      let top=null,topV=-1;
+      g.rows.forEach(r=>{const v=aaPctValue(r);if(v!=null&&v>topV){topV=v;top=r;}});
+      const cfg=top&&top.detail&&top.detail.configured_value;
+      items.push({sev:"red",score:100+topV,text:`<b>${g.nm}</b> — Stylist discount ${topV>=0?topV.toFixed(1)+"%":""}${cfg?" (threshold "+cfg+")":""}`});
+    } else if(g.type==="invoice_lower_before_payment"||g.type==="invoice_lower_after_payment"||g.type==="tip_adjusted_after_payment"){
+      const cashCount=g.rows.filter(aaIsCashRisk).length;
+      const sev=(g.count>=3||cashCount>=1)?"red":"amber";
+      const cashNote=cashCount>0?` — <span class="cash-flag">💵 ${cashCount} on CASH</span>`:"";
+      items.push({sev,score:(sev==="red"?60:30)+g.count+cashCount*25,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} occurrence${g.count>1?"s":""}${cashNote}`});
+    } else if(g.type==="discounted_100pct"){
+      items.push({sev:"amber",score:20+g.count,text:`<b>${g.nm}</b> — ${g.count} 100%-discounted ticket${g.count>1?"s":""}`});
+    } else if(g.type==="customers_bypassed"){
+      items.push({sev:"amber",score:15+g.count,text:`<b>${g.nm}</b> — ${g.count} customer${g.count>1?"s":""} bypassed`});
+    } else if(g.type==="security_role_changed"||g.type==="no_logout"||g.type==="tender_employee_changed"||g.type==="store_forward_declined"||g.type==="refund_cash"){
+      items.push({sev:"red",score:70+g.count,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} event${g.count>1?"s":""}`});
+    } else if(g.type==="haircut_time_under"||g.type==="neck_trim_over"||g.type==="bang_trim_over"||g.type==="beard_trim_over"){
+      if(g.count>=5)items.push({sev:"amber",score:10+g.count,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} occurrences`});
+    } else if(g.type==="great_card_zero_giftcard"){
+      items.push({sev:"amber",score:15+g.count,text:`<b>${g.nm}</b> — ${g.count} ${label.toLowerCase()} occurrence${g.count>1?"s":""}`});
+    }
+  });
+  items.sort((a,b)=>b.score-a.score);
+  return items.slice(0,8);
+}
+function aaRange(){
+  if(aaMode==="week"){
+    if(!curWeek)return null;
+    return {weeks:[curWeek],label:"week ending "+fmtDate(curWeek)};
+  }
+  if(aaMode==="month"){
+    const ref=curWeek||WEEKS[0];if(!ref)return null;
+    const ym=ref.slice(0,7);
+    const weeks=WEEKS.filter(w=>w.slice(0,7)===ym);
+    const mNames=["","January","February","March","April","May","June","July","August","September","October","November","December"];
+    return {weeks,label:mNames[+ym.split("-")[1]]+" "+ym.split("-")[0]};
+  }
+  if(aaMode==="ytd"){
+    const ref=curWeek||WEEKS[0];if(!ref)return null;
+    const yr=ref.slice(0,4);
+    const weeks=WEEKS.filter(w=>w.slice(0,4)===yr&&w<=ref);
+    return {weeks,label:yr+" YTD through week ending "+fmtDate(ref)};
+  }
+  const f=$("#aaFrom").value,t=$("#aaTo").value;
+  if(!f||!t)return null;
+  const weeks=WEEKS.filter(w=>w>=f&&w<=t);
+  return {weeks,label:fmtDate(f)+" – "+fmtDate(t)};
+}
+function computeAASummary(sid,weeks){
+  const sums={};AA_SUMMARY_COLS.forEach(k=>sums[k]=0);
+  weeks.forEach(wk=>{
+    const r=(DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].AUDSUM&&DATA.weeklies[wk].AUDSUM[sid])||null;
+    if(!r)return;
+    AA_SUMMARY_COLS.forEach(k=>{sums[k]+=r[k]||0;});
+  });
+  return sums;
+}
+// Pull a numeric value out of an alert row for the two %-snapshot alert types — prefer the
+// amount column, fall back to the jsonb detail field the report uses for that pct.
+function aaPctValue(r){
+  if(typeof r.amount==="number")return r.amount;
+  const d=r.detail||{};
+  if(typeof d.child_senior_pct==="number")return d.child_senior_pct;
+  if(typeof d.service_discount_pct==="number")return d.service_discount_pct;
+  if(typeof d.salon_discount_pct==="number")return d.salon_discount_pct;
+  return null;
+}
+function computeAAEmployeeAgg(sid,weeks){
+  const acc={};
+  weeks.forEach(wk=>{
+    const rows=(DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].AUDALERTS&&DATA.weeklies[wk].AUDALERTS[sid])||[];
+    rows.forEach(r=>{
+      const nm=r.employee_name||"(unassigned)";
+      if(!acc[nm])acc[nm]={invLowBefore:0,invLowAfter:0,tipAdj:0,disc100:0,childSrPct:null,styDiscPct:null,hcUnder:0,longSvc:0,bypassed:0};
+      const a=acc[nm],t=r.alert_type;
+      if(t==="invoice_lower_before_payment")a.invLowBefore++;
+      else if(t==="invoice_lower_after_payment")a.invLowAfter++;
+      else if(t==="tip_adjusted_after_payment")a.tipAdj++;
+      else if(t==="discounted_100pct")a.disc100++;
+      else if(t==="child_senior_pct_exceeds"){const v=aaPctValue(r);if(v!=null)a.childSrPct=a.childSrPct==null?v:Math.max(a.childSrPct,v);}
+      else if(t==="stylist_discount_high"){const v=aaPctValue(r);if(v!=null)a.styDiscPct=a.styDiscPct==null?v:Math.max(a.styDiscPct,v);}
+      else if(t==="haircut_time_under")a.hcUnder++;
+      else if(t==="neck_trim_over"||t==="bang_trim_over"||t==="beard_trim_over")a.longSvc++;
+      else if(t==="customers_bypassed")a.bypassed++;
+    });
+  });
+  return Object.keys(acc).sort().map(nm=>{const a=acc[nm];
+    return [nm,a.invLowBefore,a.invLowAfter,a.tipAdj,a.disc100,a.childSrPct,a.styDiscPct,a.hcUnder,a.longSvc,a.bypassed];});
+}
+function aaCountCls(n){return n>=3?"flag":n>=1?"warn":"";}
+function aaBuildDetailTable(rows){
+  if(!rows.length)return '<div class="aa-detail-wrap">No individual alert rows recorded for this stylist in range.</div>';
+  const body=rows.map(r=>`<tr class="${aaIsCashRisk(r)?"aa-cash-row":""}"><td>${aaFmtDate(r)}</td><td>${AA_TYPE_LABELS[r.alert_type]||r.alert_type}</td><td>${r.invoice_id||"—"}</td><td>${aaFmtAmount(r)}</td><td>${aaFmtDetail(r)}</td></tr>`).join("");
+  return `<div class="aa-detail-wrap"><table><thead><tr><th>Date/Time</th><th>Alert Type</th><th>Invoice #</th><th>Amount</th><th>Detail</th></tr></thead><tbody>${body}</tbody></table></div>`;
+}
+let aaAllOpen=false;
+function renderAAAllTable(range){
+  const raws=range&&current?collectAAAlerts(current,range.weeks):[];
+  const sorted=raws.slice().sort((a,b)=>(b.event_time||"").localeCompare(a.event_time||""));
+  const tb=$("#aaAllTable tbody");
+  tb.innerHTML=sorted.length?sorted.map(r=>`<tr class="${aaIsCashRisk(r)?"aa-cash-row":""}"><td>${aaFmtDate(r)}</td><td>${r.employee_name||"(unassigned)"}</td><td>${AA_TYPE_LABELS[r.alert_type]||r.alert_type}</td><td>${r.invoice_id||"—"}</td><td>${aaFmtAmount(r)}</td><td>${aaFmtDetail(r)}</td></tr>`).join(""):'<tr><td colspan="6" class="na">No alert events in this range.</td></tr>';
+  $("#aaAllNote").textContent=sorted.length?sorted.length+" individual alert event(s) shown for "+sName(current)+", "+(range?range.label:"")+".":"";
+}
+function renderAA(){
+  const range=aaRange();
+  $("#aaModeHint").textContent=range?range.label:(aaMode==="custom"?"Pick a from/to date above.":"No week selected.");
+  $("#aaTitle").textContent=(current||"")+" — "+sName(current)+" · Loss Prevention (Audit Alerts)"+(range?" ("+range.label+")":"");
+  const sums=range&&current?computeAASummary(current,range.weeks):null;
+  const callouts=range&&current?buildAACallouts(current,range.weeks):[];
+  $("#aaCallouts").innerHTML=callouts.length?callouts.map(c=>`<div class="aa-callout sev-${c.sev}"><span class="ico">${c.sev==="red"?"🚩":"⚠️"}</span><span>${c.text}</span></div>`).join(""):'<div class="aa-none">No notable loss-prevention call-outs for this range.</div>';
+  const gh=$("#aaGroups");
+  const cashRiskN=range&&current?aaCashRiskCount(current,range.weeks):0;
+  gh.innerHTML=AA_GROUPS.map(g=>{const n=g[1].reduce((a,k)=>a+((sums&&sums[k])||0),0);
+    return `<div class="aa-chip${n>0?" aa-hot":""}"><b>${n}</b>${g[0]}</div>`;}).join("")
+    +(cashRiskN>0?`<div class="aa-chip aa-cash-chip"><b>${cashRiskN}</b>💵 CASH RISK</div>`:"");
+  const total=sums?AA_SUMMARY_COLS.reduce((a,k)=>a+(sums[k]||0),0):0;
+  const rows=(range&&current?computeAAEmployeeAgg(current,range.weeks):[]).sort((a,b)=>(b[1]+b[2]+b[3]+b[4]+b[7]+b[8]+b[9])-(a[1]+a[2]+a[3]+a[4]+a[7]+a[8]+a[9]));
+  const tb=$("#aaTable tbody");tb.innerHTML="";
+  rows.forEach(r=>{
+    const pctCell=v=>v==null?'<td class="na">—</td>':`<td class="flag">${v.toFixed(1)}%</td>`;
+    const tr=document.createElement("tr");
+    tr.className="aa-row-click";
+    tr.innerHTML=`<td class="aa-caret">▸</td><td>${r[0]}</td><td class="${aaCountCls(r[1])}">${r[1]||"—"}</td><td class="${aaCountCls(r[2])}">${r[2]||"—"}</td>
+      <td class="${aaCountCls(r[3])}">${r[3]||"—"}</td><td class="${r[4]>0?"warn":""}">${r[4]||"—"}</td>
+      ${pctCell(r[5])}${pctCell(r[6])}
+      <td class="${r[7]>=5?"warn":""}">${r[7]||"—"}</td><td class="${r[8]>=5?"warn":""}">${r[8]||"—"}</td><td class="${r[9]>0?"warn":""}">${r[9]||"—"}</td>`;
+    const detailTr=document.createElement("tr");
+    detailTr.className="aa-detail-row";detailTr.style.display="none";
+    const td=document.createElement("td");td.colSpan=11;detailTr.appendChild(td);
+    tr.onclick=()=>{
+      const open=detailTr.style.display!=="none";
+      const caret=tr.querySelector(".aa-caret");
+      if(open){detailTr.style.display="none";caret.textContent="▸";return;}
+      if(!td.dataset.built){
+        const empRows=collectAAAlerts(current,range.weeks).filter(x=>(x.employee_name||"(unassigned)")===r[0])
+          .sort((a,b)=>(b.event_time||"").localeCompare(a.event_time||""));
+        td.innerHTML=aaBuildDetailTable(empRows);
+        td.dataset.built="1";
+      }
+      detailTr.style.display="";caret.textContent="▾";
+    };
+    tb.appendChild(tr);tb.appendChild(detailTr);
+  });
+  $("#aaSummary").innerHTML=range?(total+" total alert(s) across "+rows.length+" stylist(s) with activity"+(range.weeks.length?" · "+range.weeks.length+" week(s) in range":"")):"No week selected.";
+  renderAAAllTable(range);
+}
+document.querySelectorAll("#aaModeToggle button").forEach(b=>b.onclick=()=>{
+  aaMode=b.dataset.mode;
+  document.querySelectorAll("#aaModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  $("#aaCustomRange").style.display=aaMode==="custom"?"":"none";
+  renderAA();
+});
+$("#aaFrom").onchange=renderAA;
+$("#aaTo").onchange=renderAA;
+$("#aaShowAllBtn").onclick=()=>{
+  aaAllOpen=!aaAllOpen;
+  $("#aaAllWrap").style.display=aaAllOpen?"":"none";
+  $("#aaShowAllBtn").textContent=aaAllOpen?"Hide all alert events (raw detail) ▴":"Show all alert events (raw detail) ▾";
+};
+
+// TRENDS
+// Benchmarks: {value, dir:"max"|"min", label} — max=must stay at or below, min=must stay at or above
+const BENCH={payrollPct:{value:40,dir:"max",label:"40% target"},cust:null,totalSales:null,
+  cutsHr:{value:2.0,dir:"min",label:"2.0 CPH standard"},avgHC:{value:19,dir:"max",label:"19 min standard"},
+  waitOver15Pct:{value:19,dir:"max",label:"19% standard"},custGrowthPct:{value:0,dir:"min",label:"0% (flat)"}};
+function loadTrend(){
+  const m=$("#trendMetric").value;
+  const mo=$("#trendMonth").value;
+  const all=dTrend(current,m);
+  const series=mo?all.filter(x=>x[0].startsWith(mo)):all;
+  renderTrend(series,m,mo);
+}
+function renderTrend(series,m,mo){
+  const labels=(series||[]).map(x=>{const p=x[0].split("-");return(+p[1])+"/"+(+p[2]);});
+  const data=(series||[]).map(x=>x[1]);
+  const isPct=/Pct|payroll|wait|Growth/i.test(m);
+  const b=BENCH[m];
+  const datasets=[{label:$("#trendMetric").selectedOptions[0].text,data,borderColor:BLUE,backgroundColor:"rgba(4,134,103,.12)",fill:true,tension:.25,pointRadius:3}];
+  if(b){datasets.push({label:b.label,data:data.map(()=>b.value),borderColor:RED,borderDash:[8,4],borderWidth:2,pointRadius:0,fill:false});}
+  if(charts.cTrend)charts.cTrend.destroy();
+  charts.cTrend=new Chart($("#cTrend"),{type:"line",data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:b?true:false,labels:{font:{size:11},usePointStyle:true}}},scales:{y:{grid:{color:"#eef1f5"},ticks:{callback:v=>isPct?v+"%":v}}}}});
+  // Out-of-standard count
+  if(b&&series&&series.length){
+    const oos=series.filter(x=>b.dir==="max"?x[1]>b.value:x[1]<b.value).length;
+    const tag=oos>0?`<span style="color:${RED};font-weight:600">${oos} of ${series.length} day(s) out of standard</span>`
+      :`<span style="color:${GREEN};font-weight:600">All ${series.length} day(s) in standard</span>`;
+    $("#trendNote").innerHTML=sName(current)+" · "+tag+" ("+b.label+")";
+  }else{
+    $("#trendNote").textContent=series&&series.length?series.length+" day(s) for "+sName(current):"No data for "+sName(current)+" this month.";
+  }
+}
+
+// RECAP
+function lastFriday(){const d=new Date();const diff=(d.getDay()-5+7)%7;d.setDate(d.getDate()-diff);return d.toISOString().slice(0,10);}
+function loadRecaps(){fetchRecaps().then(r=>{recaps=r||[];renderRecap();});}
+// --- Out-of-standard analysis + recap builders (dashboard "red" thresholds) ---
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function safeParse(s){try{const o=s?JSON.parse(s):{};return (o&&typeof o==="object")?o:{};}catch(e){return{};}}
+function weekDates(wk){const out=[];if(!wk)return out;const d=new Date(wk+"T00:00:00");for(let i=6;i>=0;i--){const x=new Date(d);x.setDate(d.getDate()-i);out.push(x.toISOString().slice(0,10));}return out;}
+// salon-level KPIs checked per day: [trendMetric, kpiKey, label, reasonFn]
+const DAYKPIS=[
+  ["payrollPct","payroll","Payroll %",v=>v.toFixed(1)+"% (over 40% target)"],
+  ["cutsHr","cuts","CPH",v=>v.toFixed(1)+" (below 2.0)"],
+  ["waitOver15Pct","wait15","Wait >15%",v=>v.toFixed(1)+"% (≥19%)"],
+  ["cashOverShort","cashshort","Cash Short",v=>"−$"+Math.abs(v).toFixed(2)+" short (over $10 threshold)"]
+];
+function empRow(cat,name,val){val=val||"";const sel=v=>val===v?" selected":"";
+  return '<div class="oos-emp"><span class="nm">'+esc(name)+'</span>'
+    +'<select data-yn data-cat="'+cat+'" data-key="'+esc(name)+'">'
+    +'<option value=""'+sel("")+'>—</option><option value="yes"'+sel("yes")+'>Yes</option><option value="no"'+sel("no")+'>No</option></select></div>';}
+function buildOOS(id,wk){
+  const host=$("#oosSection"); if(!host)return;
+  const token=(buildOOS._t=(buildOOS._t||0)+1);
+  host.innerHTML='<div class="sub" style="margin:8px 0">Checking standards…</div>';
+  const rr=recaps.find(x=>String(x.salonId)===String(id)&&String(x.weekEnding)===String(wk))||{};
+  const kpiSaved=safeParse(rr.cphdays), stySaved=safeParse(rr.stylistflags), qcSaved=safeParse(rr.quality), rcSaved=safeParse(rr.reach);
+  const jobs=[Promise.resolve(((DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].EPP))||{})];
+  DAYKPIS.forEach(k=>jobs.push(Promise.resolve(dTrend(id,k[0]))));
+  Promise.all(jobs).then(res=>{
+    if(token!==buildOOS._t)return; // a newer render superseded this one
+    const epp=res[0], trends=res.slice(1), days=weekDates(wk);
+    // 1. salon KPIs out of standard, by day
+    const dayFlags=[]; let anyDayData=false;
+    DAYKPIS.forEach((k,i)=>{ (trends[i]||[]).forEach(row=>{const d=String(row[0]); if(!days.includes(d))return; anyDayData=true;
+      const v=row[1]; if(typeof v!=="number")return;
+      if(kpi(k[1],v)==="kr") dayFlags.push({date:d,metric:k[0],label:k[2],reason:k[3](v)});});});
+    dayFlags.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.label.localeCompare(b.label));
+    // 2. stylists out of standard
+    const styRows=(epp[id]||[]), flagged=[];
+    styRows.forEach(r=>{const reasons=[];
+      if(typeof r[3]==="number"&&r[3]>=19)reasons.push("Avg HC "+r[3].toFixed(1)+" min (≥19)");
+      if(typeof r[4]==="number"&&r[4]<2.0)reasons.push("CPH "+r[4].toFixed(1)+" (<2.0)");
+      if(typeof r[9]==="number"&&r[9]<21)reasons.push("New return "+r[9].toFixed(1)+"% (<21%)");
+      if(typeof r[10]==="number"&&r[10]<72)reasons.push("Repeat return "+r[10].toFixed(1)+"% (<72%)");
+      if(reasons.length)flagged.push({name:r[0],reasons});});
+    const emps=styRows.map(r=>r[0]);
+    let h='<div class="oos-wrap">';
+    h+='<div class="oos-h">📉 KPIs out of standard by day'+(dayFlags.length?' <span class="oos-badge">'+dayFlags.length+'</span>':'')+'</div>';
+    if(!anyDayData) h+='<div class="oos-neutral">No daily data loaded yet for the week ending '+fmtDate(wk)+'.</div>';
+    else if(!dayFlags.length) h+='<div class="oos-ok">✓ All salon KPIs within standard every day this week.</div>';
+    else dayFlags.forEach(f=>{const key=f.date+"|"+f.metric;
+      h+='<div class="oos-item"><div class="hd">'+fmtDate(f.date)+' · '+esc(f.label)+' '+esc(f.reason)+'</div>'
+        +'<div class="meta">Explain why this KPI was out of standard.</div>'
+        +'<textarea data-oos data-cat="kpi" data-key="'+esc(key)+'" placeholder="Explanation…">'+esc(kpiSaved[key]||"")+'</textarea></div>';});
+    h+='<div class="oos-h">🚩 Stylists out of standard'+(flagged.length?' <span class="oos-badge">'+flagged.length+'</span>':'')+'</div>';
+    if(!styRows.length) h+='<div class="oos-neutral">No weekly stylist data yet for the week ending '+fmtDate(wk)+'.</div>';
+    else if(!flagged.length) h+='<div class="oos-ok">✓ All stylists within standard for the week ending '+fmtDate(wk)+'.</div>';
+    else flagged.forEach(f=>{
+      h+='<div class="oos-item"><div class="hd">'+esc(f.name)+'</div>'
+        +'<div class="meta">Out of standard: '+esc(f.reasons.join(" · "))+'</div>'
+        +'<textarea data-oos data-cat="sty" data-key="'+esc(f.name)+'" placeholder="What are you doing to address this (training, coaching, REACH, etc.)?">'+esc(stySaved[f.name]||"")+'</textarea></div>';});
+    h+='<div class="oos-h">🤝 Quality Connections — done this week?</div>';
+    if(!emps.length) h+='<div class="oos-neutral">No employee list yet for this salon/week.</div>';
+    else emps.forEach(n=>{h+=empRow("qc",n,qcSaved[n]);});
+    h+='<div class="oos-h">🎯 REACH — done this week?</div>';
+    if(!emps.length) h+='<div class="oos-neutral">No employee list yet for this salon/week.</div>';
+    else emps.forEach(n=>{h+=empRow("rc",n,rcSaved[n]);});
+    h+='</div>';
+    host.innerHTML=h;
+  });
+}
+function collectOOS(){const kpiO={},sty={},qc={},rc={};
+  document.querySelectorAll('#oosSection textarea[data-oos]').forEach(t=>{const v=t.value.trim();if(!v)return;
+    if(t.dataset.cat==="kpi")kpiO[t.dataset.key]=t.value;else sty[t.dataset.key]=t.value;});
+  document.querySelectorAll('#oosSection select[data-yn]').forEach(s=>{const v=s.value;if(!v)return;
+    if(s.dataset.cat==="qc")qc[s.dataset.key]=v;else rc[s.dataset.key]=v;});
+  return{cphdays:JSON.stringify(kpiO),stylistflags:JSON.stringify(sty),quality:JSON.stringify(qc),reach:JSON.stringify(rc)};}
+function renderRecap(){
+  const id=current||Object.keys(SALONS).sort()[0];
+  $("#recapTitle").textContent=(id||"")+" — "+sName(id)+" · Weekly Recap";
+  const wk=$("#recapWeek").value||curWeek||lastFriday();$("#recapWeek").value=wk;
+  const r=recaps.find(x=>String(x.salonId)===String(id)&&String(x.weekEnding)===String(wk))||{};
+  ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(el)el.value=r[k]||"";});
+  $("#recapMsg").innerHTML=r.updatedAt?'<span style="color:var(--muted)">last saved '+new Date(r.updatedAt).toLocaleString()+(r.updatedBy?" by "+r.updatedBy:"")+'</span>':"";
+  buildOOS(id,wk);
+}
+$("#recapWeek").onchange=renderRecap;
+$("#recapSave").onclick=()=>{
+  const id=current,wk=$("#recapWeek").value;if(!wk){alert("Pick a week-ending date");return;}
+  // --- validate all fields are filled ---
+  document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));
+  const missing=[];
+  const labels={actions:"Actionable items",floorhours:"Floor hours actions",schedules:"Schedules up to date"};
+  ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(!el.value.trim()){missing.push(labels[k]);el.classList.add('recap-missing');}});
+  document.querySelectorAll('#oosSection textarea[data-oos]').forEach(t=>{if(!t.value.trim()){missing.push((t.dataset.cat==="kpi"?"KPI explanation":"Stylist flag")+": "+t.dataset.key);t.classList.add('recap-missing');}});
+  document.querySelectorAll('#oosSection select[data-yn]').forEach(s=>{if(!s.value){const lbl=(s.dataset.cat==="qc"?"Quality Connection":"REACH")+": "+s.dataset.key;missing.push(lbl);s.classList.add('recap-missing');}});
+  if(missing.length){const first=document.querySelector('.recap-missing');if(first)first.scrollIntoView({behavior:'smooth',block:'center'});alert("Please fill out all fields before saving.\n\nMissing:\n• "+missing.join("\n• "));return;}
+  // --- end validation ---
+  const p={salon:id,week:wk,areaManager:"",updatedBy:""};
+  ["actions","floorhours","schedules"].forEach(k=>p[k]=$("#q_"+k).value);
+  const oos=collectOOS();p.cphdays=oos.cphdays;p.stylistflags=oos.stylistflags;p.quality=oos.quality;p.reach=oos.reach;
+  const m=$("#recapMsg");m.textContent="Saving…";m.style.color="var(--muted)";
+  upsertRecap(p).then(j=>{if(j.ok){m.textContent="✓ Saved";m.style.color=GREEN;loadRecaps();}else{m.textContent="Error: "+(j.error||"save failed");m.style.color=RED;}}).catch(e=>{m.textContent="Error: "+e.message;m.style.color=RED;});
+};
+</script>
+</body></html>

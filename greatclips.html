@@ -211,6 +211,12 @@ tbody tr.clickrow{cursor:pointer}
       <th data-k="11">Waits<span class="kpi-ideal"><b>Goal</b>&lt;15%</span></th><th data-k="12">Cust Gr%<span class="kpi-ideal"><b>Goal</b>≥5%</span></th><th data-k="13">Sales Gr%<span class="kpi-ideal"><b>Goal</b>≥5%</span></th><th title="Overall health score (1-5) from payroll %, CPH, avg HC time, wait &gt;15%, and customer growth vs. targets">Health</th><th class="gcol" title="Live Google rating (snapshot)">Google ★</th>
     </tr></thead><tbody></tbody><tfoot></tfoot></table>
   </div>
+  <div id="bdayWidget" style="margin-bottom:18px;display:none">
+    <div class="grid g2">
+      <div class="card" style="padding:16px"><h3 style="margin:0 0 10px">🎂 Today's Birthdays</h3><div id="bdayToday" style="font-size:14px;color:var(--muted)">Loading…</div></div>
+      <div class="card" style="padding:16px"><h3 style="margin:0 0 10px">🎈 Upcoming Birthdays <span style="font-size:12px;font-weight:400;color:var(--muted)">(next 14 days)</span></h3><div id="bdayUpcoming" style="font-size:14px;color:var(--muted)">Loading…</div></div>
+    </div>
+  </div>
   <div class="grid g2">
     <div class="card"><h3>Total Customers by Salon</h3><div class="hint" id="hSales"></div><div class="chart-box tall"><canvas id="cSales"></canvas></div></div>
     <div class="card"><h3>Payroll % vs 40% Target</h3><div class="hint">Red = over target</div><div class="chart-box tall"><canvas id="cPay"></canvas></div></div>
@@ -584,7 +590,31 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
 
 function opt(sel,val,txt){const o=document.createElement("option");o.value=val;o.textContent=txt;sel.appendChild(o);}
 
-window.onload=()=>{ Promise.all([loadData(),loadGoogleData()]).then(([b])=>{onBoot(b);loadRecaps();}).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
+// --- Birthday Widget ---
+async function loadBirthdays(){
+  try{
+    const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY};
+    const r=await fetch(SUPA_URL+"/rest/v1/salon_contacts?select=name,dob,salon_id,role&dob=not.is.null&dob=neq.",{headers:h});
+    if(!r.ok)return;
+    const contacts=await r.json();
+    const MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
+    const today=new Date();const tM=today.getMonth(),tD=today.getDate();
+    function parseDob(s){if(!s)return null;const m=s.match(/^(\w+)\s+(\d+)/);if(!m)return null;const mi=MONTHS[m[1].toLowerCase()];if(mi===undefined)return null;return{month:mi,day:parseInt(m[2])};}
+    function daysUntil(m,d){const t=new Date(today.getFullYear(),m,d);if(t<new Date(today.getFullYear(),tM,tD))t.setFullYear(t.getFullYear()+1);return Math.round((t-new Date(today.getFullYear(),tM,tD))/(86400000));}
+    const todayList=[],upcoming=[];
+    const salonNames=Object.assign({},SALONS,typeof CT_SALON_NAMES!=='undefined'?CT_SALON_NAMES:{});
+    contacts.forEach(c=>{const p=parseDob(c.dob);if(!p)return;const diff=daysUntil(p.month,p.day);
+      const entry={name:c.name,role:c.role||'',salon:salonNames[String(c.salon_id)]||c.salon_id,dob:c.dob,days:diff};
+      if(diff===0)todayList.push(entry);else if(diff>0&&diff<=14)upcoming.push(entry);});
+    upcoming.sort((a,b)=>a.days-b.days);
+    const $t=$("#bdayToday"),$u=$("#bdayUpcoming"),w=$("#bdayWidget");
+    w.style.display='';
+    $t.innerHTML=todayList.length?todayList.map(e=>`<div style="margin-bottom:6px"><strong>${e.name}</strong> <span style="color:var(--muted);font-size:12px">${e.role} · Salon ${e.salon}</span> 🎉</div>`).join(''):'<span style="color:var(--muted)">No birthdays today</span>';
+    $u.innerHTML=upcoming.length?upcoming.map(e=>`<div style="margin-bottom:4px"><strong>${e.name}</strong> <span style="color:var(--muted);font-size:12px">${e.dob} · ${e.role} · Salon ${e.salon} · in ${e.days} day${e.days>1?'s':''}</span></div>`).join(''):'<span style="color:var(--muted)">No upcoming birthdays in the next 14 days</span>';
+  }catch(e){console.error('Birthday widget error',e);}
+}
+
+window.onload=()=>{ Promise.all([loadData(),loadGoogleData()]).then(([b])=>{onBoot(b);loadRecaps();loadBirthdays();}).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
 
 // WEEKS includes every week_ending with any rolled-up data, including the current
 // in-progress GC week (Sat–Fri) whose week_ending Friday hasn't happened yet — that entry
@@ -1518,7 +1548,7 @@ function ctRender(){
     <td>${v.email?'<a href="mailto:'+esc(v.email)+'">'+esc(v.email)+'</a>':''}</td>
     <td>${esc(v.account_num||'')}</td>
     <td class="act-col"><button class="ct-act" title="Edit" onclick="ctEditVendor(${v.id})">✏️</button><button class="ct-act" title="Unlink" onclick="ctUnlinkVendor(${v.id})">❌</button></td>
-  </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No vendors linked — click 🔗 Link Vendors</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No vendors yet — click + Add Vendor to add one</td></tr>';
   $("#ctVendorCount").textContent=vendors.length;
 
   // Print header

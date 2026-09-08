@@ -394,9 +394,17 @@ tbody tr.clickrow{cursor:pointer}
     </div>
   </div>
   <div class="ct-sec">
-    <h3>Vendor Contacts <span class="badge" id="ctVendorCount">0</span></h3>
+    <h3>Salon Vendor Contacts <span class="badge" id="ctVendorCount">0</span></h3>
     <div class="card tbl-scroll">
       <table class="ct-tbl" id="ctVendorTbl"><thead><tr>
+        <th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th><th class="act-col"></th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+  <div class="ct-sec" style="margin-top:24px;border-top:2px solid var(--line);padding-top:18px">
+    <h3>Company-Wide Contacts <span class="badge" id="ctCompCount">0</span> <button class="btn-outline btn-sm" style="margin-left:8px;font-size:11px" onclick="ctAddCompany()">+ Add</button></h3>
+    <div class="card tbl-scroll">
+      <table class="ct-tbl" id="ctCompTbl"><thead><tr>
         <th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th><th class="act-col"></th>
       </tr></thead><tbody></tbody></table>
     </div>
@@ -1511,17 +1519,18 @@ $("#recapSave").onclick=()=>{
 };
 
 // ===== CONTACTS TAB =====
-let CT_STAFF=[],CT_VENDORS=[],CT_JUNCTIONS=[];
+let CT_STAFF=[],CT_VENDORS=[],CT_JUNCTIONS=[],CT_COMPANY=[];
 const CT_SALON_NAMES={'0200':'Nob Hill','0646':'Espanola','0933':'Four Hills','2092':'North Towne','2850':'Southern / Rio Rancho','3781':'Golf Course','3999':'Carlsbad','5809':'Juan Tabo','6101':'Star Plaza','6110':'Towne Park','6116':'DeVargas','6117':'Coronado','7700':'Entrada','7741':'Las Estancias','8914':'San Isidro'};
 
 async function ctLoad(){
   const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY};
-  const[staff,vendors,junctions]=await Promise.all([
+  const[staff,vendors,junctions,company]=await Promise.all([
     fetch(SUPA_URL+"/rest/v1/salon_contacts?select=*&order=name",{headers:h}).then(r=>r.json()),
     fetch(SUPA_URL+"/rest/v1/vendors?select=*&order=company",{headers:h}).then(r=>r.json()),
-    fetch(SUPA_URL+"/rest/v1/salon_vendors?select=*",{headers:h}).then(r=>r.json())
+    fetch(SUPA_URL+"/rest/v1/salon_vendors?select=*",{headers:h}).then(r=>r.json()),
+    fetch(SUPA_URL+"/rest/v1/company_contacts?select=*&order=company",{headers:h}).then(r=>r.json())
   ]);
-  CT_STAFF=staff||[];CT_VENDORS=vendors||[];CT_JUNCTIONS=junctions||[];
+  CT_STAFF=staff||[];CT_VENDORS=vendors||[];CT_JUNCTIONS=junctions||[];CT_COMPANY=company||[];
   ctRender();
 }
 
@@ -1552,6 +1561,17 @@ function ctRender(){
   </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No vendors yet — click + Add Vendor to add one</td></tr>';
   $("#ctVendorCount").textContent=vendors.length;
 
+  // Company-wide contacts
+  const cb=document.querySelector("#ctCompTbl tbody");
+  cb.innerHTML=CT_COMPANY.length?CT_COMPANY.map(v=>`<tr>
+    <td><b>${esc(v.company)}</b></td><td>${esc(v.contact_name||'')}</td><td>${esc(v.role||'')}</td>
+    <td>${esc(v.phone||'')}</td><td>${esc(v.mobile||'')}</td>
+    <td>${v.email?'<a href="mailto:'+esc(v.email)+'">'+esc(v.email)+'</a>':''}</td>
+    <td>${esc(v.account_num||'')}</td>
+    <td class="act-col"><button class="ct-act" title="Edit" onclick="ctEditCompany(${v.id})">✏️</button><button class="ct-act" title="Delete" onclick="ctDelCompany(${v.id})">🗑️</button></td>
+  </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No company-wide contacts yet — click + Add</td></tr>';
+  $("#ctCompCount").textContent=CT_COMPANY.length;
+
   // Print header
   const sname=CT_SALON_NAMES[sid]||SALONS[sid]||sid;
   $("#ctPrintName").textContent="Salon #"+sid+" — "+sname;
@@ -1581,7 +1601,7 @@ function ctModal(html){
 function ctAddStaff(){
   const m=ctModal(`<h3>Add Staff Contact</h3>
     <label>Name</label><input id="ctfName">
-    <label>Role</label><select id="ctfRole"><option value="">— Select —</option><option>Area Manager</option><option>Salon Manager</option><option>Assistant Manager</option><option>Lead Stylist</option><option>Stylist</option></select>
+    <label>Role</label><select id="ctfRole"><option value="">— Select —</option><option>Area Manager</option><option>Salon Manager</option><option>Assistant Manager</option><option>Lead Stylist</option><option>Stylist</option><option>Receptionist</option></select>
     <label>Phone</label><input id="ctfPhone">
     <label>Email</label><input id="ctfEmail">
     <label>Birthday</label><input id="ctfDob" placeholder="e.g. June 1 or 6/1">
@@ -1604,7 +1624,7 @@ function ctEditStaff(id){
   const c=CT_STAFF.find(x=>x.id===id);if(!c)return;
   const m=ctModal(`<h3>Edit Staff Contact</h3>
     <label>Name</label><input id="ctfName" value="${esc(c.name)}">
-    <label>Role</label><select id="ctfRole">${['Area Manager','Salon Manager','Assistant Manager','Lead Stylist','Stylist'].map(r=>`<option${(c.role||'')===r?' selected':''}>${r}</option>`).join('')}</select>
+    <label>Role</label><select id="ctfRole">${['Area Manager','Salon Manager','Assistant Manager','Lead Stylist','Stylist','Receptionist'].map(r=>`<option${(c.role||'')===r?' selected':''}>${r}</option>`).join('')}</select>
     <label>Phone</label><input id="ctfPhone" value="${esc(c.phone||'')}">
     <label>Email</label><input id="ctfEmail" value="${esc(c.email||'')}">
     <label>Birthday</label><input id="ctfDob" value="${esc(c.dob||'')}">
@@ -1697,6 +1717,69 @@ async function ctUnlinkVendor(vid){
   const r=await fetch(SUPA_URL+"/rest/v1/salon_vendors?salon_id=eq."+current+"&vendor_id=eq."+vid,{method:"DELETE",headers:h});
   if(r.ok){CT_JUNCTIONS=CT_JUNCTIONS.filter(j=>!(String(j.salon_id)===current&&j.vendor_id===vid));ctRender();ctFlash("Vendor unlinked");}
   else alert("Error unlinking vendor");
+}
+
+// --- Company-Wide Contacts CRUD ---
+function ctAddCompany(){
+  const m=ctModal(`<h3>Add Company Contact</h3>
+    <label>Company</label><input id="ctfCCCompany">
+    <label>Contact Name</label><input id="ctfCCName">
+    <label>Role / Title</label><input id="ctfCCRole">
+    <label>Phone</label><input id="ctfCCPhone">
+    <label>Mobile</label><input id="ctfCCMobile">
+    <label>Email</label><input id="ctfCCEmail">
+    <label>Account #</label><input id="ctfCCAcct">
+    <div class="btn-row"><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn" onclick="ctSaveCompany(this)">Save</button></div>`);
+}
+
+async function ctSaveCompany(btn){
+  const bg=btn.closest('.ct-modal-bg');
+  const body={company:bg.querySelector('#ctfCCCompany').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
+    role:bg.querySelector('#ctfCCRole').value.trim(),phone:bg.querySelector('#ctfCCPhone').value.trim(),
+    mobile:bg.querySelector('#ctfCCMobile').value.trim(),email:bg.querySelector('#ctfCCEmail').value.trim(),
+    account_num:bg.querySelector('#ctfCCAcct').value.trim()};
+  if(!body.company){alert("Company name is required");return;}
+  btn.disabled=true;btn.textContent="Saving…";
+  const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const r=await fetch(SUPA_URL+"/rest/v1/company_contacts",{method:"POST",headers:h,body:JSON.stringify(body)});
+  if(!r.ok){btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));return;}
+  const rows=await r.json();CT_COMPANY.push(rows[0]);
+  bg.remove();ctRender();ctFlash("Company contact added");
+}
+
+function ctEditCompany(id){
+  const v=CT_COMPANY.find(x=>x.id===id);if(!v)return;
+  const m=ctModal(`<h3>Edit Company Contact</h3>
+    <label>Company</label><input id="ctfCCCompany" value="${esc(v.company)}">
+    <label>Contact Name</label><input id="ctfCCName" value="${esc(v.contact_name||'')}">
+    <label>Role / Title</label><input id="ctfCCRole" value="${esc(v.role||'')}">
+    <label>Phone</label><input id="ctfCCPhone" value="${esc(v.phone||'')}">
+    <label>Mobile</label><input id="ctfCCMobile" value="${esc(v.mobile||'')}">
+    <label>Email</label><input id="ctfCCEmail" value="${esc(v.email||'')}">
+    <label>Account #</label><input id="ctfCCAcct" value="${esc(v.account_num||'')}">
+    <div class="btn-row"><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn" onclick="ctUpdateCompany(${id},this)">Save</button></div>`);
+}
+
+async function ctUpdateCompany(id,btn){
+  const bg=btn.closest('.ct-modal-bg');
+  const body={company:bg.querySelector('#ctfCCCompany').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
+    role:bg.querySelector('#ctfCCRole').value.trim(),phone:bg.querySelector('#ctfCCPhone').value.trim(),
+    mobile:bg.querySelector('#ctfCCMobile').value.trim(),email:bg.querySelector('#ctfCCEmail').value.trim(),
+    account_num:bg.querySelector('#ctfCCAcct').value.trim()};
+  if(!body.company){alert("Company name is required");return;}
+  btn.disabled=true;btn.textContent="Saving…";
+  const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const r=await fetch(SUPA_URL+"/rest/v1/company_contacts?id=eq."+id,{method:"PATCH",headers:h,body:JSON.stringify(body)});
+  if(r.ok){const rows=await r.json();const idx=CT_COMPANY.findIndex(x=>x.id===id);if(idx>=0)CT_COMPANY[idx]=rows[0];bg.remove();ctRender();ctFlash("Company contact updated");}
+  else{btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));}
+}
+
+async function ctDelCompany(id){
+  if(!confirm("Delete this company-wide contact?"))return;
+  const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY};
+  const r=await fetch(SUPA_URL+"/rest/v1/company_contacts?id=eq."+id,{method:"DELETE",headers:h});
+  if(r.ok){CT_COMPANY=CT_COMPANY.filter(x=>x.id!==id);ctRender();ctFlash("Company contact deleted");}
+  else alert("Error deleting contact");
 }
 
 function ctFlash(msg){const m=$("#ctMsg");m.textContent="✓ "+msg;m.style.color=GREEN;setTimeout(()=>m.textContent="",3000);}

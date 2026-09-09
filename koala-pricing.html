@@ -160,7 +160,6 @@ tbody tr.category-row {
 tbody tr.category-row td {
   padding: 14px 12px; font-size: 1rem; color: var(--navy);
   border-bottom: 2px solid var(--navy);
-  position: sticky; top: 90px; z-index: 5;
   background: var(--surface-2);
 }
 
@@ -779,7 +778,7 @@ function findSupplierMatches(item) {
 function normalizeKey(name) {
   if (!name) return '';
   let s = name.toLowerCase().trim();
-  s = s.replace(/["“”]/g, '').replace(/\s+/g, ' ');
+  s = s.replace(/["""]/g, '').replace(/\s+/g, ' ');
   const idiMatch = s.match(/^r(\d+)x([\d.]+)\s*(k|uf|fsk)$/);
   if (idiMatch) {
     const facing = idiMatch[3] === 'k' ? 'kraft' : idiMatch[3] === 'uf' ? 'unfaced' : 'fsk';
@@ -934,7 +933,12 @@ function renderTable() {
     html += `</td>`;
     html += `<td style="font-size:.75rem;color:var(--text-muted)">${item.unit_of_measure || '—'}</td>`;
     const covUnit = item.unit_of_measure === 'each' ? '' : item.unit_of_measure === 'sq ft' ? ' sf' : item.unit_of_measure ? ' ' + item.unit_of_measure : ' sf';
-    html += `<td class="coverage-val">${currentCov > 0 ? currentCov + covUnit : '—'}</td>`;
+    let covHtml = currentCov > 0 ? currentCov + covUnit : '—';
+    if (currentCov > 0 && currentPrice > 0) {
+      const perSf = (currentPrice / currentCov).toFixed(2);
+      covHtml += `<div class="prod-detail" style="color:var(--green-dark);font-weight:600">$${perSf}/sf</div>`;
+    }
+    html += `<td class="coverage-val">${covHtml}</td>`;
     html += `<td><span class="current-price">${currentPrice > 0 ? '$' + fmt(currentPrice) : '—'}</span>`;
     html += `<span class="current-source">${currentSource ? SUPPLIER_LABELS[currentSource] || currentSource : 'not set'}</span></td>`;
 

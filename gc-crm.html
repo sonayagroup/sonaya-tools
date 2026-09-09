@@ -141,6 +141,7 @@ tbody tr.clickrow{cursor:pointer}
   <div class="tab" data-t="contacts">Contacts</div>
   <div class="tab" data-t="pipeline">Active Recruit Pipeline</div>
   <div class="tab" data-t="tasks">Tasks</div>
+  <div class="tab" data-t="schools">Schools</div>
   <div class="tab" data-t="groups">Groups</div>
   <div class="tab" data-t="settings">Users</div>
 </div></nav>
@@ -183,6 +184,17 @@ tbody tr.clickrow{cursor:pointer}
   <div class="card"><div id="taskList"></div></div>
 </section>
 
+<section class="panel" id="panel-schools">
+  <div class="sec-title">Cosmetology School Contacts</div>
+  <div class="toolbar">
+    <button class="btn" id="addSchoolBtn">+ Add School</button>
+  </div>
+  <div class="card"><div class="tbl-scroll"><table id="schoolsTable">
+    <thead><tr><th>School</th><th>Contact</th><th>Role</th><th>Phone</th><th>Email</th><th>Status</th><th>Owner</th><th>Last Contacted</th><th>Last Visit</th><th style="width:60px"></th></tr></thead>
+    <tbody id="schoolsBody"></tbody>
+  </table></div></div>
+</section>
+
 <section class="panel" id="panel-groups">
   <div class="sec-title">Groups</div>
   <div class="toolbar"><input type="text" id="newGroupName" placeholder="New group name…" style="min-width:240px"><button class="btn" id="addGroupBtn">+ Add group</button></div>
@@ -222,7 +234,7 @@ function todayISO(){ return new Date().toISOString().slice(0,10); }
 
 function openModal(html){ document.getElementById('modalBody').innerHTML = html; document.getElementById('modalBg').classList.add('open'); }
 function closeModal(){ document.getElementById('modalBg').classList.remove('open'); }
-document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
+// backdrop click intentionally disabled so accidental clicks don't lose form data
 
 // ---------- Tabs ----------
 document.querySelectorAll('.tab').forEach(t=>{
@@ -235,6 +247,7 @@ document.querySelectorAll('.tab').forEach(t=>{
     if(t.dataset.t==='pipeline') renderPipeline();
     if(t.dataset.t==='tasks') renderTasks();
     if(t.dataset.t==='groups') renderGroups();
+    if(t.dataset.t==='schools') renderSchools();
     if(t.dataset.t==='settings') renderUsers();
     if(t.dataset.t==='contacts'){ document.getElementById('contactDetail').style.display='none'; document.getElementById('contactsList').style.display='block'; }
   });
@@ -253,7 +266,7 @@ async function loadAll(){
   STATE.pipeline = (pipelines||[])[0]||null;
   STATE.statuses = statuses||[];
   populateWhoSel();
-  await loadContacts();
+  await Promise.all([loadContacts(), loadSchools()]);
   renderContactsList();
   renderToday();
   setupGlobalSearch();
@@ -1280,6 +1293,111 @@ document.getElementById('addUserBtn').onclick = async ()=>{
   await loadAll();
   renderUsers();
 };
+
+// ---------- Cosmetology Schools ----------
+let SCHOOLS = [];
+const SCHOOL_STATUSES = ['New','Contacted','Meeting Scheduled','Active Partner','Inactive','Not Interested'];
+
+async function loadSchools(){
+  const {data} = await sb.from('cosmetology_schools').select('*').order('school_name');
+  SCHOOLS = data || [];
+}
+
+function renderSchools(){
+  const tb = document.getElementById('schoolsBody');
+  if(!SCHOOLS.length){ tb.innerHTML = '<tr><td colspan="10" class="empty">No cosmetology schools yet — click + Add School to add one.</td></tr>'; return; }
+  tb.innerHTML = SCHOOLS.map(s=>{
+    const statusClass = s.relationship_status==='Active Partner'?'style="color:var(--green);font-weight:600"':s.relationship_status==='Not Interested'?'style="color:var(--muted)"':'';
+    return `<tr>
+      <td><b>${esc(s.school_name)}</b>${s.website?` <a href="${esc(s.website)}" target="_blank" style="font-size:11px">🔗</a>`:''}</td>
+      <td>${esc(s.contact_person||'')}</td>
+      <td>${esc(s.role||'')}</td>
+      <td>${esc(s.phone||'')}</td>
+      <td>${s.email?`<a href="mailto:${esc(s.email)}">${esc(s.email)}</a>`:''}</td>
+      <td ${statusClass}>${esc(s.relationship_status||'')}</td>
+      <td>${esc(s.owner||'')}</td>
+      <td>${fmtDate(s.last_contacted)}</td>
+      <td>${fmtDate(s.last_school_visit)}</td>
+      <td style="white-space:nowrap">
+        <button class="link-btn" onclick="editSchool(${s.id})" title="Edit">✏️</button>
+        <button class="link-btn" onclick="deleteSchool(${s.id})" title="Delete" style="color:var(--red-dk)">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function schoolFormHtml(s){
+  s = s || {};
+  const statusOpts = SCHOOL_STATUSES.map(st=>`<option value="${st}"${s.relationship_status===st?' selected':''}>${st}</option>`).join('');
+  const ownerOpts = ['<option value="">— Select —</option>'].concat(STATE.users.map(u=>`<option value="${esc(u.name)}"${s.owner===u.name?' selected':''}>${esc(u.name)}</option>`)).join('');
+  return `<h3>${s.id?'Edit':'Add'} Cosmetology School</h3>
+    <div class="two-col">
+      <div class="field"><label>School Name *</label><input type="text" id="sf_name" value="${esc(s.school_name||'')}"></div>
+      <div class="field"><label>Website</label><input type="text" id="sf_website" value="${esc(s.website||'')}" placeholder="https://..."></div>
+    </div>
+    <div class="field"><label>Address</label><input type="text" id="sf_address" value="${esc(s.address||'')}"></div>
+    <div class="two-col">
+      <div class="field"><label>Contact Person</label><input type="text" id="sf_contact" value="${esc(s.contact_person||'')}"></div>
+      <div class="field"><label>Role / Title</label><input type="text" id="sf_role" value="${esc(s.role||'')}"></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Phone</label><input type="tel" id="sf_phone" value="${esc(s.phone||'')}"></div>
+      <div class="field"><label>Email</label><input type="email" id="sf_email" value="${esc(s.email||'')}"></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Relationship Status</label><select id="sf_status">${statusOpts}</select></div>
+      <div class="field"><label>Owner</label><select id="sf_owner">${ownerOpts}</select></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Last Contacted</label><input type="date" id="sf_lastcontact" value="${s.last_contacted||''}"></div>
+      <div class="field"><label>Last School Visit</label><input type="date" id="sf_lastvisit" value="${s.last_school_visit||''}"></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="sf_notes" rows="3">${esc(s.notes||'')}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn sec" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="${s.id?`saveSchool(${s.id})`:'saveSchool()'}">${s.id?'Save Changes':'Add School'}</button>
+    </div>`;
+}
+
+document.getElementById('addSchoolBtn').onclick = ()=> openModal(schoolFormHtml());
+
+function editSchool(id){
+  const s = SCHOOLS.find(x=>x.id===id);
+  if(s) openModal(schoolFormHtml(s));
+}
+
+async function saveSchool(id){
+  const name = document.getElementById('sf_name').value.trim();
+  if(!name){ alert('School name is required'); return; }
+  const row = {
+    school_name: name,
+    contact_person: document.getElementById('sf_contact').value.trim()||null,
+    role: document.getElementById('sf_role').value.trim()||null,
+    phone: document.getElementById('sf_phone').value.trim()||null,
+    email: document.getElementById('sf_email').value.trim()||null,
+    address: document.getElementById('sf_address').value.trim()||null,
+    website: document.getElementById('sf_website').value.trim()||null,
+    notes: document.getElementById('sf_notes').value.trim()||null,
+    relationship_status: document.getElementById('sf_status').value,
+    owner: document.getElementById('sf_owner').value||null,
+    last_contacted: document.getElementById('sf_lastcontact').value||null,
+    last_school_visit: document.getElementById('sf_lastvisit').value||null
+  };
+  let err;
+  if(id){ ({error:err} = await sb.from('cosmetology_schools').update(row).eq('id',id)); }
+  else { ({error:err} = await sb.from('cosmetology_schools').insert(row)); }
+  if(err){ alert(err.message); return; }
+  closeModal();
+  await loadSchools();
+  renderSchools();
+}
+
+async function deleteSchool(id){
+  if(!confirm('Delete this school contact?')) return;
+  await sb.from('cosmetology_schools').delete().eq('id',id);
+  await loadSchools();
+  renderSchools();
+}
 
 loadAll();
 </script>

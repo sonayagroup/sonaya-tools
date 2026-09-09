@@ -12,6 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
+<!-- v2026.09.09b -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -6511,6 +6512,7 @@ function escapeHtml(str) {
 }
 
 async function saveRecap() {
+  console.log('[Recap v09.09b] saveRecap called');
   const storeId = recapState.selectedStore;
   const weekEnd = recapState.weekEnd;
   const recap = getRecapData(weekEnd, storeId);
@@ -6564,8 +6566,12 @@ async function saveRecap() {
         headers: { 'Prefer': 'return=representation,resolution=merge-duplicates' },
         body: JSON.stringify(body)
       });
-      if (!res.ok) throw new Error('Save failed: HTTP ' + res.status);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error('Save failed: HTTP ' + res.status + ' — ' + errText);
+      }
       const savedRows = await res.json();
+      console.log('[Recap] Save response for ' + storeId + '/' + weekEnd + ':', JSON.stringify(savedRows));
       if (!savedRows || savedRows.length === 0) throw new Error('Save returned empty — data may not have persisted');
       saved = true;
       break;
@@ -6587,7 +6593,7 @@ async function saveRecap() {
   } else {
     // All retries failed — DO NOT update local status
     console.error('Recap save failed after 3 attempts:', lastErr);
-    showRecapToast('SAVE FAILED after 3 attempts — your data was NOT saved. Please try again.', true);
+    showRecapToast('SAVE FAILED: ' + (lastErr ? lastErr.message : 'Unknown error') + '. Please try again.', true);
   }
 
   if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Recap'; }

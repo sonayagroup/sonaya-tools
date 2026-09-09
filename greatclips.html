@@ -363,7 +363,8 @@ tbody tr.clickrow{cursor:pointer}
   <div class="recap-bar">
     <span style="font-size:12.5px;color:var(--muted)">Week ending</span>
     <input type="date" id="recapWeek">
-    <button class="btn" id="recapSave">Save recap</button>
+    <button class="btn" id="recapDraft" style="background:#6b7280">Save Draft</button>
+    <button class="btn" id="recapSave">Submit Final</button>
     <span class="savemsg" id="recapMsg"></span>
   </div>
   <div id="oosSection"></div>
@@ -580,11 +581,11 @@ function computeWTD(){
 function supaHeaders(extra){return Object.assign({apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},extra||{});}
 function mapRecapRow(x){return {salonId:x.salon_id,weekEnding:x.week_ending,areaManager:x.area_manager,
   actions:x.actions,floorhours:x.floorhours,schedules:x.schedules,cphdays:x.cphdays,stylistflags:x.stylistflags,
-  quality:x.quality,reach:x.reach,updatedBy:x.updated_by,updatedAt:x.updated_at};}
+  quality:x.quality,reach:x.reach,updatedBy:x.updated_by,updatedAt:x.updated_at,status:x.status||'final'};}
 function fetchRecaps(){ if(!supaReady())return Promise.resolve([]);
   return fetch(SUPA_URL+"/rest/v1/recaps?select=*",{headers:supaHeaders()}).then(r=>r.ok?r.json():[]).then(rows=>(rows||[]).map(mapRecapRow)).catch(()=>[]);}
 function upsertRecap(p){ if(!supaReady())return Promise.reject(new Error("Supabase not configured yet (add your URL + anon key)"));
-  const body={salon_id:p.salon,week_ending:p.week,area_manager:p.areaManager||"",actions:p.actions||"",floorhours:p.floorhours||"",schedules:p.schedules||"",cphdays:p.cphdays||"",stylistflags:p.stylistflags||"",quality:p.quality||"",reach:p.reach||"",updated_by:p.updatedBy||"",updated_at:new Date().toISOString()};
+  const body={salon_id:p.salon,week_ending:p.week,area_manager:p.areaManager||"",actions:p.actions||"",floorhours:p.floorhours||"",schedules:p.schedules||"",cphdays:p.cphdays||"",stylistflags:p.stylistflags||"",quality:p.quality||"",reach:p.reach||"",updated_by:p.updatedBy||"",updated_at:new Date().toISOString(),status:p.status||"final"};
   return fetch(SUPA_URL+"/rest/v1/recaps",{method:"POST",headers:supaHeaders({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(body)})
     .then(r=>{if(!r.ok)throw new Error("save failed ("+r.status+")");return {ok:true};});}
 
@@ -1417,7 +1418,7 @@ function renderTrend(series,m,mo){
 
 // RECAP
 function lastFriday(){const d=new Date();const diff=(d.getDay()-5+7)%7;d.setDate(d.getDate()-diff);return d.toISOString().slice(0,10);}
-function loadRecaps(){fetchRecaps().then(r=>{recaps=r||[];renderRecap();});}
+function loadRecaps(){return fetchRecaps().then(r=>{recaps=r||[];});}
 // --- Out-of-standard analysis + recap builders (dashboard "red" thresholds) ---
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function safeParse(s){try{const o=s?JSON.parse(s):{};return (o&&typeof o==="object")?o:{};}catch(e){return{};}}
@@ -1496,27 +1497,33 @@ function renderRecap(){
   const wk=$("#recapWeek").value||curWeek||lastFriday();$("#recapWeek").value=wk;
   const r=recaps.find(x=>String(x.salonId)===String(id)&&String(x.weekEnding)===String(wk))||{};
   ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(el)el.value=r[k]||"";});
-  $("#recapMsg").innerHTML=r.updatedAt?'<span style="color:var(--muted)">last saved '+new Date(r.updatedAt).toLocaleString()+(r.updatedBy?" by "+r.updatedBy:"")+'</span>':"";
+  const isDraft=r.status==='draft';
+  $("#recapBanner").innerHTML=isDraft?'<div style="background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:8px">📝 <strong>Draft</strong> — this recap has not been finalized yet</div>':(r.status==='final'&&r.updatedAt?'<div style="background:#d1fae5;color:#065f46;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:8px">✓ <strong>Finalized</strong> '+new Date(r.updatedAt).toLocaleString()+'</div>':'');
+  $("#recapMsg").innerHTML=r.updatedAt?'<span style="color:var(--muted)">last saved '+new Date(r.updatedAt).toLocaleString()+(r.updatedBy?" by "+r.updatedBy:"")+(isDraft?" (draft)":"")+'</span>':"";
   buildOOS(id,wk);
 }
 $("#recapWeek").onchange=renderRecap;
-$("#recapSave").onclick=()=>{
+function doRecapSave(status){
   const id=current,wk=$("#recapWeek").value;if(!wk){alert("Pick a week-ending date");return;}
-  // --- validate all fields are filled ---
-  document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));
-  const missing=[];
-  const labels={actions:"Actionable items",floorhours:"Floor hours actions",schedules:"Schedules up to date"};
-  ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(!el.value.trim()){missing.push(labels[k]);el.classList.add('recap-missing');}});
-  document.querySelectorAll('#oosSection textarea[data-oos]').forEach(t=>{if(!t.value.trim()){missing.push((t.dataset.cat==="kpi"?"KPI explanation":"Stylist flag")+": "+t.dataset.key);t.classList.add('recap-missing');}});
-  document.querySelectorAll('#oosSection select[data-yn]').forEach(s=>{if(!s.value){const lbl=(s.dataset.cat==="qc"?"Quality Connection":"REACH")+": "+s.dataset.key;missing.push(lbl);s.classList.add('recap-missing');}});
-  if(missing.length){const first=document.querySelector('.recap-missing');if(first)first.scrollIntoView({behavior:'smooth',block:'center'});alert("Please fill out all fields before saving.\n\nMissing:\n• "+missing.join("\n• "));return;}
-  // --- end validation ---
-  const p={salon:id,week:wk,areaManager:"",updatedBy:""};
+  if(status==='final'){
+    // --- validate all fields are filled ---
+    document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));
+    const missing=[];
+    const labels={actions:"Actionable items",floorhours:"Floor hours actions",schedules:"Schedules up to date"};
+    ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(!el.value.trim()){missing.push(labels[k]);el.classList.add('recap-missing');}});
+    document.querySelectorAll('#oosSection textarea[data-oos]').forEach(t=>{if(!t.value.trim()){missing.push((t.dataset.cat==="kpi"?"KPI explanation":"Stylist flag")+": "+t.dataset.key);t.classList.add('recap-missing');}});
+    document.querySelectorAll('#oosSection select[data-yn]').forEach(s=>{if(!s.value){const lbl=(s.dataset.cat==="qc"?"Quality Connection":"REACH")+": "+s.dataset.key;missing.push(lbl);s.classList.add('recap-missing');}});
+    if(missing.length){const first=document.querySelector('.recap-missing');if(first)first.scrollIntoView({behavior:'smooth',block:'center'});alert("Please fill out all fields before submitting.\n\nMissing:\n• "+missing.join("\n• "));return;}
+    // --- end validation ---
+  }else{document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));}
+  const p={salon:id,week:wk,areaManager:"",updatedBy:"",status:status};
   ["actions","floorhours","schedules"].forEach(k=>p[k]=$("#q_"+k).value);
   const oos=collectOOS();p.cphdays=oos.cphdays;p.stylistflags=oos.stylistflags;p.quality=oos.quality;p.reach=oos.reach;
   const m=$("#recapMsg");m.textContent="Saving…";m.style.color="var(--muted)";
-  upsertRecap(p).then(j=>{if(j.ok){m.textContent="✓ Saved";m.style.color=GREEN;loadRecaps();}else{m.textContent="Error: "+(j.error||"save failed");m.style.color=RED;}}).catch(e=>{m.textContent="Error: "+e.message;m.style.color=RED;});
-};
+  upsertRecap(p).then(j=>{if(j.ok){m.textContent=status==='draft'?"✓ Draft saved":"✓ Finalized";m.style.color=GREEN;loadRecaps().then(()=>renderRecap());}else{m.textContent="Error: "+(j.error||"save failed");m.style.color=RED;}}).catch(e=>{m.textContent="Error: "+e.message;m.style.color=RED;});
+}
+$("#recapDraft").onclick=()=>doRecapSave('draft');
+$("#recapSave").onclick=()=>doRecapSave('final');
 
 // ===== CONTACTS TAB =====
 let CT_STAFF=[],CT_VENDORS=[],CT_JUNCTIONS=[],CT_COMPANY=[];
@@ -1678,8 +1685,8 @@ function ctAddVendor(){
 async function ctSaveVendor(btn){
   const bg=btn.closest('.ct-modal-bg');
   const body={company:bg.querySelector('#ctfCompany').value.trim(),contact_name:bg.querySelector('#ctfVContact').value.trim(),
-    role:bg.querySelector('#ctfVRole').value.trim(),phone:bg.querySelector('#ctfVPhone').value.trim(),
-    mobile:bg.querySelector('#ctfVMobile').value.trim(),email:bg.querySelector('#ctfVEmail').value.trim(),
+    role:bg.querySelector('#ctfVRole').value.trim(),phone:normalizePhone(bg.querySelector('#ctfVPhone').value.trim()),
+    mobile:normalizePhone(bg.querySelector('#ctfVMobile').value.trim()),email:bg.querySelector('#ctfVEmail').value.trim(),
     account_num:bg.querySelector('#ctfVAcct').value.trim()};
   if(!body.company){alert("Company name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
@@ -1710,8 +1717,8 @@ function ctEditVendor(id){
 async function ctUpdateVendor(id,btn){
   const bg=btn.closest('.ct-modal-bg');
   const body={company:bg.querySelector('#ctfCompany').value.trim(),contact_name:bg.querySelector('#ctfVContact').value.trim(),
-    role:bg.querySelector('#ctfVRole').value.trim(),phone:bg.querySelector('#ctfVPhone').value.trim(),
-    mobile:bg.querySelector('#ctfVMobile').value.trim(),email:bg.querySelector('#ctfVEmail').value.trim(),
+    role:bg.querySelector('#ctfVRole').value.trim(),phone:normalizePhone(bg.querySelector('#ctfVPhone').value.trim()),
+    mobile:normalizePhone(bg.querySelector('#ctfVMobile').value.trim()),email:bg.querySelector('#ctfVEmail').value.trim(),
     account_num:bg.querySelector('#ctfVAcct').value.trim()};
   if(!body.company){alert("Company name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
@@ -1727,6 +1734,19 @@ async function ctUnlinkVendor(vid){
   const r=await fetch(SUPA_URL+"/rest/v1/salon_vendors?salon_id=eq."+current+"&vendor_id=eq."+vid,{method:"DELETE",headers:h});
   if(r.ok){CT_JUNCTIONS=CT_JUNCTIONS.filter(j=>!(String(j.salon_id)===current&&j.vendor_id===vid));ctRender();ctFlash("Vendor unlinked");}
   else alert("Error unlinking vendor");
+}
+
+function normalizePhone(raw){
+  if(!raw)return'';
+  let s=raw.replace(/ext\.?\s*/gi,'x').replace(/extension\s*/gi,'x');
+  let ext='';const xi=s.search(/x\d/i);
+  if(xi>-1){ext=s.slice(xi+1).replace(/\D/g,'');s=s.slice(0,xi);}
+  const digits=s.replace(/\D/g,'');
+  let d10=digits;
+  if(digits.length===11&&digits[0]==='1')d10=digits.slice(1);
+  if(d10.length!==10)return raw;
+  const fmt='('+d10.slice(0,3)+') '+d10.slice(3,6)+'-'+d10.slice(6);
+  return ext?fmt+' x'+ext:fmt;
 }
 
 // --- Company-Wide Contacts CRUD ---
@@ -1745,8 +1765,8 @@ function ctAddCompany(){
 async function ctSaveCompany(btn){
   const bg=btn.closest('.ct-modal-bg');
   const body={company:bg.querySelector('#ctfCCCompany').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
-    role:bg.querySelector('#ctfCCRole').value.trim(),phone:bg.querySelector('#ctfCCPhone').value.trim(),
-    mobile:bg.querySelector('#ctfCCMobile').value.trim(),email:bg.querySelector('#ctfCCEmail').value.trim(),
+    role:bg.querySelector('#ctfCCRole').value.trim(),phone:normalizePhone(bg.querySelector('#ctfCCPhone').value.trim()),
+    mobile:normalizePhone(bg.querySelector('#ctfCCMobile').value.trim()),email:bg.querySelector('#ctfCCEmail').value.trim(),
     account_num:bg.querySelector('#ctfCCAcct').value.trim()};
   if(!body.company){alert("Company name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
@@ -1773,8 +1793,8 @@ function ctEditCompany(id){
 async function ctUpdateCompany(id,btn){
   const bg=btn.closest('.ct-modal-bg');
   const body={company:bg.querySelector('#ctfCCCompany').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
-    role:bg.querySelector('#ctfCCRole').value.trim(),phone:bg.querySelector('#ctfCCPhone').value.trim(),
-    mobile:bg.querySelector('#ctfCCMobile').value.trim(),email:bg.querySelector('#ctfCCEmail').value.trim(),
+    role:bg.querySelector('#ctfCCRole').value.trim(),phone:normalizePhone(bg.querySelector('#ctfCCPhone').value.trim()),
+    mobile:normalizePhone(bg.querySelector('#ctfCCMobile').value.trim()),email:bg.querySelector('#ctfCCEmail').value.trim(),
     account_num:bg.querySelector('#ctfCCAcct').value.trim()};
   if(!body.company){alert("Company name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";

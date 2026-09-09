@@ -216,10 +216,10 @@ tbody tr.clickrow{cursor:pointer}
       <div class="card" style="padding:16px"><h3 style="margin:0 0 10px">🎂 Today's Birthdays</h3><div id="bdayToday" style="font-size:14px;color:var(--muted)">Loading…</div></div>
       <div class="card" style="padding:16px"><h3 style="margin:0 0 10px">🎈 Upcoming Birthdays <span style="font-size:12px;font-weight:400;color:var(--muted)">(next 14 days)</span></h3><div id="bdayUpcoming" style="font-size:14px;color:var(--muted)">Loading…</div></div>
     </div>
-  </div>
-  <div class="grid g2">
-    <div class="card"><h3>Total Customers by Salon</h3><div class="hint" id="hSales"></div><div class="chart-box tall"><canvas id="cSales"></canvas></div></div>
-    <div class="card"><h3>Payroll % vs 40% Target</h3><div class="hint">Red = over target</div><div class="chart-box tall"><canvas id="cPay"></canvas></div></div>
+    <div class="grid g2" style="margin-top:10px">
+      <div class="card" style="padding:16px"><h3 style="margin:0 0 10px">🏆 Today's Work Anniversaries</h3><div id="annivToday" style="font-size:14px;color:var(--muted)">Loading…</div></div>
+      <div class="card" style="padding:16px"><h3 style="margin:0 0 10px">📅 Upcoming Work Anniversaries <span style="font-size:12px;font-weight:400;color:var(--muted)">(next 14 days)</span></h3><div id="annivUpcoming" style="font-size:14px;color:var(--muted)">Loading…</div></div>
+    </div>
   </div>
 </section>
 
@@ -389,7 +389,7 @@ tbody tr.clickrow{cursor:pointer}
     <h3>Staff Contacts <span class="badge" id="ctStaffCount">0</span></h3>
     <div class="card tbl-scroll">
       <table class="ct-tbl" id="ctStaffTbl"><thead><tr>
-        <th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th><th class="act-col"></th>
+        <th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th><th>Anniversary</th><th class="act-col"></th>
       </tr></thead><tbody></tbody></table>
     </div>
   </div>
@@ -602,24 +602,36 @@ function opt(sel,val,txt){const o=document.createElement("option");o.value=val;o
 async function loadBirthdays(){
   try{
     const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY};
-    const r=await fetch(SUPA_URL+"/rest/v1/salon_contacts?select=name,dob,salon_id,role&dob=not.is.null&dob=neq.",{headers:h});
+    const r=await fetch(SUPA_URL+"/rest/v1/salon_contacts?select=name,dob,salon_id,role,anniversary",{headers:h});
     if(!r.ok)return;
     const contacts=await r.json();
     const MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
     const today=new Date();const tM=today.getMonth(),tD=today.getDate();
-    function parseDob(s){if(!s)return null;const m=s.match(/^(\w+)\s+(\d+)/);if(!m)return null;const mi=MONTHS[m[1].toLowerCase()];if(mi===undefined)return null;return{month:mi,day:parseInt(m[2])};}
+    function parseMD(s){if(!s)return null;const m=s.match(/^(\w+)\s+(\d+)/);if(!m)return null;const mi=MONTHS[m[1].toLowerCase()];if(mi===undefined)return null;return{month:mi,day:parseInt(m[2])};}
     function daysUntil(m,d){const t=new Date(today.getFullYear(),m,d);if(t<new Date(today.getFullYear(),tM,tD))t.setFullYear(t.getFullYear()+1);return Math.round((t-new Date(today.getFullYear(),tM,tD))/(86400000));}
-    const todayList=[],upcoming=[];
+    function annivYears(s){if(!s)return'';const m=s.match(/(\d{4})$/);if(!m)return'';const y=parseInt(m[1]);const diff=today.getFullYear()-y;return diff>0?diff+' yr'+(diff>1?'s':''):'';}
+    const todayList=[],upcoming=[],annivTodayList=[],annivUpcomingList=[];
     const salonNames=Object.assign({},SALONS,typeof CT_SALON_NAMES!=='undefined'?CT_SALON_NAMES:{});
-    contacts.forEach(c=>{const p=parseDob(c.dob);if(!p)return;const diff=daysUntil(p.month,p.day);
-      const entry={name:c.name,role:c.role||'',salon:salonNames[String(c.salon_id)]||c.salon_id,dob:c.dob,days:diff};
-      if(diff===0)todayList.push(entry);else if(diff>0&&diff<=14)upcoming.push(entry);});
-    upcoming.sort((a,b)=>a.days-b.days);
+    contacts.forEach(c=>{
+      // Birthdays
+      if(c.dob){const p=parseMD(c.dob);if(p){const diff=daysUntil(p.month,p.day);
+        const entry={name:c.name,role:c.role||'',salon:salonNames[String(c.salon_id)]||c.salon_id,dob:c.dob,days:diff};
+        if(diff===0)todayList.push(entry);else if(diff>0&&diff<=14)upcoming.push(entry);}}
+      // Anniversaries
+      if(c.anniversary){const p=parseMD(c.anniversary);if(p){const diff=daysUntil(p.month,p.day);const yrs=annivYears(c.anniversary);
+        const entry={name:c.name,role:c.role||'',salon:salonNames[String(c.salon_id)]||c.salon_id,anniversary:c.anniversary,years:yrs,days:diff};
+        if(diff===0)annivTodayList.push(entry);else if(diff>0&&diff<=14)annivUpcomingList.push(entry);}}
+    });
+    upcoming.sort((a,b)=>a.days-b.days);annivUpcomingList.sort((a,b)=>a.days-b.days);
     const $t=$("#bdayToday"),$u=$("#bdayUpcoming"),w=$("#bdayWidget");
+    const $at=$("#annivToday"),$au=$("#annivUpcoming");
     w.style.display='';
     const bdayTbl=(list)=>'<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr style="text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px"><th style="padding:4px 8px">Name</th><th style="padding:4px 8px">Salon</th><th style="padding:4px 8px">Birthday</th></tr></thead><tbody>'+list.map(e=>`<tr><td style="padding:4px 8px;font-weight:600">${e.name}</td><td style="padding:4px 8px">${e.salon}</td><td style="padding:4px 8px">${e.dob}</td></tr>`).join('')+'</tbody></table>';
+    const annivTbl=(list)=>'<table style="width:100%;border-collapse:collapse;font-size:13.5px"><thead><tr style="text-align:left;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px"><th style="padding:4px 8px">Name</th><th style="padding:4px 8px">Salon</th><th style="padding:4px 8px">Anniversary</th><th style="padding:4px 8px">Years</th></tr></thead><tbody>'+list.map(e=>`<tr><td style="padding:4px 8px;font-weight:600">${e.name}</td><td style="padding:4px 8px">${e.salon}</td><td style="padding:4px 8px">${e.anniversary}</td><td style="padding:4px 8px;font-weight:600">${e.years}</td></tr>`).join('')+'</tbody></table>';
     $t.innerHTML=todayList.length?bdayTbl(todayList):'<span style="color:var(--muted)">No birthdays today</span>';
     $u.innerHTML=upcoming.length?bdayTbl(upcoming):'<span style="color:var(--muted)">No upcoming birthdays in the next 14 days</span>';
+    $at.innerHTML=annivTodayList.length?annivTbl(annivTodayList):'<span style="color:var(--muted)">No work anniversaries today</span>';
+    $au.innerHTML=annivUpcomingList.length?annivTbl(annivUpcomingList):'<span style="color:var(--muted)">No upcoming work anniversaries in the next 14 days</span>';
   }catch(e){console.error('Birthday widget error',e);}
 }
 
@@ -811,17 +823,8 @@ function renderPortWTD(){
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">WTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth) · ${wtd.daysInWeek} of 7 days</td></tr>`:"";
-  $("#hSales").textContent="WTD "+label;
-  portCharts(SAL);
 }
 document.querySelectorAll("#portTable thead th").forEach(th=>th.onclick=()=>{if(th.dataset.k===undefined)return;const k=+th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=(k===0?1:-1);}renderPort();});
-function portCharts(SAL){
-  const bs=[...SAL].sort((a,b)=>b[5]-a[5]);
-  mk("cSales","bar",bs.map(s=>s[0]),[{label:"Total customers",data:bs.map(s=>s[5]),backgroundColor:BLUE}],{indexAxis:"y",x:v=>v});
-  const bp=[...SAL].sort((a,b)=>b[6]-a[6]);
-  mk("cPay","bar",bp.map(s=>s[0]),[{label:"Payroll %",data:bp.map(s=>s[6]),backgroundColor:bp.map(s=>kcolor("payroll",s[6]))},
-    {label:"Target 40%",type:"line",data:bp.map(()=>40),borderColor:AMBER,borderDash:[6,4],pointRadius:0}],{indexAxis:"y",x:v=>v+"%"});
-}
 function mk(id,type,labels,datasets,opt){opt=opt||{};if(charts[id])charts[id].destroy();const horiz=opt.indexAxis==="y";
   charts[id]=new Chart($("#"+id),{type,data:{labels,datasets},options:{indexAxis:opt.indexAxis||"x",responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:datasets.length>1,labels:{boxWidth:12,padding:8}}},
@@ -1544,8 +1547,9 @@ function ctRender(){
     <td><b>${esc(c.name)}</b></td><td>${esc(c.role||'')}</td><td>${esc(c.phone||'')}</td>
     <td>${c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':''}</td>
     <td>${esc(fmtDob(c.dob))}</td>
+    <td>${esc(c.anniversary||'')}</td>
     <td class="act-col"><button class="ct-act" title="Edit" onclick="ctEditStaff(${c.id})">✏️</button><button class="ct-act" title="Delete" onclick="ctDelStaff(${c.id})">🗑️</button></td>
-  </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px">No staff contacts yet — click + Add Staff</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">No staff contacts yet — click + Add Staff</td></tr>';
   $("#ctStaffCount").textContent=staff.length;
 
   // Vendors linked to this salon
@@ -1590,6 +1594,14 @@ function normDob(s){if(!s)return'';s=s.trim().replace(/\s+/g,' ');
   // "1 June" or "1st June"
   m=s.match(/^(\d{1,2})\s*\w*\s+([a-zA-Z]+)$/);if(m){const k=m[2].toLowerCase().slice(0,3),d=parseInt(m[1]);if(DOB_ABBR[k]&&d>=1&&d<=31)return DOB_ABBR[k]+' '+d;}
   return s;}
+function normAnniv(s){if(!s)return'';s=s.trim().replace(/\s+/g,' ');
+  // "3/15/2020" or "03-15-2020" → Month Day, Year
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(m){const mi=parseInt(m[1]),d=parseInt(m[2]),y=m[3];if(mi>=1&&mi<=12&&d>=1&&d<=31)return DOB_MONTHS[mi-1]+' '+d+', '+y;}
+  // "March 15, 2020" or "Mar 15 2020" or "march 15th, 2020"
+  m=s.match(/^([a-zA-Z]+)\s+(\d{1,2})\s*\w*[,\s]+(\d{4})$/);if(m){const k=m[1].toLowerCase().slice(0,3),d=parseInt(m[2]),y=m[3];if(DOB_ABBR[k]&&d>=1&&d<=31)return DOB_ABBR[k]+' '+d+', '+y;}
+  // "15 March 2020"
+  m=s.match(/^(\d{1,2})\s*\w*\s+([a-zA-Z]+)[,\s]+(\d{4})$/);if(m){const k=m[2].toLowerCase().slice(0,3),d=parseInt(m[1]),y=m[3];if(DOB_ABBR[k]&&d>=1&&d<=31)return DOB_ABBR[k]+' '+d+', '+y;}
+  return s;}
 
 function ctModal(html){
   const bg=document.createElement("div");bg.className="ct-modal-bg";bg.innerHTML='<div class="ct-modal">'+html+'</div>';
@@ -1605,13 +1617,14 @@ function ctAddStaff(){
     <label>Phone</label><input id="ctfPhone">
     <label>Email</label><input id="ctfEmail">
     <label>Birthday</label><input id="ctfDob" placeholder="e.g. June 1 or 6/1">
+    <label>Work Anniversary</label><input id="ctfAnniv" placeholder="e.g. March 15, 2020 or 3/15/2020">
     <div class="btn-row"><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn" onclick="ctSaveStaff(this)">Save</button></div>`);
 }
 
 async function ctSaveStaff(btn){
   const bg=btn.closest('.ct-modal-bg');
   const body={salon_id:current,name:bg.querySelector('#ctfName').value.trim(),role:bg.querySelector('#ctfRole').value,
-    phone:bg.querySelector('#ctfPhone').value.trim(),email:bg.querySelector('#ctfEmail').value.trim(),dob:normDob(bg.querySelector('#ctfDob').value.trim())};
+    phone:bg.querySelector('#ctfPhone').value.trim(),email:bg.querySelector('#ctfEmail').value.trim(),dob:normDob(bg.querySelector('#ctfDob').value.trim()),anniversary:normAnniv(bg.querySelector('#ctfAnniv').value.trim())};
   if(!body.name){alert("Name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
   const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
@@ -1628,13 +1641,14 @@ function ctEditStaff(id){
     <label>Phone</label><input id="ctfPhone" value="${esc(c.phone||'')}">
     <label>Email</label><input id="ctfEmail" value="${esc(c.email||'')}">
     <label>Birthday</label><input id="ctfDob" value="${esc(c.dob||'')}">
+    <label>Work Anniversary</label><input id="ctfAnniv" value="${esc(c.anniversary||'')}">
     <div class="btn-row"><button class="btn-del" onclick="ctDelStaff(${id})">Delete</button><span style="flex:1"></span><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn" onclick="ctUpdateStaff(${id},this)">Save</button></div>`);
 }
 
 async function ctUpdateStaff(id,btn){
   const bg=btn.closest('.ct-modal-bg');
   const body={name:bg.querySelector('#ctfName').value.trim(),role:bg.querySelector('#ctfRole').value,
-    phone:bg.querySelector('#ctfPhone').value.trim(),email:bg.querySelector('#ctfEmail').value.trim(),dob:normDob(bg.querySelector('#ctfDob').value.trim())};
+    phone:bg.querySelector('#ctfPhone').value.trim(),email:bg.querySelector('#ctfEmail').value.trim(),dob:normDob(bg.querySelector('#ctfDob').value.trim()),anniversary:normAnniv(bg.querySelector('#ctfAnniv').value.trim())};
   if(!body.name){alert("Name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
   const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY,"Content-Type":"application/json",Prefer:"return=representation"};

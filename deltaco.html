@@ -6576,35 +6576,14 @@ async function saveRecap() {
   }
 
   if (saved) {
-    // Verify by reading back from Supabase
-    let verified = false;
-    try {
-      const vRes = await sbFetch('dt_weekly_recaps?store_id=eq.' + storeId + '&week_ending=eq.' + weekEnd);
-      if (vRes.ok) {
-        const vRows = await vRes.json();
-        verified = vRows.length > 0 && vRows[0].store_id === storeId;
-      }
-    } catch (e) { console.warn('Recap verify read failed:', e); }
-
-    if (verified) {
-      // NOW update local state since save is confirmed
-      recap.status = isComplete ? 'complete' : 'partial';
-      if (isComplete) {
-        const now = new Date();
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        recap.submittedAt = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + (now.getHours() >= 12 ? ' PM' : ' AM');
-      }
-      showRecapToast('Recap saved' + (isComplete ? ' — Complete!' : ' — ' + filled + '/' + totalFields + ' fields filled'), false);
-    } else {
-      // Save appeared to succeed but verify failed — warn user
-      recap.status = isComplete ? 'complete' : 'partial';
-      if (isComplete) {
-        const now = new Date();
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        recap.submittedAt = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + (now.getHours() >= 12 ? ' PM' : ' AM');
-      }
-      showRecapToast('Recap saved but could not verify — please refresh to confirm', true);
+    // POST returned representation — save is confirmed
+    recap.status = isComplete ? 'complete' : 'partial';
+    if (isComplete) {
+      const now = new Date();
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      recap.submittedAt = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0') + (now.getHours() >= 12 ? ' PM' : ' AM');
     }
+    showRecapToast('Recap saved' + (isComplete ? ' — Complete!' : ' — ' + filled + '/' + totalFields + ' fields filled'), false);
   } else {
     // All retries failed — DO NOT update local status
     console.error('Recap save failed after 3 attempts:', lastErr);

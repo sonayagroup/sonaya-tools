@@ -45,6 +45,7 @@ section.panel{display:none;padding-top:20px}section.panel.active{display:block}
 .card h3{font-size:14px;font-weight:700;margin-bottom:2px;color:var(--blue-dk)}.card .hint{font-size:11.5px;color:var(--muted);margin-bottom:12px}
 .sec-title{font-size:15px;font-weight:700;color:var(--blue-dk);margin:4px 0 10px}
 .grid2{display:grid;gap:16px;grid-template-columns:1fr 300px}
+.grid2>div:last-child{position:sticky;top:16px;align-self:start}
 @media (max-width:860px){.grid2{grid-template-columns:1fr}}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
 input[type=text],input[type=search],input[type=email],input[type=tel],input[type=date],textarea,select{font:inherit;font-size:13.5px;padding:7px 9px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink)}
@@ -816,9 +817,13 @@ function renderAttachedTasks(tasks, contactId){
       return `<div class="task-row"><input type="checkbox" data-tid="${t.id}" class="taskDoneCb"><span class="ttl">${esc(t.title)}</span><span class="due ${overdue?'overdue':''}">${t.due_date?fmtDate(t.due_date):''}</span></div>`;
     }).join('');
   wrap.querySelectorAll('.taskDoneCb').forEach(cb=>{
-    cb.onchange = async ()=>{
-      await sb.from('gc_crm_tasks').update({completed:true, completed_at:new Date().toISOString()}).eq('id', cb.dataset.tid);
-      openContact(contactId);
+    cb.onchange = ()=>{
+      cb.checked = false; // uncheck immediately — modal handles completion
+      const tid = cb.dataset.tid;
+      const taskTitle = cb.closest('.task-row').querySelector('.ttl').textContent;
+      completeTaskWithNotes(tid, contactId, taskTitle, (saved)=>{
+        if(saved) openContact(contactId);
+      });
     };
   });
 }
@@ -1094,6 +1099,41 @@ function openNewTaskModal(contactId){
   };
 }
 
+// ---------- Complete-task-with-notes modal ----------
+// When a user checks off a task, this modal prompts them to enter notes
+// that are saved to the contact's history before marking the task complete.
+function completeTaskWithNotes(taskId, contactId, taskTitle, afterSave){
+  openModal(`
+    <h3>Complete Task</h3>
+    <div style="background:#eef7f1;border:1px solid #b6e2cd;border-radius:8px;padding:10px 13px;margin-bottom:14px;font-size:13.5px">
+      <strong>✓</strong> ${esc(taskTitle)}
+    </div>
+    <div class="field"><label>Add a note to history (optional)</label>
+      <textarea id="ctNote" rows="4" placeholder="What happened? Any follow-up needed?"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn sec" id="ctCancel">Cancel</button>
+      <button class="btn" id="ctSave">Complete Task</button>
+    </div>
+  `);
+  document.getElementById('ctCancel').onclick = ()=>{ closeModal(); if(afterSave) afterSave(false); };
+  document.getElementById('ctSave').onclick = async ()=>{
+    const note = document.getElementById('ctNote').value.trim();
+    // Save the note first (if provided)
+    if(note){
+      await sb.from('gc_crm_notes').insert({
+        contact_id: contactId,
+        author_id: STATE.me?.id,
+        body: '✅ Task completed: ' + taskTitle + '\n' + note
+      });
+    }
+    // Mark task as completed
+    await sb.from('gc_crm_tasks').update({completed:true, completed_at:new Date().toISOString()}).eq('id', taskId);
+    closeModal();
+    if(afterSave) afterSave(true);
+  };
+}
+
 async function attachToPipeline(contactId){
   const {data:existing} = await sb.from('gc_crm_pipeline_entries').select('id').eq('contact_id', contactId).maybeSingle();
   if(existing){ alert('Already in the Active Recruit pipeline.'); return; }
@@ -1200,9 +1240,21 @@ async function renderTasks(){
   }).join('') : '<div class="empty">No tasks here.</div>';
 
   wrap.querySelectorAll('.taskCb').forEach(cb=>{
-    cb.onchange = async ()=>{
-      await sb.from('gc_crm_tasks').update({completed:cb.checked, completed_at: cb.checked?new Date().toISOString():null}).eq('id', cb.dataset.tid);
-      renderTasks();
+    cb.onchange = ()=>{
+      const tid = cb.dataset.tid;
+      if(cb.checked){
+        cb.checked = false; // uncheck — modal handles completion
+        const row = cb.closest('.task-row');
+        const contactLink = row.querySelector('.taskContactLink');
+        const contactId = contactLink ? contactLink.dataset.cid : null;
+        const taskTitle = row.querySelector('.ttl')?.textContent?.split(' — ')[0] || '';
+        completeTaskWithNotes(tid, contactId, taskTitle.trim(), (saved)=>{
+          if(saved) renderTasks();
+        });
+      } else {
+        // Unchecking (re-opening) — no notes needed
+        sb.from('gc_crm_tasks').update({completed:false, completed_at:null}).eq('id', tid).then(()=>renderTasks());
+      }
     };
   });
   wrap.querySelectorAll('.taskContactLink').forEach(a=>{

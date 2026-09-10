@@ -932,12 +932,44 @@ function repsE(m,v){const c=kpi(m,v);return c==="kg"?"✅":c==="ky"?"🤔":c==="
 function firstName(n){const p=n.split(",");return p.length>1?p[1].trim().split(" ")[0]:p[0];}
 function salProd(id){const r=(DAY.STY&&DAY.STY[id])||[];let a=0,c=0;r.forEach(x=>{a+=x[7]*x[8];c+=x[8];});return c?a/c:0;}
 function salMin(id){const r=(DAY.STY&&DAY.STY[id])||[];let a=0,c=0;r.forEach(x=>{a+=x[11]*x[8];c+=x[8];});return c?a/c:0;}
+function genCoaching(s,allSty,att){
+  const tips=[];
+  // No-break + long shift + low CPH — call out by first name
+  allSty.forEach(x=>{
+    if(x[1]>7&&x[3]<2.0&&(!x[14]||Number(x[14])===0)){
+      tips.push("  "+firstName(x[0])+" worked "+x[1].toFixed(1)+" hrs with no break at "+x[3].toFixed(1)+" CPH — skipping breaks inflates floor time and drags CPH down. Encourage breaks to stay sharp and keep metrics accurate.");
+    }
+  });
+  // Late starts
+  const lates=(att||[]).filter(x=>x[2]>0);
+  if(lates.length>0) tips.push("  "+lates.length+" stylist"+(lates.length>1?"s":"")+" started late — every late minute is lost floor time and lost customers.");
+  // High avg HC time
+  if(s[7]>20) tips.push("  Avg HC time is "+s[7].toFixed(1)+" min — target under 20. Focus on efficient sectioning and consistent technique.");
+  // Low salon CPH
+  if(s[8]<1.8) tips.push("  Salon CPH at "+s[8].toFixed(1)+" — review turnaround time and haircut speed across the team.");
+  // High payroll
+  if(s[6]>50) tips.push("  Payroll at "+s[6].toFixed(1)+"% — review scheduling to better match staffing to customer demand.");
+  // High waits
+  if(s[11]>20) tips.push("  "+s[11].toFixed(1)+"% of customers waited 15+ min — look at staggering shifts to cover peak hours.");
+  // Mins between high
+  const mib=salMin(s[0]);
+  if(mib>3.5) tips.push("  Avg mins between is "+mib.toFixed(1)+" — target under 3.5. Focus on faster turnaround between cuts.");
+  // Low product
+  const prod=salProd(s[0]);
+  if(prod<2) tips.push("  Product at "+prod.toFixed(1)+"% — encourage the team to recommend at least one product per guest.");
+  // No-shows
+  const noShows=(att||[]).filter(x=>x[1]>0);
+  if(noShows.length>0) tips.push("  "+noShows.length+" no-show"+(noShows.length>1?"s":"")+" — follow up on absences and reinforce attendance expectations.");
+  return tips;
+}
 function renderReps(){
   const s=salById(current);const rt=$("#repsTitle");
   if(!s){rt.textContent=(current||"")+" — no data for the selected day";$("#repsText").value="";return;}
   rt.textContent=s[0]+" — "+s[1]+" · Daily REPS"+(curDate?" · "+fmtDate(curDate):"");
   const cust=s[5],hc=s[7],cph=s[8],wait=s[11],prod=salProd(s[0]),mib=salMin(s[0]);
-  const sty=((DAY.STY&&DAY.STY[s[0]])||[]).filter(x=>x[8]>=3);
+  const allSty=((DAY.STY&&DAY.STY[s[0]])||[]);
+  const sty=allSty.filter(x=>x[8]>=3);
+  const att=((DAY.ATT&&DAY.ATT[s[0]])||[]);
   const topCph=[...sty].sort((a,b)=>b[3]-a[3])[0];
   const bestHc=[...sty].filter(x=>x[9]>=12).sort((a,b)=>a[9]-b[9])[0];
   const topProd=[...sty].sort((a,b)=>b[7]-a[7])[0];
@@ -945,10 +977,12 @@ function renderReps(){
   if(topCph&&topCph[3]>=2.0)sh.push("@~"+firstName(topCph[0])+" "+topCph[3].toFixed(1)+" CPH! "+(topCph[3]>=2.4?"🔥":"👏"));
   if(bestHc&&bestHc!==topCph&&bestHc[9]<19)sh.push("@~"+firstName(bestHc[0])+" "+bestHc[9].toFixed(1)+" min hc time! 👏");
   if(topProd&&topProd[7]>=3&&topProd!==topCph&&topProd!==bestHc)sh.push("@~"+firstName(topProd[0])+" "+topProd[7].toFixed(1)+"% in product! 🙌");
+  const coaching=genCoaching(s,allSty,att);
   const L=["REPs for "+(curDate?fmtDate(curDate):"the day"),"Customer count: "+cust,
     "Hc times: "+hc.toFixed(1)+" "+repsE("avghc",hc),"CPH: "+cph.toFixed(1)+" "+repsE("cuts",cph),
-    "Product: "+prod.toFixed(1)+"% "+repsE("stdprod",prod),"Mins in between: "+mib.toFixed(1)+" "+(mib<=2.5?"✅":mib<=3.5?"🤔":"🚩"),
+    "Product: "+prod.toFixed(1)+"% "+repsE("stdprod",prod),"Mins in between: "+mib.toFixed(1)+" "+(mib<=3.5?"✅":"🚩"),
     "Waits >15 min: "+wait.toFixed(1)+"% "+repsE("wait15",wait),"","Great job!",...sh];
+  if(coaching.length>0) L.push("","Coaching opportunities:",...coaching);
   $("#repsText").value=L.join("\n");
 }
 $("#repsCopy").onclick=()=>{const t=$("#repsText");t.focus();t.select();const done=()=>{$("#repsMsg").textContent="✓ Copied";$("#repsMsg").style.color=GREEN;setTimeout(()=>$("#repsMsg").textContent="",2000);};try{navigator.clipboard.writeText(t.value).then(done,()=>{document.execCommand("copy");done();});}catch(e){document.execCommand("copy");done();}};

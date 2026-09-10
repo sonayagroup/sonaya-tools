@@ -885,7 +885,7 @@ function renderAdminHrs(){
       <div style="margin-top:4px;height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.min(pct,100)}%;background:${color};border-radius:3px"></div></div>
     </div>`;
   });
-  el.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:6px">📋 Manager Admin Hours — week of '+fmtDate(wkStart)+' ('+weekDates.length+' day'+(weekDates.length!==1?'s':'')+')</div>'+cards.join("");
+  el.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:6px">📋 Area Manager Admin Hours — week of '+fmtDate(wkStart)+' ('+weekDates.length+' day'+(weekDates.length!==1?'s':'')+')</div>'+cards.join("");
 }
 function renderDetailDay(){
   const s=salById(current);
@@ -976,8 +976,12 @@ function genCoaching(s,allSty,att){
   // Late starts
   const lates=(att||[]).filter(x=>x[2]>0);
   if(lates.length>0) tips.push("  "+lates.length+" stylist"+(lates.length>1?"s":"")+" started late — every late minute is lost floor time and lost customers.");
-  // High avg HC time
-  if(s[7]>20) tips.push("  Avg HC time is "+s[7].toFixed(1)+" min — target under 20. Focus on efficient sectioning and consistent technique.");
+  // Per-stylist high HC time — call out by first name
+  allSty.filter(x=>x[8]>=3&&x[9]>=20).sort((a,b)=>b[9]-a[9]).forEach(x=>{
+    tips.push("  "+firstName(x[0])+" averaged "+x[9].toFixed(1)+" min per haircut ("+x[8]+" cuts) — target under 19. Work on efficient sectioning and consistent technique to bring this down.");
+  });
+  // High avg HC time (salon-level)
+  if(s[7]>20) tips.push("  Salon avg HC time is "+s[7].toFixed(1)+" min — target under 20. Focus on efficient sectioning and consistent technique across the team.");
   // Low salon CPH
   if(s[8]<1.8) tips.push("  Salon CPH at "+s[8].toFixed(1)+" — review turnaround time and haircut speed across the team.");
   // High payroll

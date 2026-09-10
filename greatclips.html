@@ -243,6 +243,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
     <span id="detModeHint" style="font-size:12px;color:var(--muted)"></span>
   </div>
   <div class="kpis" id="detKpis"></div>
+  <div id="adminHrsCards" style="margin:10px 0 6px"></div>
   <div class="sec-title" id="detTitle"></div>
 
   <div class="card" style="margin-bottom:16px">
@@ -853,7 +854,39 @@ document.querySelectorAll("#detModeToggle button").forEach(b=>b.onclick=()=>{
   $("#detYTD").style.display=detMode==="ytd"?"":"none";
   renderDetail();
 });
-function renderDetail(){ renderReviews(current); if(detMode==="ytd")renderDetailYTD(); else if(detMode==="week")renderDetailWeek(); else renderDetailDay(); loadTrend(); }
+function renderDetail(){ renderReviews(current); if(detMode==="ytd")renderDetailYTD(); else if(detMode==="week")renderDetailWeek(); else renderDetailDay(); renderAdminHrs(); loadTrend(); }
+// --- Admin Hours WTD KPI cards for area managers ---
+const ADMIN_MGRS=[{name:"Gonzales, Liza",match:"Gonzales, Liza",allot:10},
+  {name:"Martin, Samantha",match:"Martin, Samantha",allot:10},
+  {name:"Shelby, Tanya",match:"Shelby, Tanya",allot:10}];
+function renderAdminHrs(){
+  const el=$("#adminHrsCards");if(!el)return;
+  const latest=DATES[0];if(!latest){el.innerHTML="";return;}
+  const wkStart=gcWeekStart(latest);
+  const weekDates=Object.keys(DATA.days||{}).filter(d=>d>=wkStart&&d<=latest).sort();
+  const cards=ADMIN_MGRS.map(mgr=>{
+    let total=0;
+    weekDates.forEach(d=>{
+      const sty=DATA.days[d]&&DATA.days[d].STY;if(!sty)return;
+      Object.keys(sty).forEach(sid=>{
+        (sty[sid]||[]).forEach(r=>{
+          if(r[0]&&r[0].indexOf(mgr.match)===0&&typeof r[12]==="number") total+=r[12];
+          else if(r[0]&&r[0].indexOf(mgr.match)===0&&r[12]) total+=parseFloat(r[12])||0;
+        });
+      });
+    });
+    const pct=total/mgr.allot*100;
+    const color=pct>100?"#c0392b":pct>70?"#e67e22":"#27ae60";
+    const bg=pct>100?"#fdecea":pct>70?"#fef9e7":"#eafaf1";
+    return `<div style="display:inline-block;min-width:180px;border:2px solid ${color};border-radius:10px;padding:12px 16px;margin:0 10px 8px 0;background:${bg}">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#666;font-weight:600;margin-bottom:4px">Admin Hrs WTD</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:2px">${mgr.name}</div>
+      <div style="font-size:22px;font-weight:700;color:${color}">${total.toFixed(1)} <span style="font-size:14px;font-weight:400;color:#888">/ ${mgr.allot} hrs</span></div>
+      <div style="margin-top:4px;height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.min(pct,100)}%;background:${color};border-radius:3px"></div></div>
+    </div>`;
+  });
+  el.innerHTML='<div style="font-size:12px;color:var(--muted);margin-bottom:6px">📋 Manager Admin Hours — week of '+fmtDate(wkStart)+' ('+weekDates.length+' day'+(weekDates.length!==1?'s':'')+')</div>'+cards.join("");
+}
 function renderDetailDay(){
   const s=salById(current);
   $("#detModeHint").textContent=curDate?fmtDate(curDate):"no day selected";

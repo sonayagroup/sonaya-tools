@@ -75,6 +75,10 @@ tbody tr.clickrow{cursor:pointer}
 .oos-emp .nm{font-size:13px;font-weight:600;color:var(--ink)}
 .oos-emp select{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px;font-weight:600}
 .dkn-saved-tag{display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px}
+.dkn-toggle{cursor:pointer;font-size:14px;font-weight:700;color:var(--fg);list-style:none;display:flex;align-items:center;gap:6px;user-select:none}
+.dkn-toggle::-webkit-details-marker{display:none}
+.dkn-toggle::before{content:'▶';font-size:10px;color:var(--muted);transition:transform .15s}
+details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 .rev-item{border-bottom:1px solid var(--line);padding:10px 0}.rev-item:last-child{border-bottom:none}
 .rev-top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
 .rev-name{font-weight:700;font-size:13px;color:var(--ink)}
@@ -264,6 +268,19 @@ tbody tr.clickrow{cursor:pointer}
       <div class="legend-note" id="teamLegend" style="display:none">Cells colored by KPI thresholds. <span class="na">n/a</span> = too few eligible customers for a return rate. Month/YTD/Custom roll up multiple weeks (rate metrics are floor-hour or customer-count weighted averages, not simple sums).</div>
     </div>
 
+    <!-- Daily KPI Notes — auto-flags out-of-standard metrics, managers add notes per day -->
+    <div class="card" id="dailyKpiNotesCard" style="margin-top:16px;display:none">
+      <details id="dknDetails" open>
+        <summary class="dkn-toggle">📋 Daily KPI Notes <span class="dkn-saved-tag" id="dknSavedTag" style="display:none">✓ Notes saved</span></summary>
+        <div class="legend-note" style="margin:8px 0 10px">Auto-flagged KPIs out of standard for the selected day. Add notes as you review — they auto-populate into the Weekly Recap.</div>
+        <div id="dknFlags"></div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+          <button class="btn" id="dknSave">💾 Save Notes</button>
+          <span class="savemsg" id="dknMsg"></span>
+        </div>
+      </details>
+    </div>
+
     <div class="card" style="margin-top:16px">
       <div class="modebar">
         <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">Attendance</span>
@@ -282,16 +299,6 @@ tbody tr.clickrow{cursor:pointer}
     </div>
   </div>
 
-  <!-- Daily KPI Notes — auto-flags out-of-standard metrics, managers add notes per day -->
-  <div class="card" id="dailyKpiNotesCard" style="margin-bottom:16px;display:none">
-    <div class="sec-title" style="margin-bottom:4px">📋 Daily KPI Notes</div>
-    <div class="legend-note" style="margin-bottom:10px">Auto-flagged KPIs out of standard for the selected day. Add notes as you review — they auto-populate into the Weekly Recap.</div>
-    <div id="dknFlags"></div>
-    <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
-      <button class="btn" id="dknSave">💾 Save Notes</button>
-      <span class="savemsg" id="dknMsg"></span>
-    </div>
-  </div>
 
   <div id="detDay">
     <div class="grid g2">
@@ -1496,8 +1503,9 @@ function renderDailyKpiNotes(){
   if(totalFlags===0&&!s&&!styRows.length){card.style.display="none";return;}
   card.style.display="";
   const hasSaved=Object.keys(kpiSaved).length>0||Object.keys(stySaved).length>0;
+  const stag=$("#dknSavedTag");if(stag)stag.style.display=hasSaved?"inline-block":"none";
   let h='<div class="oos-wrap">';
-  h+='<div class="oos-h">📉 Salon KPIs out of standard'+(salonFlags.length?' <span class="oos-badge">'+salonFlags.length+'</span>':'')+(hasSaved?' <span class="dkn-saved-tag">✓ Notes saved</span>':'')+'</div>';
+  h+='<div class="oos-h">📉 Salon KPIs out of standard'+(salonFlags.length?' <span class="oos-badge">'+salonFlags.length+'</span>':'')+'</div>';
   if(!s)h+='<div class="oos-neutral">No salon data for '+fmtDate(dt)+'.</div>';
   else if(!salonFlags.length)h+='<div class="oos-ok">✓ All salon KPIs within standard for '+fmtDate(dt)+'.</div>';
   else salonFlags.forEach(f=>{
@@ -1522,6 +1530,7 @@ $("#dknSave").onclick=()=>{
   const m=$("#dknMsg");m.textContent="Saving…";m.style.color="var(--muted)";
   saveDailyKpiNote(current,curDate).then(r=>{
     m.textContent="✓ Saved";m.style.color=GREEN;
+    const st=$("#dknSavedTag");if(st)st.style.display="inline-block";
   }).catch(e=>{m.textContent="Error: "+e.message;m.style.color=RED;});
 };
 

@@ -967,10 +967,14 @@ function salProd(id){const r=(DAY.STY&&DAY.STY[id])||[];let a=0,c=0;r.forEach(x=
 function salMin(id){const r=(DAY.STY&&DAY.STY[id])||[];let a=0,c=0;r.forEach(x=>{a+=x[11]*x[8];c+=x[8];});return c?a/c:0;}
 function genCoaching(s,allSty,att){
   const tips=[];
-  // No-break + long shift + low CPH — call out by first name
+  // No-break on 6+ hour shift — call out by first name; extra detail if CPH is also low
   allSty.forEach(x=>{
-    if(x[1]>7&&x[3]<2.0&&(!x[14]||Number(x[14])===0)){
-      tips.push("  "+firstName(x[0])+" worked "+x[1].toFixed(1)+" hrs with no break at "+x[3].toFixed(1)+" CPH — skipping breaks inflates floor time and drags CPH down. Encourage breaks to stay sharp and keep metrics accurate.");
+    if(x[1]>=6&&(!x[14]||Number(x[14])===0)){
+      if(x[3]<2.0){
+        tips.push("  "+firstName(x[0])+" worked "+x[1].toFixed(1)+" hrs with no break at "+x[3].toFixed(1)+" CPH — skipping breaks inflates floor time and drags CPH down. Encourage breaks to stay sharp and keep metrics accurate.");
+      } else {
+        tips.push("  "+firstName(x[0])+" worked "+x[1].toFixed(1)+" hrs with no break — breaks are required on 6+ hour shifts. Ensure compliance and encourage rest to maintain quality.");
+      }
     }
   });
   // Late starts

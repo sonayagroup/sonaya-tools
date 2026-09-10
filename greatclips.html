@@ -293,7 +293,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
       </div>
       <div class="card tbl-scroll" style="margin-top:10px;box-shadow:none;border:1px solid var(--line)">
         <table id="attTable"><thead><tr>
-          <th>Stylist</th><th>No-Shows</th><th>Late (&gt;10 min)</th><th>Not Scheduled</th>
+          <th style="cursor:pointer;user-select:none" onclick="attSortBy(0)">Stylist <span id="attSI0"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(1)">No-Shows <span id="attSI1"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(2)">Late (&gt;10 min) <span id="attSI2"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(3)">Not Scheduled <span id="attSI3"></span></th>
         </tr></thead><tbody></tbody><tfoot></tfoot></table>
         <div class="legend-note" id="attNote"></div>
       </div>
@@ -1137,6 +1137,7 @@ $("#teamTo").onchange=renderTeam;
 // up over a chosen range. Ranges: Week (the selected week_ending, Sat-Fri), Month (calendar
 // month of the selected Day), YTD (Jan 1 of that year through the selected Day), Custom (pick).
 let attMode="week";
+let attSort={col:0,asc:true}; // 0=Stylist,1=No-Shows,2=Late,3=NotSched
 function attRange(){
   if(attMode==="week"){
     if(!curWeek)return null;
@@ -1180,6 +1181,8 @@ function computeAttendance(sid,from,to){
 //  - Not Scheduled (picked up an unscheduled shift): informational, not a violation — any
 //    count is shown in green as a positive (covering a call-out), 0 is left uncolored.
 function attRateClass(count,weeks){ if(count<=0)return"kg"; return (count/weeks)<=1?"ky":"kr"; }
+function attSortBy(col){if(attSort.col===col)attSort.asc=!attSort.asc;else{attSort.col=col;attSort.asc=col===0;}renderAttendance();}
+function attUpdateSortIcons(){for(let i=0;i<4;i++){const el=document.getElementById("attSI"+i);if(el)el.textContent=attSort.col===i?(attSort.asc?"▲":"▼"):"";}}
 function renderAttendance(){
   const range=attRange();
   const tb=$("#attTable tbody");tb.innerHTML="";
@@ -1188,6 +1191,8 @@ function renderAttendance(){
   const spanDays=Math.max(1,Math.round((new Date(range.to+"T12:00:00")-new Date(range.from+"T12:00:00"))/86400000)+1);
   const weeks=Math.max(spanDays/7,1/7);
   const rows=current?computeAttendance(current,range.from,range.to):[];
+  rows.sort((a,b)=>{const c=attSort.col;const dir=attSort.asc?1:-1;if(c===0)return a[0].localeCompare(b[0])*dir;return(a[c]-b[c])*dir;});
+  attUpdateSortIcons();
   rows.forEach(r=>{
     tb.innerHTML+=`<tr><td>${r[0]}</td><td class="${attRateClass(r[1],weeks)}">${r[1]}</td><td class="${attRateClass(r[2],weeks)}">${r[2]}</td><td class="${r[3]>0?"kg":""}">${r[3]}</td></tr>`;
   });

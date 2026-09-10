@@ -224,8 +224,13 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
     </div>
     <div class="toolbar">
       <select id="eqFilterSalon"><option value="">All Salons</option></select>
+      <select id="eqFilterCat"><option value="">All Categories</option><option>HVAC</option><option>Appliance</option><option>Plumbing</option><option>Sign / Lighting</option><option>Alarm/Security</option><option>Other</option></select>
     </div>
     <div class="card"><div class="tbl-scroll" id="eq-table">Loading…</div></div>
+    <div id="eq-detail-wrap" style="display:none;margin-top:22px">
+      <div class="sec-title"><span id="eq-detail-title">Equipment Detail</span><button class="btn secondary small" onclick="closeEqDetail()">Close</button></div>
+      <div class="card" id="eq-detail-body"></div>
+    </div>
   </section>
 
   <section class="panel" id="panel-vendors">
@@ -343,12 +348,17 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
     <div class="field"><label>Salon</label><select id="eqSalon"></select></div>
     <div class="field"><label>Category</label>
       <select id="eqCategory">
-        <option>HVAC</option><option>Water Heater</option><option>Washer/Dryer</option>
-        <option>Hairvac</option><option>Sign / Lighting</option><option>Alarm/Security</option><option>Other</option>
+        <option>HVAC</option><option>Appliance</option><option>Plumbing</option>
+        <option>Sign / Lighting</option><option>Alarm/Security</option><option>Other</option>
       </select>
     </div>
   </div>
   <div class="field"><label>Equipment Name / Description</label><input type="text" id="eqName" style="width:100%" placeholder="e.g. Rooftop HVAC Unit 1"></div>
+  <div class="field-row">
+    <div class="field"><label>Model</label><input type="text" id="eqModel" style="width:100%" placeholder="e.g. 48FCEA06A2A5A0A0A0"></div>
+    <div class="field"><label>Serial Number</label><input type="text" id="eqSerial" style="width:100%" placeholder="e.g. 0519C68185"></div>
+  </div>
+  <div class="field"><label>Specs</label><input type="text" id="eqSpecs" style="width:100%" placeholder="e.g. R-410A | 47,500 BTUH cooling | SEER 14"></div>
   <div class="field-row">
     <div class="field"><label>Install Date</label><input type="date" id="eqInstall" style="width:100%"></div>
     <div class="field"><label>Last Service Date</label><input type="date" id="eqLastService" style="width:100%"></div>
@@ -904,28 +914,60 @@ async function deleteWo(id){
 // ===== Equipment tab =====
 function renderEquipment(){
   const fS=document.getElementById("eqFilterSalon").value;
-  let rows=[...EQUIPMENT]; if(fS)rows=rows.filter(e=>e.salon_id===fS);
+  const fC=document.getElementById("eqFilterCat").value;
+  let rows=[...EQUIPMENT];
+  if(fS)rows=rows.filter(e=>e.salon_id===fS);
+  if(fC)rows=rows.filter(e=>e.category===fC);
   document.getElementById("eq-table").innerHTML= rows.length? `<table><thead><tr>
-    <th>Salon</th><th>Category</th><th>Name</th><th>Install Date</th><th>Last Service</th><th>Interval</th><th>Vendor</th><th>Actions</th>
+    <th>Salon</th><th>Category</th><th>Name</th><th>Model</th><th>Serial #</th><th>Last Service</th><th>Actions</th>
     </tr></thead><tbody>`+rows.map(e=>{
       const vend=VENDORS.find(v=>String(v.id)===String(e.vendor_id));
-      return `<tr>
-        <td>${esc(salonName(e.salon_id))}</td><td>${esc(e.category)}</td><td>${esc(e.name)}</td>
-        <td>${fmtDate(e.install_date)}</td><td>${fmtDate(e.last_service_date)}</td>
-        <td>${e.service_interval_months?e.service_interval_months+" mo":"—"}</td>
-        <td>${vend?esc(vend.name):"—"}</td>
-        <td class="act-links"><a href="#" onclick="editEq(${e.id});return false;">Edit</a><a href="#" class="danger" onclick="deleteEq(${e.id});return false;">Delete</a></td>
+      return `<tr style="cursor:pointer" onclick="showEqDetail(${e.id})">
+        <td>${esc(salonName(e.salon_id))}</td><td>${esc(e.category)}</td><td><b>${esc(e.name)}</b></td>
+        <td>${esc(e.model||"—")}</td><td style="font-family:monospace;font-size:11.5px">${esc(e.serial_number||"—")}</td>
+        <td>${fmtDate(e.last_service_date)}</td>
+        <td class="act-links"><a href="#" onclick="event.stopPropagation();editEq(${e.id});return false;">Edit</a><a href="#" class="danger" onclick="event.stopPropagation();deleteEq(${e.id});return false;">Del</a></td>
       </tr>`;}).join("")+`</tbody></table>`
     : `<div class="empty-note">No equipment recorded${fS?" for this salon":""} yet.</div>`;
 }
 document.getElementById("eqFilterSalon").addEventListener("change",renderEquipment);
+document.getElementById("eqFilterCat").addEventListener("change",renderEquipment);
+
+function showEqDetail(id){
+  const e=EQUIPMENT.find(x=>x.id===id); if(!e)return;
+  const vend=VENDORS.find(v=>String(v.id)===String(e.vendor_id));
+  document.getElementById("eq-detail-title").textContent=e.name+' — '+salonName(e.salon_id);
+  document.getElementById("eq-detail-body").innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">
+      <div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Category</span><div style="font-size:15px;font-weight:600;margin-top:2px">${esc(e.category)}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Model</span><div style="font-size:15px;font-weight:600;margin-top:2px;font-family:monospace">${esc(e.model||"—")}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Serial Number</span><div style="font-size:15px;font-weight:600;margin-top:2px;font-family:monospace">${esc(e.serial_number||"—")}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Specs</span><div style="font-size:14px;margin-top:2px">${esc(e.specs||"—")}</div></div>
+      </div>
+      <div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Install Date</span><div style="font-size:15px;font-weight:600;margin-top:2px">${fmtDate(e.install_date)}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Last Service</span><div style="font-size:15px;font-weight:600;margin-top:2px">${fmtDate(e.last_service_date)}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Service Interval</span><div style="font-size:15px;font-weight:600;margin-top:2px">${e.service_interval_months?e.service_interval_months+' months':'—'}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Vendor</span><div style="font-size:15px;font-weight:600;margin-top:2px">${vend?esc(vend.name):'—'}</div></div>
+        ${e.notes?`<div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Notes</span><div style="font-size:13px;margin-top:2px;color:var(--muted)">${esc(e.notes)}</div></div>`:''}
+      </div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn small" onclick="editEq(${e.id})">Edit</button>
+      <button class="btn secondary small danger" onclick="deleteEq(${e.id})">Delete</button>
+    </div>`;
+  document.getElementById("eq-detail-wrap").style.display="block";
+  document.getElementById("eq-detail-wrap").scrollIntoView({behavior:'smooth',block:'start'});
+}
+function closeEqDetail(){document.getElementById("eq-detail-wrap").style.display="none";}
 
 function openEqModal(){
   document.getElementById("eqModalTitle").textContent="Add Equipment";
   document.getElementById("eqId").value="";
   document.getElementById("eqSalon").innerHTML=salonOptionsHtml();
   document.getElementById("eqVendor").innerHTML=vendorOptionsHtml();
-  ["eqName","eqInstall","eqLastService","eqInterval","eqNotes"].forEach(id=>document.getElementById(id).value="");
+  ["eqName","eqModel","eqSerial","eqSpecs","eqInstall","eqLastService","eqInterval","eqNotes"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("eqCategory").value="HVAC";
   openModal("eqModalBg");
 }
@@ -937,6 +979,9 @@ function editEq(id){
   document.getElementById("eqVendor").innerHTML=vendorOptionsHtml(e.vendor_id);
   document.getElementById("eqCategory").value=e.category||"HVAC";
   document.getElementById("eqName").value=e.name||"";
+  document.getElementById("eqModel").value=e.model||"";
+  document.getElementById("eqSerial").value=e.serial_number||"";
+  document.getElementById("eqSpecs").value=e.specs||"";
   document.getElementById("eqInstall").value=e.install_date||"";
   document.getElementById("eqLastService").value=e.last_service_date||"";
   document.getElementById("eqInterval").value=e.service_interval_months||"";
@@ -949,6 +994,9 @@ async function saveEq(){
     salon_id:document.getElementById("eqSalon").value,
     category:document.getElementById("eqCategory").value,
     name:document.getElementById("eqName").value.trim(),
+    model:document.getElementById("eqModel").value.trim()||null,
+    serial_number:document.getElementById("eqSerial").value.trim()||null,
+    specs:document.getElementById("eqSpecs").value.trim()||null,
     install_date:document.getElementById("eqInstall").value||null,
     last_service_date:document.getElementById("eqLastService").value||null,
     service_interval_months:document.getElementById("eqInterval").value?Number(document.getElementById("eqInterval").value):null,

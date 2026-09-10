@@ -74,6 +74,7 @@ tbody tr.clickrow{cursor:pointer}
 .oos-emp{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:7px;background:var(--card);box-shadow:var(--shadow)}
 .oos-emp .nm{font-size:13px;font-weight:600;color:var(--ink)}
 .oos-emp select{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:inherit;font-size:12.5px;font-weight:600}
+.dkn-saved-tag{display:inline-block;background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:8px}
 .rev-item{border-bottom:1px solid var(--line);padding:10px 0}.rev-item:last-child{border-bottom:none}
 .rev-top{display:flex;align-items:center;gap:8px;margin-bottom:3px}
 .rev-name{font-weight:700;font-size:13px;color:var(--ink)}
@@ -281,6 +282,17 @@ tbody tr.clickrow{cursor:pointer}
     </div>
   </div>
 
+  <!-- Daily KPI Notes — auto-flags out-of-standard metrics, managers add notes per day -->
+  <div class="card" id="dailyKpiNotesCard" style="margin-bottom:16px;display:none">
+    <div class="sec-title" style="margin-bottom:4px">📋 Daily KPI Notes</div>
+    <div class="legend-note" style="margin-bottom:10px">Auto-flagged KPIs out of standard for the selected day. Add notes as you review — they auto-populate into the Weekly Recap.</div>
+    <div id="dknFlags"></div>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+      <button class="btn" id="dknSave">💾 Save Notes</button>
+      <span class="savemsg" id="dknMsg"></span>
+    </div>
+  </div>
+
   <div id="detDay">
     <div class="grid g2">
       <div class="card"><h3>Wait-Time Distribution</h3><div class="hint">All customers, selected day</div><div class="chart-box"><canvas id="cDetWait"></canvas></div></div>
@@ -423,7 +435,7 @@ const money=n=>"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,max
 const money0=n=>"$"+Math.round(n).toLocaleString("en-US");
 const sign=n=>(n>0?"+":"")+Number(n).toFixed(1)+"%";
 const cls=n=>n>=0?"up":"down";
-let SALONS={},SALONAM={},DATES=[],WEEKS=[],DAY={SAL:[],STY:{},WAIT:{}},WEEK={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}},recaps=[];
+let SALONS={},SALONAM={},DATES=[],WEEKS=[],DAY={SAL:[],STY:{},WAIT:{}},WEEK={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}},recaps=[],dailyKpiNotes={};
 let current=null,curDate=null,curWeek=null,charts={},detMode="day";
 // WeeklySalon row (WeeklySalon schema minus weekEnding+salonId) metric -> column index
 const WS={salonName:0,serviceSales:1,productSales:2,totalSales:3,cust:4,newCust:5,floorHours:6,avgHC:7,cutsHr:8,prodvity:9,avgWait:10,waitOver15Pct:11,payrollPct:12,avgMinBtwn:13,voidsPct:14,svcDiscPct:15,overShort:16,newRetPct:17,repRetPct:18,floorHoursGrowth:19,custGrowthPct:20,salesGrowthPct:21};
@@ -637,7 +649,7 @@ async function loadBirthdays(){
   }catch(e){console.error('Birthday widget error',e);}
 }
 
-window.onload=()=>{ Promise.all([loadData(),loadGoogleData()]).then(([b])=>{onBoot(b);loadRecaps();loadBirthdays();}).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
+window.onload=()=>{ Promise.all([loadData(),loadGoogleData()]).then(([b])=>{onBoot(b);loadRecaps();loadDailyKpiNotes();loadBirthdays();}).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
 
 // WEEKS includes every week_ending with any rolled-up data, including the current
 // in-progress GC week (Sat–Fri) whose week_ending Friday hasn't happened yet — that entry
@@ -1016,8 +1028,10 @@ function renderTeam(){
     const n=renderStyDayTable();
     $("#teamSummary").innerHTML=n?n+" stylist(s) · colored vs Brand Measures thresholds":"No stylist data for this salon/day.";
     renderAttendance();
+    renderDailyKpiNotes();
     return;
   }
+  $("#dailyKpiNotesCard").style.display="none";
   $("#styTable").style.display="none";$("#teamTable").style.display="";
   $("#dayLegend").style.display="none";$("#teamLegend").style.display="";
   const range=teamRange();
@@ -1419,6 +1433,98 @@ function renderTrend(series,m,mo){
 // RECAP
 function lastFriday(){const d=new Date();const diff=(d.getDay()-5+7)%7;d.setDate(d.getDate()-diff);return d.toISOString().slice(0,10);}
 function loadRecaps(){return fetchRecaps().then(r=>{recaps=r||[];});}
+
+// --- Daily KPI Notes (save-as-you-go, feeds into Weekly Recap) ---
+function loadDailyKpiNotes(){
+  if(!supaReady())return Promise.resolve();
+  return fetch(SUPA_URL+"/rest/v1/daily_kpi_notes?select=*",{headers:supaHeaders()})
+    .then(r=>r.ok?r.json():[]).then(rows=>{
+      dailyKpiNotes={};
+      (rows||[]).forEach(r=>{dailyKpiNotes[r.salon_id+"|"+r.date]=r;});
+    }).catch(()=>{});
+}
+function saveDailyKpiNote(salonId,date){
+  if(!supaReady())return Promise.reject(new Error("Supabase not configured"));
+  const host=$("#dknFlags");if(!host)return Promise.resolve();
+  const kpiO={},styO={};
+  host.querySelectorAll('textarea[data-dkn]').forEach(t=>{
+    const v=t.value.trim();if(!v)return;
+    if(t.dataset.cat==="kpi")kpiO[t.dataset.key]=t.value;
+    else styO[t.dataset.key]=t.value;
+  });
+  const body={salon_id:salonId,date:date,kpi_flags:JSON.stringify(kpiO),stylist_flags:JSON.stringify(styO),updated_at:new Date().toISOString()};
+  return fetch(SUPA_URL+"/rest/v1/daily_kpi_notes",{method:"POST",
+    headers:supaHeaders({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"}),
+    body:JSON.stringify(body)}).then(r=>{
+      if(!r.ok)throw new Error("save failed ("+r.status+")");
+      dailyKpiNotes[salonId+"|"+date]={...body,kpi_flags:kpiO,stylist_flags:styO};
+      return {ok:true};
+    });
+}
+function renderDailyKpiNotes(){
+  const card=$("#dailyKpiNotesCard"),host=$("#dknFlags");
+  if(!card||!host)return;
+  if(!current||!curDate){card.style.display="none";return;}
+  const sid=current,dt=curDate;
+  const s=salById(sid);
+  const styRows=(DAY.STY&&DAY.STY[sid])||[];
+  // Load saved notes for this salon/date
+  const saved=dailyKpiNotes[sid+"|"+dt]||{};
+  const kpiSaved=typeof saved.kpi_flags==="string"?safeParse(saved.kpi_flags):(saved.kpi_flags||{});
+  const stySaved=typeof saved.stylist_flags==="string"?safeParse(saved.stylist_flags):(saved.stylist_flags||{});
+  // 1. Salon-level KPI flags
+  const salonFlags=[];
+  if(s){
+    if(typeof s[6]==="number"&&kpi("payroll",s[6])==="kr")salonFlags.push({metric:"payrollPct",label:"Payroll %",reason:s[6].toFixed(1)+"% (over 40% target)"});
+    if(typeof s[8]==="number"&&kpi("cuts",s[8])==="kr")salonFlags.push({metric:"cutsHr",label:"CPH",reason:s[8].toFixed(1)+" (below 2.0)"});
+    if(typeof s[11]==="number"&&kpi("wait15",s[11])==="kr")salonFlags.push({metric:"waitOver15Pct",label:"Wait >15%",reason:s[11].toFixed(1)+"% (≥19%)"});
+    if(typeof s[14]==="number"&&s[14]<-10)salonFlags.push({metric:"cashOverShort",label:"Cash Short",reason:"−$"+Math.abs(s[14]).toFixed(2)+" short (over $10 threshold)"});
+  }
+  // 2. Stylist-level flags (daily: payroll, CPH, avg HC, std prod %, unpaid breaks)
+  const styFlags=[];
+  styRows.forEach(r=>{
+    const reasons=[];
+    if(typeof r[2]==="number"&&kpi("payroll",r[2])==="kr")reasons.push("Payroll "+r[2].toFixed(1)+"% (>41%)");
+    if(typeof r[3]==="number"&&kpi("cuts",r[3])==="kr")reasons.push("CPH "+r[3].toFixed(1)+" (<2.0)");
+    if(typeof r[9]==="number"&&kpi("avghc",r[9])==="kr")reasons.push("Avg HC "+r[9].toFixed(1)+" min (≥19)");
+    if(typeof r[7]==="number"&&kpi("stdprod",r[7])==="kr")reasons.push("Std Prod "+r[7].toFixed(1)+"% (<3%)");
+    if(typeof r[14]==="number"&&r[14]===0)reasons.push("No unpaid break taken");
+    if(typeof r[15]==="number"&&r[15]>0&&r[15]<20)reasons.push("Break only "+r[15]+" min (<20)");
+    if(reasons.length)styFlags.push({name:r[0],reasons});
+  });
+  const totalFlags=salonFlags.length+styFlags.length;
+  if(totalFlags===0&&!s&&!styRows.length){card.style.display="none";return;}
+  card.style.display="";
+  const hasSaved=Object.keys(kpiSaved).length>0||Object.keys(stySaved).length>0;
+  let h='<div class="oos-wrap">';
+  h+='<div class="oos-h">📉 Salon KPIs out of standard'+(salonFlags.length?' <span class="oos-badge">'+salonFlags.length+'</span>':'')+(hasSaved?' <span class="dkn-saved-tag">✓ Notes saved</span>':'')+'</div>';
+  if(!s)h+='<div class="oos-neutral">No salon data for '+fmtDate(dt)+'.</div>';
+  else if(!salonFlags.length)h+='<div class="oos-ok">✓ All salon KPIs within standard for '+fmtDate(dt)+'.</div>';
+  else salonFlags.forEach(f=>{
+    h+='<div class="oos-item"><div class="hd">'+esc(f.label)+' — '+esc(f.reason)+'</div>'
+      +'<div class="meta">Explain why this KPI was out of standard.</div>'
+      +'<textarea data-dkn data-cat="kpi" data-key="'+esc(f.metric)+'" placeholder="Explanation…">'+esc(kpiSaved[f.metric]||"")+'</textarea></div>';
+  });
+  h+='<div class="oos-h">🚩 Stylists out of standard'+(styFlags.length?' <span class="oos-badge">'+styFlags.length+'</span>':'')+'</div>';
+  if(!styRows.length)h+='<div class="oos-neutral">No stylist data for '+fmtDate(dt)+'.</div>';
+  else if(!styFlags.length)h+='<div class="oos-ok">✓ All stylists within standard for '+fmtDate(dt)+'.</div>';
+  else styFlags.forEach(f=>{
+    h+='<div class="oos-item"><div class="hd">'+esc(f.name)+'</div>'
+      +'<div class="meta">Out of standard: '+esc(f.reasons.join(" · "))+'</div>'
+      +'<textarea data-dkn data-cat="sty" data-key="'+esc(f.name)+'" placeholder="What are you doing to address this?">'+esc(stySaved[f.name]||"")+'</textarea></div>';
+  });
+  h+='</div>';
+  host.innerHTML=h;
+  $("#dknMsg").textContent=hasSaved?"Last saved "+new Date(saved.updated_at).toLocaleString():"";
+}
+$("#dknSave").onclick=()=>{
+  if(!current||!curDate)return;
+  const m=$("#dknMsg");m.textContent="Saving…";m.style.color="var(--muted)";
+  saveDailyKpiNote(current,curDate).then(r=>{
+    m.textContent="✓ Saved";m.style.color=GREEN;
+  }).catch(e=>{m.textContent="Error: "+e.message;m.style.color=RED;});
+};
+
 // --- Out-of-standard analysis + recap builders (dashboard "red" thresholds) ---
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function safeParse(s){try{const o=s?JSON.parse(s):{};return (o&&typeof o==="object")?o:{};}catch(e){return{};}}
@@ -1440,11 +1546,28 @@ function buildOOS(id,wk){
   host.innerHTML='<div class="sub" style="margin:8px 0">Checking standards…</div>';
   const rr=recaps.find(x=>String(x.salonId)===String(id)&&String(x.weekEnding)===String(wk))||{};
   const kpiSaved=safeParse(rr.cphdays), stySaved=safeParse(rr.stylistflags), qcSaved=safeParse(rr.quality), rcSaved=safeParse(rr.reach);
+  // Merge daily KPI notes into recap defaults (only fills blanks — recap-saved values take priority)
+  const days=weekDates(wk);
+  const dknKpiMerge={}, dknStyMerge={};
+  days.forEach(d=>{
+    const dn=dailyKpiNotes[id+"|"+d];if(!dn)return;
+    const kf=typeof dn.kpi_flags==="string"?safeParse(dn.kpi_flags):(dn.kpi_flags||{});
+    const sf=typeof dn.stylist_flags==="string"?safeParse(dn.stylist_flags):(dn.stylist_flags||{});
+    Object.keys(kf).forEach(metric=>{
+      const recapKey=d+"|"+metric;
+      if(!dknKpiMerge[recapKey])dknKpiMerge[recapKey]=kf[metric];
+    });
+    Object.keys(sf).forEach(name=>{
+      if(!dknStyMerge[name])dknStyMerge[name]=sf[name];
+      else dknStyMerge[name]+="\n"+sf[name];
+    });
+  });
+  const hasDailyNotes=Object.keys(dknKpiMerge).length>0||Object.keys(dknStyMerge).length>0;
   const jobs=[Promise.resolve(((DATA.weeklies&&DATA.weeklies[wk]&&DATA.weeklies[wk].EPP))||{})];
   DAYKPIS.forEach(k=>jobs.push(Promise.resolve(dTrend(id,k[0]))));
   Promise.all(jobs).then(res=>{
     if(token!==buildOOS._t)return; // a newer render superseded this one
-    const epp=res[0], trends=res.slice(1), days=weekDates(wk);
+    const epp=res[0], trends=res.slice(1);
     // 1. salon KPIs out of standard, by day
     const dayFlags=[]; let anyDayData=false;
     DAYKPIS.forEach((k,i)=>{ (trends[i]||[]).forEach(row=>{const d=String(row[0]); if(!days.includes(d))return; anyDayData=true;
@@ -1461,20 +1584,23 @@ function buildOOS(id,wk){
       if(reasons.length)flagged.push({name:r[0],reasons});});
     const emps=styRows.map(r=>r[0]);
     let h='<div class="oos-wrap">';
+    if(hasDailyNotes)h+='<div style="background:#dbeafe;color:#1e40af;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:10px">📋 <strong>Pre-filled from daily notes</strong> — review and edit as needed before finalizing.</div>';
     h+='<div class="oos-h">📉 KPIs out of standard by day'+(dayFlags.length?' <span class="oos-badge">'+dayFlags.length+'</span>':'')+'</div>';
     if(!anyDayData) h+='<div class="oos-neutral">No daily data loaded yet for the week ending '+fmtDate(wk)+'.</div>';
     else if(!dayFlags.length) h+='<div class="oos-ok">✓ All salon KPIs within standard every day this week.</div>';
     else dayFlags.forEach(f=>{const key=f.date+"|"+f.metric;
+      const val=kpiSaved[key]||dknKpiMerge[key]||"";
       h+='<div class="oos-item"><div class="hd">'+fmtDate(f.date)+' · '+esc(f.label)+' '+esc(f.reason)+'</div>'
-        +'<div class="meta">Explain why this KPI was out of standard.</div>'
-        +'<textarea data-oos data-cat="kpi" data-key="'+esc(key)+'" placeholder="Explanation…">'+esc(kpiSaved[key]||"")+'</textarea></div>';});
+        +'<div class="meta">Explain why this KPI was out of standard.'+(dknKpiMerge[key]&&!kpiSaved[key]?' <em>(from daily notes)</em>':'')+'</div>'
+        +'<textarea data-oos data-cat="kpi" data-key="'+esc(key)+'" placeholder="Explanation…">'+esc(val)+'</textarea></div>';});
     h+='<div class="oos-h">🚩 Stylists out of standard'+(flagged.length?' <span class="oos-badge">'+flagged.length+'</span>':'')+'</div>';
     if(!styRows.length) h+='<div class="oos-neutral">No weekly stylist data yet for the week ending '+fmtDate(wk)+'.</div>';
     else if(!flagged.length) h+='<div class="oos-ok">✓ All stylists within standard for the week ending '+fmtDate(wk)+'.</div>';
     else flagged.forEach(f=>{
+      const val=stySaved[f.name]||dknStyMerge[f.name]||"";
       h+='<div class="oos-item"><div class="hd">'+esc(f.name)+'</div>'
-        +'<div class="meta">Out of standard: '+esc(f.reasons.join(" · "))+'</div>'
-        +'<textarea data-oos data-cat="sty" data-key="'+esc(f.name)+'" placeholder="What are you doing to address this (training, coaching, REACH, etc.)?">'+esc(stySaved[f.name]||"")+'</textarea></div>';});
+        +'<div class="meta">Out of standard: '+esc(f.reasons.join(" · "))+(dknStyMerge[f.name]&&!stySaved[f.name]?' <em>(from daily notes)</em>':'')+'</div>'
+        +'<textarea data-oos data-cat="sty" data-key="'+esc(f.name)+'" placeholder="What are you doing to address this (training, coaching, REACH, etc.)?">'+esc(val)+'</textarea></div>';});
     h+='<div class="oos-h">🤝 Quality Connections — done this week?</div>';
     if(!emps.length) h+='<div class="oos-neutral">No employee list yet for this salon/week.</div>';
     else emps.forEach(n=>{h+=empRow("qc",n,qcSaved[n]);});

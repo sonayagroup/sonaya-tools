@@ -175,6 +175,7 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
     <div class="tab" data-t="equipment">Equipment</div>
     <div class="tab" data-t="vendors">Vendors</div>
     <div class="tab" data-t="pm">PM Checklist</div>
+    <div class="tab" data-t="hvac">HVAC Inspections</div>
     <div class="tab" data-t="contacts">Contacts</div>
   </div>
 </nav>
@@ -191,7 +192,7 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
       </div>
       <div class="card">
         <h3>Preventative Maintenance — Attention Needed</h3>
-        <div class="hint">Salons overdue or due soon for their twice-yearly checklist</div>
+        <div class="hint">Salons overdue or due soon for their quarterly checklist</div>
         <div class="tbl-scroll" id="ov-pm">Loading…</div>
       </div>
     </div>
@@ -240,13 +241,30 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
       <span>Preventative Maintenance Checklist</span>
       <button class="btn" onclick="openPmModal()">+ New Checklist Visit</button>
     </div>
-    <div class="hint" style="margin-bottom:14px;color:var(--muted);font-size:12.5px">Due twice a year per salon (every ~6 months). Click a salon to view its checklist history.</div>
+    <div class="hint" style="margin-bottom:14px;color:var(--muted);font-size:12.5px">Due quarterly per salon (every 3 months). Click a salon to view its checklist history.</div>
     <div class="salon-grid" id="pm-salon-grid"><div class="loading">Loading…</div></div>
 
     <div id="pm-history-wrap" style="display:none;margin-top:22px">
       <div class="sec-title"><span id="pm-history-title">History</span><button class="btn secondary small" onclick="closePmHistory()">Close</button></div>
       <div class="card"><div class="tbl-scroll" id="pm-history-table"></div></div>
       <div id="pm-visit-detail" style="margin-top:16px"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-hvac">
+    <div class="sec-title">
+      <span>HVAC Inspections</span>
+    </div>
+    <div class="hint" style="margin-bottom:14px;color:var(--muted);font-size:12.5px">Quarterly TLC inspections — heating (Q1/Q4) and cooling (Q2/Q3) season checklists for each salon's RTU.</div>
+    <div class="toolbar">
+      <select id="hvacFilterSalon"><option value="">All Salons</option></select>
+      <select id="hvacFilterSeason"><option value="">All Seasons</option><option value="cooling">Cooling</option><option value="heating">Heating</option></select>
+    </div>
+    <div class="kpis" id="hvac-kpis"></div>
+    <div class="card"><div class="tbl-scroll" id="hvac-table">Loading…</div></div>
+    <div id="hvac-detail-wrap" style="display:none;margin-top:22px">
+      <div class="sec-title"><span id="hvac-detail-title">Inspection Detail</span><button class="btn secondary small" onclick="document.getElementById('hvac-detail-wrap').style.display='none'">Close</button></div>
+      <div class="card" id="hvac-detail-body"></div>
     </div>
   </section>
 
@@ -503,6 +521,7 @@ let WORKORDERS=[];
 let EQUIPMENT=[];
 let PM_VISITS=[]; // header rows, each with .items loaded on demand for history detail
 let CONTACTS=[]; // gc_maint_contacts rows
+let HVAC_INSPECTIONS=[]; // gc_maint_hvac_inspections rows
 let woAssignedIds=new Set(); // currently selected contact IDs for multi-select
 
 function esc(s){return (s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -538,6 +557,7 @@ async function loadWorkOrders(){WORKORDERS=await sGet("gc_maint_work_orders?sele
 async function loadEquipment(){EQUIPMENT=await sGet("gc_maint_equipment?select=*&order=salon_id.asc");}
 async function loadPmVisits(){PM_VISITS=await sGet("gc_maint_pm_visits?select=*&order=visit_date.desc");}
 async function loadContacts(){CONTACTS=await sGet("gc_maint_contacts?select=*&active=eq.true&order=name.asc");}
+async function loadHvacInspections(){HVAC_INSPECTIONS=await sGet("gc_maint_hvac_inspections?select=*&order=visit_date.desc");}
 
 // ===== Multi-select helpers =====
 function toggleMsDropdown(id){document.getElementById(id).classList.toggle("open");}
@@ -568,9 +588,10 @@ function fillReportedBySelect(sel_val){
 
 function fillSalonSelects(){
   document.querySelectorAll("#woSalon,#eqSalon,#pmSalon").forEach(sel=>{sel.innerHTML=salonOptionsHtml();});
-  const woF=document.getElementById("woFilterSalon"), eqF=document.getElementById("eqFilterSalon");
+  const woF=document.getElementById("woFilterSalon"), eqF=document.getElementById("eqFilterSalon"), hvF=document.getElementById("hvacFilterSalon");
   woF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
   eqF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
+  if(hvF) hvF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
 }
 function fillVendorSelects(){
   document.querySelectorAll("#woVendor,#eqVendor").forEach(sel=>{sel.innerHTML=vendorOptionsHtml();});
@@ -626,7 +647,7 @@ function computePmStatusAll(){
   return Object.keys(SALONS).sort().map(id=>{
     const last=bySalon[id]||null;
     if(!last)return{salon_id:id,lastVisit:null,nextDue:null,status:"never"};
-    const nextDue=new Date(last+"T00:00:00"); nextDue.setMonth(nextDue.getMonth()+6);
+    const nextDue=new Date(last+"T00:00:00"); nextDue.setMonth(nextDue.getMonth()+3);
     const daysLeft=Math.round((nextDue-today)/86400000);
     let status="ok"; if(daysLeft<0)status="over"; else if(daysLeft<=30)status="soon";
     return{salon_id:id,lastVisit:last,nextDue:nextDue.toISOString().slice(0,10),status};
@@ -1371,12 +1392,116 @@ async function sendWoNotification(data){
   }catch(e){console.warn("Notification failed:",e);}
 }
 
+// ===== HVAC Inspections tab =====
+function renderHvac(){
+  const fS=document.getElementById("hvacFilterSalon").value;
+  const fSe=document.getElementById("hvacFilterSeason").value;
+  let rows=[...HVAC_INSPECTIONS];
+  if(fS)rows=rows.filter(r=>r.salon_id===fS);
+  if(fSe)rows=rows.filter(r=>r.season===fSe);
+
+  // KPI cards
+  const bySalon={};
+  HVAC_INSPECTIONS.forEach(r=>{if(!bySalon[r.salon_id]||r.visit_date>bySalon[r.salon_id])bySalon[r.salon_id]=r.visit_date;});
+  const today=new Date(todayISO());
+  let hvacOverdue=0,hvacOk=0;
+  Object.keys(SALONS).forEach(id=>{
+    const last=bySalon[id];
+    if(!last){hvacOverdue++;return;}
+    const nd=new Date(last+"T00:00:00");nd.setMonth(nd.getMonth()+3);
+    if(nd<today)hvacOverdue++;else hvacOk++;
+  });
+  const repairsNeeded=HVAC_INSPECTIONS.filter(r=>r.repairs_needed&&r.repairs_needed!=='None'&&r.repairs_needed!=='No'&&r.repairs_needed!=='N/A');
+  document.getElementById("hvac-kpis").innerHTML=`
+    <div class="kpi"><div class="lbl">Total Inspections</div><div class="val">${HVAC_INSPECTIONS.length}</div><div class="sub">${Object.keys(bySalon).length} of ${Object.keys(SALONS).length} salons</div></div>
+    <div class="kpi ${hvacOverdue?'flagred':''}"><div class="lbl">HVAC Overdue (Quarterly)</div><div class="val">${hvacOverdue}</div></div>
+    <div class="kpi"><div class="lbl">Up to Date</div><div class="val">${hvacOk}</div></div>
+    <div class="kpi ${repairsNeeded.length?'flagamber':''}"><div class="lbl">Repairs Flagged</div><div class="val">${repairsNeeded.length}</div></div>`;
+
+  document.getElementById("hvac-table").innerHTML= rows.length? `<table><thead><tr>
+    <th>Salon</th><th>Date</th><th>Season</th><th>WO#</th><th>Technician</th><th>Refrigerant</th><th>Voltage</th><th>Comp Amps</th><th>Suction</th><th>Discharge</th>
+    <th>Area</th><th>Coils</th><th>Filters</th><th>Belt</th><th>Electrical</th><th>Repairs</th><th></th>
+    </tr></thead><tbody>`+rows.map(r=>{
+      const yn=v=>v===true?'<span style="color:var(--green);font-weight:700">✓</span>':v===false?'<span style="color:var(--red-dk);font-weight:700">✗</span>':'—';
+      return `<tr>
+        <td>${esc(salonName(r.salon_id))}</td>
+        <td>${fmtDate(r.visit_date)}</td>
+        <td><span style="font-weight:600;color:${r.season==='cooling'?'#0077b6':'#d45e00'}">${r.season==='cooling'?'❄ Cooling':'🔥 Heating'}</span></td>
+        <td>${esc(r.wo_number||'—')}</td>
+        <td>${esc(r.technician||'—')}</td>
+        <td>${esc(r.refrigerant||'—')}</td>
+        <td>${r.voltage||'—'}</td>
+        <td>${esc(r.comp_amps||'—')}</td>
+        <td>${r.suction_psi!=null?r.suction_psi:'—'}</td>
+        <td>${r.discharge_psi!=null?r.discharge_psi:'—'}</td>
+        <td>${yn(r.cleaned_area)}</td>
+        <td>${yn(r.cleaned_coils)}</td>
+        <td>${yn(r.replaced_filters)}</td>
+        <td>${yn(r.inspected_belt)}</td>
+        <td>${yn(r.tightened_electrical)}</td>
+        <td>${r.repairs_needed&&r.repairs_needed!=='None'&&r.repairs_needed!=='No'?'<span style="color:var(--red-dk);font-weight:600">'+esc(r.repairs_needed)+'</span>':'—'}</td>
+        <td><button class="btn secondary small" onclick="showHvacDetail(${r.id})">Detail</button></td>
+      </tr>`;
+    }).join("")+`</tbody></table>`
+    : `<div class="empty-note">No HVAC inspections found.</div>`;
+}
+document.getElementById("hvacFilterSalon").addEventListener("change",renderHvac);
+document.getElementById("hvacFilterSeason").addEventListener("change",renderHvac);
+
+function showHvacDetail(id){
+  const r=HVAC_INSPECTIONS.find(x=>x.id===id);
+  if(!r)return;
+  const yn=v=>v===true?'<span style="color:var(--green);font-weight:700">Yes ✓</span>':v===false?'<span style="color:var(--red-dk);font-weight:700">No ✗</span>':'N/A';
+  document.getElementById("hvac-detail-title").textContent=`${salonName(r.salon_id)} — ${r.season==='cooling'?'Cooling':'Heating'} Season ${fmtDate(r.visit_date)}`;
+  document.getElementById("hvac-detail-body").innerHTML=`
+    <div class="field-row" style="margin-bottom:16px">
+      <div class="field"><label>Date</label><div style="font-size:15px">${fmtDate(r.visit_date)}</div></div>
+      <div class="field"><label>Season</label><div style="font-size:15px">${r.season==='cooling'?'❄ Cooling':'🔥 Heating'}</div></div>
+      <div class="field"><label>WO#</label><div style="font-size:15px">${esc(r.wo_number||'—')}</div></div>
+      <div class="field"><label>Technician</label><div style="font-size:15px">${esc(r.technician||'—')}</div></div>
+    </div>
+    <h3 style="margin:14px 0 8px;font-size:13px;color:var(--blue-dk)">Equipment Readings</h3>
+    <div class="field-row" style="margin-bottom:14px">
+      <div class="field"><label>Refrigerant</label><div>${esc(r.refrigerant||'—')}</div></div>
+      <div class="field"><label>Voltage</label><div>${r.voltage||'—'}V</div></div>
+      <div class="field"><label>Compressor Amps</label><div>${esc(r.comp_amps||'—')}</div></div>
+      <div class="field"><label>Suction PSI</label><div>${r.suction_psi!=null?r.suction_psi:'—'}</div></div>
+    </div>
+    <div class="field-row" style="margin-bottom:14px">
+      <div class="field"><label>Discharge PSI</label><div>${r.discharge_psi!=null?r.discharge_psi:'—'}</div></div>
+      <div class="field"><label>Supply Fan Amps</label><div>${r.supply_fan_amps!=null?r.supply_fan_amps:'—'}</div></div>
+      <div class="field"><label>Return Air Temp</label><div>${r.return_air_temp!=null?r.return_air_temp+'°F':'—'}</div></div>
+      <div class="field"><label>Supply Air Temp</label><div>${r.supply_air_temp!=null?r.supply_air_temp+'°F':'—'}</div></div>
+    </div>
+    <div class="field-row" style="margin-bottom:14px">
+      <div class="field"><label>Condenser Fan Amps</label><div>${r.condenser_fan_amps!=null?r.condenser_fan_amps:'—'}</div></div>
+      ${r.season==='heating'?`<div class="field"><label>Flue CO Temp</label><div>${r.flue_co_temp!=null?r.flue_co_temp+'°F':'—'}</div></div>
+      <div class="field"><label>CO Supply</label><div>${r.co_supply!=null?r.co_supply:'—'}</div></div>`:''}
+    </div>
+    <h3 style="margin:14px 0 8px;font-size:13px;color:var(--blue-dk)">Inspection Checklist</h3>
+    <table><tbody>
+      <tr><td>Cleaned area</td><td>${yn(r.cleaned_area)}</td></tr>
+      ${r.season==='cooling'?`<tr><td>Cleaned condenser coils</td><td>${yn(r.cleaned_coils)}</td></tr>`:''}
+      <tr><td>Replaced/washed air filters</td><td>${yn(r.replaced_filters)}</td></tr>
+      <tr><td>Inspected fan belt</td><td>${yn(r.inspected_belt)}</td></tr>
+      <tr><td>Replaced fan belt</td><td>${yn(r.replaced_belt)}</td></tr>
+      ${r.season==='cooling'?`<tr><td>Lubricated motors/moving parts</td><td>${yn(r.lubricated_motors)}</td></tr>`:''}
+      <tr><td>Inspected/tightened electrical</td><td>${yn(r.tightened_electrical)}</td></tr>
+      ${r.season==='heating'?`<tr><td>Cleaned burner assembly</td><td>${yn(r.cleaned_burner)}</td></tr>`:''}
+    </tbody></table>
+    ${r.repairs_needed&&r.repairs_needed!=='None'&&r.repairs_needed!=='No'?`<div style="margin-top:14px;padding:10px 12px;background:#fdecec;border-radius:8px;border:1px solid #f0c0c0"><b style="color:var(--red-dk)">⚠ Repairs Needed</b><div style="margin-top:4px">${esc(r.repairs_needed)}</div></div>`:''}
+    ${r.notes?`<div style="margin-top:10px"><label>Notes</label><div>${esc(r.notes)}</div></div>`:''}
+  `;
+  document.getElementById("hvac-detail-wrap").style.display="block";
+  document.getElementById("hvac-detail-wrap").scrollIntoView({behavior:"smooth"});
+}
+
 // ===== Init =====
 async function init(){
   try{
-    await Promise.all([loadSalons(),loadVendors(),loadWorkOrders(),loadEquipment(),loadPmVisits(),loadContacts()]);
+    await Promise.all([loadSalons(),loadVendors(),loadWorkOrders(),loadEquipment(),loadPmVisits(),loadContacts(),loadHvacInspections()]);
     fillSalonSelects(); fillVendorSelects();
-    renderOverview(); renderWorkOrders(); renderEquipment(); renderVendors(); renderPmGrid(); renderContacts();
+    renderOverview(); renderWorkOrders(); renderEquipment(); renderVendors(); renderPmGrid(); renderContacts(); renderHvac();
     setupPhotoDrop();
     document.getElementById("hdrMeta").textContent="Loaded "+new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
   }catch(e){

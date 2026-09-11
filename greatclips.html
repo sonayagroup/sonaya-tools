@@ -176,6 +176,27 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 .aa-chip.aa-cash-chip b{color:#fff}
 .aa-toggle-all{background:none;border:1px solid var(--line);border-radius:7px;padding:5px 11px;font:inherit;font-size:12px;font-weight:600;color:var(--blue-dk);cursor:pointer;margin:10px 0 4px}
 .aa-toggle-all:hover{background:#f0f3f7}
+/* === Scorecard === */
+.sc-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.sc-tbl th{padding:7px 10px;background:#f0f3f7;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#5a6a7e;border-bottom:2px solid #ddd}
+.sc-tbl td{padding:7px 10px;text-align:center;border-bottom:1px solid #eee}
+.sc-tbl td:first-child,.sc-tbl th:first-child{text-align:left}
+.sc-tbl .sc-exc{background:#e6f9f0;color:#089f45;font-weight:700;border-radius:4px}
+.sc-tbl .sc-good{background:#f0f7ff;color:#048667;font-weight:700;border-radius:4px}
+.sc-tbl .sc-avg{background:#fff8e6;color:#b8860b;font-weight:600;border-radius:4px}
+.sc-tbl .sc-below{background:#fef0f0;color:#d32f2f;font-weight:600;border-radius:4px}
+.sc-comp-total td{font-weight:800;font-size:14px;border-top:2px solid #ddd}
+.sc-sim-bar{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:12px 0}
+@media print{
+  #scorecard .recap-bar,#scorecard .btn,#scSimCard,#scTrendCard{display:none!important}
+  #scPrintHeader{display:flex!important;align-items:center;gap:16px;margin-bottom:20px;border-bottom:2px solid #1a3a5c;padding-bottom:12px}
+  #scPrintHeader img{height:36px}
+  #scPrintHeader h1{font-size:16px;margin:0;color:#1a3a5c}
+  #scPrintHeader .sub{font-size:11px;color:#5a6a7e}
+  #scContent{display:block!important}
+  #scorecard .card{box-shadow:none;border:1px solid #ddd;page-break-inside:avoid}
+  @page{size:letter portrait;margin:0.5in}
+}
 </style></head>
 <body>
 <header><div class="hdr-inner">
@@ -194,6 +215,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
   <div class="tab" data-t="detail">Salon Detail</div>
   <div class="tab" data-t="recap">Weekly Recap</div>
   <div class="tab" data-t="contacts">Contacts</div>
+  <div class="tab" data-t="scorecard">Scorecard</div>
   <a href="https://tools.sonayagroup.com/gc-crm.html" class="tab-link">👥 Stylist CRM</a>
   <a href="https://tools.sonayagroup.com/gc-quiz-admin.html" class="tab-link">📝 Manager Quiz</a>
   <a href="https://tools.sonayagroup.com/gc-maintenance/" class="tab-link">🔧 Maintenance</a>
@@ -428,6 +450,103 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
   </div>
 </section>
 
+<section class="panel" id="scorecard">
+  <div class="sec-title">Employee Performance Scorecard</div>
+  <div class="recap-bar" style="flex-wrap:wrap;gap:10px;margin-bottom:16px">
+    <label style="font-size:12.5px;color:var(--muted)">Salon</label>
+    <select id="scSalon" style="min-width:180px"></select>
+    <label style="font-size:12.5px;color:var(--muted)">Stylist</label>
+    <select id="scStylist" style="min-width:200px"></select>
+    <span class="det-mode" id="scViewToggle">
+      <button data-mode="weekly" class="active">Weekly</button>
+      <button data-mode="monthly">Monthly</button>
+    </span>
+    <label style="font-size:12.5px;color:var(--muted)" id="scWeekLabel">Week</label>
+    <select id="scWeek" style="min-width:140px"></select>
+    <select id="scMonth" style="min-width:140px;display:none"></select>
+    <button class="btn" id="scPrint" style="margin-left:auto">🖨️ Print / Save as PDF</button>
+  </div>
+  <div id="scEmpty" class="loading" style="display:none">Select a salon and stylist above to generate their performance scorecard.</div>
+  <div id="scContent" style="display:none">
+    <div id="scPrintHeader" style="display:none"></div>
+    <div class="grid g2" style="margin-bottom:16px">
+      <div class="card" id="scInfoCard">
+        <h3 id="scName"></h3>
+        <div style="font-size:12.5px;color:var(--muted)" id="scMeta"></div>
+      </div>
+      <div class="card" id="scOverallCard">
+        <h3>Overall Score</h3>
+        <div style="display:flex;align-items:center;gap:18px;margin-top:6px">
+          <div id="scOverallScore" style="font-size:42px;font-weight:800;color:var(--blue-dk)"></div>
+          <div id="scOverallLabel" style="font-size:14px;font-weight:600"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>Service Quality</h3>
+      <div class="hint">Haircut speed and consistency metrics</div>
+      <table class="sc-tbl" id="scSvcTable"><thead><tr>
+        <th style="text-align:left">Metric</th><th>Value</th><th>Goal</th><th>Score</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>Sales &amp; Productivity</h3>
+      <div class="hint">Revenue generation and efficiency</div>
+      <table class="sc-tbl" id="scProdTable"><thead><tr>
+        <th style="text-align:left">Metric</th><th>Value</th><th>Goal</th><th>Score</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>Customer Retention</h3>
+      <div class="hint">Return rates for new and repeat customers</div>
+      <table class="sc-tbl" id="scRetTable"><thead><tr>
+        <th style="text-align:left">Metric</th><th>Value</th><th>Goal</th><th>Score</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>Compensation Breakdown</h3>
+      <div class="hint">YTD earnings summary (Jan 3 – Sep 11, 2026)</div>
+      <div class="grid g2" style="margin-top:10px">
+        <div>
+          <table class="sc-tbl" id="scCompTable"><thead><tr>
+            <th style="text-align:left">Category</th><th>Amount</th>
+          </tr></thead><tbody></tbody></table>
+        </div>
+        <div>
+          <div style="font-weight:700;color:var(--blue-dk);font-size:13px;margin-bottom:6px">Earnings Composition</div>
+          <div class="chart-box" style="height:220px"><canvas id="scCompChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px" id="scSimCard">
+      <h3>CPH Simulator</h3>
+      <div class="hint">See how improving Cuts Per Hour impacts estimated earnings</div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:12px 0">
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase">Current CPH</label>
+          <div id="scSimCurrent" style="font-size:28px;font-weight:800;color:var(--ink)"></div>
+        </div>
+        <div style="font-size:24px;color:var(--muted)">→</div>
+        <div>
+          <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase">Target CPH</label>
+          <input type="range" id="scSimSlider" min="0.5" max="4.0" step="0.1" style="width:200px;vertical-align:middle">
+          <span id="scSimTarget" style="font-size:28px;font-weight:800;color:var(--blue)"></span>
+        </div>
+        <div style="flex:1;min-width:180px">
+          <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase">Estimated Additional Earnings</label>
+          <div id="scSimDelta" style="font-size:28px;font-weight:800;color:var(--green)"></div>
+          <div id="scSimNote" style="font-size:11.5px;color:var(--muted)"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px" id="scTrendCard">
+      <h3>Weekly Trend</h3>
+      <div class="hint" id="scTrendHint">Performance over recent weeks</div>
+      <div class="chart-box" style="height:280px"><canvas id="scTrendChart"></canvas></div>
+    </div>
+  </div>
+</section>
+
 <div class="footer">Great Clips salon dashboard · live from your data store · history builds daily.</div>
 </div>
 
@@ -611,6 +730,7 @@ document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   t.classList.add("active");$("#"+t.dataset.t).classList.add("active");window.scrollTo({top:0});
   if(t.dataset.t==="recap")renderRecap();
   if(t.dataset.t==="contacts"){if(CT_STAFF.length===0&&CT_VENDORS.length===0)ctLoad();else ctRender();}
+  if(t.dataset.t==="scorecard")scInit();
 });
 
 function opt(sel,val,txt){const o=document.createElement("option");o.value=val;o.textContent=txt;sel.appendChild(o);}
@@ -2065,6 +2185,435 @@ ${staff.map(c=>'<tr><td><b>'+esc(c.name)+'</b></td><td>'+esc(c.role||'')+'</td><
 </tbody></table>
 </body></html>`);
   w.document.close();
+}
+
+// ===================== SCORECARD TAB =====================
+let SC_EARN=null, SC_CHARTS={comp:null,trend:null}, SC_INIT=false, SC_MODE="weekly";
+
+async function scLoadEarnings(){
+  if(SC_EARN) return SC_EARN;
+  SC_EARN = await supaFetchAll("stylist_earnings","salon_id");
+  return SC_EARN;
+}
+
+function scInit(){
+  if(SC_INIT){scRender();return;}
+  SC_INIT=true;
+  const salSel=$("#scSalon"),stySel=$("#scStylist");
+  salSel.innerHTML="";stySel.innerHTML="";
+  opt(salSel,"","— Select Salon —");
+  const sids=Object.keys(DATA.salons).sort();
+  sids.forEach(sid=>opt(salSel,sid,DATA.salons[sid]+" (#"+sid+")"));
+  salSel.onchange=()=>{scPopStylists();scRender();};
+  stySel.onchange=()=>scRender();
+  // view toggle
+  $("#scViewToggle").querySelectorAll("button").forEach(b=>{
+    b.onclick=()=>{
+      $("#scViewToggle").querySelectorAll("button").forEach(x=>x.classList.remove("active"));
+      b.classList.add("active");SC_MODE=b.dataset.mode;
+      if(SC_MODE==="weekly"){$("#scWeek").style.display="";$("#scMonth").style.display="none";$("#scWeekLabel").textContent="Week";}
+      else{$("#scWeek").style.display="none";$("#scMonth").style.display="";$("#scWeekLabel").textContent="Month";}
+      scRender();
+    };
+  });
+  // week/month selects
+  $("#scWeek").onchange=()=>scRender();
+  $("#scMonth").onchange=()=>scRender();
+  // print
+  $("#scPrint").onclick=scPrint;
+  scPopWeeks();
+  scPopMonths();
+  $("#scEmpty").style.display="block";
+  $("#scContent").style.display="none";
+}
+
+function scPopStylists(){
+  const sid=$("#scSalon").value, stySel=$("#scStylist");
+  stySel.innerHTML=""; opt(stySel,"","— Select Stylist —");
+  if(!sid) return;
+  // Collect names from weekly_epp across all weeks for this salon
+  const names=new Set();
+  Object.values(DATA.weeklies).forEach(wk=>{
+    if(wk.EPP&&wk.EPP[sid]) wk.EPP[sid].forEach(row=>names.add(row[0]));
+  });
+  // Also from daily_stylist
+  Object.values(DATA.days).forEach(day=>{
+    if(day.STY&&day.STY[sid]) day.STY[sid].forEach(row=>names.add(row[0]));
+  });
+  [...names].sort().forEach(n=>opt(stySel,n,n));
+}
+
+function scPopWeeks(){
+  const wkSel=$("#scWeek");wkSel.innerHTML="";
+  const wks=[...DATA.weeks].sort().reverse();
+  wks.forEach(w=>{const d=new Date(w+"T12:00:00");opt(wkSel,w,"Week ending "+d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}));});
+}
+
+function scPopMonths(){
+  const mSel=$("#scMonth");mSel.innerHTML="";
+  const months=new Set();
+  DATA.dates.forEach(d=>months.add(d.substring(0,7)));
+  [...DATA.weeks].forEach(w=>months.add(w.substring(0,7)));
+  [...months].sort().reverse().forEach(m=>{
+    const [y,mo]=m.split("-");
+    const label=new Date(+y,+mo-1,1).toLocaleDateString("en-US",{month:"long",year:"numeric"});
+    opt(mSel,m,label);
+  });
+}
+
+// Score a metric against goal: returns {score:0-3, cls:'sc-exc'|'sc-good'|'sc-avg'|'sc-below'}
+// dir: 'low' means lower is better, 'high' means higher is better
+function scScore(val,goal,dir,thresholds){
+  // thresholds: [excellent, good, average] boundaries
+  // For 'high' dir: val >= exc -> 3, val >= good -> 2, val >= avg -> 1, else 0
+  // For 'low' dir: val <= exc -> 3, val <= good -> 2, val <= avg -> 1, else 0
+  if(val==null||isNaN(val)) return {score:null,cls:""};
+  const [exc,good,avg]=thresholds;
+  let s;
+  if(dir==="high") s = val>=exc?3:val>=good?2:val>=avg?1:0;
+  else s = val<=exc?3:val<=good?2:val<=avg?1:0;
+  const cls=s===3?"sc-exc":s===2?"sc-good":s===1?"sc-avg":"sc-below";
+  return {score:s,cls};
+}
+const SC_LABELS=["Below Expectations","Meets Expectations","Good","Excellent"];
+
+function scRender(){
+  const sid=$("#scSalon").value, sty=$("#scStylist").value;
+  if(!sid||!sty){$("#scEmpty").style.display="block";$("#scContent").style.display="none";return;}
+  $("#scEmpty").style.display="none";$("#scContent").style.display="block";
+  const isWeekly=SC_MODE==="weekly";
+
+  // Gather performance data
+  let perfData; // {cph, avgHC, prodvity, payrollPct, stdProdPct, avgMinBtwn, newRetPct, repRetPct, floorHrs, cust}
+  if(isWeekly){
+    const wk=$("#scWeek").value;
+    perfData=scGetWeeklyPerf(sid,sty,wk);
+  } else {
+    const mo=$("#scMonth").value;
+    perfData=scGetMonthlyPerf(sid,sty,mo);
+  }
+
+  // Header
+  const sname=DATA.salons[sid]||sid;
+  const am=SALON_AM[sid]||"—";
+  const periodLabel=isWeekly?
+    ("Week ending "+new Date($("#scWeek").value+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})):
+    (new Date(+($("#scMonth").value.split("-")[0]),+($("#scMonth").value.split("-")[1])-1,1).toLocaleDateString("en-US",{month:"long",year:"numeric"}));
+  $("#scName").textContent=sty;
+  $("#scMeta").textContent=sname+" (#"+sid+")  ·  Area Manager: "+am+"  ·  "+periodLabel;
+
+  // Print header
+  const logoSrc=document.querySelector("header img")?.src||"";
+  $("#scPrintHeader").innerHTML='<img src="'+logoSrc+'" alt="Great Clips"><div><h1>Employee Performance Scorecard — 2026</h1><div class="sub">'+sty+" · "+sname+" (#"+sid+") · "+periodLabel+"</div></div>";
+
+  // ---- Service Quality ----
+  const svcMetrics=[
+    {name:"Cuts Per Hour (CPH)",val:perfData.cph,fmt:v=>v.toFixed(1),goal:"≥ 2.4",dir:"high",thresh:[2.8,2.4,2.0]},
+    {name:"Avg Haircut Time (min)",val:perfData.avgHC,fmt:v=>v.toFixed(1),goal:"≤ 16",dir:"low",thresh:[14,16,18]},
+    {name:"Avg Min Between Customers",val:perfData.avgMinBtwn,fmt:v=>v.toFixed(1),goal:"≤ 4",dir:"low",thresh:[3,4,5]},
+  ];
+  scFillTable($("#scSvcTable"),svcMetrics);
+
+  // ---- Sales & Productivity ----
+  const prodMetrics=[
+    {name:"Productivity",val:perfData.prodvity,fmt:v=>v.toFixed(1)+"%",goal:"≥ 100%",dir:"high",thresh:[110,100,90]},
+    {name:"Std Product %",val:perfData.stdProdPct,fmt:v=>v.toFixed(1)+"%",goal:"≥ 20%",dir:"high",thresh:[25,20,15]},
+    {name:"Payroll %",val:perfData.payrollPct,fmt:v=>v.toFixed(1)+"%",goal:"≤ 40%",dir:"low",thresh:[35,40,45]},
+    {name:"Floor Hours",val:perfData.floorHrs,fmt:v=>v.toFixed(1),goal:"—",dir:"high",thresh:[999,0,-999]},
+    {name:"Customers Served",val:perfData.cust,fmt:v=>Math.round(v).toLocaleString(),goal:"—",dir:"high",thresh:[999,0,-999]},
+  ];
+  scFillTable($("#scProdTable"),prodMetrics);
+
+  // ---- Customer Retention ----
+  const retMetrics=[
+    {name:"New Customer Return %",val:perfData.newRetPct,fmt:v=>v.toFixed(1)+"%",goal:"≥ 35%",dir:"high",thresh:[40,35,30]},
+    {name:"Repeat Customer Return %",val:perfData.repRetPct,fmt:v=>v.toFixed(1)+"%",goal:"≥ 65%",dir:"high",thresh:[70,65,55]},
+  ];
+  scFillTable($("#scRetTable"),retMetrics);
+
+  // Overall score (weighted average of scored metrics — exclude non-scored ones like floor hrs / cust)
+  const allScored=[...svcMetrics,...prodMetrics.slice(0,3),...retMetrics];
+  let totalScore=0,totalWeight=0;
+  allScored.forEach(m=>{
+    const s=scScore(m.val,null,m.dir,m.thresh);
+    if(s.score!==null){totalScore+=s.score;totalWeight++;}
+  });
+  const overall=totalWeight>0?(totalScore/totalWeight):null;
+  if(overall!==null){
+    const oPct=Math.round((overall/3)*100);
+    $("#scOverallScore").textContent=oPct+"%";
+    const oLabel=overall>=2.5?"Excellent":overall>=1.8?"Good":overall>=1.0?"Meets Expectations":"Below Expectations";
+    const oColor=overall>=2.5?"#089f45":overall>=1.8?"#048667":overall>=1.0?"#b8860b":"#d32f2f";
+    $("#scOverallLabel").textContent=oLabel;
+    $("#scOverallScore").style.color=oColor;
+  } else {
+    $("#scOverallScore").textContent="—";
+    $("#scOverallLabel").textContent="Insufficient data";
+  }
+
+  // ---- Compensation Breakdown ----
+  scRenderComp(sid,sty);
+
+  // ---- CPH Simulator ----
+  scRenderSim(sid,sty,perfData);
+
+  // ---- Weekly Trend Chart ----
+  scRenderTrend(sid,sty);
+}
+
+function scFillTable(tbl,metrics){
+  const tbody=tbl.querySelector("tbody");tbody.innerHTML="";
+  metrics.forEach(m=>{
+    const s=scScore(m.val,null,m.dir,m.thresh);
+    const valStr=(m.val!=null&&!isNaN(m.val))?m.fmt(m.val):"—";
+    const scoreStr=s.score!==null?SC_LABELS[s.score]:"—";
+    const tr=document.createElement("tr");
+    tr.innerHTML="<td>"+m.name+"</td><td>"+valStr+"</td><td>"+m.goal+"</td><td class='"+s.cls+"'>"+scoreStr+"</td>";
+    tbody.appendChild(tr);
+  });
+}
+
+function scGetWeeklyPerf(sid,sty,wk){
+  const out={cph:null,avgHC:null,prodvity:null,payrollPct:null,stdProdPct:null,avgMinBtwn:null,newRetPct:null,repRetPct:null,floorHrs:null,cust:null};
+  const wData=DATA.weeklies[wk];
+  if(!wData||!wData.EPP||!wData.EPP[sid]) return out;
+  // EPP: [stylist_name,floor_hrs,cust,avg_hc,cph,std_prod_pct,svc_disc_pct,prodvity,payroll_pct,new_ret_pct,rep_ret_pct,avg_min_btwn]
+  const row=wData.EPP[sid].find(r=>r[0]===sty);
+  if(!row) return out;
+  out.floorHrs=row[1];out.cust=row[2];out.avgHC=row[3];out.cph=row[4];
+  out.stdProdPct=row[5];out.prodvity=row[7];out.payrollPct=row[8];
+  out.newRetPct=row[9];out.repRetPct=row[10];out.avgMinBtwn=row[11];
+  return out;
+}
+
+function scGetMonthlyPerf(sid,sty,monthStr){
+  // Aggregate weekly EPP data for all weeks whose week_ending falls in the month
+  const out={cph:null,avgHC:null,prodvity:null,payrollPct:null,stdProdPct:null,avgMinBtwn:null,newRetPct:null,repRetPct:null,floorHrs:null,cust:null};
+  const matchingWeeks=DATA.weeks.filter(w=>w.substring(0,7)===monthStr).sort();
+  if(matchingWeeks.length===0) return out;
+
+  let totalFloor=0,totalCust=0,weightedHC=0,weightedCPH=0,weightedProd=0,weightedPayroll=0,
+      weightedStdProd=0,weightedMinBtwn=0,nRet=0,rRet=0,nRetWt=0,rRetWt=0,count=0;
+  matchingWeeks.forEach(wk=>{
+    const wData=DATA.weeklies[wk];
+    if(!wData||!wData.EPP||!wData.EPP[sid]) return;
+    const row=wData.EPP[sid].find(r=>r[0]===sty);
+    if(!row) return;
+    const hrs=row[1]||0, cust=row[2]||0;
+    totalFloor+=hrs; totalCust+=cust;
+    if(hrs>0){
+      weightedHC+=(row[3]||0)*hrs; weightedCPH+=(row[4]||0)*hrs;
+      weightedStdProd+=(row[5]||0)*hrs; weightedProd+=(row[7]||0)*hrs;
+      weightedPayroll+=(row[8]||0)*hrs; weightedMinBtwn+=(row[11]||0)*hrs;
+    }
+    if(row[9]!=null&&row[9]>0){nRet+=row[9]*(cust||1);nRetWt+=(cust||1);}
+    if(row[10]!=null&&row[10]>0){rRet+=row[10]*(cust||1);rRetWt+=(cust||1);}
+    count++;
+  });
+  if(count===0) return out;
+  out.floorHrs=totalFloor;
+  out.cust=totalCust;
+  if(totalFloor>0){
+    out.avgHC=weightedHC/totalFloor;
+    out.cph=weightedCPH/totalFloor;
+    out.stdProdPct=weightedStdProd/totalFloor;
+    out.prodvity=weightedProd/totalFloor;
+    out.payrollPct=weightedPayroll/totalFloor;
+    out.avgMinBtwn=weightedMinBtwn/totalFloor;
+  }
+  if(nRetWt>0) out.newRetPct=nRet/nRetWt;
+  if(rRetWt>0) out.repRetPct=rRet/rRetWt;
+  return out;
+}
+
+async function scRenderComp(sid,sty){
+  const earn=await scLoadEarnings();
+  const row=earn.find(r=>String(r.salon_id)===sid && r.employee_name===sty);
+  const tbody=$("#scCompTable").querySelector("tbody");tbody.innerHTML="";
+  if(!row){
+    tbody.innerHTML="<tr><td colspan=2 style='color:var(--muted)'>No earnings data found for this stylist at this salon.</td></tr>";
+    if(SC_CHARTS.comp){SC_CHARTS.comp.destroy();SC_CHARTS.comp=null;}
+    return;
+  }
+  // Update hint with actual date range
+  const hint=document.querySelector("#scContent .card:nth-child(4) .hint");
+  if(hint) hint.textContent="YTD earnings summary ("+new Date(row.period_start+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})+" – "+new Date(row.period_end+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+")";
+
+  const basePay=Number(row.total_base_pay)||0;
+  const overtime=Number(row.overtime_pay)||0;
+  const prodBonus=Number(row.product_bonus)||0;
+  const prodvityBonus=Number(row.productivity_bonus)||0;
+  const sundayPay=Number(row.sunday_pay)||0;
+  const chargeTips=Number(row.charge_tips)||0;
+  const cashTips=Number(row.cash_tips)||0;
+  const checkTips=Number(row.check_tips)||0;
+  const totalTips=chargeTips+cashTips+checkTips;
+  const totalAll=basePay+overtime+prodBonus+prodvityBonus+sundayPay+totalTips;
+  const fmt=v=>"$"+v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  const items=[
+    ["Base Pay (Floor + Admin + Closing + Training)",basePay],
+    ["Overtime",overtime],
+    ["Product Bonus",prodBonus],
+    ["Productivity Bonus",prodvityBonus],
+    ["Sunday Pay",sundayPay],
+    ["Tips (Charge + Cash + Check)",totalTips],
+  ];
+  items.forEach(([label,amt])=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML="<td>"+label+"</td><td>"+fmt(amt)+"</td>";
+    tbody.appendChild(tr);
+  });
+  const totalTr=document.createElement("tr");totalTr.className="sc-comp-total";
+  totalTr.innerHTML="<td>Total Compensation</td><td>"+fmt(totalAll)+"</td>";
+  tbody.appendChild(totalTr);
+
+  // Also show base pay per hour and customers served
+  const bphTr=document.createElement("tr");
+  bphTr.innerHTML="<td style='color:var(--muted);font-size:12px'>Base Pay / Hour</td><td style='font-size:12px'>"+fmt(Number(row.base_pay_per_hour)||0)+"/hr</td>";
+  tbody.appendChild(bphTr);
+  const custTr=document.createElement("tr");
+  custTr.innerHTML="<td style='color:var(--muted);font-size:12px'>Customers Served (YTD)</td><td style='font-size:12px'>"+(row.customers_served||0).toLocaleString()+"</td>";
+  tbody.appendChild(custTr);
+
+  // Pie chart
+  const chartData=[basePay,overtime,prodBonus+prodvityBonus,sundayPay,totalTips].filter(v=>v>0);
+  const chartLabels=[];const chartColors=[];
+  if(basePay>0){chartLabels.push("Base Pay");chartColors.push("#048667");}
+  if(overtime>0){chartLabels.push("Overtime");chartColors.push("#e9a049");}
+  if(prodBonus+prodvityBonus>0){chartLabels.push("Bonuses");chartColors.push("#3b82f6");}
+  if(sundayPay>0){chartLabels.push("Sunday Pay");chartColors.push("#8b5cf6");}
+  if(totalTips>0){chartLabels.push("Tips");chartColors.push("#089f45");}
+
+  if(SC_CHARTS.comp){SC_CHARTS.comp.destroy();}
+  const ctx=document.getElementById("scCompChart").getContext("2d");
+  SC_CHARTS.comp=new Chart(ctx,{type:"doughnut",data:{labels:chartLabels,datasets:[{data:chartData,backgroundColor:chartColors,borderWidth:1}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{font:{size:11}}},
+      tooltip:{callbacks:{label:function(c){return c.label+": $"+c.raw.toLocaleString("en-US",{minimumFractionDigits:2});}}}}}});
+}
+
+function scRenderSim(sid,sty,perfData){
+  const currentCPH=perfData.cph||0;
+  $("#scSimCurrent").textContent=currentCPH.toFixed(1);
+  const slider=$("#scSimSlider");
+  slider.value=Math.max(0.5,Math.min(4.0,currentCPH));
+  slider.min=0.5;slider.max=4.0;slider.step=0.1;
+
+  const update=()=>{
+    const target=parseFloat(slider.value);
+    $("#scSimTarget").textContent=target.toFixed(1);
+    if(currentCPH>0 && target>currentCPH){
+      // Estimate: more CPH = more customers in same hours = proportionally more service revenue
+      // Using stylist_earnings data: total_base_pay + tips scale with customer count
+      // Simplify: earnings increase proportional to CPH increase ratio
+      const ratio=target/currentCPH;
+      // Get their YTD total compensation from earnings
+      scLoadEarnings().then(earn=>{
+        const row=earn.find(r=>String(r.salon_id)===sid && r.employee_name===sty);
+        if(!row){$("#scSimDelta").textContent="—";$("#scSimNote").textContent="";return;}
+        const ytdTotal=(Number(row.total_base_pay)||0)+(Number(row.overtime_pay)||0)+
+          (Number(row.product_bonus)||0)+(Number(row.productivity_bonus)||0)+
+          (Number(row.sunday_pay)||0)+(Number(row.charge_tips)||0)+(Number(row.cash_tips)||0)+(Number(row.check_tips)||0);
+        // Variable portion (tips + bonuses) scales with CPH; base pay is hourly so stays flat
+        const basePay=Number(row.total_base_pay)||0;
+        const variable=ytdTotal-basePay;
+        const additionalEarnings=variable*(ratio-1);
+        const fmt=v=>"$"+v.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
+        if(additionalEarnings>0){
+          $("#scSimDelta").textContent="+"+fmt(additionalEarnings)+"/yr (est.)";
+          $("#scSimDelta").style.color="var(--green)";
+        } else {
+          $("#scSimDelta").textContent="$0";
+          $("#scSimDelta").style.color="var(--muted)";
+        }
+        const extraCust=Math.round((perfData.floorHrs||0)*(target-currentCPH));
+        $("#scSimNote").textContent="≈ "+Math.abs(extraCust)+" additional customers over same floor hours, driving more tips & bonuses.";
+      });
+    } else {
+      $("#scSimDelta").textContent=target<=currentCPH?"—":"$0";
+      $("#scSimDelta").style.color="var(--muted)";
+      $("#scSimNote").textContent=target<=currentCPH?"Move slider above current CPH to see potential earnings increase.":"";
+    }
+  };
+  slider.oninput=update;
+  update();
+}
+
+function scRenderTrend(sid,sty){
+  // Show CPH, Productivity, Payroll % over recent weeks
+  const weeks=[...DATA.weeks].sort();
+  const labels=[],cphData=[],prodData=[],payrollData=[];
+  weeks.forEach(wk=>{
+    const wData=DATA.weeklies[wk];
+    if(!wData||!wData.EPP||!wData.EPP[sid]) return;
+    const row=wData.EPP[sid].find(r=>r[0]===sty);
+    if(!row) return;
+    const d=new Date(wk+"T12:00:00");
+    labels.push(d.toLocaleDateString("en-US",{month:"short",day:"numeric"}));
+    cphData.push(row[4]);prodData.push(row[7]);payrollData.push(row[8]);
+  });
+  if(labels.length<2){
+    $("#scTrendHint").textContent="Not enough weekly data to show a trend.";
+    if(SC_CHARTS.trend){SC_CHARTS.trend.destroy();SC_CHARTS.trend=null;}
+    return;
+  }
+  $("#scTrendHint").textContent="Performance over "+labels.length+" weeks";
+  if(SC_CHARTS.trend) SC_CHARTS.trend.destroy();
+  const ctx=document.getElementById("scTrendChart").getContext("2d");
+  SC_CHARTS.trend=new Chart(ctx,{type:"line",data:{labels,datasets:[
+    {label:"CPH",data:cphData,borderColor:"#048667",backgroundColor:"rgba(4,134,103,0.1)",fill:false,tension:0.3,yAxisID:"y"},
+    {label:"Productivity %",data:prodData,borderColor:"#3b82f6",backgroundColor:"rgba(59,130,246,0.1)",fill:false,tension:0.3,yAxisID:"y1"},
+    {label:"Payroll %",data:payrollData,borderColor:"#e4002b",backgroundColor:"rgba(228,0,43,0.1)",fill:false,tension:0.3,yAxisID:"y1"},
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+    plugins:{legend:{labels:{font:{size:11}}}},
+    scales:{y:{type:"linear",position:"left",title:{display:true,text:"CPH"},min:0},
+      y1:{type:"linear",position:"right",title:{display:true,text:"%"},grid:{drawOnChartArea:false}}}}});
+}
+
+function scPrint(){
+  const sid=$("#scSalon").value,sty=$("#scStylist").value;
+  if(!sid||!sty) return;
+  const sname=DATA.salons[sid]||sid;
+  const am=SALON_AM[sid]||"—";
+  const periodLabel=SC_MODE==="weekly"?
+    ("Week ending "+new Date($("#scWeek").value+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})):
+    (new Date(+($("#scMonth").value.split("-")[0]),+($("#scMonth").value.split("-")[1])-1,1).toLocaleDateString("en-US",{month:"long",year:"numeric"}));
+  const logoSrc=document.querySelector("header img")?.src||"";
+
+  // Clone scorecard content
+  const content=document.getElementById("scContent").cloneNode(true);
+  content.style.display="block";
+  // Show print header
+  const ph=content.querySelector("#scPrintHeader");if(ph)ph.style.display="flex";
+  // Remove simulator & trend cards
+  const sim=content.querySelector("#scSimCard");if(sim)sim.remove();
+  const trend=content.querySelector("#scTrendCard");if(trend)trend.remove();
+  // Remove comp chart (canvas doesn't clone well) — keep the table
+  const chartBox=content.querySelectorAll(".chart-box");
+  chartBox.forEach(cb=>cb.remove());
+
+  const w=window.open("","_blank");
+  w.document.write("<!DOCTYPE html><html><head><title>Scorecard — "+sty+"</title><style>");
+  w.document.write("body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0.5in;color:#1a1a2e;font-size:13px}");
+  w.document.write("h3{font-size:14px;color:#1a3a5c;margin:14px 0 4px}");
+  w.document.write(".hint{font-size:11px;color:#5a6a7e;margin-bottom:6px}");
+  w.document.write(".card{border:1px solid #ddd;border-radius:8px;padding:16px;margin-bottom:14px;page-break-inside:avoid}");
+  w.document.write(".grid.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}");
+  w.document.write(".sc-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}");
+  w.document.write(".sc-tbl th{padding:6px 8px;background:#f0f3f7;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#5a6a7e;border-bottom:2px solid #ddd}");
+  w.document.write(".sc-tbl td{padding:6px 8px;text-align:center;border-bottom:1px solid #eee}");
+  w.document.write(".sc-tbl td:first-child,.sc-tbl th:first-child{text-align:left}");
+  w.document.write(".sc-exc{background:#e6f9f0;color:#089f45;font-weight:700}.sc-good{background:#f0f7ff;color:#048667;font-weight:700}");
+  w.document.write(".sc-avg{background:#fff8e6;color:#b8860b;font-weight:600}.sc-below{background:#fef0f0;color:#d32f2f;font-weight:600}");
+  w.document.write(".sc-comp-total td{font-weight:800;font-size:13px;border-top:2px solid #ddd}");
+  w.document.write("#scPrintHeader{display:flex;align-items:center;gap:16px;margin-bottom:20px;border-bottom:2px solid #1a3a5c;padding-bottom:12px}");
+  w.document.write("#scPrintHeader img{height:36px}#scPrintHeader h1{font-size:16px;margin:0;color:#1a3a5c}#scPrintHeader .sub{font-size:11px;color:#5a6a7e}");
+  w.document.write("@page{size:letter portrait;margin:0.5in}");
+  w.document.write("</style></head><body>");
+  w.document.write(content.innerHTML);
+  w.document.write("</body></html>");
+  w.document.close();
+  setTimeout(()=>w.print(),400);
 }
 
 </script>

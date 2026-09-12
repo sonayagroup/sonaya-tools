@@ -654,7 +654,7 @@ function ytdYear(){return DATES.length?DATES[0].slice(0,4):String(new Date().get
 function computeYTD(){
   const yr=ytdYear(),prefix=yr+"-";
   const sids=Object.keys(DATA.salons||{});
-  // per-salon accumulators: {sid: {sales,cust,paySum,hcSum,cphSum,prodSum,waitSum,w15Sum,cgSum,sgSum,days,monthly:{YYYY-MM:{sales,cust,paySum,cphSum,days}}}}
+  // Daily accumulators for totals (sales, cust) + monthly breakdowns + fallback averages
   const acc={};sids.forEach(id=>{acc[id]={sales:0,svcSales:0,prodSales:0,cust:0,paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,days:0,monthly:{}};});
   Object.keys(DATA.days||{}).sort().forEach(d=>{
     if(!d.startsWith(prefix))return;
@@ -667,10 +667,30 @@ function computeYTD(){
       const m=a.monthly[mo];m.sales+=s[4]||0;m.cust+=s[5]||0;if(typeof s[6]==="number"){m.paySum+=s[6];m.cphSum+=s[8];m.days++;}
     });
   });
-  // Build SAL-like rows for portfolio table: [sid, name, svcSales, prodSales, totalSales, cust, avgPayroll, avgHC, avgCPH, avgProdvity, avgWait, avgW15, avgCG, avgSG]
+  // Use weekly_salon averages across all completed weeks for proper YTD metrics —
+  // these are GC's own properly-weighted aggregates, not simple daily averages.
+  const wacc={};sids.forEach(id=>{wacc[id]={paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,weeks:0};});
+  Object.keys(DATA.weeklies||{}).sort().forEach(wk=>{
+    if(!wk.startsWith(prefix))return;
+    const wsalWeek=(DATA.weeklies[wk]||{}).WSAL||{};
+    sids.forEach(id=>{
+      const ws=wsalWeek[id];if(!ws)return;const w=wacc[id];
+      w.paySum+=Number(ws[WS.payrollPct])||0;w.hcSum+=Number(ws[WS.avgHC])||0;
+      w.cphSum+=Number(ws[WS.cutsHr])||0;w.prodSum+=Number(ws[WS.prodvity])||0;
+      w.waitSum+=Number(ws[WS.avgWait])||0;w.w15Sum+=Number(ws[WS.waitOver15Pct])||0;
+      w.cgSum+=Number(ws[WS.custGrowthPct])||0;w.sgSum+=Number(ws[WS.salesGrowthPct])||0;
+      w.weeks++;
+    });
+  });
+  // Build SAL-like rows: use weekly_salon averages when available, daily averages as fallback
   const rows=[];
   sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
-    rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,a.paySum/n,a.hcSum/n,a.cphSum/n,a.prodSum/n,a.waitSum/n,a.w15Sum/n,a.cgSum/n,a.sgSum/n]);
+    const w=wacc[id],wn=w.weeks;
+    rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,
+      wn?w.paySum/wn:a.paySum/n, wn?w.hcSum/wn:a.hcSum/n,
+      wn?w.cphSum/wn:a.cphSum/n, wn?w.prodSum/wn:a.prodSum/n,
+      wn?w.waitSum/wn:a.waitSum/n, wn?w.w15Sum/wn:a.w15Sum/n,
+      wn?w.cgSum/wn:a.cgSum/n, wn?w.sgSum/wn:a.sgSum/n]);
   });
   return {rows,acc,year:yr};
 }
@@ -687,29 +707,42 @@ function computeWTD(){
   const latest=DATES[0]; // DATES is sorted descending
   if(!latest)return {rows:[],weekStart:"",weekEnd:"",daysInWeek:0};
   const wkStart=gcWeekStart(latest);
-  // Collect all dates in this week (from wkStart up to latest)
   const sids=Object.keys(DATA.salons||{});
+  // Accumulate daily sums for totals (sales, cust, cash) + fallback averages
   const acc={};sids.forEach(id=>{acc[id]={sales:0,svcSales:0,prodSales:0,cust:0,paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,cashOS:0,days:0};});
-  let daysInWeek=0;
   Object.keys(DATA.days||{}).sort().forEach(d=>{
     if(d<wkStart||d>latest)return;
-    daysInWeek=Math.max(daysInWeek,(DATA.days[d].SAL||[]).length>0?daysInWeek+1:daysInWeek);
     (DATA.days[d].SAL||[]).forEach(s=>{
       const id=String(s[0]);if(!acc[id])return;const a=acc[id];
       a.sales+=s[4]||0;a.svcSales+=s[2]||0;a.prodSales+=s[3]||0;a.cust+=s[5]||0;
       if(typeof s[6]==="number"){a.paySum+=s[6];a.hcSum+=s[7];a.cphSum+=s[8];a.prodSum+=s[9];a.waitSum+=s[10];a.w15Sum+=s[11];a.cgSum+=s[12];a.sgSum+=s[13];a.cashOS+=(s[14]||0);a.days++;}
     });
   });
-  // Count unique dates with data
   const weekDates=Object.keys(DATA.days||{}).filter(d=>d>=wkStart&&d<=latest&&(DATA.days[d].SAL||[]).length>0).sort();
-  daysInWeek=weekDates.length;
+  const daysInWeek=weekDates.length;
+  // Compute the Friday end of this GC week
+  const wkEndD=new Date(wkStart+"T12:00:00");wkEndD.setDate(wkEndD.getDate()+6);
+  const weekEnd=wkEndD.toISOString().slice(0,10);
+  // Use weekly_salon (WSAL) values for averages & growth when available — they are the
+  // proper WTD aggregates from GC's Weekly Summary report (weighted by floor hours /
+  // customer volume, not simple daily averages). Fall back to averaged daily values
+  // only when weekly_salon has no data for this week yet (early-week before WTD upload).
+  const wsalWeek=(DATA.weeklies[weekEnd]||{}).WSAL||{};
   const rows=[];
   sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
-    rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,a.paySum/n,a.hcSum/n,a.cphSum/n,a.prodSum/n,a.waitSum/n,a.w15Sum/n,a.cgSum/n,a.sgSum/n,a.cashOS]);
+    const ws=wsalWeek[id];
+    rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,
+      ws?Number(ws[WS.payrollPct]):a.paySum/n,
+      ws?Number(ws[WS.avgHC]):a.hcSum/n,
+      ws?Number(ws[WS.cutsHr]):a.cphSum/n,
+      ws?Number(ws[WS.prodvity]):a.prodSum/n,
+      ws?Number(ws[WS.avgWait]):a.waitSum/n,
+      ws?Number(ws[WS.waitOver15Pct]):a.w15Sum/n,
+      ws?Number(ws[WS.custGrowthPct]):a.cgSum/n,
+      ws?Number(ws[WS.salesGrowthPct]):a.sgSum/n,
+      a.cashOS]);
   });
-  // Compute the Friday end of this week
-  const wkEndD=new Date(wkStart+"T12:00:00");wkEndD.setDate(wkEndD.getDate()+6);
-  return {rows,acc,weekStart:wkStart,weekEnd:wkEndD.toISOString().slice(0,10),daysInWeek,weekDates};
+  return {rows,acc,weekStart:wkStart,weekEnd,daysInWeek,weekDates};
 }
 // --- Supabase recaps (read + upsert) ---
 function supaHeaders(extra){return Object.assign({apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},extra||{});}
@@ -929,7 +962,7 @@ function renderPortYTD(){
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];detMode="ytd";document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x.dataset.mode==="ytd"));$("#detDay").style.display="none";$("#detWeek").style.display="none";$("#detYTD").style.display="";renderDetail();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
-  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">YTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth)</td></tr>`:"";
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">YTD totals (sales/cust) · metrics averaged from weekly summaries</td></tr>`:"";
 }
 function renderPortWTD(){
   const wtd=computeWTD();const SAL=wtd.rows;
@@ -955,7 +988,7 @@ function renderPortWTD(){
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
-  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">WTD totals (sales/cust) · averages (payroll/HC/CPH/wait/growth) · ${wtd.daysInWeek} of 7 days</td></tr>`:"";
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td colspan="8" class="sub">WTD totals (sales/cust) · metrics from weekly summary when available · ${wtd.daysInWeek} of 7 days</td></tr>`:"";
 }
 document.querySelectorAll("#portTable thead th").forEach(th=>th.onclick=()=>{if(th.dataset.k===undefined)return;const k=+th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=(k===0?1:-1);}renderPort();});
 function mk(id,type,labels,datasets,opt){opt=opt||{};if(charts[id])charts[id].destroy();const horiz=opt.indexAxis==="y";

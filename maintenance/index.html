@@ -395,6 +395,7 @@ async function loadAll(){
     load('dt_suppliers','company_name',true),
     load('dt_wo_receipts','created_at',false),
     load('dt_wo_assignees','created_at',false),
+    load('dt_pm_checklists','created_at',false),
   ]);
 }
 async function upsert(table, row, id){
@@ -1181,6 +1182,9 @@ window.savePM = async function(id){
 };
 window.completePM = function(id,freq){
   const p=(cache.dt_pm_schedules||[]).find(x=>x.id===id)||{};
+  const eq=(cache.dt_equipment||[]).find(e=>e.id===p.equipment_id)||{};
+  const isRTU=eq.name&&eq.name.toUpperCase().includes('RTU');
+  if(isRTU){openRTUChecklist(id,freq,p,eq);return;}
   const existingPhotos=getPhotos('pm_completion',id);
   openModal(`
     <div class="modal-header"><h3>Complete PM Task</h3><button class="btn-icon" onclick="closeModal()">✕</button></div>
@@ -1196,6 +1200,82 @@ window.completePM = function(id,freq){
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitPMCompletion('${id}',${freq})">✓ Mark Complete</button></div>`);
 };
+/* ── RTU PM Checklist ── */
+function ynSelect(id,label,hint){
+  return `<div class="form-row" style="align-items:center;gap:8px;margin-bottom:8px">
+    <div style="flex:1"><label style="margin:0;font-weight:500">${label}</label>${hint?`<div style="font-size:.75rem;color:var(--text-muted)">${hint}</div>`:''}</div>
+    <select id="${id}" style="width:100px"><option value="">—</option><option value="Y">Yes</option><option value="N">No</option><option value="NA">N/A</option></select>
+  </div>`;
+}
+function openRTUChecklist(id,freq,p,eq){
+  const prevChecklist=(cache.dt_pm_checklists||[]).filter(c=>c.equipment_id===eq.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0]||{};
+  openModal(`
+    <div class="modal-header"><h3>RTU PM Checklist</h3><button class="btn-icon" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+      <div style="background:var(--surface-2);padding:12px;border-radius:var(--radius);margin-bottom:16px">
+        <strong>${p.task_name||'RTU PM'}</strong><br>
+        <span style="font-size:.85rem;color:var(--text-secondary)">${locName(p.location_id)} · ${eqName(p.equipment_id)}</span>
+      </div>
+
+      <fieldset style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:16px">
+        <legend style="font-weight:700;padding:0 6px">Equipment Details</legend>
+        <div class="form-row">
+          <div class="form-group"><label>RTU # / Label</label><input id="ck-rtu" placeholder="e.g. RTU-1" value="${prevChecklist.rtu_number||''}"></div>
+          <div class="form-group"><label>Refrigerant Type</label><input id="ck-refrig" placeholder="e.g. R410A" value="${prevChecklist.refrigerant_type||''}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Incoming Voltage</label><input id="ck-voltage" placeholder="e.g. 208" value="${prevChecklist.incoming_voltage||''}"></div>
+          <div class="form-group"><label>Supply Fan Amps</label><input id="ck-supply-fan" placeholder="e.g. 2.0"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Compressor Amps</label><input id="ck-comp-amps" placeholder="e.g. 12.5"></div>
+          <div class="form-group"><label>Suction Pressure</label><input id="ck-suction" placeholder="e.g. 135"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Discharge Pressure</label><input id="ck-discharge" placeholder="e.g. 410"></div>
+          <div class="form-group"><label>Condenser Fan Motor Amps</label><input id="ck-cond-fan" placeholder="e.g. 1.0"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Return Air Temp (°F)</label><input id="ck-return-temp" placeholder="e.g. 70"></div>
+          <div class="form-group"><label>Supply Air Temp (°F)</label><input id="ck-supply-temp" placeholder="e.g. 41"></div>
+        </div>
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:16px">
+        <legend style="font-weight:700;padding:0 6px">Cleaning / Inspection</legend>
+        ${ynSelect('ck-clean-area','Clean the area around the unit?','')}
+        ${ynSelect('ck-clean-coils','Clean condenser coils?','Attach photo if cleaned')}
+        ${ynSelect('ck-filters','Replace / wash air filters?','')}
+        <div class="form-group" style="margin-bottom:8px"><label>Filter Size</label><input id="ck-filter-size" placeholder="e.g. 20x25x2"></div>
+        ${ynSelect('ck-inspect-belt','Inspect fan belt?','')}
+        ${ynSelect('ck-replace-belt','Replace fan belt?','')}
+        <div class="form-group" style="margin-bottom:8px"><label>Belt Size</label><input id="ck-belt-size" placeholder="If replaced, enter belt size"></div>
+        ${ynSelect('ck-lube','Lubricate motors / moving parts?','')}
+        ${ynSelect('ck-electrical','Inspect / tighten electrical connections?','')}
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:16px">
+        <legend style="font-weight:700;padding:0 6px">Heating Season Items</legend>
+        ${ynSelect('ck-gas','Check gas pressure?','')}
+        ${ynSelect('ck-heat-exchanger','Inspect heat exchanger?','')}
+        ${ynSelect('ck-ignition','Check ignition system?','')}
+        ${ynSelect('ck-flue','Inspect flue / venting?','')}
+      </fieldset>
+
+      <fieldset style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:16px">
+        <legend style="font-weight:700;padding:0 6px">Notes & Repairs</legend>
+        <div class="form-group"><label>Recommended Repairs / Concerns</label><textarea id="ck-repairs" rows="2" placeholder="List any issues found, parts needed..."></textarea></div>
+        ${ynSelect('ck-notified','Notify store manager of unit status?','')}
+        ${ynSelect('ck-quote','Create a quote for repairs?','')}
+        <div class="form-group"><label>Additional Notes</label><textarea id="ck-notes" rows="2" placeholder="Any other notes..."></textarea></div>
+      </fieldset>
+
+      <div class="form-group"><label>Photos</label>
+        ${photoGalleryHTML('pm_completion',id)}
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitRTUChecklist('${id}',${freq})">✓ Submit & Complete</button></div>`);
+}
 window.submitPMCompletion = async function(id,freq){
   const today=new Date().toISOString().slice(0,10);
   const nextDate=new Date();nextDate.setDate(nextDate.getDate()+freq);
@@ -1219,6 +1299,74 @@ window.submitPMCompletion = async function(id,freq){
     closeModal();
     toast('PM complete — maintenance log created automatically');
     await Promise.all([load('dt_pm_schedules','next_due',true),load('dt_maintenance_logs','created_at',false)]);
+    render();
+  }
+};
+window.submitRTUChecklist = async function(id,freq){
+  const today=new Date().toISOString().slice(0,10);
+  const nextDate=new Date();nextDate.setDate(nextDate.getDate()+freq);
+  const pm=(cache.dt_pm_schedules||[]).find(x=>x.id===id)||{};
+  const notes=$('#ck-notes')?.value||'';
+  const repairs=$('#ck-repairs')?.value||'';
+
+  // 1. Save checklist to dt_pm_checklists
+  const checklist={
+    pm_schedule_id:id,
+    equipment_id:pm.equipment_id||null,
+    location_id:pm.location_id||null,
+    performed_by:teamName(pm.assigned_to)||null,
+    date_performed:today,
+    rtu_number:$('#ck-rtu')?.value||null,
+    refrigerant_type:$('#ck-refrig')?.value||null,
+    incoming_voltage:$('#ck-voltage')?.value||null,
+    compressor_amps:$('#ck-comp-amps')?.value||null,
+    suction_pressure:$('#ck-suction')?.value||null,
+    discharge_pressure:$('#ck-discharge')?.value||null,
+    supply_fan_amps:$('#ck-supply-fan')?.value||null,
+    return_air_temp:$('#ck-return-temp')?.value||null,
+    supply_air_temp:$('#ck-supply-temp')?.value||null,
+    condenser_fan_motor_amps:$('#ck-cond-fan')?.value||null,
+    cleaned_area:$('#ck-clean-area')?.value||null,
+    cleaned_condenser_coils:$('#ck-clean-coils')?.value||null,
+    replaced_air_filters:$('#ck-filters')?.value||null,
+    filter_size:$('#ck-filter-size')?.value||null,
+    inspected_fan_belt:$('#ck-inspect-belt')?.value||null,
+    replaced_fan_belt:$('#ck-replace-belt')?.value||null,
+    belt_size:$('#ck-belt-size')?.value||null,
+    lubricated_motors:$('#ck-lube')?.value||null,
+    inspected_electrical:$('#ck-electrical')?.value||null,
+    checked_gas_pressure:$('#ck-gas')?.value||null,
+    checked_heat_exchanger:$('#ck-heat-exchanger')?.value||null,
+    checked_ignition_system:$('#ck-ignition')?.value||null,
+    checked_flue:$('#ck-flue')?.value||null,
+    recommended_repairs:repairs||null,
+    notified_customer:$('#ck-notified')?.value||null,
+    created_quote:$('#ck-quote')?.value||null,
+    additional_notes:notes||null
+  };
+  const ckRes=await sb.from('dt_pm_checklists').insert(checklist);
+  if(ckRes.error){toast('Error saving checklist: '+ckRes.error.message,'error');return;}
+
+  // 2. Complete the PM schedule (same as submitPMCompletion)
+  const pmRow={last_completed:today,next_due:nextDate.toISOString().slice(0,10),updated_at:new Date().toISOString()};
+  const summaryNotes=[repairs,notes].filter(Boolean).join(' | ')||`RTU PM checklist completed`;
+  pmRow.description=(pm.description?pm.description+'\n':'')+`[${today}] ${summaryNotes}`;
+  if(await upsert('dt_pm_schedules',pmRow,id)){
+    // 3. Auto-create maintenance log
+    const logEntry={
+      title:`RTU PM: ${pm.task_name||'RTU Preventive Maintenance'}`,
+      location_id:pm.location_id||null,
+      equipment_id:pm.equipment_id||null,
+      log_type:'maintenance',
+      cost:null,
+      performed_by:teamName(pm.assigned_to)||null,
+      vendor_id:pm.vendor_id||null,
+      description:summaryNotes
+    };
+    await sb.from('dt_maintenance_logs').insert(logEntry);
+    closeModal();
+    toast('RTU checklist saved — PM complete & maintenance log created');
+    await Promise.all([load('dt_pm_schedules','next_due',true),load('dt_maintenance_logs','created_at',false),load('dt_pm_checklists','created_at',false)]);
     render();
   }
 };

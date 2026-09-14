@@ -81,11 +81,11 @@
   .sync-text { font-size: 1.25vh; color: var(--text-muted); }
 
   /* ---- hero grid ---- */
-  .hero { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1fr 0.92fr; gap: 1.4vw; min-height: 0; }
+  .hero { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1fr 1fr 1.05fr; gap: 1.2vw; min-height: 0; }
 
   .card {
     background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow-md); padding: 2vh 1.8vw; display: flex; flex-direction: column; min-height: 0;
+    box-shadow: var(--shadow-md); padding: 2vh 1.4vw; display: flex; flex-direction: column; min-height: 0;
   }
 
   /* ---- rep card ---- */
@@ -137,6 +137,23 @@
   .stale-line { margin-top: 1vh; padding-top: 1vh; border-top: 1px solid var(--gridline); font-size: 1.3vh; color: var(--text-muted); }
   .stale-line b { color: var(--status-warn); }
   .empty-followups { font-size: 1.5vh; color: var(--text-muted); padding: 1vh 0; }
+
+  /* ---- estimate calendar row ---- */
+  .cal-row { flex: 0 0 auto; }
+  .cal-section-label { font-size: 1.3vh; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.8vh; }
+  .cal-days { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1vw; }
+  .cal-day {
+    background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 1vh 1vh; display: flex; flex-direction: column; min-height: 0;
+  }
+  .cal-day.is-today { border-color: var(--brand-teal); }
+  .cal-day-head { font-size: 1.4vh; font-weight: 800; color: var(--text-primary); margin-bottom: 0.6vh; display: flex; justify-content: space-between; align-items: baseline; }
+  .cal-day-head .cal-date-num { color: var(--text-muted); font-weight: 600; font-size: 1.2vh; }
+  .cal-appt { font-size: 1.3vh; padding: 0.3vh 0; display: flex; justify-content: space-between; gap: 6px; border-top: 1px solid var(--gridline); }
+  .cal-appt:first-of-type { border-top: none; }
+  .cal-appt .cal-time { color: var(--text-primary); font-weight: 700; white-space: nowrap; }
+  .cal-appt .cal-rep { color: var(--text-muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-open { font-size: 1.3vh; color: var(--status-good); font-weight: 700; padding-top: 0.3vh; }
 
   /* ---- footer ---- */
   .tv-footer { flex: 0 0 auto; display: flex; gap: 1.4vw; align-items: stretch; }
@@ -231,6 +248,28 @@
       </div>
     </div>
 
+    <div class="card rep-card" id="repCard-frank">
+      <div>
+        <div class="rep-top">
+          <div class="rep-avatar" style="background:var(--cat-3)">FE</div>
+          <div>
+            <div class="rep-period">This Month · Commercial</div>
+            <div class="rep-name">Frank Emanuel</div>
+          </div>
+        </div>
+        <div class="rep-goal-num" id="frankRevenue">$0</div>
+        <div class="rep-goal-of">of <b id="frankGoal">$125,000</b> monthly goal</div>
+        <div class="progress-track"><div class="progress-fill" id="frankBar" style="width:0%;background:var(--status-ok)"></div></div>
+        <div class="pace-chip" id="frankPace" style="background:var(--status-ok-bg);color:var(--status-ok)">—</div>
+      </div>
+      <div class="rep-stats">
+        <div><div class="rep-stat-label">Close Rate</div><div class="rep-stat-value" id="frankCloseRate">—</div></div>
+        <div><div class="rep-stat-label">Bids Sent</div><div class="rep-stat-value" id="frankSent">—</div></div>
+        <div><div class="rep-stat-label">Open Pipeline</div><div class="rep-stat-value" id="frankOpenValue" style="font-size:1.75vh">—</div></div>
+        <div><div class="rep-stat-label">Stale 60+d</div><div class="rep-stat-value" id="frankStale" style="color:var(--status-warn)">—</div></div>
+      </div>
+    </div>
+
     <div class="side-col">
       <div class="card tile" style="flex: 0 0 auto;">
         <div class="tile-label">Team Pulse — Today</div>
@@ -250,6 +289,13 @@
         <ul class="followup-list" id="followupList"><li class="empty-followups">Loading…</li></ul>
         <div class="stale-line">Stale 90+ days: <b id="staleCount">—</b></div>
       </div>
+    </div>
+  </div>
+
+  <div class="cal-row">
+    <div class="cal-section-label">Estimate Calendar — Booked (Evaluation + Site Visit)</div>
+    <div class="cal-days" id="calDays">
+      <div class="cal-day"><div class="cal-day-head">Loading…</div></div>
     </div>
   </div>
 
@@ -278,11 +324,13 @@
   // built for an office TV, not for interactive browsing.
   //
   // Data sources:
-  //   - supabase.functions serviceminder-revenue?report=agent   -> today/week/MTD revenue per rep
-  //   - supabase.functions serviceminder-revenue?report=onthebooks -> allProposals (close rate, estimates sent)
+  //   - supabase.functions serviceminder-revenue?report=agent   -> today/week/MTD revenue per rep (incl. Frank Emanuel)
+  //   - supabase.functions serviceminder-revenue?report=onthebooks -> allProposals (close rate, bids sent, open pipeline $)
   //   - supabase.functions serviceminder-revenue?report=pacing  -> MTD team revenue
+  //   - supabase.functions koala-sales-calendar?days=N -> booked Evaluation/Site Visit appts, next N business days
   //   - supabase table crm_deals   -> Open Estimates + Follow-Ups Due + Stale 90+ (per user: "from the CRM tab")
-  //   - supabase table koala_dashboard_settings -> editable DAILY goals ($6,500/rep/day, per user 2026-09-14) + close rate goal
+  //   - supabase table koala_dashboard_settings -> editable DAILY goals for Gabriel/Mike ($6,500/day, per user
+  //     2026-09-14) + MONTHLY goal for Frank Emanuel (commercial, $125,000/mo, per user 2026-09-14) + close rate goal
   // ---------------------------------------------------------------------
 
   const SUPABASE_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
@@ -294,6 +342,7 @@
   ];
 
   let GOALS = { 'Gabriel Espinosa': 6500, 'Mike Jones': 6500 };
+  let COMMERCIAL_GOALS = { 'Frank Emanuel': 125000 };
   let CLOSE_RATE_GOAL = 0.70;
   let lastSyncAt = null;
 
@@ -335,6 +384,16 @@
     return u.toString();
   }
 
+  function calendarUrl(days) {
+    const u = new URL(`${SUPABASE_URL}/functions/v1/koala-sales-calendar`);
+    u.searchParams.set('days', days);
+    return u.toString();
+  }
+
+  function initials(name) {
+    return (name || '').split(' ').map(w => w[0]).join('').toUpperCase();
+  }
+
   function restUrl(table, query) {
     return `${SUPABASE_URL}/rest/v1/${table}?${query}`;
   }
@@ -346,6 +405,7 @@
       const rows = await fetchJSON(restUrl('koala_dashboard_settings', 'select=key,value'), { headers: REST_HEADERS });
       for (const row of rows) {
         if (row.key === 'sales_rep_daily_goals') GOALS = { ...GOALS, ...row.value };
+        if (row.key === 'commercial_rep_monthly_goals') COMMERCIAL_GOALS = { ...COMMERCIAL_GOALS, ...row.value };
         if (row.key === 'sales_close_rate_goal') CLOSE_RATE_GOAL = Number(row.value) || CLOSE_RATE_GOAL;
       }
     } catch (e) { console.warn('settings load failed, using defaults', e); }
@@ -353,6 +413,7 @@
       const rep = REPS[i];
       elm.textContent = fmtMoney(GOALS[rep.fullName] || 6500);
     });
+    document.getElementById('frankGoal').textContent = fmtMoney(COMMERCIAL_GOALS['Frank Emanuel'] || 125000);
   }
 
   // ---- proposals (close rate / estimates sent) cache ----
@@ -365,7 +426,13 @@
     if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
     return null;
   }
-  const WON_STATUSES = new Set(['Accepted', 'Scheduled', 'Invoiced']);
+  // 'Complete' is ServiceMinder's terminal status for a finished/paid job — the majority of
+  // actually-won jobs eventually land here (they pass through Accepted/Scheduled/Invoiced first,
+  // then move to Complete), so leaving it out of WON_STATUSES was undercounting close rate for
+  // every rep, not just commercial. Confirmed 2026-09-14 against live data (Mike Jones alone had
+  // 185 'Complete' proposals not being counted as wins) and corrected here and in
+  // koala-operations.html.
+  const WON_STATUSES = new Set(['Accepted', 'Scheduled', 'Invoiced', 'Complete']);
 
   function repFunnelStats(fullName, sinceISO) {
     if (!allProposalsCache) return { sent: null, closeRate: null };
@@ -381,6 +448,22 @@
       if (WON_STATUSES.has(status)) won++;
     }
     return { sent, closeRate: decided > 0 ? won / decided : null, decided, won };
+  }
+
+  // Open (undecided) pipeline for a rep, plus how much of it has been sitting for 60+ days
+  // without a decision — this is the number that actually matters for a commercial bid pipeline,
+  // where "Expired" (no answer ever came back) is common and easy to lose track of.
+  function repOpenPipeline(fullName) {
+    if (!allProposalsCache) return { count: 0, value: 0, staleCount: 0 };
+    const now = new Date();
+    let count = 0, value = 0, staleCount = 0;
+    for (const [v, status, acceptedDate, owner, leadSource, sentDate] of allProposalsCache) {
+      if (owner !== fullName || status !== 'Open') continue;
+      count++; value += Number(v) || 0;
+      const d = parseSMDate(sentDate);
+      if (d && (now - d) / 86400000 > 60) staleCount++;
+    }
+    return { count, value, staleCount };
   }
 
   // ---- render helpers ----
@@ -414,6 +497,16 @@
   function isNonBusinessDay() {
     const dow = new Date().getDay();
     return dow === 0 || dow === 6; // Sun/Sat
+  }
+
+  // Commercial (Frank) runs on a monthly target, not daily — pace against the fraction of the
+  // calendar month elapsed so far (no weekend gating; B2B deals close whenever they close).
+  function monthPaceStatus(actualFrac, monthFrac) {
+    if (actualFrac >= 1) return { label: 'Goal Hit 🎉', good: 'good' };
+    if (monthFrac <= 0.05) return { label: 'Month Starting', good: 'ok' };
+    if (actualFrac >= monthFrac * 0.9) return { label: 'On Pace', good: 'ok' };
+    if (actualFrac >= monthFrac * 0.55) return { label: 'Behind Pace', good: 'warn' };
+    return { label: 'Way Behind', good: 'critical' };
   }
 
   // ---- fast refresh: today's + weekly + MTD revenue per rep, team totals ----
@@ -465,6 +558,26 @@
     document.getElementById('teamBar').style.width = Math.min(100, (teamGoal > 0 ? teamTodayRevenue / teamGoal : 0) * 100) + '%';
     document.getElementById('teamWeekRevenue').textContent = fmtMoney(teamWeekRevenue);
 
+    // ---- Frank Emanuel (commercial, monthly cadence) ----
+    const frankGoal = COMMERCIAL_GOALS['Frank Emanuel'] || 125000;
+    const frankRow = (mtdAgent.reps || []).find(r => r.name === 'Frank Emanuel');
+    const frankRevenue = frankRow ? frankRow.revenue : 0;
+    document.getElementById('frankGoal').textContent = fmtMoney(frankGoal);
+    document.getElementById('frankRevenue').textContent = fmtMoney(frankRevenue);
+
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const monthFrac = Math.min(1, (now.getDate() - 1 + dayFracElapsed()) / daysInMonth);
+    const frankFrac = frankGoal > 0 ? frankRevenue / frankGoal : 0;
+    document.getElementById('frankBar').style.width = Math.min(100, frankFrac * 100) + '%';
+    const fStatus = monthPaceStatus(frankFrac, monthFrac);
+    const [fBar, fChipBg, fChipColor] = STATUS_VARS[fStatus.good];
+    document.getElementById('frankBar').style.background = fBar;
+    const frankPaceEl = document.getElementById('frankPace');
+    frankPaceEl.textContent = fStatus.label;
+    frankPaceEl.style.background = fChipBg;
+    frankPaceEl.style.color = fChipColor;
+
     markSynced();
   }
 
@@ -495,6 +608,35 @@
     });
     document.getElementById('mtdCloseRate').textContent = mtdDecided ? fmtPct(mtdWon / mtdDecided) : '—';
 
+    // ---- Frank Emanuel (commercial) close rate / bids sent / open pipeline ----
+    const frankStats = repFunnelStats('Frank Emanuel', monthStart);
+    document.getElementById('frankCloseRate').textContent = fmtPct(frankStats.closeRate);
+    document.getElementById('frankSent').textContent = frankStats.sent === null ? '—' : frankStats.sent;
+    const frankPipeline = repOpenPipeline('Frank Emanuel');
+    document.getElementById('frankOpenValue').textContent = fmtMoney(frankPipeline.value);
+    document.getElementById('frankStale').textContent = frankPipeline.staleCount;
+
+    markSynced();
+  }
+
+  // ---- estimate calendar: booked Evaluation/Site Visit appointments, next 5 business days ----
+  async function refreshCalendar() {
+    const data = await fetchJSON(calendarUrl(5));
+    const todayISO = todayLocalISO();
+    const grid = document.getElementById('calDays');
+    const days = data.days || [];
+    grid.innerHTML = days.map(day => {
+      const isToday = day.date === todayISO || day.iso === todayISO;
+      const dateObj = new Date((day.date || day.iso) + 'T00:00:00');
+      const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+      const apptsHtml = (day.appts || []).length
+        ? day.appts.map(a => `<div class="cal-appt"><span class="cal-time">${escapeHtml(a.time)}</span><span class="cal-rep">${escapeHtml(initials(a.rep))} — ${escapeHtml(a.customer || '')}</span></div>`).join('')
+        : `<div class="cal-open">Open — nothing booked</div>`;
+      return `<div class="cal-day${isToday ? ' is-today' : ''}">
+        <div class="cal-day-head"><span>${escapeHtml(day.dow)}</span><span class="cal-date-num">${escapeHtml(dateLabel)}</span></div>
+        ${apptsHtml}
+      </div>`;
+    }).join('');
     markSynced();
   }
 
@@ -612,13 +754,14 @@
     setInterval(tickSyncIndicator, 1000);
 
     await loadSettings();
-    await Promise.allSettled([refreshRevenue(), refreshCRM(), refreshPacing()]);
+    await Promise.allSettled([refreshRevenue(), refreshCRM(), refreshPacing(), refreshCalendar()]);
     refreshFunnel(); // slow — don't block first paint
 
     setInterval(() => refreshRevenue().catch(e => console.warn(e)), 90 * 1000);
     setInterval(() => refreshCRM().catch(e => console.warn(e)), 90 * 1000);
     setInterval(() => refreshPacing().catch(e => console.warn(e)), 5 * 60 * 1000);
     setInterval(() => refreshFunnel().catch(e => console.warn(e)), 15 * 60 * 1000);
+    setInterval(() => refreshCalendar().catch(e => console.warn(e)), 10 * 60 * 1000);
   }
   boot();
 </script>

@@ -2559,9 +2559,9 @@ const SOCIAL_PLATFORMS = [
     fields:[{key:'client_key',label:'Client Key',placeholder:'TikTok Client Key'},{key:'client_secret',label:'Client Secret',placeholder:'TikTok Client Secret',type:'password'}] },
   { key:'youtube', label:'YouTube', color:'var(--plat-yt)', hex:'#FF0000', icon:'&#9654;',
     modalTitle:'Connect via Google Cloud Console',
-    desc:'YouTube connects through the YouTube Data API v3. Enable the API in Google Cloud Console and generate an API key (or OAuth client for channel-level actions).',
+    desc:'YouTube connects through the YouTube Data API v3. Enable the API in Google Cloud Console and generate an API key. Paste your Channel ID (starts with UC…) to pull real stats.',
     oauth:'https://accounts.google.com/o/oauth2/v2/auth?client_id={CLIENT_ID}&redirect_uri={REDIRECT}&scope=https://www.googleapis.com/auth/youtube.readonly&response_type=code',
-    fields:[{key:'api_key',label:'API Key',placeholder:'YouTube Data API v3 key'}] },
+    fields:[{key:'api_key',label:'API Key',placeholder:'YouTube Data API v3 key'},{key:'channel_id',label:'Channel ID',placeholder:'e.g. UCxxxxxxxxxxxxxxxxxxxxxxx'}] },
 ];
 const API_CONN_KEY = 'sm_api_connections';
 
@@ -2590,7 +2590,9 @@ function renderConnections() {
       </div>
       ${isConnected ? `<div class="conn-card-body">
         <div class="conn-detail-row"><span>Account</span><span>@${escHtml(conn.handle||(state.brandName? state.brandName.toLowerCase().replace(/\s+/g,''):p.key+'_official'))}</span></div>
-        <div class="conn-detail-row"><span>Followers</span><span>${(conn.followers||'—')}</span></div>
+        <div class="conn-detail-row"><span>${p.key==='youtube'?'Subscribers':'Followers'}</span><span>${(conn.followers||'—')}</span></div>
+        ${p.key==='youtube'&&conn.video_count?`<div class="conn-detail-row"><span>Videos</span><span>${conn.video_count}</span></div>`:''}
+        ${p.key==='youtube'&&conn.view_count?`<div class="conn-detail-row"><span>Total Views</span><span>${conn.view_count}</span></div>`:''}
         <div class="conn-detail-row"><span>Last Sync</span><span>${conn.last_sync?new Date(conn.last_sync).toLocaleString():'Never'}</span></div>
       </div>
       <div class="conn-card-actions">
@@ -2675,9 +2677,42 @@ function testAllConnections() {
   setTimeout(() => showToast('All connections responded OK', 'success'), 900);
 }
 
-function syncPlatform(key) {
+async function syncPlatform(key) {
   const state = loadApiConnections();
   if (!state.platforms[key]) return;
+  // Real YouTube API sync
+  if (key === 'youtube' && state.platforms.youtube.api_key && state.platforms.youtube.channel_id) {
+    showToast('Syncing YouTube…', 'info');
+    try {
+      const apiKey = state.platforms.youtube.api_key;
+      const channelId = state.platforms.youtube.channel_id;
+      const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${encodeURIComponent(channelId)}&key=${encodeURIComponent(apiKey)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) { const err = await resp.json().catch(()=>({})); throw new Error(err.error?.message || resp.statusText); }
+      const data = await resp.json();
+      if (data.items && data.items.length > 0) {
+        const ch = data.items[0];
+        const stats = ch.statistics || {};
+        const snippet = ch.snippet || {};
+        state.platforms.youtube.channel_title = snippet.title || '';
+        state.platforms.youtube.handle = snippet.customUrl ? snippet.customUrl.replace(/^@/,'') : (snippet.title||'').toLowerCase().replace(/\s+/g,'');
+        state.platforms.youtube.subscribers = parseInt(stats.subscriberCount||'0').toLocaleString();
+        state.platforms.youtube.followers = parseInt(stats.subscriberCount||'0').toLocaleString();
+        state.platforms.youtube.video_count = parseInt(stats.videoCount||'0').toLocaleString();
+        state.platforms.youtube.view_count = parseInt(stats.viewCount||'0').toLocaleString();
+        state.platforms.youtube.thumbnail = snippet.thumbnails?.default?.url || '';
+        state.platforms.youtube.last_sync = new Date().toISOString();
+        saveApiConnections(state);
+        showToast(`YouTube synced — ${snippet.title}`, 'success');
+        renderConnections();
+        return;
+      } else {
+        showToast('YouTube: Channel not found', 'error');
+      }
+    } catch(e) {
+      showToast(`YouTube sync error: ${e.message}`, 'error');
+    }
+  }
   state.platforms[key].last_sync = new Date().toISOString();
   saveApiConnections(state);
   showToast(`${SOCIAL_PLATFORMS.find(p=>p.key===key)?.label||key} synced`, 'success');
@@ -2738,7 +2773,7 @@ function savePlatformCredentials(key) {
     return;
   }
   const p = SOCIAL_PLATFORMS.find(pl => pl.key === key); if (!p) return;
-  const data = { connected:true, connected_at:new Date().toISOString(), last_sync:new Date().toISOString(), followers:Math.floor(1000+Math.random()*20000).toLocaleString() };
+  const data = { connected:true, connected_at:new Date().toISOString(), last_sync:new Date().toISOString(), followers:'—' };
   let missingRequired = false;
   p.fields.forEach(f => {
     const el = document.getElementById(`conn-field-${f.key}`);
@@ -2747,12 +2782,16 @@ function savePlatformCredentials(key) {
     data[f.key] = v;
   });
   const handleEl = document.getElementById('conn-field-handle');
-  data.handle = handleEl ? (handleEl.value.trim()||p.key+'_official') : p.key+'_official';
+  data.handle = handleEl ? (handleEl.value.trim()||'') : '';
   if (missingRequired) { showToast('Please fill in all required fields', 'error'); return; }
   state.platforms[key] = data;
   saveApiConnections(state);
   closeModal(); renderConnections();
   showToast(`${p.label} connected`, 'success');
+  // Auto-sync YouTube to pull real data on first connect
+  if (key === 'youtube' && data.api_key && data.channel_id) {
+    setTimeout(() => syncPlatform('youtube'), 400);
+  }
 }
 
 const DRIVE_SAMPLE_FILES = [

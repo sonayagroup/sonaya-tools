@@ -1578,6 +1578,8 @@ button { font-family: inherit; }
 <div id="toast-container"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script async defer src="https://apis.google.com/js/api.js" onload="onGapiLoaded()"></script>
 <script>
 // ══════════════════════════════════════════════
 // SUPABASE & STATE
@@ -1585,6 +1587,114 @@ button { font-family: inherit; }
 const SB_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
 const sb = supabase.createClient(SB_URL, SB_KEY);
+
+// ══════════════════════════════════════════════
+// GOOGLE DRIVE PICKER INTEGRATION
+// ══════════════════════════════════════════════
+let _gapiLoaded = false;
+let _gisLoaded = false;
+let _googleAccessToken = null;
+let _pickerApiLoaded = false;
+
+function onGapiLoaded() {
+  _gapiLoaded = true;
+}
+
+function _getDriveCredentials() {
+  const state = loadApiConnections();
+  const drive = state.drive || {};
+  if (drive.connected && drive.client_id && drive.api_key) return drive;
+  return null;
+}
+
+async function _ensurePickerApi() {
+  if (_pickerApiLoaded) return true;
+  if (!_gapiLoaded) {
+    showToast('Google API is still loading — please try again in a moment', 'info');
+    return false;
+  }
+  return new Promise((resolve) => {
+    gapi.load('picker', () => { _pickerApiLoaded = true; resolve(true); });
+  });
+}
+
+function _requestDriveToken(clientId) {
+  return new Promise((resolve, reject) => {
+    if (_googleAccessToken) { resolve(_googleAccessToken); return; }
+    if (typeof google === 'undefined' || !google.accounts) {
+      reject(new Error('Google Identity Services not loaded yet'));
+      return;
+    }
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/drive.readonly',
+      callback: (resp) => {
+        if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
+        _googleAccessToken = resp.access_token;
+        // Token expires — clear after 50 min
+        setTimeout(() => { _googleAccessToken = null; }, 50 * 60 * 1000);
+        resolve(resp.access_token);
+      },
+    });
+    tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+function _openGooglePicker(accessToken, apiKey, callback) {
+  const docsView = new google.picker.DocsView(google.picker.ViewId.DOCS)
+    .setIncludeFolders(true)
+    .setSelectFolderEnabled(false)
+    .setMimeTypes('image/png,image/jpeg,image/gif,image/webp,video/mp4,video/quicktime,video/x-msvideo,video/webm');
+
+  const allDriveView = new google.picker.DocsView(google.picker.ViewId.DOCS)
+    .setIncludeFolders(true)
+    .setSelectFolderEnabled(false)
+    .setEnableDrives(true)
+    .setLabel('Shared Drives');
+
+  const recentView = new google.picker.DocsView(google.picker.ViewId.RECENTLY_PICKED);
+
+  const picker = new google.picker.PickerBuilder()
+    .enableFeature(google.picker.Feature.NAV_HIDDEN)
+    .enableFeature(google.picker.Feature.MULTISELECT_ENABLED)
+    .addView(docsView)
+    .addView(allDriveView)
+    .addView(recentView)
+    .setOAuthToken(accessToken)
+    .setDeveloperKey(apiKey)
+    .setCallback(callback)
+    .setTitle('Select media from Google Drive')
+    .setMaxItems(5)
+    .build();
+  picker.setVisible(true);
+}
+
+async function launchDrivePicker() {
+  const creds = _getDriveCredentials();
+  if (!creds) {
+    showToast('Connect Google Drive in Settings → Connections first', 'info');
+    return null;
+  }
+  try {
+    const ready = await _ensurePickerApi();
+    if (!ready) return null;
+    const token = await _requestDriveToken(creds.client_id);
+    return new Promise((resolve) => {
+      _openGooglePicker(token, creds.api_key, (data) => {
+        if (data.action === google.picker.Action.PICKED) {
+          resolve(data.docs);
+        } else if (data.action === google.picker.Action.CANCEL) {
+          resolve(null);
+        }
+      });
+    });
+  } catch (e) {
+    console.error('Drive picker error:', e);
+    showToast('Drive authentication failed: ' + e.message, 'error');
+    _googleAccessToken = null; // clear stale token
+    return null;
+  }
+}
 
 // ══════════════════════════════════════════════
 // AUTH STATE & FUNCTIONS (PIN-based)
@@ -2997,11 +3107,14 @@ function renderConnections() {
       </div>
     </div>
     ${driveConnected ? `<div class="conn-card-body">
-      <div class="conn-detail-row"><span>Folder</span><span>${escHtml(drive.folder_name||'My Drive')}</span></div>
+      <div class="conn-detail-row"><span>Label</span><span>${escHtml(drive.folder_name||'My Drive')}</span></div>
       <div class="conn-detail-row"><span>Scope</span><span style="font-weight:400;font-size:10px">drive.readonly</span></div>
+      <div class="conn-detail-row"><span>Picker</span><span style="font-weight:400;font-size:10px;color:var(--success)">&#10003; Google Picker API</span></div>
     </div>
     <div class="conn-card-actions">
-      <button class="btn btn-danger btn-sm" style="flex:1" onclick="disconnectPlatform('drive')">Disconnect</button>
+      <button class="btn btn-ghost btn-sm" onclick="testDriveConnection()">&#9889; Test</button>
+      <button class="btn btn-ghost btn-sm" onclick="openPlatformConnectModal('drive')">Edit</button>
+      <button class="btn btn-danger btn-sm" onclick="disconnectPlatform('drive')">Disconnect</button>
     </div>` : `
     <div class="conn-card-actions" style="margin-top:14px">
       <button class="btn btn-primary btn-sm" style="flex:1" onclick="openPlatformConnectModal('drive')">Connect</button>
@@ -3171,7 +3284,7 @@ async function syncPlatform(key) {
 function disconnectPlatform(key) {
   if (!confirm('Disconnect this integration?')) return;
   const state = loadApiConnections();
-  if (key === 'drive') state.drive = {};
+  if (key === 'drive') { state.drive = {}; _googleAccessToken = null; }
   else delete state.platforms[key];
   saveApiConnections(state);
   showToast('Disconnected', 'info');
@@ -3185,12 +3298,22 @@ function openPlatformConnectModal(key) {
   if (key === 'drive') {
     const drive = state.drive||{};
     let html = `<div class="modal-header"><span class="modal-title">&#128193; Connect Google Drive</span><button class="modal-close" onclick="closeModal()">&#10005;</button></div><div class="modal-body">`;
-    html += `<div class="conn-modal-steps">Google Drive integration lets you browse and attach media directly from Drive when composing posts. Create an OAuth 2.0 Client ID (and optional API key) in <strong>Google Cloud Console</strong> with the Drive API enabled.</div>`;
-    html += `<div class="oauth-url-box">Scope: https://www.googleapis.com/auth/drive.readonly</div>`;
-    html += `<div class="form-row full"><div class="form-group"><label class="form-label">Google API Client ID</label><input class="form-input" id="drive-client-id" value="${escAttr(drive.client_id||'')}" placeholder="xxxxxxxx.apps.googleusercontent.com"></div></div>`;
-    html += `<div class="form-row full"><div class="form-group"><label class="form-label">API Key</label><input class="form-input" id="drive-api-key" value="${escAttr(drive.api_key||'')}" placeholder="Google API key"></div></div>`;
-    html += `<div class="form-row full"><div class="form-group"><label class="form-label">Folder Name (display only)</label><input class="form-input" id="drive-folder-name" value="${escAttr(drive.folder_name||'Sonaya Group Media')}" placeholder="e.g. Sonaya Group Media"></div></div>`;
-    html += `</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePlatformCredentials('drive')">Save Credentials</button></div>`;
+    html += `<div class="conn-modal-steps" style="line-height:1.6">
+      <strong>Google Drive integration</strong> lets your team browse and attach media directly from Drive when composing posts.<br><br>
+      <strong>Setup (one-time, ~5 min):</strong>
+      <ol style="margin:6px 0 0 18px;padding:0;font-size:12px;line-height:1.7">
+        <li>Go to <a href="https://console.cloud.google.com/apis/dashboard" target="_blank" rel="noopener" style="color:var(--accent)">Google Cloud Console</a></li>
+        <li>Create a project (or select existing) → Enable <strong>Google Picker API</strong> and <strong>Google Drive API</strong></li>
+        <li>Go to <strong>Credentials</strong> → Create <strong>API Key</strong> (restrict to Picker + Drive APIs)</li>
+        <li>Create <strong>OAuth 2.0 Client ID</strong> (Web app) — add <code style="font-size:11px;background:var(--surface-1);padding:1px 4px;border-radius:3px">https://tools.sonayagroup.com</code> as an Authorized JavaScript Origin</li>
+        <li>Paste both below and save</li>
+      </ol>
+    </div>`;
+    html += `<div class="oauth-url-box" style="font-size:11px">Scope: https://www.googleapis.com/auth/drive.readonly<br>Authorized origin: https://tools.sonayagroup.com</div>`;
+    html += `<div class="form-row full"><div class="form-group"><label class="form-label">OAuth 2.0 Client ID <span style="color:var(--danger)">*</span></label><input class="form-input" id="drive-client-id" value="${escAttr(drive.client_id||'')}" placeholder="123456789-abcdef.apps.googleusercontent.com"></div></div>`;
+    html += `<div class="form-row full"><div class="form-group"><label class="form-label">API Key <span style="color:var(--danger)">*</span></label><input class="form-input" id="drive-api-key" value="${escAttr(drive.api_key||'')}" placeholder="AIzaSy..."></div></div>`;
+    html += `<div class="form-row full"><div class="form-group"><label class="form-label">Display Name (optional)</label><input class="form-input" id="drive-folder-name" value="${escAttr(drive.folder_name||'Sonaya Group Media')}" placeholder="e.g. Sonaya Group Media"></div></div>`;
+    html += `</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePlatformCredentials('drive')">Save &amp; Connect</button></div>`;
     panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
     return;
   }
@@ -3214,11 +3337,13 @@ function savePlatformCredentials(key) {
     const clientId = document.getElementById('drive-client-id').value.trim();
     const apiKey = document.getElementById('drive-api-key').value.trim();
     const folderName = document.getElementById('drive-folder-name').value.trim();
-    if (!clientId) { showToast('Google API Client ID is required', 'error'); return; }
+    if (!clientId) { showToast('OAuth 2.0 Client ID is required', 'error'); return; }
+    if (!apiKey) { showToast('API Key is required for the file picker', 'error'); return; }
+    _googleAccessToken = null; // clear any previous token
     state.drive = { connected:true, client_id:clientId, api_key:apiKey, folder_name:folderName||'My Drive', connected_at:new Date().toISOString() };
     saveApiConnections(state);
     closeModal(); renderConnections();
-    showToast('Google Drive connected', 'success');
+    showToast('Google Drive connected — click "From Drive" in a post to browse files', 'success');
     return;
   }
   const p = SOCIAL_PLATFORMS.find(pl => pl.key === key); if (!p) return;
@@ -3246,6 +3371,28 @@ function savePlatformCredentials(key) {
   }
   if (key === 'facebook' && data.user_access_token && data.page_id) {
     setTimeout(() => syncPlatform('facebook'), 400);
+  }
+}
+
+async function testDriveConnection() {
+  const creds = _getDriveCredentials();
+  if (!creds) { showToast('No Drive credentials saved', 'error'); return; }
+  showToast('Testing Google Drive connection…', 'info');
+  try {
+    const ready = await _ensurePickerApi();
+    if (!ready) return;
+    const token = await _requestDriveToken(creds.client_id);
+    // Quick API call to verify the token works
+    const resp = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!resp.ok) throw new Error('API returned ' + resp.status);
+    const data = await resp.json();
+    const email = data.user?.emailAddress || 'unknown';
+    showToast(`Drive connected as ${email}`, 'success');
+  } catch(e) {
+    _googleAccessToken = null;
+    showToast('Drive test failed: ' + e.message, 'error');
   }
 }
 
@@ -3299,11 +3446,38 @@ function _restorePostModal() {
   _savedPostModalState = null;
 }
 
-function openDrivePickerModal() {
+async function openDrivePickerModal() {
+  const creds = _getDriveCredentials();
+
+  // ── Real Google Picker (credentials configured) ──
+  if (creds) {
+    showToast('Opening Google Drive…', 'info');
+    const docs = await launchDrivePicker();
+    if (!docs || docs.length === 0) return; // user cancelled
+    const doc = docs[0]; // take first selected file
+    // Build a direct-viewable link
+    const fileUrl = doc.url || `https://drive.google.com/file/d/${doc.id}/view`;
+    // Try to get an embeddable thumbnail for images
+    let thumbUrl = '';
+    if (doc.iconUrl) thumbUrl = doc.iconUrl.replace(/\/16\//, '/128/');
+    if (doc.thumbnails && doc.thumbnails.length > 0) thumbUrl = doc.thumbnails[doc.thumbnails.length-1].url;
+    // Set values in the post form
+    const mediaInput = document.getElementById('post-media-url');
+    if (mediaInput) mediaInput.value = fileUrl;
+    // Store thumbnail for preview if we have one
+    if (thumbUrl) {
+      const preview = document.getElementById('drive-thumb-preview');
+      if (preview) { preview.src = thumbUrl; preview.hidden = false; }
+    }
+    const selectedNames = docs.map(d => d.name).join(', ');
+    showToast(`Selected: ${selectedNames}`, 'success');
+    return;
+  }
+
+  // ── Fallback: sample files (no credentials yet) ──
   const state = loadApiConnections();
   const drive = state.drive||{};
   const panel = document.getElementById('modal-panel');
-  // Save current post form state so we can go back
   const form = document.getElementById('post-form');
   if (form) {
     const fd = new FormData(form);
@@ -3316,10 +3490,14 @@ function openDrivePickerModal() {
   }
   panel.classList.add('wide');
   let html = `<div class="modal-header"><button class="btn btn-ghost btn-sm" onclick="_restorePostModal()" style="margin-right:8px;font-size:13px">&#8592; Back</button><span class="modal-title">&#128193; Select from Google Drive</span><button class="modal-close" onclick="_restorePostModal()">&#10005;</button></div><div class="modal-body">`;
+  html += `<div class="drive-connect-note" style="margin-bottom:12px;padding:12px 16px;background:var(--accent-bg);border-radius:var(--r-sm);border:1px solid var(--accent);font-size:12px;line-height:1.5">
+    <strong>&#9889; Connect Google Drive for real file browsing</strong><br>
+    Go to <strong>Connections</strong> in the sidebar, click <strong>Connect</strong> on the Google Drive card, and paste your Google Cloud API Key &amp; Client ID. Once connected, this button will open Google's file picker with your real Drive files.<br>
+    <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="_restorePostModal();setTimeout(()=>{closeModal();setView('connections')},60)">Go to Connections</button>
+  </div>`;
+  html += `<p style="font-size:11px;color:var(--ink-3);margin-bottom:8px">Preview — sample files shown below:</p>`;
   html += `<input class="form-input drive-search-input" id="drive-picker-search" placeholder="Search files in Drive...">`;
   html += `<div class="drive-file-grid" id="drive-picker-grid"></div>`;
-  if (!drive.connected) html += `<div class="drive-connect-note">Showing sample files. Connect Google Drive in Settings to browse real files.</div>`;
-  else html += `<div class="drive-connect-note">Browsing "${escHtml(drive.folder_name||'My Drive')}". (Preview data shown — live Drive Picker API integration coming soon.)</div>`;
   html += `</div><div class="modal-footer"><button class="btn btn-ghost" onclick="_restorePostModal()">Cancel</button></div>`;
   panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
 
@@ -3332,7 +3510,6 @@ function openDrivePickerModal() {
       card.onclick = () => {
         const name = card.dataset.name;
         const url = `https://drive.google.com/file/d/sample-${encodeURIComponent(name).replace(/[^a-zA-Z0-9]/g,'')}/view`;
-        // Restore post form, then set the media URL
         _restorePostModal();
         setTimeout(() => {
           const mediaInput = document.getElementById('post-media-url');

@@ -1434,13 +1434,24 @@ button { font-family: inherit; }
       <div id="login-step-email">
         <label for="login-email">Email address</label>
         <input type="email" id="login-email" placeholder="you@sonayagroup.com" required autocomplete="email">
-        <button type="submit" class="login-btn" id="login-btn">Send Login Code</button>
+        <button type="submit" class="login-btn" id="login-btn">Continue</button>
       </div>
-      <div id="login-step-otp" hidden>
-        <label for="login-otp">Enter the 6-digit code sent to your email</label>
-        <input type="text" id="login-otp" placeholder="000000" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:700;padding:14px;">
-        <button type="submit" class="login-btn" id="verify-btn">Verify Code</button>
+      <div id="login-step-pin" hidden>
+        <p id="login-greeting" style="margin:0 0 12px;font-size:14px;color:var(--ink-2)"></p>
+        <label for="login-pin">Enter your PIN</label>
+        <input type="password" id="login-pin" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" minlength="4" maxlength="8" inputmode="numeric" autocomplete="current-password" style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:700;padding:14px;">
+        <button type="submit" class="login-btn" id="pin-btn">Sign In</button>
         <button type="button" class="login-btn" id="back-btn" onclick="showEmailStep()" style="background:transparent;color:#0d9488;margin-top:8px;border:1.5px solid #e2ddd6;">&#8592; Use a different email</button>
+      </div>
+      <div id="login-step-setup" hidden>
+        <p id="setup-greeting" style="margin:0 0 4px;font-size:14px;color:var(--ink-2)"></p>
+        <p style="margin:0 0 12px;font-size:13px;color:var(--ink-3)">Choose a 4–8 digit PIN you'll use to sign in.</p>
+        <label for="setup-pin">Create PIN</label>
+        <input type="password" id="setup-pin" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" minlength="4" maxlength="8" inputmode="numeric" autocomplete="new-password" style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:700;padding:14px;">
+        <label for="setup-pin-confirm" style="margin-top:8px">Confirm PIN</label>
+        <input type="password" id="setup-pin-confirm" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" minlength="4" maxlength="8" inputmode="numeric" autocomplete="new-password" style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:700;padding:14px;">
+        <button type="submit" class="login-btn" id="setup-btn">Set PIN &amp; Sign In</button>
+        <button type="button" class="login-btn" onclick="showEmailStep()" style="background:transparent;color:#0d9488;margin-top:8px;border:1.5px solid #e2ddd6;">&#8592; Use a different email</button>
       </div>
     </form>
     <div class="login-msg" id="login-msg"></div>
@@ -1571,14 +1582,16 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const sb = supabase.createClient(SB_URL, SB_KEY);
 
 // ══════════════════════════════════════════════
-// AUTH STATE & FUNCTIONS
+// AUTH STATE & FUNCTIONS (PIN-based)
 // ══════════════════════════════════════════════
-let AUTH_USER = null; // { id, email, display_name, role, team_member_id }
+let AUTH_USER = null; // { id, email, display_name, role }
 let LOGIN_EMAIL = ''; // track email between steps
+const SESSION_KEY = 'scc_session_token';
 
 function showEmailStep() {
   document.getElementById('login-step-email').hidden = false;
-  document.getElementById('login-step-otp').hidden = true;
+  document.getElementById('login-step-pin').hidden = true;
+  document.getElementById('login-step-setup').hidden = true;
   document.getElementById('login-msg').className = 'login-msg';
   document.getElementById('login-msg').textContent = '';
   LOGIN_EMAIL = '';
@@ -1586,81 +1599,118 @@ function showEmailStep() {
 
 async function handleLogin(e) {
   e.preventDefault();
-  const otpStep = document.getElementById('login-step-otp');
+  const pinStep = document.getElementById('login-step-pin');
+  const setupStep = document.getElementById('login-step-setup');
+  const msg = document.getElementById('login-msg');
 
-  // Step 2: Verify OTP code
-  if (!otpStep.hidden) {
-    const code = document.getElementById('login-otp').value.trim();
-    const vbtn = document.getElementById('verify-btn');
-    const msg = document.getElementById('login-msg');
-    if (!code || code.length !== 6) {
-      msg.className = 'login-msg error';
-      msg.textContent = 'Please enter the 6-digit code from your email.';
-      return;
+  // Step 3: PIN setup for first-time users
+  if (!setupStep.hidden) {
+    const pin = document.getElementById('setup-pin').value;
+    const confirm = document.getElementById('setup-pin-confirm').value;
+    const btn = document.getElementById('setup-btn');
+    if (!pin || pin.length < 4) {
+      msg.className = 'login-msg error'; msg.textContent = 'PIN must be at least 4 digits.'; return;
     }
-    vbtn.disabled = true; vbtn.textContent = 'Verifying...';
+    if (pin !== confirm) {
+      msg.className = 'login-msg error'; msg.textContent = 'PINs do not match.'; return;
+    }
+    btn.disabled = true; btn.textContent = 'Setting up...';
     msg.className = 'login-msg'; msg.textContent = '';
 
-    const { data, error } = await sb.auth.verifyOtp({ email: LOGIN_EMAIL, token: code, type: 'email' });
-    if (error) {
+    const { data, error } = await sb.rpc('set_team_pin', { p_email: LOGIN_EMAIL, p_pin: pin });
+    if (error || (data && data.error)) {
       msg.className = 'login-msg error';
-      msg.textContent = error.message || 'Invalid code. Please try again.';
-      vbtn.disabled = false; vbtn.textContent = 'Verify Code';
-    } else {
-      // Success — checkAuth will handle the rest
-      const ok = await checkAuth();
-      if (ok) {
-        logAudit('login', 'session', '', AUTH_USER.display_name);
-        await bootApp();
-      } else {
-        msg.className = 'login-msg error';
-        msg.textContent = 'Login succeeded but profile setup failed. Please try again.';
-        vbtn.disabled = false; vbtn.textContent = 'Verify Code';
-      }
+      msg.textContent = (data && data.error) || error.message || 'Setup failed. Please try again.';
+      btn.disabled = false; btn.textContent = 'Set PIN & Sign In';
+      return;
     }
+    // Success — save session
+    try { localStorage.setItem(SESSION_KEY, data.token); } catch(e) {}
+    AUTH_USER = { id: data.member_id, email: data.email, display_name: data.name, role: data.role };
+    document.getElementById('login-overlay').hidden = true;
+    document.getElementById('app').style.display = '';
+    updateUserUI();
+    logAudit('login', 'session', '', AUTH_USER.display_name, { method: 'pin_setup' });
+    await bootApp();
     return;
   }
 
-  // Step 1: Send OTP code
-  const email = document.getElementById('login-email').value.trim();
+  // Step 2: Verify PIN
+  if (!pinStep.hidden) {
+    const pin = document.getElementById('login-pin').value;
+    const btn = document.getElementById('pin-btn');
+    if (!pin || pin.length < 4) {
+      msg.className = 'login-msg error'; msg.textContent = 'Please enter your PIN.'; return;
+    }
+    btn.disabled = true; btn.textContent = 'Signing in...';
+    msg.className = 'login-msg'; msg.textContent = '';
+
+    const { data, error } = await sb.rpc('login_with_pin', { p_email: LOGIN_EMAIL, p_pin: pin });
+    if (error || (data && data.error)) {
+      msg.className = 'login-msg error';
+      msg.textContent = (data && data.error) || error.message || 'Login failed.';
+      btn.disabled = false; btn.textContent = 'Sign In';
+      return;
+    }
+    // Success — save session
+    try { localStorage.setItem(SESSION_KEY, data.token); } catch(e) {}
+    AUTH_USER = { id: data.member_id, email: data.email, display_name: data.name, role: data.role };
+    document.getElementById('login-overlay').hidden = true;
+    document.getElementById('app').style.display = '';
+    updateUserUI();
+    logAudit('login', 'session', '', AUTH_USER.display_name);
+    await bootApp();
+    return;
+  }
+
+  // Step 1: Check email
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
   const btn = document.getElementById('login-btn');
-  const msg = document.getElementById('login-msg');
   if (!email) return;
-  btn.disabled = true; btn.textContent = 'Sending...';
+  btn.disabled = true; btn.textContent = 'Checking...';
   msg.className = 'login-msg'; msg.textContent = '';
 
-  // Check if this email is allowed (must be in sm_team_members or sm_profiles)
-  const { data: allowed } = await sb.from('sm_team_members').select('id,email').eq('email', email).limit(1);
-  const { data: profileAllowed } = await sb.from('sm_profiles').select('id,email').eq('email', email).limit(1);
-  if ((!allowed || allowed.length === 0) && (!profileAllowed || profileAllowed.length === 0)) {
-    msg.className = 'login-msg error';
-    msg.textContent = 'This email is not authorized. Contact the admin to get access.';
-    btn.disabled = false; btn.textContent = 'Send Login Code';
-    return;
-  }
+  // Try login with a dummy PIN to see response type (email check + needs_setup detection)
+  const { data, error } = await sb.rpc('login_with_pin', { p_email: email, p_pin: '____' });
+  btn.disabled = false; btn.textContent = 'Continue';
 
-  const { error } = await sb.auth.signInWithOtp({ email });
   if (error) {
-    msg.className = 'login-msg error';
-    msg.textContent = error.message;
-    btn.disabled = false; btn.textContent = 'Send Login Code';
-  } else {
+    msg.className = 'login-msg error'; msg.textContent = 'Something went wrong. Please try again.'; return;
+  }
+  if (data && data.error) {
+    // "Email not authorized"
+    msg.className = 'login-msg error'; msg.textContent = data.error + '. Contact the admin to get access.'; return;
+  }
+  if (data && data.needs_setup) {
+    // First-time user — show PIN setup
     LOGIN_EMAIL = email;
     document.getElementById('login-step-email').hidden = true;
-    document.getElementById('login-step-otp').hidden = false;
-    document.getElementById('login-otp').value = '';
-    document.getElementById('login-otp').focus();
-    msg.className = 'login-msg success';
-    msg.innerHTML = '&#10003; Code sent to <strong>' + email + '</strong>. Check your inbox.';
-    btn.disabled = false; btn.textContent = 'Send Login Code';
+    document.getElementById('login-step-setup').hidden = false;
+    document.getElementById('setup-greeting').textContent = 'Welcome, ' + data.name + '! Set up your PIN to get started.';
+    document.getElementById('setup-pin').value = '';
+    document.getElementById('setup-pin-confirm').value = '';
+    document.getElementById('setup-pin').focus();
+    return;
   }
+  // Has a PIN — "Incorrect PIN" means they exist, show PIN entry
+  LOGIN_EMAIL = email;
+  document.getElementById('login-step-email').hidden = true;
+  document.getElementById('login-step-pin').hidden = false;
+  document.getElementById('login-greeting').textContent = 'Welcome back! Enter your PIN to sign in.';
+  document.getElementById('login-pin').value = '';
+  document.getElementById('login-pin').focus();
 }
 
 async function handleLogout() {
-  await sb.auth.signOut();
+  const token = (() => { try { return localStorage.getItem(SESSION_KEY); } catch(e) { return null; } })();
+  if (token) {
+    try { await sb.rpc('logout_session', { p_token: token }); } catch(e) {}
+    try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+  }
   AUTH_USER = null;
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-overlay').hidden = false;
+  showEmailStep();
   toggleUserMenu(true);
 }
 
@@ -1689,30 +1739,25 @@ function updateUserUI() {
 }
 
 async function checkAuth() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) {
-    const user = session.user;
-    // Fetch profile
-    let { data: profile } = await sb.from('sm_profiles').select('*').eq('id', user.id).single();
-    if (!profile) {
-      // Profile might not exist yet if trigger hasn't fired; wait briefly
-      await new Promise(r => setTimeout(r, 1000));
-      const res = await sb.from('sm_profiles').select('*').eq('id', user.id).single();
-      profile = res.data;
-    }
-    AUTH_USER = {
-      id: user.id,
-      email: user.email,
-      display_name: profile ? profile.display_name : user.email.split('@')[0],
-      role: profile ? profile.role : 'viewer',
-      team_member_id: profile ? profile.team_member_id : null
-    };
-    document.getElementById('login-overlay').hidden = true;
-    document.getElementById('app').style.display = '';
-    updateUserUI();
-    return true;
+  const token = (() => { try { return localStorage.getItem(SESSION_KEY); } catch(e) { return null; } })();
+  if (!token) return false;
+
+  const { data, error } = await sb.rpc('validate_session', { p_token: token });
+  if (error || !data || !data.valid) {
+    try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+    return false;
   }
-  return false;
+
+  AUTH_USER = {
+    id: data.member_id,
+    email: data.email,
+    display_name: data.name,
+    role: data.role
+  };
+  document.getElementById('login-overlay').hidden = true;
+  document.getElementById('app').style.display = '';
+  updateUserUI();
+  return true;
 }
 
 // ══════════════════════════════════════════════
@@ -4492,25 +4537,15 @@ function buildSkeletonScreen() {
 (async () => {
   initTheme();
 
-  // Check for auth session (including magic link callback hash)
+  // Check for existing PIN-based session
   const isAuthed = await checkAuth();
   if (!isAuthed) {
     // Not logged in — show login overlay
     document.getElementById('login-overlay').hidden = false;
     document.getElementById('app').style.display = 'none';
-    // Listen for auth state changes (magic link callback)
-    sb.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        const ok = await checkAuth();
-        if (ok) {
-          logAudit('login', 'session', '', AUTH_USER.display_name);
-          bootApp();
-        }
-      }
-    });
     return;
   }
-  logAudit('login', 'session', '', AUTH_USER.display_name);
+  logAudit('login', 'session', '', AUTH_USER.display_name, { method: 'session_resume' });
   await bootApp();
 })();
 

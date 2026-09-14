@@ -755,6 +755,10 @@
         const whenClass = f.diffDays === 0 ? 'today' : '';
         return `<li><span class="followup-name">${escapeHtml(f.name)}${who ? ' — ' + who : ''}</span><span class="followup-when ${whenClass}">${when}</span></li>`;
       }).join('');
+      // fresh content each refresh — restart the auto-scroll cycle from the top
+      list.scrollTop = 0;
+      followupScrollState = 'top';
+      followupScrollPauseUntil = Date.now() + 2500;
     }
 
     // recent wins ticker, reusing the same pull
@@ -774,6 +778,42 @@
   function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
+
+  // ---- CRM follow-up list: gentle auto-scroll so overdue items off-screen get seen ----
+  let followupScrollState = 'top'; // 'top' | 'scrolling' | 'bottom'
+  let followupScrollPauseUntil = 0;
+  let followupManualUntil = 0;
+  function tickFollowupAutoscroll() {
+    const list = document.getElementById('followupList');
+    if (!list) return;
+    if (Date.now() < followupManualUntil) return; // someone's manually scrolling — don't fight them
+    const max = list.scrollHeight - list.clientHeight;
+    if (max <= 2) { followupScrollState = 'top'; return; }
+    const now = Date.now();
+    if (now < followupScrollPauseUntil) return;
+    if (followupScrollState === 'top') {
+      followupScrollState = 'scrolling';
+    }
+    if (followupScrollState === 'scrolling') {
+      list.scrollTop += 0.5;
+      if (list.scrollTop >= max - 1) {
+        list.scrollTop = max;
+        followupScrollState = 'bottom';
+        followupScrollPauseUntil = now + 3500; // pause at bottom so it's readable
+      }
+    } else if (followupScrollState === 'bottom') {
+      list.scrollTop = 0;
+      followupScrollState = 'top';
+      followupScrollPauseUntil = now + 2000; // pause at top before scrolling again
+    }
+  }
+  (function initFollowupManualPause() {
+    const list = document.getElementById('followupList');
+    if (!list) return;
+    const pause = () => { followupManualUntil = Date.now() + 8000; };
+    list.addEventListener('wheel', pause, { passive: true });
+    list.addEventListener('touchstart', pause, { passive: true });
+  })();
 
   // ---- sync indicator ----
   function markSynced() { lastSyncAt = Date.now(); }
@@ -817,6 +857,7 @@
     tickClock();
     setInterval(tickClock, 1000);
     setInterval(tickSyncIndicator, 1000);
+    setInterval(tickFollowupAutoscroll, 40);
 
     await loadSettings();
     await Promise.allSettled([refreshRevenue(), refreshCRM(), refreshPacing(), refreshCalendar()]);

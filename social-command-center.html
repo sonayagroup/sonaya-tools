@@ -1374,9 +1374,9 @@ button { font-family: inherit; }
 .login-card h1 { font-size: 22px; font-weight: 700; color: #1a1512; margin: 8px 0 4px; }
 .login-card p.login-sub { font-size: 13px; color: #7c7268; margin: 0 0 28px; }
 .login-card label { display: block; text-align: left; font-size: 12px; font-weight: 600; color: #5c5349; margin-bottom: 6px; }
-.login-card input[type="email"] { width: 100%; padding: 12px 14px; border: 1.5px solid #e2ddd6; border-radius: 10px;
+.login-card input[type="email"], .login-card input[type="text"] { width: 100%; padding: 12px 14px; border: 1.5px solid #e2ddd6; border-radius: 10px;
   font-size: 15px; font-family: 'DM Sans', sans-serif; outline: none; box-sizing: border-box; transition: border-color 0.2s; }
-.login-card input[type="email"]:focus { border-color: #0d9488; box-shadow: 0 0 0 3px rgba(13,148,136,0.12); }
+.login-card input[type="email"]:focus, .login-card input[type="text"]:focus { border-color: #0d9488; box-shadow: 0 0 0 3px rgba(13,148,136,0.12); }
 .login-btn { width: 100%; padding: 13px; border: none; border-radius: 10px; background: #0d9488; color: #fff;
   font-size: 15px; font-weight: 600; font-family: 'Outfit', sans-serif; cursor: pointer; margin-top: 16px; transition: background 0.2s; }
 .login-btn:hover { background: #0f766e; }
@@ -1431,9 +1431,17 @@ button { font-family: inherit; }
     <h1>Social Command Center</h1>
     <p class="login-sub">Sign in to manage your social media content</p>
     <form id="login-form" onsubmit="handleLogin(event)">
-      <label for="login-email">Email address</label>
-      <input type="email" id="login-email" placeholder="you@sonayagroup.com" required autocomplete="email">
-      <button type="submit" class="login-btn" id="login-btn">Send Magic Link</button>
+      <div id="login-step-email">
+        <label for="login-email">Email address</label>
+        <input type="email" id="login-email" placeholder="you@sonayagroup.com" required autocomplete="email">
+        <button type="submit" class="login-btn" id="login-btn">Send Login Code</button>
+      </div>
+      <div id="login-step-otp" hidden>
+        <label for="login-otp">Enter the 6-digit code sent to your email</label>
+        <input type="text" id="login-otp" placeholder="000000" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" style="text-align:center;font-size:24px;letter-spacing:8px;font-weight:700;padding:14px;">
+        <button type="submit" class="login-btn" id="verify-btn">Verify Code</button>
+        <button type="button" class="login-btn" id="back-btn" onclick="showEmailStep()" style="background:transparent;color:#0d9488;margin-top:8px;border:1.5px solid #e2ddd6;">&#8592; Use a different email</button>
+      </div>
     </form>
     <div class="login-msg" id="login-msg"></div>
   </div>
@@ -1566,9 +1574,54 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 // AUTH STATE & FUNCTIONS
 // ══════════════════════════════════════════════
 let AUTH_USER = null; // { id, email, display_name, role, team_member_id }
+let LOGIN_EMAIL = ''; // track email between steps
+
+function showEmailStep() {
+  document.getElementById('login-step-email').hidden = false;
+  document.getElementById('login-step-otp').hidden = true;
+  document.getElementById('login-msg').className = 'login-msg';
+  document.getElementById('login-msg').textContent = '';
+  LOGIN_EMAIL = '';
+}
 
 async function handleLogin(e) {
   e.preventDefault();
+  const otpStep = document.getElementById('login-step-otp');
+
+  // Step 2: Verify OTP code
+  if (!otpStep.hidden) {
+    const code = document.getElementById('login-otp').value.trim();
+    const vbtn = document.getElementById('verify-btn');
+    const msg = document.getElementById('login-msg');
+    if (!code || code.length !== 6) {
+      msg.className = 'login-msg error';
+      msg.textContent = 'Please enter the 6-digit code from your email.';
+      return;
+    }
+    vbtn.disabled = true; vbtn.textContent = 'Verifying...';
+    msg.className = 'login-msg'; msg.textContent = '';
+
+    const { data, error } = await sb.auth.verifyOtp({ email: LOGIN_EMAIL, token: code, type: 'email' });
+    if (error) {
+      msg.className = 'login-msg error';
+      msg.textContent = error.message || 'Invalid code. Please try again.';
+      vbtn.disabled = false; vbtn.textContent = 'Verify Code';
+    } else {
+      // Success — checkAuth will handle the rest
+      const ok = await checkAuth();
+      if (ok) {
+        logAudit('login', 'session', '', AUTH_USER.display_name);
+        await bootApp();
+      } else {
+        msg.className = 'login-msg error';
+        msg.textContent = 'Login succeeded but profile setup failed. Please try again.';
+        vbtn.disabled = false; vbtn.textContent = 'Verify Code';
+      }
+    }
+    return;
+  }
+
+  // Step 1: Send OTP code
   const email = document.getElementById('login-email').value.trim();
   const btn = document.getElementById('login-btn');
   const msg = document.getElementById('login-msg');
@@ -1582,22 +1635,24 @@ async function handleLogin(e) {
   if ((!allowed || allowed.length === 0) && (!profileAllowed || profileAllowed.length === 0)) {
     msg.className = 'login-msg error';
     msg.textContent = 'This email is not authorized. Contact the admin to get access.';
-    btn.disabled = false; btn.textContent = 'Send Magic Link';
+    btn.disabled = false; btn.textContent = 'Send Login Code';
     return;
   }
 
-  const { error } = await sb.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin + window.location.pathname }
-  });
+  const { error } = await sb.auth.signInWithOtp({ email });
   if (error) {
     msg.className = 'login-msg error';
     msg.textContent = error.message;
-    btn.disabled = false; btn.textContent = 'Send Magic Link';
+    btn.disabled = false; btn.textContent = 'Send Login Code';
   } else {
+    LOGIN_EMAIL = email;
+    document.getElementById('login-step-email').hidden = true;
+    document.getElementById('login-step-otp').hidden = false;
+    document.getElementById('login-otp').value = '';
+    document.getElementById('login-otp').focus();
     msg.className = 'login-msg success';
-    msg.innerHTML = '&#10003; Magic link sent! Check your email and click the link to sign in.';
-    btn.disabled = false; btn.textContent = 'Send Again';
+    msg.innerHTML = '&#10003; Code sent to <strong>' + email + '</strong>. Check your inbox.';
+    btn.disabled = false; btn.textContent = 'Send Login Code';
   }
 }
 

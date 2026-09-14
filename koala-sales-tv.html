@@ -163,6 +163,7 @@
   }
   .footer-stat .fs-label { font-size: 1.15vh; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
   .footer-stat .fs-value { font-size: 2.4vh; font-weight: 800; }
+  .footer-stat .fs-sub { font-size: 1.05vh; color: var(--text-muted); font-weight: 700; margin-top: 2px; }
   .ticker-wrap {
     flex: 1; background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
     overflow: hidden; display: flex; align-items: center; position: relative;
@@ -301,7 +302,11 @@
 
   <div class="tv-footer">
     <div class="footer-stat">
-      <div><div class="fs-label">MTD Team Revenue</div><div class="fs-value" id="mtdTeamRevenue">$0</div></div>
+      <div>
+        <div class="fs-label">MTD Team Revenue</div>
+        <div class="fs-value" id="mtdTeamRevenue">$0</div>
+        <div class="fs-sub">of <span id="mtdTeamRevenueGoal">$375,000</span> · <span id="mtdTeamRevenuePct">—</span></div>
+      </div>
     </div>
     <div class="footer-stat">
       <div><div class="fs-label">MTD Close Rate</div><div class="fs-value" id="mtdCloseRate">—</div></div>
@@ -343,6 +348,7 @@
 
   let GOALS = { 'Gabriel Espinosa': 6500, 'Mike Jones': 6500 };
   let COMMERCIAL_GOALS = { 'Frank Emanuel': 125000 };
+  let TEAM_MTD_GOAL = 375000;
   let CLOSE_RATE_GOAL = 0.70;
   let lastSyncAt = null;
 
@@ -406,6 +412,7 @@
       for (const row of rows) {
         if (row.key === 'sales_rep_daily_goals') GOALS = { ...GOALS, ...row.value };
         if (row.key === 'commercial_rep_monthly_goals') COMMERCIAL_GOALS = { ...COMMERCIAL_GOALS, ...row.value };
+        if (row.key === 'team_mtd_revenue_goal') TEAM_MTD_GOAL = Number(row.value) || TEAM_MTD_GOAL;
         if (row.key === 'sales_close_rate_goal') CLOSE_RATE_GOAL = Number(row.value) || CLOSE_RATE_GOAL;
       }
     } catch (e) { console.warn('settings load failed, using defaults', e); }
@@ -645,7 +652,19 @@
     const todayISO = todayLocalISO();
     const monthStart = monthStartOf(todayISO);
     const pacing = await fetchJSON(fnUrl('pacing', { from: monthStart, through: todayISO }));
-    document.getElementById('mtdTeamRevenue').textContent = fmtMoney(pacing.revenue || 0);
+    const revenue = pacing.revenue || 0;
+    document.getElementById('mtdTeamRevenue').textContent = fmtMoney(revenue);
+    document.getElementById('mtdTeamRevenueGoal').textContent = fmtMoney(TEAM_MTD_GOAL);
+
+    const frac = TEAM_MTD_GOAL > 0 ? revenue / TEAM_MTD_GOAL : 0;
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const monthFrac = Math.min(1, (now.getDate() - 1 + dayFracElapsed()) / daysInMonth);
+    const status = monthPaceStatus(frac, monthFrac);
+    const pctEl = document.getElementById('mtdTeamRevenuePct');
+    pctEl.textContent = Math.round(frac * 100) + '%';
+    pctEl.style.color = STATUS_VARS[status.good][2];
+
     markSynced();
   }
 

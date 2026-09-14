@@ -778,8 +778,14 @@
       followupScrollPauseUntil = Date.now() + 2500;
     }
 
-    // recent wins ticker, reusing the same pull
-    const wins = rows.filter(d => d.stage === 'Estimate Won')
+    // recent wins ticker, reusing the same pull. The board has TWO parallel "won" stages —
+    // "Estimate Won" (commercial/estimate track) and "Prospect Won" (residential/prospecting
+    // track, see TERMINAL_STAGES above) — both count as a win. Found 2026-09-14: this used to
+    // check "Estimate Won" only, so the ticker was stuck showing June wins and silently missing
+    // every real Prospect Won (the most recent of which are from August and still being updated
+    // today) — confirmed live, this was the "recently closed jobs" data the owner flagged as
+    // looking wrong.
+    const wins = rows.filter(d => d.stage === 'Estimate Won' || d.stage === 'Prospect Won')
       .sort((a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0))
       .slice(0, 10);
     const track = document.getElementById('tickerTrack');

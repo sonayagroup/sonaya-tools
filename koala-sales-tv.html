@@ -125,7 +125,10 @@
   .crm-num-block { background: var(--surface-chart); border-radius: var(--radius-sm); padding: 1.2vh 1.2vh; }
   .crm-num { font-size: 3.4vh; font-weight: 900; line-height: 1; }
   .crm-num-label { font-size: 1.1vh; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-top: 4px; }
-  .followup-list { list-style: none; margin: 0; padding: 0; overflow: hidden; flex: 1; min-height: 0; }
+  .followup-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--gridline) transparent; }
+  .followup-list::-webkit-scrollbar { width: 6px; }
+  .followup-list::-webkit-scrollbar-track { background: transparent; }
+  .followup-list::-webkit-scrollbar-thumb { background: var(--gridline); border-radius: 4px; }
   .followup-list li {
     display: flex; justify-content: space-between; gap: 8px; font-size: 1.45vh; padding: 0.7vh 0;
     border-top: 1px solid var(--gridline);
@@ -744,13 +747,14 @@
     if (!followups.length) {
       list.innerHTML = '<li class="empty-followups">Nothing overdue — nice work 👏</li>';
     } else {
-      const shown = followups.slice(0, 6);
-      list.innerHTML = shown.map(f => {
+      // Render every overdue deal (most-overdue first) — the list scrolls internally, so nothing
+      // needs to be truncated with a "+N more" line anymore.
+      list.innerHTML = followups.map(f => {
         const who = (f.reps || []).map(r => r.split(' ').map(w => w[0]).join('')).join(', ');
         const when = f.diffDays === 0 ? 'Due today' : `${f.diffDays}d overdue`;
         const whenClass = f.diffDays === 0 ? 'today' : '';
         return `<li><span class="followup-name">${escapeHtml(f.name)}${who ? ' — ' + who : ''}</span><span class="followup-when ${whenClass}">${when}</span></li>`;
-      }).join('') + (followups.length > 6 ? `<li class="empty-followups">+${followups.length - 6} more</li>` : '');
+      }).join('');
     }
 
     // recent wins ticker, reusing the same pull

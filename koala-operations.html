@@ -114,6 +114,7 @@ body {
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
+.container-wide { max-width: min(1900px, 97vw); margin: 0 auto; padding: 20px 24px; }
 .connection-banner {
   display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: var(--radius-sm);
   font-size: 13px; margin-bottom: 20px; background: var(--status-warn-bg); color: var(--status-warn);
@@ -200,7 +201,8 @@ body {
 .modal-footer-note { padding: 12px 22px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); }
 .modal-status { padding: 30px 22px; text-align: center; font-size: 13px; color: var(--text-muted); }
 .crm-board { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 22px; overflow-x: auto; padding-bottom: 8px; }
-.crm-column { flex: 0 0 234px; width: 234px; border: 1px solid var(--border); border-top: 3px solid var(--cat-1); border-radius: var(--radius-sm); background: var(--surface-chart); display: flex; flex-direction: column; max-height: 520px; }
+.crm-column { flex: 0 0 256px; width: 256px; border: 1px solid var(--border); border-top: 3px solid var(--cat-1); border-radius: var(--radius-sm); background: var(--surface-chart); display: flex; flex-direction: column; max-height: 560px; }
+.crm-search-group { flex: 1; min-width: 220px; max-width: 420px; }
 .crm-column-header { padding: 9px 10px 7px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
 .crm-column-header-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .crm-column-title { font-size: 11.5px; font-weight: 700; line-height: 1.3; }
@@ -243,6 +245,44 @@ body {
 .crm-form-error { color: var(--status-critical); font-size: 12px; margin-top: 6px; }
 svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, sans-serif; }
 .bar-value-label { fill: var(--text-primary); font-weight: 600; }
+.crm-view-archived { font-size: 12.5px; color: var(--text-secondary); background: var(--surface-card); border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+.crm-view-archived:hover { background: var(--surface-page); color: var(--text-primary); }
+
+/* ---------------- Responsive: tablet ---------------- */
+@media (max-width: 1000px) {
+  .container, .container-wide { padding: 16px 14px; }
+  .crm-column { flex-basis: 224px; width: 224px; }
+  .charts-grid { grid-template-columns: 1fr; }
+  .kpi-summary, .callout-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+}
+
+/* ---------------- Responsive: mobile ---------------- */
+@media (max-width: 640px) {
+  .app-header { padding: 10px 14px; flex-wrap: wrap; row-gap: 8px; }
+  .header-left h1 { font-size: 15px; }
+  .header-left h1 small { font-size: 11px; }
+  .header-logo { height: 30px; }
+  .header-right { gap: 8px; flex-wrap: wrap; }
+  .theme-toggle { padding: 5px 9px; font-size: 11.5px; }
+  .tab-bar { top: 60px; padding: 0 10px; }
+  .tab-btn { padding: 11px 11px; font-size: 12.5px; }
+  .container, .container-wide { padding: 14px 10px; }
+  .section-title { font-size: 14px; margin: 22px 0 10px; }
+  .kpi-summary, .callout-row { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+  .kpi-tile { padding: 12px; }
+  .kpi-tile .kpi-value { font-size: 21px; }
+  .controls { flex-direction: column; align-items: stretch; gap: 8px; }
+  .crm-search-group { max-width: none; min-width: 0; }
+  .crm-view-archived { align-self: flex-start; }
+  .crm-board { gap: 8px; scroll-snap-type: x mandatory; margin-left: -10px; margin-right: -10px; padding-left: 10px; padding-right: 10px; }
+  .crm-column { flex-basis: 84vw; width: 84vw; max-height: 62vh; scroll-snap-align: start; }
+  .crm-card { padding: 10px 11px; }
+  .crm-avatar { width: 22px; height: 22px; font-size: 9.5px; }
+  .crm-form-grid { grid-template-columns: 1fr; }
+  .modal-backdrop { padding: 0; }
+  .modal-card { max-width: 100%; max-height: 100vh; border-radius: 0; height: 100%; }
+  .store-table { font-size: 12px; }
+}
 </style>
 </head>
 <body>
@@ -385,7 +425,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 
 <!-- TAB: CRM PIPELINE -->
 <div class="tab-content" id="tab-crm">
-  <div class="container">
+  <div class="container-wide">
     <div class="connection-banner" id="crmBanner">
       <span class="banner-icon">&#9432;</span>
       <span>Loading deals…</span>
@@ -393,10 +433,11 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="kpi-summary" id="crmKpiRow"></div>
 
     <div class="controls" style="margin-bottom:14px;">
-      <div class="control-group" style="flex:1; min-width:220px; max-width:420px;">
+      <div class="control-group crm-search-group">
         <input type="search" id="crmSearchInput" class="control-select" style="width:100%;" placeholder="Search deals by customer or rep…" oninput="crmHandleSearchInput()">
       </div>
       <span class="live-status" id="crmSearchStatus" style="display:none;"></span>
+      <button type="button" class="crm-view-archived" onclick="openCrmArchivedModal()">View archived deals</button>
     </div>
 
     <div class="section-title">Prospecting Pipeline <span class="section-title-sub">— building the relationship, before plans arrive</span></div>
@@ -447,6 +488,20 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     </div>
     <div class="modal-body" id="crmStageModalBody"></div>
     <div class="modal-footer-note" id="crmStageModalFooter"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="crmArchivedModalBackdrop" onclick="if(event.target===this) closeCrmArchivedModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="crmArchivedModalTitle">
+    <div class="modal-header">
+      <div>
+        <h3 id="crmArchivedModalTitle">Archived Deals</h3>
+        <p>Removed from the active board. Restore a deal to bring it back to its last stage.</p>
+      </div>
+      <button class="modal-close-btn" onclick="closeCrmArchivedModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="crmArchivedModalBody"></div>
+    <div class="modal-footer-note"><div class="crm-modal-actions"><div></div><button class="crm-btn crm-btn-secondary" onclick="closeCrmArchivedModal()">Close</button></div></div>
   </div>
 </div>
 
@@ -1755,6 +1810,14 @@ async function crmUpdateDeal(id, patch) {
 async function crmArchiveDeal(id) {
   return crmUpdateDeal(id, { archived: true, updated_at: new Date().toISOString() });
 }
+async function crmFetchArchivedDeals() {
+  const res = await fetch(CRM_REST + '?archived=eq.true&order=updated_at.desc&select=*', { headers: CRM_HEADERS });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+async function crmRestoreDeal(id) {
+  return crmUpdateDeal(id, { archived: false, updated_at: new Date().toISOString() });
+}
 
 /* ---- Rendering helpers ---- */
 const CRM_REP_COLORS = ['var(--cat-1)', 'var(--cat-2)', 'var(--cat-3)', 'var(--cat-4)', 'var(--cat-5)', 'var(--cat-6)', 'var(--cat-7)', 'var(--cat-8)'];
@@ -2045,7 +2108,59 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && document.getElementById('crmStageModalBackdrop').classList.contains('open')) {
     closeCrmStageModal();
   }
+  if (e.key === 'Escape' && document.getElementById('crmArchivedModalBackdrop').classList.contains('open')) {
+    closeCrmArchivedModal();
+  }
 });
+
+/* ---- Archived deals modal: view + restore ---- */
+async function openCrmArchivedModal() {
+  const body = document.getElementById('crmArchivedModalBody');
+  body.innerHTML = `<div class="modal-status">Loading archived deals…</div>`;
+  document.getElementById('crmArchivedModalBackdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  try {
+    const archived = await crmFetchArchivedDeals();
+    if (!archived.length) {
+      body.innerHTML = `<div class="modal-status">No archived deals.</div>`;
+      return;
+    }
+    const rows = archived.map(d => `<tr>
+      <td>${crmEsc(d.name)}</td>
+      <td>${crmEsc(d.stage)}</td>
+      <td>${d.reps && d.reps.length ? crmEsc(d.reps.join(', ')) : '<span style="color:var(--text-muted);">unassigned</span>'}</td>
+      <td>${d.value != null ? fmtMoney(d.value) : '—'}</td>
+      <td>${d.updated_at ? new Date(d.updated_at).toLocaleDateString() : '—'}</td>
+      <td><button class="crm-btn crm-btn-secondary" style="padding:5px 11px;font-size:12px;" onclick="crmHandleRestoreClick('${d.id}', this)">Restore</button></td>
+    </tr>`).join('');
+    body.innerHTML = `
+      <div class="store-table-wrap" style="margin-bottom:0;">
+        <table class="store-table">
+          <thead><tr><th>Deal</th><th>Last Stage</th><th>Rep(s)</th><th>Value</th><th>Archived</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch (err) {
+    body.innerHTML = `<div class="modal-status">Couldn't load archived deals (${crmEsc(err.message)}).</div>`;
+  }
+}
+async function crmHandleRestoreClick(id, btnEl) {
+  btnEl.disabled = true;
+  btnEl.textContent = 'Restoring…';
+  try {
+    await crmRestoreDeal(id);
+    await renderCrmTab();
+    await openCrmArchivedModal();
+  } catch (err) {
+    alert('Could not restore: ' + err.message);
+    btnEl.disabled = false;
+    btnEl.textContent = 'Restore';
+  }
+}
+function closeCrmArchivedModal() {
+  document.getElementById('crmArchivedModalBackdrop').classList.remove('open');
+  document.body.style.overflow = '';
+}
 
 /* ---- Main tab render: fetch live, then draw board + KPIs + flags + rep table ---- */
 async function renderCrmTab() {

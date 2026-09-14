@@ -218,6 +218,7 @@ body {
 .crm-card { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-card); box-shadow: var(--shadow-sm); padding: 8px 9px; cursor: pointer; transition: box-shadow .15s, transform .15s; }
 .crm-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .crm-card-name { font-size: 12px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 7px; }
+.crm-card-notes-icon { font-size: 11px; margin-left: 4px; opacity: 0.6; white-space: nowrap; }
 .crm-card-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .crm-avatar-row { display: flex; align-items: center; flex: 0 0 auto; }
 .crm-avatar { width: 19px; height: 19px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8.5px; font-weight: 700; color: #fff; border: 1.5px solid var(--surface-card); margin-left: -6px; flex: 0 0 auto; }
@@ -251,6 +252,18 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 .bar-value-label { fill: var(--text-primary); font-weight: 600; }
 .crm-view-archived { font-size: 12.5px; color: var(--text-secondary); background: var(--surface-card); border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 6px 12px; cursor: pointer; white-space: nowrap; }
 .crm-view-archived:hover { background: var(--surface-page); color: var(--text-primary); }
+.crm-actor-picker { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.crm-actor-picker label { font-size: 11px; color: var(--text-muted); }
+.crm-actor-input { font-size: 12.5px; color: var(--text-primary); background: var(--surface-card); border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 6px 10px; width: 130px; }
+.crm-activity-panel { max-height: 220px; overflow-y: auto; border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 8px 10px; background: var(--surface-page); }
+.crm-activity-row { padding: 6px 0; border-bottom: 1px solid var(--gridline); }
+.crm-activity-row:last-child { border-bottom: none; }
+.crm-activity-row-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.crm-activity-label { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.crm-activity-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.crm-activity-detail { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+.crm-activity-actor { font-weight: 600; color: var(--text-secondary); }
+.crm-activity-empty, .crm-activity-loading { font-size: 12px; color: var(--text-muted); padding: 6px 2px; }
 
 /* ---------------- Responsive: tablet ---------------- */
 @media (max-width: 1000px) {
@@ -441,6 +454,11 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <input type="search" id="crmSearchInput" class="control-select" style="width:100%;" placeholder="Search deals by customer or rep…" oninput="crmHandleSearchInput()">
       </div>
       <span class="live-status" id="crmSearchStatus" style="display:none;"></span>
+      <div class="crm-actor-picker" title="Sets whose name is attached to activity you log in the CRM on this device">
+        <label for="crmActorInput">Acting as</label>
+        <input type="text" id="crmActorInput" class="crm-actor-input" list="crmActorList" placeholder="Your name" oninput="crmHandleActorInput()">
+        <datalist id="crmActorList"></datalist>
+      </div>
       <button type="button" class="crm-view-archived" onclick="openCrmArchivedModal()">View archived deals</button>
     </div>
 
@@ -1761,6 +1779,7 @@ document.getElementById('salesApplyBtn').addEventListener('click', () => {
 const CRM_SUPABASE_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
 const CRM_SUPABASE_KEY = 'sb_publishable_-hprPPqnVl6bA4hh2Aozdg_ks95GRvF';
 const CRM_REST = CRM_SUPABASE_URL + '/rest/v1/crm_deals';
+const CRM_ACTIVITY_REST = CRM_SUPABASE_URL + '/rest/v1/crm_activity';
 const CRM_HEADERS = { apikey: CRM_SUPABASE_KEY, Authorization: 'Bearer ' + CRM_SUPABASE_KEY, 'Content-Type': 'application/json' };
 
 const CRM_PROSPECT_ACTIVE = ['Prospecting List', 'Prospecting 1st Contact', 'Prospecting 2nd Contact', 'Prospecting 3rd Contact'];
@@ -1829,6 +1848,80 @@ async function crmFetchArchivedDeals() {
 }
 async function crmRestoreDeal(id) {
   return crmUpdateDeal(id, { archived: false, updated_at: new Date().toISOString() });
+}
+
+/* ---- Activity log: lightweight "acting as" attribution (no real auth in this app) ---- */
+const CRM_ACTOR_STORAGE_KEY = 'koala-crm-actor';
+function crmGetActingAs() {
+  try { return localStorage.getItem(CRM_ACTOR_STORAGE_KEY) || ''; } catch (e) { return ''; }
+}
+function crmSetActingAs(name) {
+  try { localStorage.setItem(CRM_ACTOR_STORAGE_KEY, name); } catch (e) {}
+}
+function crmHandleActorInput() {
+  const el = document.getElementById('crmActorInput');
+  if (el) crmSetActingAs(el.value.trim());
+}
+function crmInitActorPicker() {
+  const input = document.getElementById('crmActorInput');
+  const list = document.getElementById('crmActorList');
+  if (!input) return;
+  input.value = crmGetActingAs();
+  if (list) list.innerHTML = crmKnownReps().map(r => `<option value="${crmEsc(r)}">`).join('');
+}
+async function crmLogActivity(dealId, action, detail) {
+  const actor = crmGetActingAs().trim() || 'Unknown';
+  try {
+    await fetch(CRM_ACTIVITY_REST, { method: 'POST', headers: CRM_HEADERS, body: JSON.stringify({ deal_id: dealId, actor, action, detail: detail || null }) });
+  } catch (err) {
+    console.warn('crm activity log failed', err);
+  }
+}
+async function crmFetchActivity(dealId) {
+  const res = await fetch(`${CRM_ACTIVITY_REST}?deal_id=eq.${dealId}&order=created_at.desc&limit=50`, { headers: CRM_HEADERS });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+function crmActivityTimeAgo(iso) {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+const CRM_ACTIVITY_LABELS = {
+  created: 'Created',
+  edited: 'Edited',
+  stage_change: 'Stage change',
+  archived: 'Archived',
+  restored: 'Restored',
+  notes_imported: 'Notes imported',
+};
+async function crmRenderActivityPanel(dealId) {
+  const el = document.getElementById('crmActivityPanel');
+  if (!el) return;
+  el.innerHTML = `<div class="crm-activity-loading">Loading activity…</div>`;
+  try {
+    const entries = await crmFetchActivity(dealId);
+    if (!entries.length) {
+      el.innerHTML = `<div class="crm-activity-empty">No activity recorded yet.</div>`;
+      return;
+    }
+    el.innerHTML = entries.map(a => `
+      <div class="crm-activity-row">
+        <div class="crm-activity-row-top">
+          <span class="crm-activity-label">${crmEsc(CRM_ACTIVITY_LABELS[a.action] || a.action)}</span>
+          <span class="crm-activity-time">${crmActivityTimeAgo(a.created_at)}</span>
+        </div>
+        <div class="crm-activity-detail">${a.detail ? crmEsc(a.detail) + ' &mdash; ' : ''}<span class="crm-activity-actor">${crmEsc(a.actor)}</span></div>
+      </div>`).join('');
+  } catch (err) {
+    el.innerHTML = `<div class="crm-activity-empty">Could not load activity.</div>`;
+  }
 }
 
 /* ---- Rendering helpers ---- */
@@ -1911,11 +2004,14 @@ function crmCardHtml(d) {
   const due = crmDueBadge(d.due_date, d.due_complete);
   const age = crmAgeBadge(crmDaysStale(d.last_activity_at));
   const valueHtml = d.value != null ? `<div class="crm-card-value">${fmtMoneyCompact(d.value)}</div>` : '';
+  const notesIcon = d.notes && d.notes.trim()
+    ? `<span class="crm-card-notes-icon" title="${crmEsc(d.notes.trim().slice(0, 200))}">\u{1F4DD}</span>`
+    : '';
   return `<div class="crm-card" draggable="true" data-id="${d.id}"
       ondragstart="crmHandleDragStart(event, this, '${d.id}')"
       ondragend="this.classList.remove('crm-dragging')"
       onclick="openCrmDealModal('${d.id}')" role="button" tabindex="0">
-    <div class="crm-card-name">${crmEsc(d.name)}</div>
+    <div class="crm-card-name">${crmEsc(d.name)}${notesIcon}</div>
     ${valueHtml}
     <div class="crm-card-meta">
       ${crmAvatarRow(d.reps)}
@@ -1992,8 +2088,10 @@ async function crmHandleDrop(e, columnEl, stageName) {
   const newPosition = crmComputeDropPosition(columnBody, e.clientY, id);
   if (deal.stage === stageName && Math.abs(newPosition - deal.position) < 1e-9) return;
   const nowIso = new Date().toISOString();
+  const fromStage = deal.stage;
   try {
     await crmUpdateDeal(id, { stage: stageName, position: newPosition, updated_at: nowIso, last_activity_at: nowIso });
+    if (fromStage !== stageName) await crmLogActivity(id, 'stage_change', `Moved from ${fromStage} to ${stageName}`);
     await renderCrmTab();
   } catch (err) {
     alert('Could not move the deal: ' + err.message);
@@ -2023,6 +2121,7 @@ function openCrmDealModal(id, presetStage) {
     </div>
     <div class="crm-form-row"><label>Notes</label><textarea class="crm-form-textarea" id="crmFNotes" placeholder="Optional">${crmEsc(deal ? deal.notes || '' : '')}</textarea></div>
     <div class="crm-form-error" id="crmFormError" style="display:none;"></div>
+    ${isEdit ? `<div class="crm-form-row"><label>Activity</label><div class="crm-activity-panel" id="crmActivityPanel"></div></div>` : ''}
   `;
   document.getElementById('crmStageModalFooter').innerHTML = `
     <div class="crm-modal-actions">
@@ -2034,6 +2133,7 @@ function openCrmDealModal(id, presetStage) {
     </div>`;
   document.getElementById('crmStageModalBackdrop').classList.add('open');
   document.body.style.overflow = 'hidden';
+  if (isEdit) crmRenderActivityPanel(deal.id);
 }
 async function crmSaveCurrentDeal() {
   const errEl = document.getElementById('crmFormError');
@@ -2060,11 +2160,27 @@ async function crmSaveCurrentDeal() {
         patch.position = target.length ? Math.max(...target.map(d => d.position)) + 1 : 0;
       }
       await crmUpdateDeal(crmEditingId, patch);
+      if (existing) {
+        const changes = [];
+        if (existing.name !== name) changes.push(`Name: "${existing.name}" → "${name}"`);
+        if (existing.stage !== stage) changes.push(`Stage: ${existing.stage} → ${stage}`);
+        if ((existing.value ?? null) !== value) changes.push(`Value: ${existing.value != null ? fmtMoney(existing.value) : '—'} → ${value != null ? fmtMoney(value) : '—'}`);
+        const existingReps = (existing.reps || []).join(', ');
+        const newReps = reps.join(', ');
+        if (existingReps !== newReps) changes.push(`Rep(s): ${existingReps || '—'} → ${newReps || '—'}`);
+        if ((existing.due_date || null) !== dueDate) changes.push(`Due date: ${existing.due_date || '—'} → ${dueDate || '—'}`);
+        if (!!existing.due_complete !== dueComplete) changes.push(`Due complete: ${dueComplete ? 'yes' : 'no'}`);
+        if ((existing.notes || '') !== (notes || '')) changes.push('Notes updated');
+        if (changes.length) {
+          await crmLogActivity(crmEditingId, existing.stage !== stage ? 'stage_change' : 'edited', changes.join('; '));
+        }
+      }
     } else {
       const groups = crmDealsByStage();
       const target = groups[stage] || [];
       const position = target.length ? Math.max(...target.map(d => d.position)) + 1 : 0;
-      await crmCreateDeal({ name, stage, reps, value, due_date: dueDate, due_complete: dueComplete, notes, position, last_activity_at: nowIso });
+      const created = await crmCreateDeal({ name, stage, reps, value, due_date: dueDate, due_complete: dueComplete, notes, position, last_activity_at: nowIso });
+      await crmLogActivity(created.id, 'created', `Deal created in ${stage}${reps.length ? ' — assigned to ' + reps.join(', ') : ''}`);
     }
     closeCrmStageModal();
     await renderCrmTab();
@@ -2079,6 +2195,7 @@ async function crmDeleteCurrentDeal() {
   if (!confirm('Archive this deal? It will be removed from the board (not permanently deleted).')) return;
   try {
     await crmArchiveDeal(crmEditingId);
+    await crmLogActivity(crmEditingId, 'archived', null);
     closeCrmStageModal();
     await renderCrmTab();
   } catch (err) {
@@ -2197,6 +2314,7 @@ async function crmHandleRestoreClick(id, btnEl) {
   btnEl.textContent = 'Restoring…';
   try {
     await crmRestoreDeal(id);
+    await crmLogActivity(id, 'restored', null);
     await renderCrmTab();
     crmArchivedDeals = await crmFetchArchivedDeals();
     crmRenderArchivedResults();
@@ -2227,6 +2345,7 @@ async function renderCrmTab() {
   }
 
   renderCrmBoards();
+  crmInitActorPicker();
 
   const counts = {};
   crmDeals.forEach(d => { counts[d.stage] = (counts[d.stage] || 0) + 1; });

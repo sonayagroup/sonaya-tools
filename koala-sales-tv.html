@@ -20,6 +20,7 @@
     --brand-teal:    #6a9a1e;
     --brand-teal-light: #f0f7e1;
     --brand-amber:   #d97706;
+    --spray-foam-pink: #c2255c;
     --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100;
     --status-good:     #0ca30c; --status-good-bg:  #edfaed;
     --status-ok:       #1a9a6a; --status-ok-bg:    #e6f7f0;
@@ -43,6 +44,7 @@
     --brand-teal:    #97d700;
     --brand-teal-light: #1e2a12;
     --brand-amber:   #f8a94e;
+    --spray-foam-pink: #ff6fb0;
     --cat-1: #3987e5; --cat-2: #ff8551; --cat-3: #23c98c; --cat-4: #f0b429;
     --status-good:     #5fce3f; --status-good-bg:  #16241a;
     --status-ok:       #35c191; --status-ok-bg:    #142723;
@@ -166,6 +168,7 @@
   .cal-install:first-of-type { border-top: none; }
   .cal-install .cal-time { color: var(--text-primary); font-weight: 700; white-space: nowrap; flex: 0 0 auto; }
   .cal-install .cal-crew { color: var(--text-muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
+  .cal-install.is-foam .cal-time, .cal-install.is-foam .cal-crew { color: var(--spray-foam-pink); }
   .cal-more { font-size: 1.05vh; color: var(--text-muted); font-weight: 700; padding-top: 0.3vh; }
 
   /* ---- footer ---- */
@@ -179,13 +182,17 @@
   .footer-stat .fs-sub { font-size: 1.05vh; color: var(--text-muted); font-weight: 700; margin-top: 2px; }
   .ticker-wrap {
     flex: 1; background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-    overflow: hidden; display: flex; align-items: center; position: relative;
+    overflow: hidden; display: flex; align-items: center; position: relative; isolation: isolate;
   }
   .ticker-tag {
     flex: 0 0 auto; background: var(--brand-teal); color: #10210a; font-weight: 800; font-size: 1.3vh;
     letter-spacing: 0.08em; text-transform: uppercase; padding: 0 1.4vh; align-self: stretch; display: flex; align-items: center;
+    position: relative; z-index: 2; opacity: 1; transform: translateZ(0); backface-visibility: hidden;
   }
-  .ticker-track { display: flex; white-space: nowrap; animation: scroll-left 32s linear infinite; padding-left: 100%; }
+  .ticker-track {
+    display: flex; white-space: nowrap; animation: scroll-left 32s linear infinite; padding-left: 100%;
+    position: relative; z-index: 1; transform: translateZ(0);
+  }
   .ticker-track span { font-size: 1.7vh; font-weight: 600; padding: 0 3vw; color: var(--text-primary); }
   .ticker-track span b { color: var(--brand-teal); }
   @keyframes scroll-left { from { transform: translateX(0); } to { transform: translateX(-100%); } }
@@ -678,7 +685,8 @@
         ? installJobs.slice(0, CAL_ROWS_SHOWN).map(j => {
             const abbr = INSTALL_SERVICE_ABBR[j.service] || j.service || '';
             const crew = crewInitials(j.crew);
-            return `<div class="cal-install"><span class="cal-time">${escapeHtml(j.time)}</span><span class="cal-crew">${escapeHtml(abbr)} · ${escapeHtml(j.customer || '')}${crew ? ' (' + escapeHtml(crew) + ')' : ''}</span></div>`;
+            const isFoam = j.service === 'Foam Pack';
+            return `<div class="cal-install${isFoam ? ' is-foam' : ''}"><span class="cal-time">${escapeHtml(j.time)}</span><span class="cal-crew">${escapeHtml(abbr)} · ${escapeHtml(j.customer || '')}${crew ? ' (' + escapeHtml(crew) + ')' : ''}</span></div>`;
           }).join('')
           + (installJobs.length > CAL_ROWS_SHOWN ? `<div class="cal-more">+${installJobs.length - CAL_ROWS_SHOWN} more</div>` : '')
         : `<div class="cal-open">Open — nothing booked</div>`;

@@ -392,6 +392,13 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     </div>
     <div class="kpi-summary" id="crmKpiRow"></div>
 
+    <div class="controls" style="margin-bottom:14px;">
+      <div class="control-group" style="flex:1; min-width:220px; max-width:420px;">
+        <input type="search" id="crmSearchInput" class="control-select" style="width:100%;" placeholder="Search deals by customer or rep…" oninput="crmHandleSearchInput()">
+      </div>
+      <span class="live-status" id="crmSearchStatus" style="display:none;"></span>
+    </div>
+
     <div class="section-title">Prospecting Pipeline <span class="section-title-sub">— building the relationship, before plans arrive</span></div>
     <div class="crm-board" id="crmProspectRow"></div>
 
@@ -1714,6 +1721,7 @@ let crmDeals = [];
 let crmLoaded = false;
 let crmEditingId = null;
 let crmDragId = null;
+let crmSearchQuery = ''; // raw (not lowercased) — drives the CRM board search box
 
 function crmEsc(s) {
   if (s == null) return '';
@@ -1788,11 +1796,41 @@ function crmKnownReps() {
   EXCLUDED_REPS.forEach(r => set.delete(r));
   return [...set].sort();
 }
-function crmDealsByStage() {
+function crmDealsByStage(dealsList) {
   const groups = {};
-  crmDeals.forEach(d => { (groups[d.stage] = groups[d.stage] || []).push(d); });
+  (dealsList || crmDeals).forEach(d => { (groups[d.stage] = groups[d.stage] || []).push(d); });
   Object.keys(groups).forEach(k => groups[k].sort((a, b) => a.position - b.position));
   return groups;
+}
+
+/* ---- Board search (customer name or rep name, case-insensitive substring) ---- */
+function crmDealMatchesSearch(d, qLower) {
+  if (!qLower) return true;
+  if ((d.name || '').toLowerCase().includes(qLower)) return true;
+  return (d.reps || []).some(r => (r || '').toLowerCase().includes(qLower));
+}
+function crmSearchFilteredDeals() {
+  const q = crmSearchQuery.trim().toLowerCase();
+  if (!q) return crmDeals;
+  return crmDeals.filter(d => crmDealMatchesSearch(d, q));
+}
+function crmHandleSearchInput() {
+  crmSearchQuery = document.getElementById('crmSearchInput').value || '';
+  renderCrmBoards();
+}
+function renderCrmBoards() {
+  const filtered = crmSearchFilteredDeals();
+  const groups = crmDealsByStage(filtered);
+  renderPipelineBoard('crmProspectRow', CRM_PROSPECT_ACTIVE, CRM_PROSPECT_OUTCOMES, groups);
+  renderPipelineBoard('crmEstimateRow', CRM_ESTIMATE_ACTIVE, CRM_ESTIMATE_OUTCOMES, groups);
+  const status = document.getElementById('crmSearchStatus');
+  const q = crmSearchQuery.trim();
+  if (q) {
+    status.style.display = '';
+    status.textContent = `${filtered.length} match${filtered.length === 1 ? '' : 'es'} for "${q}" (of ${crmDeals.length} deals)`;
+  } else {
+    status.style.display = 'none';
+  }
 }
 function crmCardHtml(d) {
   const due = crmDueBadge(d.due_date, d.due_complete);
@@ -1813,7 +1851,7 @@ function crmCardHtml(d) {
 function crmColumn(stageName, deals) {
   const meta = CRM_STAGE_META[stageName] || { accent: 'var(--cat-1)' };
   const safeStage = stageName.replace(/'/g, "\\'");
-  const cardsHtml = deals.length ? deals.map(d => crmCardHtml(d)).join('') : `<div class="crm-column-empty">No deals</div>`;
+  const cardsHtml = deals.length ? deals.map(d => crmCardHtml(d)).join('') : `<div class="crm-column-empty">${crmSearchQuery.trim() ? 'No matches' : 'No deals'}</div>`;
   return `<div class="crm-column" style="border-top-color:${meta.accent};"
       ondragover="crmHandleDragOver(event)"
       ondragenter="this.classList.add('crm-drop-target')"
@@ -2024,9 +2062,7 @@ async function renderCrmTab() {
     if (!crmLoaded) return;
   }
 
-  const groups = crmDealsByStage();
-  renderPipelineBoard('crmProspectRow', CRM_PROSPECT_ACTIVE, CRM_PROSPECT_OUTCOMES, groups);
-  renderPipelineBoard('crmEstimateRow', CRM_ESTIMATE_ACTIVE, CRM_ESTIMATE_OUTCOMES, groups);
+  renderCrmBoards();
 
   const counts = {};
   crmDeals.forEach(d => { counts[d.stage] = (counts[d.stage] || 0) + 1; });

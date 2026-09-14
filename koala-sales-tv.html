@@ -540,6 +540,36 @@
     return { label: 'Way Behind', good: 'critical' };
   }
 
+  // Sums Proposals Kind "Value" by owner for proposals whose genuine Accepted Date falls within
+  // [fromISO, throughISO] inclusive (local-time, matching todayLocalISO()/mondayOf()). A blank
+  // acceptedDate (never accepted — Expired/Declined/still-Open) is excluded outright.
+  //
+  // Replaces the old today/week/MTD revenue source (report=agent, Invoices Kind grouped by invoice
+  // date) as of 2026-09-14. Pranav flagged Gabriel Espinosa's "Today" tile as wrong — it credited
+  // him with a $3,852 job ("Hotel Flora") he hadn't touched today. Investigation found the invoice
+  // for that job was only generated in ServiceMinder today (after installation finished), while
+  // Gabriel had actually closed the sale on 9/8 — Invoices Kind's date reflects when the invoice
+  // document was created/issued, not when the rep booked the deal, and for larger commercial jobs
+  // those can be days to weeks apart. Proposals Kind's "Accepted Date" is the actual close date, so
+  // pace tiles now attribute revenue there instead. Reuses report=onthebooks's allProposals (already
+  // fetched for the close-rate stats in repFunnelStats/repOpenPipeline below) rather than adding a
+  // new report — see the acceptedDate comment in the serviceminder-revenue edge function for the
+  // matching server-side fix (that field used to silently fall back to a generic "created" date for
+  // non-accepted proposals, which would have double-counted here too).
+  function sumBookedByRep(allProposals, fromISO, throughISO) {
+    const from = new Date(fromISO + 'T00:00:00');
+    const through = new Date(throughISO + 'T23:59:59');
+    const byRep = new Map();
+    for (const [value, status, acceptedDate, owner] of allProposals) {
+      if (status === 'Voided') continue;
+      const d = parseSMDate(acceptedDate);
+      if (!d || d < from || d > through) continue;
+      const key = owner || '(Unassigned)';
+      byRep.set(key, (byRep.get(key) || 0) + (Number(value) || 0));
+    }
+    return byRep;
+  }
+
   // ---- fast refresh: today's + weekly + MTD revenue per rep, team totals ----
   async function refreshRevenue() {
     const todayISO = todayLocalISO();
@@ -548,21 +578,19 @@
     const nonBizDay = isNonBusinessDay();
     const expectedFrac = nonBizDay ? 0 : dayFracElapsed();
 
-    const [todayAgent, weekAgent, mtdAgent] = await Promise.all([
-      fetchJSON(fnUrl('agent', { from: todayISO, through: todayISO })),
-      fetchJSON(fnUrl('agent', { from: weekStart, through: todayISO })),
-      fetchJSON(fnUrl('agent', { from: monthStart, through: todayISO })),
-    ]);
+    const onbooks = await fetchJSON(fnUrl('onthebooks', {}));
+    const allProposals = onbooks.allProposals || [];
+    const todayByRep = sumBookedByRep(allProposals, todayISO, todayISO);
+    const weekByRep = sumBookedByRep(allProposals, weekStart, todayISO);
+    const mtdByRep = sumBookedByRep(allProposals, monthStart, todayISO);
 
     let teamTodayRevenue = 0, teamGoal = 0, teamWeekRevenue = 0;
 
     REPS.forEach((rep, i) => {
       const card = document.getElementById(`repCard-${rep.key}`);
-      const todayRow = (todayAgent.reps || []).find(r => r.name === rep.fullName);
-      const weekRow = (weekAgent.reps || []).find(r => r.name === rep.fullName);
-      const mtdRow = (mtdAgent.reps || []).find(r => r.name === rep.fullName);
-      const todayRevenue = todayRow ? todayRow.revenue : 0;
-      const weekRevenue = weekRow ? weekRow.revenue : 0;
+      const todayRevenue = todayByRep.get(rep.fullName) || 0;
+      const weekRevenue = weekByRep.get(rep.fullName) || 0;
+      const mtdRevenue = mtdByRep.get(rep.fullName) || 0;
       const goal = GOALS[rep.fullName] || 6500;
       teamTodayRevenue += todayRevenue;
       teamGoal += goal;
@@ -570,7 +598,7 @@
 
       el(card, 'revenue').textContent = fmtMoney(todayRevenue);
       el(card, 'week').textContent = fmtMoney(weekRevenue);
-      el(card, 'mtd').textContent = fmtMoney(mtdRow ? mtdRow.revenue : 0);
+      el(card, 'mtd').textContent = fmtMoney(mtdRevenue);
 
       const frac = goal > 0 ? todayRevenue / goal : 0;
       el(card, 'bar').style.width = Math.min(100, frac * 100) + '%';
@@ -591,8 +619,7 @@
 
     // ---- Frank Emanuel (commercial, monthly cadence) ----
     const frankGoal = COMMERCIAL_GOALS['Frank Emanuel'] || 125000;
-    const frankRow = (mtdAgent.reps || []).find(r => r.name === 'Frank Emanuel');
-    const frankRevenue = frankRow ? frankRow.revenue : 0;
+    const frankRevenue = mtdByRep.get('Frank Emanuel') || 0;
     document.getElementById('frankGoal').textContent = fmtMoney(frankGoal);
     document.getElementById('frankRevenue').textContent = fmtMoney(frankRevenue);
 

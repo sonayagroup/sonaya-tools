@@ -1512,6 +1512,11 @@ button { font-family: inherit; }
       <button class="sb-nav-link" data-view="activity"><span class="sb-nav-icon">&#128221;</span><span class="sb-nav-label"> Activity Log</span></button>
     </nav>
 
+    <div class="sb-label admin-only-label" hidden>Admin</div>
+    <nav class="sb-nav nav-links admin-only-nav" hidden>
+      <button class="sb-nav-link" data-view="admin"><span class="sb-nav-icon">&#128274;</span><span class="sb-nav-label"> User Management</span></button>
+    </nav>
+
     <div class="sb-spacer"></div>
     <button class="sb-new-btn" id="new-post-btn"><span>+</span><span class="sb-new-label"> New Post</span></button>
     <div class="sb-bottom">
@@ -1736,6 +1741,12 @@ function updateUserUI() {
   document.getElementById('ud-name').textContent = AUTH_USER.display_name;
   document.getElementById('ud-email').textContent = AUTH_USER.email;
   document.getElementById('ud-role').textContent = AUTH_USER.role;
+  // Show admin nav items if user is admin
+  const isAdmin = AUTH_USER.role === 'admin';
+  const adminLabel = document.querySelector('.admin-only-label');
+  const adminNav = document.querySelector('.admin-only-nav');
+  if (adminLabel) adminLabel.hidden = !isAdmin;
+  if (adminNav) adminNav.hidden = !isAdmin;
 }
 
 async function checkAuth() {
@@ -3596,6 +3607,197 @@ async function saveTheme(existingId) {
 async function deleteTheme(themeId) { if (!confirm('Delete this monthly theme?')) return; await sb.from('sm_monthly_themes').delete().eq('id',themeId); await loadAll(); render(); }
 
 // ══════════════════════════════════════════════
+// ADMIN USER MANAGEMENT
+// ══════════════════════════════════════════════
+let ADMIN_USERS = [];
+
+function getSessionToken() {
+  try { return localStorage.getItem(SESSION_KEY); } catch(e) { return null; }
+}
+
+async function adminLoadUsers() {
+  const token = getSessionToken();
+  if (!token) return;
+  const { data, error } = await sb.rpc('admin_list_users', { p_token: token });
+  if (error || (data && data.error)) { showToast(data?.error || 'Failed to load users', 'error'); return; }
+  ADMIN_USERS = data.users || [];
+}
+
+function renderAdmin() {
+  if (!AUTH_USER || AUTH_USER.role !== 'admin') {
+    document.getElementById('main-view').innerHTML = '<div class="v-header"><h1>&#128274; Access Denied</h1><p class="v-sub">Admin privileges required.</p></div>';
+    return;
+  }
+  // Show loading, then fetch
+  document.getElementById('main-view').innerHTML = '<div class="v-header"><h1>&#128274; User Management</h1><p class="v-sub">Manage team access, roles, and login credentials</p></div><div class="v-body"><p style="color:var(--ink-3)">Loading users...</p></div>';
+  adminLoadUsers().then(() => renderAdminTable());
+}
+
+function renderAdminTable() {
+  const users = ADMIN_USERS;
+  const activeCount = users.filter(u => u.is_active).length;
+  const loginReady = users.filter(u => u.email && u.has_pin).length;
+  const pendingSetup = users.filter(u => u.email && !u.has_pin).length;
+
+  let html = `<div class="v-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div><h1>&#128274; User Management</h1><p class="v-sub">Manage team access, roles, and login credentials</p></div>
+    <button class="btn btn-primary" onclick="openAdminUserModal(null)">+ Add User</button>
+  </div><div class="v-body">`;
+
+  // Stats
+  html += `<div class="stat-row" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
+    <div class="stat-tile"><div class="stat-label">Total Users</div><div class="stat-value">${users.length}</div></div>
+    <div class="stat-tile"><div class="stat-label">Active</div><div class="stat-value">${activeCount}</div></div>
+    <div class="stat-tile"><div class="stat-label">Login Ready</div><div class="stat-value">${loginReady}</div><div class="stat-sub">Email + PIN set</div></div>
+    <div class="stat-tile"><div class="stat-label">Pending Setup</div><div class="stat-value">${pendingSetup}</div><div class="stat-sub">Email set, awaiting PIN</div></div>
+  </div>`;
+
+  // Table
+  html += `<div class="data-table-wrap"><div class="data-table-title">Team Members</div><div style="overflow-x:auto"><table class="data-table"><thead><tr>
+    <th>Name</th><th>Email</th><th>Role</th><th>Login Status</th><th>Status</th><th style="text-align:right">Actions</th>
+  </tr></thead><tbody>`;
+
+  users.forEach(u => {
+    const isMe = u.id === AUTH_USER.id;
+    let loginStatus = '';
+    if (!u.email) loginStatus = '<span class="tag" style="background:var(--surface-1);color:var(--ink-3);border-color:var(--surface-border)">No email</span>';
+    else if (!u.has_pin) loginStatus = '<span class="tag" style="background:#fef3c7;color:#92400e;border-color:#fde68a">Pending PIN setup</span>';
+    else if (u.is_online) loginStatus = '<span class="tag" style="background:#dcfce7;color:#166534;border-color:#bbf7d0">Active session</span>';
+    else loginStatus = '<span class="tag" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0">Ready</span>';
+
+    const activeStatus = u.is_active
+      ? '<span class="tag" style="background:#dcfce7;color:#166534;border-color:#bbf7d0">Active</span>'
+      : '<span class="tag" style="background:#fef2f2;color:#dc2626;border-color:#fecaca">Disabled</span>';
+
+    const roleBadge = u.role === 'admin'
+      ? '<span class="tag tag-primary">Admin</span>'
+      : u.role === 'creator'
+        ? '<span class="tag" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe">Creator</span>'
+        : '<span class="tag" style="background:var(--surface-1);color:var(--ink-3);border-color:var(--surface-border)">Viewer</span>';
+
+    html += `<tr>
+      <td style="font-weight:600;color:var(--ink-1)">${escHtml(u.name)}${isMe?' <span style="font-size:11px;font-weight:400;color:var(--ink-3)">(you)</span>':''}</td>
+      <td style="color:var(--ink-2);font-size:12px">${u.email ? escHtml(u.email) : '<span style="color:var(--ink-3);font-style:italic">—</span>'}</td>
+      <td>${roleBadge}</td>
+      <td>${loginStatus}</td>
+      <td>${activeStatus}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button onclick="openAdminUserModal('${u.id}')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--ink-3);padding:4px" title="Edit">&#9998;</button>
+        ${!isMe && u.has_pin ? `<button onclick="adminResetPin('${u.id}','${escAttr(u.name)}')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--ink-3);padding:4px" title="Reset PIN">&#128260;</button>` : ''}
+        ${!isMe ? `<button onclick="adminToggleActive('${u.id}',${u.is_active ? 'false' : 'true'},'${escAttr(u.name)}')" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--ink-3);padding:4px" title="${u.is_active ? 'Disable' : 'Enable'}">${u.is_active ? '&#9940;' : '&#9989;'}</button>` : ''}
+        ${!isMe ? `<button onclick="adminDeleteUser('${u.id}','${escAttr(u.name)}')" style="background:none;border:none;cursor:pointer;font-size:14px;color:#dc2626;padding:4px" title="Delete">&#128465;</button>` : ''}
+      </td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div></div>`;
+  html += `<p style="font-size:11px;color:var(--ink-3);margin-top:12px">Users need an email address to log in. Once their email is set, they'll be prompted to create a PIN on first login.</p>`;
+  html += `</div>`;
+  document.getElementById('main-view').innerHTML = html;
+}
+
+function openAdminUserModal(userId) {
+  const user = userId ? ADMIN_USERS.find(u => u.id === userId) : null;
+  const title = user ? 'Edit User' : 'Add User';
+  let html = `<div style="padding:24px;max-width:440px">
+    <h2 style="font-family:Outfit;font-size:20px;font-weight:700;color:var(--ink-0);margin-bottom:16px">${title}</h2>
+    <form id="admin-user-form" onsubmit="event.preventDefault();adminSaveUser('${userId||''}')">
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:4px">Name *</label>
+        <input name="name" type="text" required value="${user ? escAttr(user.name) : ''}" style="width:100%;padding:8px 12px;border:1px solid var(--surface-border);border-radius:var(--r-sm);background:var(--surface-0,var(--bg));color:var(--ink-0);font-size:14px" placeholder="e.g. Yuleisy">
+      </div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:4px">Email</label>
+        <input name="email" type="email" value="${user && user.email ? escAttr(user.email) : ''}" style="width:100%;padding:8px 12px;border:1px solid var(--surface-border);border-radius:var(--r-sm);background:var(--surface-0,var(--bg));color:var(--ink-0);font-size:14px" placeholder="user@sonayagroup.com">
+        <p style="font-size:11px;color:var(--ink-3);margin-top:3px">Required for login. Leave blank for crew members who won't log in.</p>
+      </div>
+      <div style="margin-bottom:18px">
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:4px">Role *</label>
+        <select name="role" required style="width:100%;padding:8px 12px;border:1px solid var(--surface-border);border-radius:var(--r-sm);background:var(--surface-0,var(--bg));color:var(--ink-0);font-size:14px">
+          <option value="creator" ${!user || user.role==='creator' ? 'selected' : ''}>Creator — can create and edit content</option>
+          <option value="viewer" ${user && user.role==='viewer' ? 'selected' : ''}>Viewer — read-only access</option>
+          <option value="admin" ${user && user.role==='admin' ? 'selected' : ''}>Admin — full access + user management</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">${user ? 'Save Changes' : 'Add User'}</button>
+      </div>
+    </form>
+  </div>`;
+
+  const overlay = document.getElementById('modal-overlay');
+  const modal = document.getElementById('modal-content');
+  modal.innerHTML = html;
+  overlay.hidden = false;
+}
+
+async function adminSaveUser(userId) {
+  const form = document.getElementById('admin-user-form');
+  const fd = new FormData(form);
+  const name = fd.get('name')?.trim();
+  const email = fd.get('email')?.trim() || '';
+  const role = fd.get('role');
+  const token = getSessionToken();
+
+  if (!name) { showToast('Name is required', 'error'); return; }
+
+  let result;
+  if (userId) {
+    const { data, error } = await sb.rpc('admin_update_user', { p_token: token, p_user_id: userId, p_name: name, p_email: email, p_role: role });
+    result = { data, error };
+  } else {
+    const { data, error } = await sb.rpc('admin_add_user', { p_token: token, p_name: name, p_email: email, p_role: role });
+    result = { data, error };
+  }
+
+  if (result.error || (result.data && result.data.error)) {
+    showToast(result.data?.error || result.error?.message || 'Failed to save', 'error');
+    return;
+  }
+
+  closeModal();
+  showToast(userId ? 'User updated' : 'User added', 'success');
+  logAudit(userId ? 'edit' : 'create', 'user', userId || result.data?.id || '', name, { role, email });
+  await adminLoadUsers();
+  renderAdminTable();
+}
+
+async function adminResetPin(userId, userName) {
+  if (!confirm('Reset PIN for ' + userName + '? They will need to set up a new PIN on next login.')) return;
+  const token = getSessionToken();
+  const { data, error } = await sb.rpc('admin_reset_pin', { p_token: token, p_user_id: userId });
+  if (error || (data && data.error)) { showToast(data?.error || 'Failed to reset PIN', 'error'); return; }
+  showToast('PIN reset for ' + userName, 'success');
+  logAudit('reset_pin', 'user', userId, userName);
+  await adminLoadUsers();
+  renderAdminTable();
+}
+
+async function adminToggleActive(userId, setActive, userName) {
+  const action = setActive ? 'enable' : 'disable';
+  if (!confirm((setActive ? 'Enable' : 'Disable') + ' access for ' + userName + '?')) return;
+  const token = getSessionToken();
+  const { data, error } = await sb.rpc('admin_update_user', { p_token: token, p_user_id: userId, p_is_active: setActive });
+  if (error || (data && data.error)) { showToast(data?.error || 'Failed to update', 'error'); return; }
+  showToast(userName + (setActive ? ' enabled' : ' disabled'), 'success');
+  logAudit(action, 'user', userId, userName);
+  await adminLoadUsers();
+  renderAdminTable();
+}
+
+async function adminDeleteUser(userId, userName) {
+  if (!confirm('Permanently delete ' + userName + '? This cannot be undone.')) return;
+  const token = getSessionToken();
+  const { data, error } = await sb.rpc('admin_delete_user', { p_token: token, p_user_id: userId });
+  if (error || (data && data.error)) { showToast(data?.error || 'Failed to delete', 'error'); return; }
+  showToast(userName + ' deleted', 'success');
+  logAudit('delete', 'user', userId, userName);
+  await adminLoadUsers();
+  renderAdminTable();
+}
+
+// ══════════════════════════════════════════════
 // RENDER ENGINE
 // ══════════════════════════════════════════════
 function ensureMainView() {
@@ -3620,6 +3822,7 @@ function render() {
     case 'inbox': renderInbox(); break;
     case 'connections': renderConnections(); break;
     case 'activity': renderActivityLog(); break;
+    case 'admin': renderAdmin(); break;
   }
 }
 
@@ -3643,6 +3846,7 @@ const CMD_ACTIONS = [
   { icon: '&#128172;', label: 'Go to Inbox', action: () => { S.view='inbox'; render(); } },
   { icon: '&#9881;', label: 'Go to Connections', action: () => { S.view='connections'; render(); } },
   { icon: '&#128221;', label: 'Go to Activity Log', action: () => { S.view='activity'; render(); } },
+  { icon: '&#128274;', label: 'Go to User Management', action: () => { if (AUTH_USER && AUTH_USER.role==='admin') { S.view='admin'; render(); } else { showToast('Admin access required','error'); } } },
   { icon: '&#128203;', label: 'Generate Report', action: openReportModal },
   { icon: '&#128241;', label: 'Open Feed Preview', action: openFeedPreviewModal },
 ];

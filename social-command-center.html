@@ -2549,9 +2549,9 @@ const SOCIAL_PLATFORMS = [
     fields:[{key:'user_access_token',label:'User Access Token',placeholder:'Long-lived Meta User Access Token',type:'password'},{key:'ig_account_id',label:'Instagram Business Account ID',placeholder:'e.g. 17841450413357739'}] },
   { key:'facebook', label:'Facebook', color:'var(--plat-fb)', hex:'#1877F2', icon:'&#128101;',
     modalTitle:'Connect via Meta Graph API',
-    desc:'Facebook Pages connect through the Meta Graph API. Paste the same long-lived User Access Token used for Instagram — all authorized pages will be synced automatically.',
+    desc:'Connect a specific Facebook Page. Paste the same long-lived User Access Token used for Instagram, plus the Page ID or vanity username (e.g. "KIofNM" from facebook.com/KIofNM).',
     oauth:'https://www.facebook.com/v18.0/dialog/oauth?client_id={APP_ID}&redirect_uri={REDIRECT}&scope=pages_show_list,pages_read_engagement',
-    fields:[{key:'user_access_token',label:'User Access Token',placeholder:'Long-lived Meta User Access Token',type:'password'}] },
+    fields:[{key:'user_access_token',label:'User Access Token',placeholder:'Long-lived Meta User Access Token',type:'password'},{key:'page_id',label:'Page ID or Username',placeholder:'e.g. KIofNM or 104500432041676'}] },
   { key:'tiktok', label:'TikTok', color:'var(--plat-tt)', hex:'#00C9B1', icon:'&#127925;',
     modalTitle:'Connect via TikTok for Developers',
     desc:'TikTok connects through the TikTok for Developers Content Posting & Insights API. You\'ll need an app registered at developers.tiktok.com with the Content API product enabled.',
@@ -2595,8 +2595,8 @@ function renderConnections() {
         ${p.key==='youtube'&&conn.view_count?`<div class="conn-detail-row"><span>Total Views</span><span>${conn.view_count}</span></div>`:''}
         ${p.key==='instagram'&&conn.media_count?`<div class="conn-detail-row"><span>Posts</span><span>${conn.media_count}</span></div>`:''}
         ${p.key==='instagram'&&conn.last_post_date?`<div class="conn-detail-row"><span>Last Post</span><span>${new Date(conn.last_post_date).toLocaleDateString()}</span></div>`:''}
-        ${p.key==='facebook'&&conn.page_count?`<div class="conn-detail-row"><span>Pages</span><span>${conn.page_count}</span></div>`:''}
-        ${p.key==='facebook'&&conn.total_fans?`<div class="conn-detail-row"><span>Total Fans</span><span>${conn.total_fans}</span></div>`:''}
+        ${p.key==='facebook'&&conn.category?`<div class="conn-detail-row"><span>Category</span><span>${escHtml(conn.category)}</span></div>`:''}
+        ${p.key==='facebook'&&conn.last_post_date?`<div class="conn-detail-row"><span>Last Post</span><span>${new Date(conn.last_post_date).toLocaleDateString()}</span></div>`:''}
         <div class="conn-detail-row"><span>Last Sync</span><span>${conn.last_sync?new Date(conn.last_sync).toLocaleString():'Never'}</span></div>
       </div>
       <div class="conn-card-actions">
@@ -2747,25 +2747,29 @@ async function syncPlatform(key) {
       showToast(`Instagram sync error: ${e.message}`, 'error');
     }
   }
-  // Real Facebook Pages API sync
-  if (key === 'facebook' && state.platforms.facebook.user_access_token) {
-    showToast('Syncing Facebook Pages…', 'info');
+  // Real Facebook Page API sync (single page by ID/username)
+  if (key === 'facebook' && state.platforms.facebook.user_access_token && state.platforms.facebook.page_id) {
+    showToast('Syncing Facebook Page…', 'info');
     try {
       const token = state.platforms.facebook.user_access_token;
-      // Get all authorized pages
-      const pagesResp = await fetch(`https://graph.facebook.com/v18.0/me/accounts?fields=name,id,fan_count,single_line_address,category&limit=100&access_token=${encodeURIComponent(token)}`);
-      if (!pagesResp.ok) { const err = await pagesResp.json().catch(()=>({})); throw new Error(err.error?.message || pagesResp.statusText); }
-      const pagesData = await pagesResp.json();
-      const pages = pagesData.data || [];
-      const totalFans = pages.reduce((sum, p) => sum + (p.fan_count||0), 0);
-      state.platforms.facebook.page_count = pages.length;
-      state.platforms.facebook.total_fans = totalFans.toLocaleString();
-      state.platforms.facebook.followers = totalFans.toLocaleString();
-      state.platforms.facebook.pages_list = pages.map(p => ({name:p.name, id:p.id, fans:p.fan_count||0, addr:p.single_line_address||'', cat:p.category||''}));
-      state.platforms.facebook.handle = pages.length > 0 ? (pages[0].name.toLowerCase().replace(/\s+/g,'')) : 'pages';
+      const pageId = state.platforms.facebook.page_id;
+      const pageResp = await fetch(`https://graph.facebook.com/v18.0/${encodeURIComponent(pageId)}?fields=name,id,fan_count,category,single_line_address,followers_count,picture.type(large),posts.limit(5){message,created_time,likes.summary(true),comments.summary(true)}&access_token=${encodeURIComponent(token)}`);
+      if (!pageResp.ok) { const err = await pageResp.json().catch(()=>({})); throw new Error(err.error?.message || pageResp.statusText); }
+      const page = await pageResp.json();
+      const fans = page.fan_count || page.followers_count || 0;
+      const recentPosts = page.posts?.data || [];
+      state.platforms.facebook.page_name = page.name || '';
+      state.platforms.facebook.handle = page.name || pageId;
+      state.platforms.facebook.followers = fans.toLocaleString();
+      state.platforms.facebook.fb_page_id = page.id;
+      state.platforms.facebook.category = page.category || '';
+      state.platforms.facebook.address = page.single_line_address || '';
+      state.platforms.facebook.profile_pic = page.picture?.data?.url || '';
+      state.platforms.facebook.recent_posts = recentPosts.length;
+      state.platforms.facebook.last_post_date = recentPosts.length > 0 ? recentPosts[0].created_time : null;
       state.platforms.facebook.last_sync = new Date().toISOString();
       saveApiConnections(state);
-      showToast(`Facebook synced — ${pages.length} pages, ${totalFans.toLocaleString()} total fans`, 'success');
+      showToast(`Facebook synced — ${page.name} (${fans.toLocaleString()} fans)`, 'success');
       renderConnections();
       return;
     } catch(e) {
@@ -2854,7 +2858,7 @@ function savePlatformCredentials(key) {
   if (key === 'instagram' && data.user_access_token && data.ig_account_id) {
     setTimeout(() => syncPlatform('instagram'), 400);
   }
-  if (key === 'facebook' && data.user_access_token) {
+  if (key === 'facebook' && data.user_access_token && data.page_id) {
     setTimeout(() => syncPlatform('facebook'), 400);
   }
 }

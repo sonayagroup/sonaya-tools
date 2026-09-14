@@ -383,7 +383,9 @@
   // ---- render helpers ----
   function paceStatus(actualFrac, expectedFrac) {
     if (actualFrac >= 1) return { label: 'Goal Hit 🎉', good: 'good' };
-    if (expectedFrac <= 0) return { label: 'Week Starting', good: 'ok' };
+    // Grace floor: under ~5% of the work week elapsed (first couple hours Monday), don't flag
+    // anyone yet — there just hasn't been time to post revenue.
+    if (expectedFrac <= 0.05) return { label: 'Week Starting', good: 'ok' };
     if (actualFrac >= expectedFrac * 0.9) return { label: 'On Pace', good: 'ok' };
     if (actualFrac >= expectedFrac * 0.55) return { label: 'Behind Pace', good: 'warn' };
     return { label: 'Way Behind', good: 'critical' };
@@ -395,13 +397,26 @@
     critical: ['var(--status-critical)', 'var(--status-critical-bg)', 'var(--status-critical)'],
   };
 
+  // Continuous pacing: full weekdays already finished count as 1.0 each, and *today* (if it's a
+  // weekday) contributes a fraction based on how far into an 8am-5pm business day we are. This
+  // matters on the TV specifically for Monday morning — without it, a rep at $0 by 8am Monday
+  // would read as "way behind" against a full day's expectation, which is a false alarm, not a
+  // real signal.
   function businessDaysElapsed(weekStartISO, todayISO) {
     const start = new Date(weekStartISO + 'T00:00:00');
     const today = new Date(todayISO + 'T00:00:00');
     let count = 0;
-    for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(start); d < today; d.setDate(d.getDate() + 1)) {
       const dow = d.getDay();
       if (dow >= 1 && dow <= 5) count++;
+    }
+    const now = new Date();
+    const todayDow = today.getDay();
+    if (todayDow >= 1 && todayDow <= 5) {
+      const BUSINESS_START_HOUR = 8, BUSINESS_END_HOUR = 17;
+      const hoursIn = (now.getHours() + now.getMinutes() / 60) - BUSINESS_START_HOUR;
+      const todayFrac = Math.max(0, Math.min(1, hoursIn / (BUSINESS_END_HOUR - BUSINESS_START_HOUR)));
+      count += todayFrac;
     }
     return Math.min(count, 5);
   }

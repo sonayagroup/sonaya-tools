@@ -106,9 +106,9 @@
     align-self: flex-start; margin-top: 1.3vh; padding: 0.8vh 1.5vh; border-radius: 999px;
     font-size: 1.5vh; font-weight: 800; letter-spacing: 0.03em; text-transform: uppercase;
   }
-  .rep-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 2vh; padding-top: 1.8vh; border-top: 1px solid var(--gridline); }
-  .rep-stat-label { font-size: 1.15vh; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
-  .rep-stat-value { font-size: 2.5vh; font-weight: 800; }
+  .rep-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 2vh; padding-top: 1.8vh; border-top: 1px solid var(--gridline); }
+  .rep-stat-label { font-size: 1.1vh; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
+  .rep-stat-value { font-size: 2.15vh; font-weight: 800; }
 
   /* ---- right column ---- */
   .side-col { display: flex; flex-direction: column; gap: 1.4vh; min-height: 0; }
@@ -192,18 +192,19 @@
         <div class="rep-top">
           <div class="rep-avatar" style="background:var(--cat-1)">GE</div>
           <div>
-            <div class="rep-period">This Week</div>
+            <div class="rep-period">Today</div>
             <div class="rep-name">Gabriel Espinosa</div>
           </div>
         </div>
         <div class="rep-goal-num" data-el="revenue">$0</div>
-        <div class="rep-goal-of">of <b data-el="goal">$6,500</b> weekly goal</div>
+        <div class="rep-goal-of">of <b data-el="goal">$6,500</b> daily goal</div>
         <div class="progress-track"><div class="progress-fill" data-el="bar" style="width:0%;background:var(--status-ok)"></div></div>
         <div class="pace-chip" data-el="pace" style="background:var(--status-ok-bg);color:var(--status-ok)">—</div>
       </div>
       <div class="rep-stats">
         <div><div class="rep-stat-label">Close Rate</div><div class="rep-stat-value" data-el="closerate">—</div></div>
         <div><div class="rep-stat-label">Est. Sent</div><div class="rep-stat-value" data-el="sent">—</div></div>
+        <div><div class="rep-stat-label">This Week</div><div class="rep-stat-value" data-el="week">—</div></div>
         <div><div class="rep-stat-label">MTD</div><div class="rep-stat-value" data-el="mtd">—</div></div>
       </div>
     </div>
@@ -213,27 +214,29 @@
         <div class="rep-top">
           <div class="rep-avatar" style="background:var(--cat-2)">MJ</div>
           <div>
-            <div class="rep-period">This Week</div>
+            <div class="rep-period">Today</div>
             <div class="rep-name">Mike Jones</div>
           </div>
         </div>
         <div class="rep-goal-num" data-el="revenue">$0</div>
-        <div class="rep-goal-of">of <b data-el="goal">$6,500</b> weekly goal</div>
+        <div class="rep-goal-of">of <b data-el="goal">$6,500</b> daily goal</div>
         <div class="progress-track"><div class="progress-fill" data-el="bar" style="width:0%;background:var(--status-ok)"></div></div>
         <div class="pace-chip" data-el="pace" style="background:var(--status-ok-bg);color:var(--status-ok)">—</div>
       </div>
       <div class="rep-stats">
         <div><div class="rep-stat-label">Close Rate</div><div class="rep-stat-value" data-el="closerate">—</div></div>
         <div><div class="rep-stat-label">Est. Sent</div><div class="rep-stat-value" data-el="sent">—</div></div>
+        <div><div class="rep-stat-label">This Week</div><div class="rep-stat-value" data-el="week">—</div></div>
         <div><div class="rep-stat-label">MTD</div><div class="rep-stat-value" data-el="mtd">—</div></div>
       </div>
     </div>
 
     <div class="side-col">
       <div class="card tile" style="flex: 0 0 auto;">
-        <div class="tile-label">Team Pulse — This Week</div>
+        <div class="tile-label">Team Pulse — Today</div>
         <div class="team-row"><div class="team-num" id="teamRevenue">$0</div><div class="team-goal">of $13,000</div></div>
         <div class="progress-track" style="margin-top:10px"><div class="progress-fill" id="teamBar" style="width:0%;background:var(--brand-teal)"></div></div>
+        <div class="team-sub"><span>This Week</span><b id="teamWeekRevenue">$0</b></div>
         <div class="team-sub"><span>Team Close Rate</span><b id="teamCloseRate">—</b></div>
         <div class="team-sub"><span>Target</span><b style="color:var(--text-muted)">70%</b></div>
       </div>
@@ -275,11 +278,11 @@
   // built for an office TV, not for interactive browsing.
   //
   // Data sources:
-  //   - supabase.functions serviceminder-revenue?report=agent   -> weekly/MTD revenue per rep
+  //   - supabase.functions serviceminder-revenue?report=agent   -> today/week/MTD revenue per rep
   //   - supabase.functions serviceminder-revenue?report=onthebooks -> allProposals (close rate, estimates sent)
   //   - supabase.functions serviceminder-revenue?report=pacing  -> MTD team revenue
   //   - supabase table crm_deals   -> Open Estimates + Follow-Ups Due + Stale 90+ (per user: "from the CRM tab")
-  //   - supabase table koala_dashboard_settings -> editable weekly goals + close rate goal
+  //   - supabase table koala_dashboard_settings -> editable DAILY goals ($6,500/rep/day, per user 2026-09-14) + close rate goal
   // ---------------------------------------------------------------------
 
   const SUPABASE_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
@@ -342,7 +345,7 @@
     try {
       const rows = await fetchJSON(restUrl('koala_dashboard_settings', 'select=key,value'), { headers: REST_HEADERS });
       for (const row of rows) {
-        if (row.key === 'sales_rep_weekly_goals') GOALS = { ...GOALS, ...row.value };
+        if (row.key === 'sales_rep_daily_goals') GOALS = { ...GOALS, ...row.value };
         if (row.key === 'sales_close_rate_goal') CLOSE_RATE_GOAL = Number(row.value) || CLOSE_RATE_GOAL;
       }
     } catch (e) { console.warn('settings load failed, using defaults', e); }
@@ -381,11 +384,12 @@
   }
 
   // ---- render helpers ----
-  function paceStatus(actualFrac, expectedFrac) {
+  function paceStatus(actualFrac, expectedFrac, isNonBusinessDay) {
+    if (isNonBusinessDay) return { label: 'Weekend', good: 'ok' };
     if (actualFrac >= 1) return { label: 'Goal Hit 🎉', good: 'good' };
-    // Grace floor: under ~5% of the work week elapsed (first couple hours Monday), don't flag
-    // anyone yet — there just hasn't been time to post revenue.
-    if (expectedFrac <= 0.05) return { label: 'Week Starting', good: 'ok' };
+    // Grace floor: under ~5% of the business day elapsed (first few minutes after open), don't
+    // flag anyone yet — there just hasn't been time to post revenue.
+    if (expectedFrac <= 0.05) return { label: 'Day Starting', good: 'ok' };
     if (actualFrac >= expectedFrac * 0.9) return { label: 'On Pace', good: 'ok' };
     if (actualFrac >= expectedFrac * 0.55) return { label: 'Behind Pace', good: 'warn' };
     return { label: 'Way Behind', good: 'critical' };
@@ -397,60 +401,57 @@
     critical: ['var(--status-critical)', 'var(--status-critical-bg)', 'var(--status-critical)'],
   };
 
-  // Continuous pacing: full weekdays already finished count as 1.0 each, and *today* (if it's a
-  // weekday) contributes a fraction based on how far into an 8am-5pm business day we are. This
-  // matters on the TV specifically for Monday morning — without it, a rep at $0 by 8am Monday
+  // Continuous intraday pacing: fraction of today's 8am-5pm business day elapsed so far. This
+  // matters on the TV specifically for the start of the day — without it, a rep at $0 at 8:05am
   // would read as "way behind" against a full day's expectation, which is a false alarm, not a
-  // real signal.
-  function businessDaysElapsed(weekStartISO, todayISO) {
-    const start = new Date(weekStartISO + 'T00:00:00');
-    const today = new Date(todayISO + 'T00:00:00');
-    let count = 0;
-    for (let d = new Date(start); d < today; d.setDate(d.getDate() + 1)) {
-      const dow = d.getDay();
-      if (dow >= 1 && dow <= 5) count++;
-    }
+  // real signal. Saturday/Sunday are treated as non-business days (no pace alarm).
+  const BUSINESS_START_HOUR = 8, BUSINESS_END_HOUR = 17;
+  function dayFracElapsed() {
     const now = new Date();
-    const todayDow = today.getDay();
-    if (todayDow >= 1 && todayDow <= 5) {
-      const BUSINESS_START_HOUR = 8, BUSINESS_END_HOUR = 17;
-      const hoursIn = (now.getHours() + now.getMinutes() / 60) - BUSINESS_START_HOUR;
-      const todayFrac = Math.max(0, Math.min(1, hoursIn / (BUSINESS_END_HOUR - BUSINESS_START_HOUR)));
-      count += todayFrac;
-    }
-    return Math.min(count, 5);
+    const hoursIn = (now.getHours() + now.getMinutes() / 60) - BUSINESS_START_HOUR;
+    return Math.max(0, Math.min(1, hoursIn / (BUSINESS_END_HOUR - BUSINESS_START_HOUR)));
+  }
+  function isNonBusinessDay() {
+    const dow = new Date().getDay();
+    return dow === 0 || dow === 6; // Sun/Sat
   }
 
-  // ---- fast refresh: weekly + MTD revenue per rep, team totals ----
+  // ---- fast refresh: today's + weekly + MTD revenue per rep, team totals ----
   async function refreshRevenue() {
     const todayISO = todayLocalISO();
     const weekStart = mondayOf(todayISO);
     const monthStart = monthStartOf(todayISO);
-    const expectedFrac = businessDaysElapsed(weekStart, todayISO) / 5;
+    const nonBizDay = isNonBusinessDay();
+    const expectedFrac = nonBizDay ? 0 : dayFracElapsed();
 
-    const [weekAgent, mtdAgent] = await Promise.all([
+    const [todayAgent, weekAgent, mtdAgent] = await Promise.all([
+      fetchJSON(fnUrl('agent', { from: todayISO, through: todayISO })),
       fetchJSON(fnUrl('agent', { from: weekStart, through: todayISO })),
       fetchJSON(fnUrl('agent', { from: monthStart, through: todayISO })),
     ]);
 
-    let teamWeekRevenue = 0, teamGoal = 0;
+    let teamTodayRevenue = 0, teamGoal = 0, teamWeekRevenue = 0;
 
     REPS.forEach((rep, i) => {
       const card = document.getElementById(`repCard-${rep.key}`);
+      const todayRow = (todayAgent.reps || []).find(r => r.name === rep.fullName);
       const weekRow = (weekAgent.reps || []).find(r => r.name === rep.fullName);
       const mtdRow = (mtdAgent.reps || []).find(r => r.name === rep.fullName);
+      const todayRevenue = todayRow ? todayRow.revenue : 0;
       const weekRevenue = weekRow ? weekRow.revenue : 0;
       const goal = GOALS[rep.fullName] || 6500;
-      teamWeekRevenue += weekRevenue;
+      teamTodayRevenue += todayRevenue;
       teamGoal += goal;
+      teamWeekRevenue += weekRevenue;
 
-      el(card, 'revenue').textContent = fmtMoney(weekRevenue);
+      el(card, 'revenue').textContent = fmtMoney(todayRevenue);
+      el(card, 'week').textContent = fmtMoney(weekRevenue);
       el(card, 'mtd').textContent = fmtMoney(mtdRow ? mtdRow.revenue : 0);
 
-      const frac = goal > 0 ? weekRevenue / goal : 0;
+      const frac = goal > 0 ? todayRevenue / goal : 0;
       el(card, 'bar').style.width = Math.min(100, frac * 100) + '%';
 
-      const status = paceStatus(frac, expectedFrac);
+      const status = paceStatus(frac, expectedFrac, nonBizDay);
       const [barColor, chipBg, chipColor] = STATUS_VARS[status.good];
       el(card, 'bar').style.background = barColor;
       const paceEl = el(card, 'pace');
@@ -459,10 +460,10 @@
       paceEl.style.color = chipColor;
     });
 
-    document.getElementById('teamRevenue').textContent = fmtMoney(teamWeekRevenue);
-    document.getElementById('teamGoalText') // no-op guard
+    document.getElementById('teamRevenue').textContent = fmtMoney(teamTodayRevenue);
     document.querySelector('.team-goal').textContent = 'of ' + fmtMoney(teamGoal);
-    document.getElementById('teamBar').style.width = Math.min(100, (teamGoal > 0 ? teamWeekRevenue / teamGoal : 0) * 100) + '%';
+    document.getElementById('teamBar').style.width = Math.min(100, (teamGoal > 0 ? teamTodayRevenue / teamGoal : 0) * 100) + '%';
+    document.getElementById('teamWeekRevenue').textContent = fmtMoney(teamWeekRevenue);
 
     markSynced();
   }

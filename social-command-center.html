@@ -1578,6 +1578,7 @@ button { font-family: inherit; }
 <div id="toast-container"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>var _gapiReady=false;function onGapiLoaded(){_gapiReady=true;}</script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script async defer src="https://apis.google.com/js/api.js" onload="onGapiLoaded()"></script>
 <script>
@@ -1591,13 +1592,14 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 // ══════════════════════════════════════════════
 // GOOGLE DRIVE PICKER INTEGRATION
 // ══════════════════════════════════════════════
-let _gapiLoaded = false;
+let _gapiLoaded = typeof _gapiReady !== 'undefined' ? _gapiReady : false;
 let _gisLoaded = false;
 let _googleAccessToken = null;
 let _pickerApiLoaded = false;
 
 function onGapiLoaded() {
   _gapiLoaded = true;
+  _gapiReady = true;
 }
 
 function _getDriveCredentials() {
@@ -1609,10 +1611,11 @@ function _getDriveCredentials() {
 
 async function _ensurePickerApi() {
   if (_pickerApiLoaded) return true;
-  if (!_gapiLoaded) {
+  if (!_gapiLoaded && !_gapiReady) {
     showToast('Google API is still loading — please try again in a moment', 'info');
     return false;
   }
+  _gapiLoaded = true;
   return new Promise((resolve) => {
     gapi.load('picker', () => { _pickerApiLoaded = true; resolve(true); });
   });

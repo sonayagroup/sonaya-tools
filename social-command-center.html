@@ -3260,16 +3260,67 @@ const DRIVE_SAMPLE_FILES = [
   { name:'customer-testimonial.mp4', type:'video', icon:'&#127909;', size:'31.4 MB' },
 ];
 
+let _savedPostModalState = null;
+function _restorePostModal() {
+  if (!_savedPostModalState) { closeModal(); return; }
+  const panel = document.getElementById('modal-panel');
+  panel.innerHTML = _savedPostModalState.html;
+  panel.classList.toggle('wide', _savedPostModalState.wide);
+  // Re-attach caption listeners
+  const captionEl = document.getElementById('post-caption');
+  const countEl = document.getElementById('caption-count');
+  const previewEl = document.getElementById('caption-preview');
+  if (captionEl && countEl) {
+    captionEl.addEventListener('input', () => { const len = captionEl.value.length; countEl.textContent = `${len}/2200`; countEl.classList.toggle('over', len > 2200); if (previewEl) previewEl.textContent = captionEl.value; });
+  }
+  // Restore form values
+  if (_savedPostModalState.formData) {
+    const form = document.getElementById('post-form');
+    if (form) {
+      _savedPostModalState.formData.forEach((val, key) => {
+        if (key === 'platform_ids') return;
+        const el = form.querySelector(`[name="${key}"]`);
+        if (el) el.value = val;
+      });
+      // Restore checkboxes
+      form.querySelectorAll('input[name="platform_ids"]').forEach(cb => {
+        cb.checked = _savedPostModalState.platformIds.includes(cb.value);
+      });
+    }
+  }
+  // Re-attach brand/pillar change handlers
+  const brandSel = document.getElementById('post-brand');
+  if (brandSel) {
+    brandSel.onchange = function() { const sel = document.getElementById('post-pillar'); const pils = S.pillars.filter(p => p.brand_id === this.value); sel.innerHTML = `<option value="">— None —</option>` + pils.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); renderHashtagSuggestions(this.value); renderCrewForBrand(this.value, null); };
+  }
+  const pillarSel = document.getElementById('post-pillar');
+  if (pillarSel) { pillarSel.onchange = function() { if (this.value) applyPillarPlatforms(this.value); }; }
+  renderHashtagSuggestions(brandSel?.value);
+  _savedPostModalState = null;
+}
+
 function openDrivePickerModal() {
   const state = loadApiConnections();
   const drive = state.drive||{};
-  const panel = document.getElementById('modal-panel'); panel.classList.add('wide');
-  let html = `<div class="modal-header"><span class="modal-title">&#128193; Select from Google Drive</span><button class="modal-close" onclick="closeModal()">&#10005;</button></div><div class="modal-body">`;
+  const panel = document.getElementById('modal-panel');
+  // Save current post form state so we can go back
+  const form = document.getElementById('post-form');
+  if (form) {
+    const fd = new FormData(form);
+    _savedPostModalState = {
+      html: panel.innerHTML,
+      wide: panel.classList.contains('wide'),
+      formData: fd,
+      platformIds: fd.getAll('platform_ids')
+    };
+  }
+  panel.classList.add('wide');
+  let html = `<div class="modal-header"><button class="btn btn-ghost btn-sm" onclick="_restorePostModal()" style="margin-right:8px;font-size:13px">&#8592; Back</button><span class="modal-title">&#128193; Select from Google Drive</span><button class="modal-close" onclick="_restorePostModal()">&#10005;</button></div><div class="modal-body">`;
   html += `<input class="form-input drive-search-input" id="drive-picker-search" placeholder="Search files in Drive...">`;
   html += `<div class="drive-file-grid" id="drive-picker-grid"></div>`;
   if (!drive.connected) html += `<div class="drive-connect-note">Showing sample files. Connect Google Drive in Settings to browse real files.</div>`;
   else html += `<div class="drive-connect-note">Browsing "${escHtml(drive.folder_name||'My Drive')}". (Preview data shown — live Drive Picker API integration coming soon.)</div>`;
-  html += `</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button></div>`;
+  html += `</div><div class="modal-footer"><button class="btn btn-ghost" onclick="_restorePostModal()">Cancel</button></div>`;
   panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
 
   const renderGrid = (filter) => {
@@ -3281,10 +3332,13 @@ function openDrivePickerModal() {
       card.onclick = () => {
         const name = card.dataset.name;
         const url = `https://drive.google.com/file/d/sample-${encodeURIComponent(name).replace(/[^a-zA-Z0-9]/g,'')}/view`;
-        const mediaInput = document.getElementById('post-media-url');
-        if (mediaInput) { mediaInput.value = url; }
-        closeModal();
-        showToast(`Selected "${name}" from Drive`, 'success');
+        // Restore post form, then set the media URL
+        _restorePostModal();
+        setTimeout(() => {
+          const mediaInput = document.getElementById('post-media-url');
+          if (mediaInput) { mediaInput.value = url; }
+          showToast(`Selected "${name}" from Drive`, 'success');
+        }, 50);
       };
     });
   };
@@ -3312,7 +3366,7 @@ function openPostModal(postId, prefillDate, isQuickIdea) {
   html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Content Pillar</label><select class="form-select" name="content_pillar_id" id="post-pillar"><option value="">— None —</option>${pillarsForBrand.map(p=>`<option value="${p.id}" ${post&&post.content_pillar_id===p.id?'selected':''}>${p.name}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">Media Type</label><select class="form-select" name="media_type"><option value="">— None —</option>${MEDIA_TYPES.map(t=>`<option value="${t}" ${post&&post.media_type===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}</select></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Title</label><input class="form-input" name="title" required value="${escAttr(post?.title||'')}" placeholder="Post title" autofocus></div></div>`;
   const captionVal = post?.caption||'';
-  html += `<div class="form-row full"><div class="form-group"><label class="form-label" style="display:flex;align-items:center">Caption <span class="char-count" id="caption-count">${captionVal.length}/2200</span><button type="button" class="btn btn-ghost btn-sm caption-assist-btn" id="caption-assist-btn" onclick="toggleCaptionAssist()">&#10024; Generate Caption</button></label><textarea class="form-textarea" name="caption" id="post-caption" placeholder="Write your caption...">${escHtml(captionVal)}</textarea><div class="caption-preview" id="caption-preview">${escHtml(captionVal)}</div><div id="caption-assist-panel" class="caption-assist-panel" hidden></div></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><div class="form-label" style="display:flex;align-items:center">Caption <span class="char-count" id="caption-count">${captionVal.length}/2200</span><button type="button" class="btn btn-ghost btn-sm caption-assist-btn" id="caption-assist-btn" onclick="toggleCaptionAssist()">&#10024; Generate Caption</button></div><textarea class="form-textarea" name="caption" id="post-caption" placeholder="Write your caption...">${escHtml(captionVal)}</textarea><div class="caption-preview" id="caption-preview">${escHtml(captionVal)}</div><div id="caption-assist-panel" class="caption-assist-panel" hidden></div></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Hashtags</label><input class="form-input" name="hashtags" id="post-hashtags" value="${escAttr(post?.hashtags||'')}" placeholder="#hashtag1 #hashtag2"><div class="hashtag-suggestions" id="hashtag-suggestions"></div></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Media URL</label><div style="display:flex;gap:8px"><input class="form-input" name="media_url" id="post-media-url" value="${escAttr(post?.media_url||'')}" placeholder="https://... or select from Drive" style="flex:1"><button type="button" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="openDrivePickerModal()">&#128193; From Drive</button></div></div></div>`;
   if (!isQuickIdea) {
@@ -4619,6 +4673,8 @@ function toggleCaptionAssist() {
   if (!panel.hidden) { panel.hidden = true; return; }
   panel.hidden = false;
   renderCaptionAssistControls();
+  // Scroll the panel into view within the modal body
+  setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
 }
 
 function renderCaptionAssistControls() {

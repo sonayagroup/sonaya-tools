@@ -500,6 +500,14 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       </div>
       <button class="modal-close-btn" onclick="closeCrmArchivedModal()" aria-label="Close">&times;</button>
     </div>
+    <div style="padding:14px 22px 0;">
+      <div class="controls" style="margin-bottom:0;">
+        <div class="control-group crm-search-group">
+          <input type="search" id="crmArchivedSearchInput" class="control-select" style="width:100%;" placeholder="Search archived deals by customer or rep…" oninput="crmHandleArchivedSearchInput()">
+        </div>
+        <span class="live-status" id="crmArchivedSearchStatus" style="display:none;"></span>
+      </div>
+    </div>
     <div class="modal-body" id="crmArchivedModalBody"></div>
     <div class="modal-footer-note"><div class="crm-modal-actions"><div></div><button class="crm-btn crm-btn-secondary" onclick="closeCrmArchivedModal()">Close</button></div></div>
   </div>
@@ -2113,36 +2121,72 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-/* ---- Archived deals modal: view + restore ---- */
+/* ---- Archived deals modal: view + search + restore ---- */
+let crmArchivedDeals = [];
+let crmArchivedLoaded = false;
+let crmArchivedSearchQuery = '';
+
 async function openCrmArchivedModal() {
   const body = document.getElementById('crmArchivedModalBody');
+  const searchInput = document.getElementById('crmArchivedSearchInput');
+  crmArchivedSearchQuery = '';
+  searchInput.value = '';
+  document.getElementById('crmArchivedSearchStatus').style.display = 'none';
   body.innerHTML = `<div class="modal-status">Loading archived deals…</div>`;
   document.getElementById('crmArchivedModalBackdrop').classList.add('open');
   document.body.style.overflow = 'hidden';
   try {
-    const archived = await crmFetchArchivedDeals();
-    if (!archived.length) {
-      body.innerHTML = `<div class="modal-status">No archived deals.</div>`;
-      return;
-    }
-    const rows = archived.map(d => `<tr>
-      <td>${crmEsc(d.name)}</td>
-      <td>${crmEsc(d.stage)}</td>
-      <td>${d.reps && d.reps.length ? crmEsc(d.reps.join(', ')) : '<span style="color:var(--text-muted);">unassigned</span>'}</td>
-      <td>${d.value != null ? fmtMoney(d.value) : '—'}</td>
-      <td>${d.updated_at ? new Date(d.updated_at).toLocaleDateString() : '—'}</td>
-      <td><button class="crm-btn crm-btn-secondary" style="padding:5px 11px;font-size:12px;" onclick="crmHandleRestoreClick('${d.id}', this)">Restore</button></td>
-    </tr>`).join('');
-    body.innerHTML = `
-      <div class="store-table-wrap" style="margin-bottom:0;">
-        <table class="store-table">
-          <thead><tr><th>Deal</th><th>Last Stage</th><th>Rep(s)</th><th>Value</th><th>Archived</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+    crmArchivedDeals = await crmFetchArchivedDeals();
+    crmArchivedLoaded = true;
+    crmRenderArchivedResults();
   } catch (err) {
     body.innerHTML = `<div class="modal-status">Couldn't load archived deals (${crmEsc(err.message)}).</div>`;
   }
+}
+function crmArchivedFilteredDeals() {
+  const q = crmArchivedSearchQuery.trim().toLowerCase();
+  if (!q) return crmArchivedDeals;
+  return crmArchivedDeals.filter(d => crmDealMatchesSearch(d, q));
+}
+function crmRenderArchivedResults() {
+  const body = document.getElementById('crmArchivedModalBody');
+  const status = document.getElementById('crmArchivedSearchStatus');
+  if (!crmArchivedDeals.length) {
+    body.innerHTML = `<div class="modal-status">No archived deals.</div>`;
+    status.style.display = 'none';
+    return;
+  }
+  const filtered = crmArchivedFilteredDeals();
+  const q = crmArchivedSearchQuery.trim();
+  if (q) {
+    status.style.display = '';
+    status.textContent = `${filtered.length} match${filtered.length === 1 ? '' : 'es'} for "${q}" (of ${crmArchivedDeals.length} archived)`;
+  } else {
+    status.style.display = 'none';
+  }
+  if (!filtered.length) {
+    body.innerHTML = `<div class="modal-status">No archived deals match "${crmEsc(q)}".</div>`;
+    return;
+  }
+  const rows = filtered.map(d => `<tr>
+    <td>${crmEsc(d.name)}</td>
+    <td>${crmEsc(d.stage)}</td>
+    <td>${d.reps && d.reps.length ? crmEsc(d.reps.join(', ')) : '<span style="color:var(--text-muted);">unassigned</span>'}</td>
+    <td>${d.value != null ? fmtMoney(d.value) : '—'}</td>
+    <td>${d.updated_at ? new Date(d.updated_at).toLocaleDateString() : '—'}</td>
+    <td><button class="crm-btn crm-btn-secondary" style="padding:5px 11px;font-size:12px;" onclick="crmHandleRestoreClick('${d.id}', this)">Restore</button></td>
+  </tr>`).join('');
+  body.innerHTML = `
+    <div class="store-table-wrap" style="margin-bottom:0;">
+      <table class="store-table">
+        <thead><tr><th>Deal</th><th>Last Stage</th><th>Rep(s)</th><th>Value</th><th>Archived</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+function crmHandleArchivedSearchInput() {
+  crmArchivedSearchQuery = document.getElementById('crmArchivedSearchInput').value || '';
+  crmRenderArchivedResults();
 }
 async function crmHandleRestoreClick(id, btnEl) {
   btnEl.disabled = true;
@@ -2150,7 +2194,8 @@ async function crmHandleRestoreClick(id, btnEl) {
   try {
     await crmRestoreDeal(id);
     await renderCrmTab();
-    await openCrmArchivedModal();
+    crmArchivedDeals = await crmFetchArchivedDeals();
+    crmRenderArchivedResults();
   } catch (err) {
     alert('Could not restore: ' + err.message);
     btnEl.disabled = false;

@@ -685,7 +685,14 @@
         ? installJobs.slice(0, CAL_ROWS_SHOWN).map(j => {
             const abbr = INSTALL_SERVICE_ABBR[j.service] || j.service || '';
             const crew = crewInitials(j.crew);
-            const isFoam = j.service === 'Foam Pack';
+            // NOTE 2026-09-14: "Foam Pack" (the ServiceMinder service type) is NOT the same thing
+            // as a "spray foam" job per owner correction — Foam Pack stays the standard color.
+            // Pink-highlighting for actual spray foam jobs is on hold: checked ~4,000 real SM
+            // appointments and there is no separate "Spray Foam" service type, and no job/customer
+            // name contains "spray" anywhere — so there's currently no reliable signal in this data
+            // to detect a spray foam job by. Re-enable by setting isFoam once we know what that
+            // signal actually is (see .is-foam CSS rule below, left in place for reuse).
+            const isFoam = false;
             return `<div class="cal-install${isFoam ? ' is-foam' : ''}"><span class="cal-time">${escapeHtml(j.time)}</span><span class="cal-crew">${escapeHtml(abbr)} · ${escapeHtml(j.customer || '')}${crew ? ' (' + escapeHtml(crew) + ')' : ''}</span></div>`;
           }).join('')
           + (installJobs.length > CAL_ROWS_SHOWN ? `<div class="cal-more">+${installJobs.length - CAL_ROWS_SHOWN} more</div>` : '')

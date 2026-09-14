@@ -154,6 +154,16 @@
   .cal-appt .cal-time { color: var(--text-primary); font-weight: 700; white-space: nowrap; }
   .cal-appt .cal-rep { color: var(--text-muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cal-open { font-size: 1.3vh; color: var(--status-good); font-weight: 700; padding-top: 0.3vh; }
+  .cal-section { margin-top: 0.9vh; padding-top: 0.7vh; border-top: 1px solid var(--gridline); }
+  .cal-section:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+  .cal-subhead { font-size: 1.05vh; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 800; margin-bottom: 0.3vh; }
+  .cal-subhead.est { color: var(--brand-teal); }
+  .cal-subhead.install { color: var(--brand-amber); }
+  .cal-install { font-size: 1.25vh; padding: 0.3vh 0; display: flex; justify-content: space-between; gap: 6px; border-top: 1px solid var(--gridline); }
+  .cal-install:first-of-type { border-top: none; }
+  .cal-install .cal-time { color: var(--text-primary); font-weight: 700; white-space: nowrap; }
+  .cal-install .cal-crew { color: var(--text-muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-more { font-size: 1.05vh; color: var(--text-muted); font-weight: 700; padding-top: 0.3vh; }
 
   /* ---- footer ---- */
   .tv-footer { flex: 0 0 auto; display: flex; gap: 1.4vw; align-items: stretch; }
@@ -294,7 +304,7 @@
   </div>
 
   <div class="cal-row">
-    <div class="cal-section-label">Estimate Calendar — Booked (Evaluation + Site Visit)</div>
+    <div class="cal-section-label">Estimate &amp; Install Calendar — Booked</div>
     <div class="cal-days" id="calDays">
       <div class="cal-day"><div class="cal-day-head">Loading…</div></div>
     </div>
@@ -332,7 +342,9 @@
   //   - supabase.functions serviceminder-revenue?report=agent   -> today/week/MTD revenue per rep (incl. Frank Emanuel)
   //   - supabase.functions serviceminder-revenue?report=onthebooks -> allProposals (close rate, bids sent, open pipeline $)
   //   - supabase.functions serviceminder-revenue?report=pacing  -> MTD team revenue
-  //   - supabase.functions koala-sales-calendar?days=N -> booked Evaluation/Site Visit appts, next N business days
+  //   - supabase.functions koala-sales-calendar?days=N -> per day: appts (booked Evaluation/Site
+  //     Visit sales-estimate appts) + installJobs (booked install/field crew jobs — Residential/
+  //     B2B New Installation + Retrofit, Call Back, Foam Pack), next N business days
   //   - supabase table crm_deals   -> Open Estimates + Follow-Ups Due + Stale 90+ (per user: "from the CRM tab")
   //   - supabase table koala_dashboard_settings -> editable DAILY goals for Gabriel/Mike ($6,500/day, per user
   //     2026-09-14) + MONTHLY goal for Frank Emanuel (commercial, $125,000/mo, per user 2026-09-14) + close rate goal
@@ -626,7 +638,22 @@
     markSynced();
   }
 
-  // ---- estimate calendar: booked Evaluation/Site Visit appointments, next 5 business days ----
+  // ---- estimate & install calendar: booked sales-estimate appts (Evaluation/Site Visit) AND
+  // booked install/field crew jobs (Residential/B2B New Installation + Retrofit, Call Back, Foam
+  // Pack), next 5 business days. Each day card is capped to a few rows per section so the row
+  // can't grow tall enough to push the TV layout into scrolling — "+N more" surfaces the rest.
+  const CAL_ROWS_SHOWN = 4;
+  const INSTALL_SERVICE_ABBR = {
+    'Residential New Installation': 'Res New',
+    'Residential Retrofit': 'Res Retro',
+    'B2B New Installation': 'B2B New',
+    'B2B Retrofit': 'B2B Retro',
+    'Call Back': 'Call Back',
+    'Foam Pack': 'Foam Pack',
+  };
+  function crewInitials(crew) {
+    return (crew || []).map(initials).filter(Boolean).join('/');
+  }
   async function refreshCalendar() {
     const data = await fetchJSON(calendarUrl(5));
     const todayISO = todayLocalISO();
@@ -636,12 +663,27 @@
       const isToday = day.date === todayISO || day.iso === todayISO;
       const dateObj = new Date((day.date || day.iso) + 'T00:00:00');
       const dateLabel = dateObj.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
-      const apptsHtml = (day.appts || []).length
-        ? day.appts.map(a => `<div class="cal-appt"><span class="cal-time">${escapeHtml(a.time)}</span><span class="cal-rep">${escapeHtml(initials(a.rep))} — ${escapeHtml(a.customer || '')}</span></div>`).join('')
+
+      const appts = day.appts || [];
+      const estHtml = appts.length
+        ? appts.slice(0, CAL_ROWS_SHOWN).map(a => `<div class="cal-appt"><span class="cal-time">${escapeHtml(a.time)}</span><span class="cal-rep">${escapeHtml(initials(a.rep))} — ${escapeHtml(a.customer || '')}</span></div>`).join('')
+          + (appts.length > CAL_ROWS_SHOWN ? `<div class="cal-more">+${appts.length - CAL_ROWS_SHOWN} more</div>` : '')
         : `<div class="cal-open">Open — nothing booked</div>`;
+
+      const installJobs = day.installJobs || [];
+      const installHtml = installJobs.length
+        ? installJobs.slice(0, CAL_ROWS_SHOWN).map(j => {
+            const abbr = INSTALL_SERVICE_ABBR[j.service] || j.service || '';
+            const crew = crewInitials(j.crew);
+            return `<div class="cal-install"><span class="cal-time">${escapeHtml(j.time)}</span><span class="cal-crew">${escapeHtml(abbr)} · ${escapeHtml(j.customer || '')}${crew ? ' (' + escapeHtml(crew) + ')' : ''}</span></div>`;
+          }).join('')
+          + (installJobs.length > CAL_ROWS_SHOWN ? `<div class="cal-more">+${installJobs.length - CAL_ROWS_SHOWN} more</div>` : '')
+        : `<div class="cal-open">Open — nothing booked</div>`;
+
       return `<div class="cal-day${isToday ? ' is-today' : ''}">
         <div class="cal-day-head"><span>${escapeHtml(day.dow)}</span><span class="cal-date-num">${escapeHtml(dateLabel)}</span></div>
-        ${apptsHtml}
+        <div class="cal-section"><div class="cal-subhead est">Estimates</div>${estHtml}</div>
+        <div class="cal-section"><div class="cal-subhead install">Install Crew</div>${installHtml}</div>
       </div>`;
     }).join('');
     markSynced();

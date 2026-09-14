@@ -778,24 +778,31 @@
       followupScrollPauseUntil = Date.now() + 2500;
     }
 
-    // recent wins ticker, reusing the same pull. The board has TWO parallel "won" stages —
-    // "Estimate Won" (commercial/estimate track) and "Prospect Won" (residential/prospecting
-    // track, see TERMINAL_STAGES above) — both count as a win. Found 2026-09-14: this used to
-    // check "Estimate Won" only, so the ticker was stuck showing June wins and silently missing
-    // every real Prospect Won (the most recent of which are from August and still being updated
-    // today) — confirmed live, this was the "recently closed jobs" data the owner flagged as
-    // looking wrong.
-    const wins = rows.filter(d => d.stage === 'Estimate Won' || d.stage === 'Prospect Won')
-      .sort((a, b) => new Date(b.last_activity_at || 0) - new Date(a.last_activity_at || 0))
-      .slice(0, 10);
-    const track = document.getElementById('tickerTrack');
-    if (wins.length) {
-      track.innerHTML = wins.map(w => `<span>🏆 <b>${escapeHtml(w.name)}</b>${(w.reps && w.reps.length) ? ' — ' + escapeHtml(w.reps.join(', ')) : ''}</span>`).join('');
-    } else {
-      track.innerHTML = '<span>No wins logged in the CRM yet this cycle — keep pushing 💪</span>';
-    }
-
     markSynced();
+  }
+
+  // Recent Wins ticker — sourced from ServiceMinder invoices (report=recentclosed), NOT the CRM.
+  // Previously this ticker read crm_deals' "Estimate Won"/"Prospect Won" stages, which the owner
+  // flagged as wrong twice: first it only checked "Estimate Won" and missed "Prospect Won" (fixed
+  // 2026-09-14), then the owner clarified directly — "recent jobs closed should be from
+  // serviceminder" — because the CRM's Trello-derived Kanban stage is manually dragged and isn't
+  // reliably kept current, while a ServiceMinder invoice reflects an actual closed/invoiced job.
+  // Backed by the new serviceminder-revenue report=recentclosed endpoint (added 2026-09-14), which
+  // pulls Invoices Kind data (the already-validated, date-range-filterable ServiceMinder source used
+  // by report=agent/pacing) and excludes only Voided invoices — Open/Paid invoices both represent a
+  // real closed job, just at different payment stages.
+  async function refreshRecentWins() {
+    const through = todayLocalISO();
+    const fromDate = new Date(); fromDate.setDate(fromDate.getDate() - 60);
+    const from = isoDate(fromDate);
+    const data = await fetchJSON(fnUrl('recentclosed', { from, through }));
+    const jobs = (data.jobs || []).slice(0, 10);
+    const track = document.getElementById('tickerTrack');
+    if (jobs.length) {
+      track.innerHTML = jobs.map(j => `<span>🏆 <b>${escapeHtml(j.name)}</b>${j.rep && j.rep !== '(Unassigned)' ? ' — ' + escapeHtml(j.rep) : ''} — ${fmtMoney(j.value)}</span>`).join('');
+    } else {
+      track.innerHTML = '<span>No recently closed jobs in ServiceMinder yet this cycle — keep pushing 💪</span>';
+    }
   }
 
   function escapeHtml(s) {
@@ -883,12 +890,16 @@
     setInterval(tickFollowupAutoscroll, 40);
 
     await loadSettings();
-    await Promise.allSettled([refreshRevenue(), refreshCRM(), refreshPacing(), refreshCalendar()]);
+    await Promise.allSettled([refreshRevenue(), refreshCRM(), refreshPacing(), refreshCalendar(), refreshRecentWins()]);
     refreshFunnel(); // slow — don't block first paint
 
     setInterval(() => refreshRevenue().catch(e => console.warn(e)), 90 * 1000);
     setInterval(() => refreshCRM().catch(e => console.warn(e)), 90 * 1000);
     setInterval(() => refreshPacing().catch(e => console.warn(e)), 5 * 60 * 1000);
+    // ServiceMinder-backed, not CRM — a slower cadence than refreshCRM matches how often invoices
+    // actually change and avoids hammering the ServiceMinder Download API (see report=recentclosed
+    // above, reusing the same already-rate-considerate cadence as report=pacing).
+    setInterval(() => refreshRecentWins().catch(e => console.warn(e)), 5 * 60 * 1000);
     setInterval(() => refreshFunnel().catch(e => console.warn(e)), 15 * 60 * 1000);
     setInterval(() => refreshCalendar().catch(e => console.warn(e)), 10 * 60 * 1000);
   }

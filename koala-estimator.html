@@ -387,6 +387,21 @@ body.customer-mode .customer-total-box { display: block; }
 }
 .header-btn-save { background: var(--green); color: var(--navy); border-color: var(--green); }
 .header-btn-save:hover { background: var(--green-bright); }
+.autosave-status {
+  font-size: .7rem; color: rgba(255,255,255,.7); display: flex; align-items: center; gap: 4px;
+  white-space: nowrap; min-width: 70px;
+}
+.autosave-status.saving { color: rgba(255,255,255,.5); }
+.autosave-status.saved { color: var(--green-bright); }
+.autosave-status.error { color: #ff6b6b; }
+.autosave-dot {
+  width: 6px; height: 6px; border-radius: 50%; display: inline-block;
+}
+.autosave-status.saving .autosave-dot { background: rgba(255,255,255,.5); animation: pulse-dot .8s infinite; }
+.autosave-status.saved .autosave-dot { background: var(--green-bright); }
+.autosave-status.error .autosave-dot { background: #ff6b6b; }
+.autosave-status.unsaved .autosave-dot { background: var(--orange); }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 .header-btn-browse { background: rgba(255,255,255,.15); color: #fff; }
 .header-btn-browse:hover { background: rgba(255,255,255,.25); }
 .header-btn-email { background: rgba(255,255,255,.15); color: #fff; }
@@ -619,6 +634,7 @@ body.customer-mode .customer-total-box { display: block; }
     <span id="estimateBadgeName">—</span>
   </div>
   <div class="header-actions">
+    <span class="autosave-status saved" id="autosaveStatus"><span class="autosave-dot"></span> <span id="autosaveLabel">Saved</span></span>
     <button class="header-btn header-btn-save" onclick="openSaveModal()">&#128190; Save</button>
     <button class="header-btn header-btn-email" onclick="openEmailPanel()">&#9993; Generate Email</button>
     <a class="header-btn header-btn-browse" href="koala-estimates.html">&#128269; Browse Estimates</a>
@@ -2552,6 +2568,9 @@ function recalc() {
   updateBlowInCalc();
   updateBattSuggestions();
   updateSpfCalc();
+
+  // Trigger auto-save on any recalc
+  scheduleAutoSave();
 }
 
 // ─── SUPABASE ──────────────────────────────────────────────────────────────
@@ -2560,6 +2579,88 @@ const SUPABASE_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
 
 let currentEstimateId = null; // set when loading an existing estimate
+
+// ─── AUTO-SAVE ────────────────────────────────────────────────────────────
+
+let _autoSaveTimer = null;
+let _autoSaving = false;
+let _suppressAutoSave = false; // suppress during initial load/deserialize
+
+function setAutoSaveStatus(state, label) {
+  const el = $('autosaveStatus');
+  el.className = 'autosave-status ' + state;
+  $('autosaveLabel').textContent = label;
+}
+
+async function doAutoSave() {
+  if (_autoSaving || _suppressAutoSave) return;
+  _autoSaving = true;
+  setAutoSaveStatus('saving', 'Saving…');
+
+  try {
+    const formData = serializeForm();
+    const c = calcOption(getOpt());
+    const margin = getOptionMargin(getOpt());
+    const royalty = parseFloat($('royaltyInput').value) || 0;
+    const divisor = 1 - (margin / 100) - (royalty / 100);
+    const customerPrice = divisor > 0 ? c.totalJobCost / divisor : 0;
+
+    const record = {
+      customer_name: $('custName').value || 'Untitled',
+      customer_address: $('address').value || '',
+      customer_phone: $('savePhone')?.value || '',
+      customer_email: $('saveEmail')?.value || '',
+      estimator_name: $('estimator').value || '',
+      status: currentEstimateId ? ($('saveStatus')?.value || 'draft') : 'draft',
+      notes: $('saveNotes')?.value || '',
+      total_cost: parseFloat(c.totalJobCost.toFixed(2)),
+      customer_price: parseFloat(customerPrice.toFixed(2)),
+      margin_percent: margin,
+      royalty_percent: royalty,
+      form_data: formData
+    };
+
+    let result;
+    if (currentEstimateId) {
+      result = await supabaseRequest('PATCH',
+        'koala_estimates?id=eq.' + currentEstimateId, record);
+      result = Array.isArray(result) ? result[0] : result;
+    } else {
+      result = await supabaseRequest('POST', 'koala_estimates', record);
+      result = Array.isArray(result) ? result[0] : result;
+      currentEstimateId = result.id;
+      // Update URL so refresh reloads this estimate
+      const url = new URL(window.location);
+      url.searchParams.set('id', currentEstimateId);
+      window.history.replaceState({}, '', url);
+      updateEstimateBadge(record.customer_name);
+    }
+    setAutoSaveStatus('saved', 'Saved');
+  } catch (err) {
+    console.error('Auto-save error:', err);
+    setAutoSaveStatus('error', 'Save failed');
+  } finally {
+    _autoSaving = false;
+  }
+}
+
+function scheduleAutoSave() {
+  if (_suppressAutoSave) return;
+  setAutoSaveStatus('unsaved', 'Unsaved');
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(doAutoSave, 2000);
+}
+
+// Listen for any input/change on the main form area
+document.addEventListener('input', e => {
+  // Skip if typing in save-modal fields (those are handled by explicit save)
+  if (e.target.closest('#saveModal') || e.target.closest('#emailOverlay')) return;
+  scheduleAutoSave();
+});
+document.addEventListener('change', e => {
+  if (e.target.closest('#saveModal') || e.target.closest('#emailOverlay')) return;
+  scheduleAutoSave();
+});
 
 // ─── TOAST ─────────────────────────────────────────────────────────────────
 
@@ -2932,11 +3033,16 @@ async function saveEstimate() {
       result = await supabaseRequest('POST', 'koala_estimates', record);
       result = Array.isArray(result) ? result[0] : result;
       currentEstimateId = result.id;
+      // Update URL so refresh reloads this estimate
+      const url = new URL(window.location);
+      url.searchParams.set('id', currentEstimateId);
+      window.history.replaceState({}, '', url);
       showToast('Estimate saved!', 'success');
     }
 
-    // Update badge
+    // Update badge & auto-save status
     updateEstimateBadge(record.customer_name);
+    setAutoSaveStatus('saved', 'Saved');
     closeSaveModal();
   } catch (err) {
     console.error('Save error:', err);
@@ -2960,6 +3066,7 @@ async function loadEstimateFromUrl() {
   const id = params.get('id');
   if (!id) return;
 
+  _suppressAutoSave = true;
   try {
     const result = await supabaseRequest('GET', 'koala_estimates?id=eq.' + id + '&select=*');
     if (!result || !result.length) {
@@ -2977,10 +3084,14 @@ async function loadEstimateFromUrl() {
     $('saveNotes').value = est.notes || '';
 
     updateEstimateBadge(est.customer_name);
+    setAutoSaveStatus('saved', 'Saved');
     showToast('Estimate loaded: ' + (est.customer_name || 'Unnamed'), 'success');
   } catch (err) {
     console.error('Load error:', err);
     showToast('Failed to load estimate', 'error');
+  } finally {
+    // Re-enable auto-save after a brief delay to let any residual input events pass
+    setTimeout(() => { _suppressAutoSave = false; }, 500);
   }
 }
 
@@ -3555,6 +3666,7 @@ function createFinalCombined() {
 
 // ─── INIT ───────────────────────────────────────────────────────────────────
 
+_suppressAutoSave = true; // suppress during init
 initAreaRows();
 createOption('Option 1');
 addLabor();
@@ -3565,8 +3677,13 @@ recalc();
 loadPricingFromSupabase();
 loadAppSettings();
 
-// Check for estimate ID in URL
-loadEstimateFromUrl();
+// Check for estimate ID in URL — re-enables auto-save when done
+loadEstimateFromUrl().then(() => {
+  // If no estimate was loaded from URL, enable auto-save after init settles
+  if (!currentEstimateId) {
+    setTimeout(() => { _suppressAutoSave = false; }, 500);
+  }
+});
 </script>
 </body>
 </html>

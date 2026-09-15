@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.09.15a -->
+<!-- v2026.09.15b -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -764,11 +764,14 @@ body {
 .crm-table .biz-phone a:hover { text-decoration: underline; }
 .crm-table .biz-cat { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(237,28,46,0.1); color: #ED1C2E; display: inline-block; white-space: nowrap; }
 .crm-table .biz-store { font-size: 12px; color: var(--text-secondary); }
-.crm-called-btn { padding: 4px 12px; border-radius: 14px; border: 1px solid var(--border); cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; }
-.crm-called-btn.not-called { background: transparent; color: var(--text-secondary); }
-.crm-called-btn.called { background: #0a7c42; color: #fff; border-color: #0a7c42; }
-.crm-called-btn.interested { background: #ED1C2E; color: #fff; border-color: #ED1C2E; }
+.crm-status-select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 12px; font-weight: 600; background: var(--card-bg); color: var(--text-secondary); appearance: auto; min-width: 110px; }
+.crm-status-select.s-not_called { background: transparent; color: var(--text-secondary); }
+.crm-status-select.s-called { background: #0a7c42; color: #fff; border-color: #0a7c42; }
+.crm-status-select.s-interested { background: #ED1C2E; color: #fff; border-color: #ED1C2E; }
+.crm-status-select.s-email_sent { background: #2563eb; color: #fff; border-color: #2563eb; }
+.crm-inline-input { width: 100%; max-width: 160px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); font-size: 12px; }
 .crm-notes-input { width: 100%; max-width: 200px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); font-size: 12px; }
+.crm-user-select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); font-size: 12px; background: var(--card-bg); color: var(--text-primary); min-width: 100px; }
 .crm-flyer-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #ED1C2E; color: #fff; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 600; }
 .crm-flyer-link:hover { background: #c4101f; }
 .crm-progress { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; flex: 1; min-width: 120px; }
@@ -1302,6 +1305,13 @@ body {
         <option value="not_called">Not Called</option>
         <option value="called">Called</option>
         <option value="interested">Interested</option>
+        <option value="email_sent">Email Sent</option>
+      </select>
+      <select id="crmUserFilter">
+        <option value="all">All Users</option>
+        <option value="Michelle Gonzalez">Michelle Gonzalez</option>
+        <option value="Gizelle Tercero">Gizelle Tercero</option>
+        <option value="Manuel Macias">Manuel Macias</option>
       </select>
       <input type="text" id="crmSearch" placeholder="Search business name...">
       <div style="display:flex; align-items:center; gap:8px;">
@@ -1318,7 +1328,11 @@ body {
           <th>Phone</th>
           <th>Category</th>
           <th>Store</th>
+          <th>Contact Name</th>
+          <th>Position</th>
+          <th>Email</th>
           <th>Status</th>
+          <th>Assigned To</th>
           <th>Notes</th>
         </tr></thead>
         <tbody id="crmTableBody"></tbody>
@@ -6671,7 +6685,14 @@ async function initRecap() {
 
 
 /* ===== CATERING CRM ===== */
-const crmState = { data: [], storeFilter: 'all', catFilter: 'all', statusFilter: 'all', search: '' };
+const crmState = { data: [], storeFilter: 'all', catFilter: 'all', statusFilter: 'all', userFilter: 'all', search: '' };
+const CRM_USERS = ['Michelle Gonzalez','Gizelle Tercero','Manuel Macias'];
+const CRM_STATUSES = [
+  { value: 'not_called', label: 'Not Called' },
+  { value: 'called', label: 'Called' },
+  { value: 'interested', label: 'Interested' },
+  { value: 'email_sent', label: 'Email Sent' }
+];
 
 const CRM_CATEGORIES = [
   'Hotels & Lodging','Schools & Education','Medical & Dental','Corporate & Office',
@@ -6703,6 +6724,7 @@ function initCRMFilters() {
   storeSelect.onchange = () => { crmState.storeFilter = storeSelect.value; renderCRM(); };
   catSelect.onchange = () => { crmState.catFilter = catSelect.value; renderCRM(); };
   document.getElementById('crmStatusFilter').onchange = (e) => { crmState.statusFilter = e.target.value; renderCRM(); };
+  document.getElementById('crmUserFilter').onchange = (e) => { crmState.userFilter = e.target.value; renderCRM(); };
   document.getElementById('crmSearch').oninput = (e) => { crmState.search = e.target.value.toLowerCase(); renderCRM(); };
 }
 
@@ -6711,30 +6733,32 @@ function renderCRM() {
   const filtered = data.filter(b => {
     if (crmState.storeFilter !== 'all' && b.store_id !== crmState.storeFilter) return false;
     if (crmState.catFilter !== 'all' && b.category !== crmState.catFilter) return false;
-    if (crmState.statusFilter === 'not_called' && b.called) return false;
-    if (crmState.statusFilter === 'called' && (!b.called || b.interested)) return false;
-    if (crmState.statusFilter === 'interested' && !b.interested) return false;
+    if (crmState.statusFilter !== 'all' && b.status !== crmState.statusFilter) return false;
+    if (crmState.userFilter !== 'all' && b.assigned_to !== crmState.userFilter) return false;
     if (crmState.search && !b.business_name.toLowerCase().includes(crmState.search)) return false;
     return true;
   });
 
   // Stats
   const total = data.length;
-  const called = data.filter(b => b.called).length;
-  const interested = data.filter(b => b.interested).length;
-  const notCalled = total - called;
-  const pct = total > 0 ? Math.round((called / total) * 100) : 0;
+  const called = data.filter(b => b.status === 'called').length;
+  const interested = data.filter(b => b.status === 'interested').length;
+  const emailSent = data.filter(b => b.status === 'email_sent').length;
+  const notCalled = data.filter(b => b.status === 'not_called').length;
+  const contacted = total - notCalled;
+  const pct = total > 0 ? Math.round((contacted / total) * 100) : 0;
 
   document.getElementById('crmStats').innerHTML = `
     <div class="crm-stat"><div class="stat-val">${total}</div><div class="stat-lbl">Total Leads</div></div>
     <div class="crm-stat"><div class="stat-val" style="color:#0a7c42;">${called}</div><div class="stat-lbl">Called</div></div>
     <div class="crm-stat"><div class="stat-val" style="color:#ED1C2E;">${interested}</div><div class="stat-lbl">Interested</div></div>
+    <div class="crm-stat"><div class="stat-val" style="color:#2563eb;">${emailSent}</div><div class="stat-lbl">Email Sent</div></div>
     <div class="crm-stat"><div class="stat-val">${notCalled}</div><div class="stat-lbl">Not Called</div></div>
-    <div class="crm-stat"><div class="stat-val">${pct}%</div><div class="stat-lbl">Completed</div></div>
+    <div class="crm-stat"><div class="stat-val">${pct}%</div><div class="stat-lbl">Contacted</div></div>
   `;
 
   document.getElementById('crmProgressBar').style.width = pct + '%';
-  document.getElementById('crmProgressText').textContent = `${called}/${total}`;
+  document.getElementById('crmProgressText').textContent = `${contacted}/${total}`;
 
   // Table
   const storeMap = {};
@@ -6750,59 +6774,91 @@ function renderCRM() {
   }
   empty.style.display = 'none';
 
+  const statusOpts = CRM_STATUSES.map(s => `<option value="${s.value}">${s.label}</option>`).join('');
+  const userOpts = '<option value="">—</option>' + CRM_USERS.map(u => `<option value="${u}">${u.split(' ')[0]}</option>`).join('');
+
   tbody.innerHTML = filtered.map(b => {
-    const statusClass = b.interested ? 'interested' : (b.called ? 'called' : 'not-called');
-    const statusLabel = b.interested ? '&#9733; Interested' : (b.called ? '&#10003; Called' : 'Not Called');
     const phoneLink = b.phone ? `<a href="tel:${b.phone.replace(/[^+\d]/g,'')}">${b.phone}</a>` : '—';
     const storeName = storeMap[b.store_id] || b.store_id;
-    const notesVal = (b.notes || '').replace(/"/g, '&quot;');
+    const esc = v => (v || '').replace(/"/g, '&quot;');
+    // Build status select with correct option selected
+    const selOpts = CRM_STATUSES.map(s => `<option value="${s.value}"${b.status === s.value ? ' selected' : ''}>${s.label}</option>`).join('');
+    const userSelOpts = '<option value="">—</option>' + CRM_USERS.map(u => `<option value="${u}"${b.assigned_to === u ? ' selected' : ''}>${u.split(' ')[0]}</option>`).join('');
     return `<tr data-id="${b.id}">
       <td class="biz-name">${b.business_name}${b.address ? `<br><span style="font-weight:400;font-size:11px;color:var(--text-secondary);">${b.address}</span>` : ''}</td>
       <td class="biz-phone">${phoneLink}</td>
       <td><span class="biz-cat">${b.category}</span></td>
       <td class="biz-store">${storeName}</td>
-      <td><button class="crm-called-btn ${statusClass}" onclick="cycleCRMStatus(${b.id})">${statusLabel}</button></td>
-      <td><input class="crm-notes-input" value="${notesVal}" placeholder="Add notes..." onblur="saveCRMNotes(${b.id}, this.value)"></td>
+      <td><input class="crm-inline-input" value="${esc(b.contact_name)}" placeholder="Name..." onblur="saveCRMField(${b.id},'contact_name',this.value)"></td>
+      <td><input class="crm-inline-input" value="${esc(b.contact_position)}" placeholder="Position..." onblur="saveCRMField(${b.id},'contact_position',this.value)" style="max-width:120px;"></td>
+      <td><input class="crm-inline-input" value="${esc(b.contact_email)}" placeholder="Email..." onblur="saveCRMField(${b.id},'contact_email',this.value)" style="max-width:160px;"></td>
+      <td><select class="crm-status-select s-${b.status}" onchange="setCRMStatus(${b.id},this.value,this)">${selOpts}</select></td>
+      <td><select class="crm-user-select" onchange="saveCRMField(${b.id},'assigned_to',this.value)">${userSelOpts}</select></td>
+      <td><input class="crm-notes-input" value="${esc(b.notes)}" placeholder="Add notes..." onblur="saveCRMField(${b.id},'notes',this.value)"></td>
     </tr>`;
   }).join('');
 }
 
-async function cycleCRMStatus(id) {
+async function setCRMStatus(id, newStatus, selectEl) {
   const item = crmState.data.find(b => b.id === id);
   if (!item) return;
+  item.status = newStatus;
+  // Update legacy booleans for backward compat
+  item.called = (newStatus === 'called' || newStatus === 'interested' || newStatus === 'email_sent');
+  item.interested = (newStatus === 'interested');
+  if (newStatus !== 'not_called' && !item.call_date) item.call_date = new Date().toISOString();
 
-  // Cycle: not called -> called -> interested -> not called
-  if (!item.called && !item.interested) {
-    item.called = true; item.interested = false; item.call_date = new Date().toISOString();
-  } else if (item.called && !item.interested) {
-    item.interested = true;
-  } else {
-    item.called = false; item.interested = false; item.call_date = null;
-  }
+  // Update dropdown color class
+  if (selectEl) { selectEl.className = 'crm-status-select s-' + newStatus; }
 
-  renderCRM();
+  // Update stats without full re-render
+  updateCRMStats();
 
   try {
     await sbFetch(`dt_catering_crm?id=eq.${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ called: item.called, interested: item.interested, call_date: item.call_date, updated_at: new Date().toISOString() }),
+      body: JSON.stringify({ status: newStatus, called: item.called, interested: item.interested, call_date: item.call_date, updated_at: new Date().toISOString() }),
       prefer: 'return=minimal'
     });
   } catch(e) { console.error('CRM status update error:', e); }
 }
 
-async function saveCRMNotes(id, notes) {
+function updateCRMStats() {
+  const data = crmState.data;
+  const total = data.length;
+  const called = data.filter(b => b.status === 'called').length;
+  const interested = data.filter(b => b.status === 'interested').length;
+  const emailSent = data.filter(b => b.status === 'email_sent').length;
+  const notCalled = data.filter(b => b.status === 'not_called').length;
+  const contacted = total - notCalled;
+  const pct = total > 0 ? Math.round((contacted / total) * 100) : 0;
+
+  document.getElementById('crmStats').innerHTML = `
+    <div class="crm-stat"><div class="stat-val">${total}</div><div class="stat-lbl">Total Leads</div></div>
+    <div class="crm-stat"><div class="stat-val" style="color:#0a7c42;">${called}</div><div class="stat-lbl">Called</div></div>
+    <div class="crm-stat"><div class="stat-val" style="color:#ED1C2E;">${interested}</div><div class="stat-lbl">Interested</div></div>
+    <div class="crm-stat"><div class="stat-val" style="color:#2563eb;">${emailSent}</div><div class="stat-lbl">Email Sent</div></div>
+    <div class="crm-stat"><div class="stat-val">${notCalled}</div><div class="stat-lbl">Not Called</div></div>
+    <div class="crm-stat"><div class="stat-val">${pct}%</div><div class="stat-lbl">Contacted</div></div>
+  `;
+  document.getElementById('crmProgressBar').style.width = pct + '%';
+  document.getElementById('crmProgressText').textContent = `${contacted}/${total}`;
+}
+
+async function saveCRMField(id, field, value) {
   const item = crmState.data.find(b => b.id === id);
-  if (!item || item.notes === notes) return;
-  item.notes = notes;
+  if (!item || item[field] === value) return;
+  item[field] = value;
 
   try {
+    const body = { updated_at: new Date().toISOString() };
+    body[field] = value;
     await sbFetch(`dt_catering_crm?id=eq.${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ notes: notes, updated_at: new Date().toISOString() }),
+      body: JSON.stringify(body),
       prefer: 'return=minimal'
     });
-  } catch(e) { console.error('CRM notes save error:', e); }
+  } catch(e) { console.error('CRM field save error:', e); }
 }
 
 // Load CRM when tab is clicked

@@ -269,6 +269,7 @@ a.link:hover { text-decoration: underline; }
       </div>
       <button class="btn primary" id="btnAddEquipment">+ Add Equipment</button>
     </div>
+    <div class="row-flex" style="margin-top:10px;gap:6px" id="equipmentLocationFilterRow"></div>
   </div>
   <div id="equipmentList"></div>
 </section>
@@ -341,6 +342,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // 2026-09-04 — SM calls it "Foam Pack", not "Foam Back").
 const JOB_TYPES = ['Residential New Installation','Residential Retrofit','B2B New Installation','B2B Retrofit','Call Back','Foam Pack'];
 const EQUIP_CATEGORIES = ['Vehicle','Trailer','Generator','Removal Machine','Blow-In Machine'];
+const EQUIP_LOCATIONS = ['Albuquerque','Las Cruces'];
+let equipmentLocationFilter = 'All';
 const VENDORS = ['CA','IDI','RIS','Home Depot',"Lowe's",'Other'];
 const PPE_ITEMS = [
   ['hard_hat','Hard Hat'], ['bump_cap','Bump Cap Insert'], ['safety_glasses','Safety Glasses'],
@@ -750,20 +753,45 @@ function dueBadge(e) {
   return `<span class="badge good">Due ${fmtDate(e.next_service_due)}</span>`;
 }
 
+function locationBadge(loc) {
+  if (!loc) return `<span class="badge muted">Unassigned</span>`;
+  const cls = loc === 'Albuquerque' ? 'good' : 'warn';
+  return `<span class="badge ${cls}">${esc(loc)}</span>`;
+}
+
+function renderEquipmentLocationFilter() {
+  const row = document.getElementById('equipmentLocationFilterRow');
+  if (!row) return;
+  const options = ['All', ...EQUIP_LOCATIONS];
+  row.innerHTML = options.map(loc => `
+    <button class="btn small${equipmentLocationFilter === loc ? ' primary' : ''}" onclick="setEquipmentLocationFilter('${loc}')">${loc === 'All' ? 'All Locations' : esc(loc)}</button>
+  `).join('');
+}
+
+function setEquipmentLocationFilter(loc) {
+  equipmentLocationFilter = loc;
+  renderEquipmentLocationFilter();
+  renderEquipment();
+}
+
 function renderEquipment() {
+  renderEquipmentLocationFilter();
   const list = document.getElementById('equipmentList');
+  const visible = equipmentLocationFilter === 'All' ? state.equipment : state.equipment.filter(e => e.location === equipmentLocationFilter);
   if (!state.equipment.length) { list.innerHTML = `<div class="card"><div class="empty-state">No equipment on file yet. Click "+ Add Equipment" to add vehicles, trailers, generators, removal machines, or blow-in machines.</div></div>`; return; }
+  if (!visible.length) { list.innerHTML = `<div class="card"><div class="empty-state">No equipment tagged "${esc(equipmentLocationFilter)}" yet.</div></div>`; return; }
   const byCat = {};
   EQUIP_CATEGORIES.forEach(c => byCat[c] = []);
-  state.equipment.forEach(e => { (byCat[e.category] = byCat[e.category] || []).push(e); });
+  visible.forEach(e => { (byCat[e.category] = byCat[e.category] || []).push(e); });
   list.innerHTML = Object.entries(byCat).filter(([, items]) => items.length).map(([cat, items]) => `
     <div class="card">
       <h2>${cat}${items.length > 1 ? ' (' + items.length + ')' : ''}</h2>
-      <div class="table-scroll"><table><thead><tr><th>Name</th><th>ID</th><th>Assigned To</th><th>Last Service</th><th>Status</th><th></th></tr></thead><tbody>
+      <div class="table-scroll"><table><thead><tr><th>Name</th><th>ID</th><th>Location</th><th>Assigned To</th><th>Last Service</th><th>Status</th><th></th></tr></thead><tbody>
         ${items.map(e => `
           <tr>
             <td><b>${esc(e.name)}</b>${e.notes ? `<div class="small-note">${esc(e.notes)}</div>` : ''}</td>
             <td>${esc(e.identifier) || '—'}</td>
+            <td>${locationBadge(e.location)}</td>
             <td>${esc(e.assigned_to) || '—'}</td>
             <td>${e.last_service_date ? fmtDate(e.last_service_date) : '—'}</td>
             <td>${dueBadge(e)}</td>
@@ -789,6 +817,9 @@ function openEquipmentModal(id) {
       ${field('ID / VIN / Serial #', `<input id="e_ident" value="${esc(e && e.identifier)}">`)}
       ${field('Assigned To', `<input id="e_assigned" value="${esc(e && e.assigned_to)}">`)}
     </div>
+    <div class="grid-2">
+      ${field('Location', `<select id="e_location"><option value="">— Unassigned —</option>${EQUIP_LOCATIONS.map(l => `<option ${e && e.location === l ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
+    </div>
     <div class="grid-3">
       ${field('Service Interval (days)', `<input type="number" id="e_interval" value="${e && e.service_interval_days || ''}">`)}
       ${field('Last Service Date', `<input type="date" id="e_last" value="${e && e.last_service_date || ''}">`)}
@@ -808,6 +839,7 @@ async function saveEquipment(id) {
     name: document.getElementById('e_name').value,
     identifier: document.getElementById('e_ident').value,
     assigned_to: document.getElementById('e_assigned').value,
+    location: document.getElementById('e_location').value || null,
     service_interval_days: document.getElementById('e_interval').value ? Number(document.getElementById('e_interval').value) : null,
     last_service_date: document.getElementById('e_last').value || null,
     next_service_due: document.getElementById('e_next').value || null,

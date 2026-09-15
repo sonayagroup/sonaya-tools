@@ -621,6 +621,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
           <option value="admin">Admin — can also manage users</option>
         </select>
       </div>
+      <div class="crm-form-row"><label class="crm-form-check"><input type="checkbox" id="adminInviteSendEmail" checked> Email them their temporary password</label></div>
       <div class="crm-form-error" id="adminInviteError" style="display:none;"></div>
       <div class="admin-temp-pw" id="adminInviteResult" style="display:none;"></div>
     </div>
@@ -845,10 +846,11 @@ async function handleAdminToggleActive(userId, isActive) {
   catch (err) { alert('Could not update status: ' + err.message); }
 }
 async function handleAdminResetPassword(userId, email) {
-  if (!confirm(`Reset the password for ${email}? You'll get a new temporary password to give them.`)) return;
+  if (!confirm(`Reset the password for ${email}? They'll be emailed a new temporary password.`)) return;
   try {
-    const { temp_password } = await callAdminUsersEdge('reset_password', { body: { user_id: userId } });
-    alert(`New temporary password for ${email}:\n\n${temp_password}\n\nShare this with them directly — it won't be shown again.`);
+    const { temp_password, emailed, email_error } = await callAdminUsersEdge('reset_password', { body: { user_id: userId, send_email: true } });
+    const emailNote = emailed ? `Emailed to ${email}.` : `Could NOT email them (${email_error || 'unknown error'}) — share this password directly.`;
+    alert(`New temporary password for ${email}:\n\n${temp_password}\n\n${emailNote}`);
   } catch (err) { alert('Could not reset password: ' + err.message); }
 }
 
@@ -856,6 +858,7 @@ function openAdminInviteModal() {
   document.getElementById('adminInviteName').value = '';
   document.getElementById('adminInviteEmail').value = '';
   document.getElementById('adminInviteRole').value = 'viewer';
+  document.getElementById('adminInviteSendEmail').checked = true;
   document.getElementById('adminInviteError').style.display = 'none';
   document.getElementById('adminInviteResult').style.display = 'none';
   document.getElementById('adminInviteSubmitBtn').style.display = '';
@@ -869,15 +872,21 @@ async function handleAdminInvite() {
   const name = document.getElementById('adminInviteName').value.trim();
   const email = document.getElementById('adminInviteEmail').value.trim();
   const role = document.getElementById('adminInviteRole').value;
+  const sendEmail = document.getElementById('adminInviteSendEmail').checked;
   const errEl = document.getElementById('adminInviteError');
   errEl.style.display = 'none';
   if (!email) { errEl.textContent = 'Email is required.'; errEl.style.display = ''; return; }
   const btn = document.getElementById('adminInviteSubmitBtn');
   btn.disabled = true; btn.textContent = 'Creating…';
   try {
-    const { temp_password } = await callAdminUsersEdge('invite', { body: { name, email, role } });
+    const { temp_password, emailed, email_error } = await callAdminUsersEdge('invite', { body: { name, email, role, send_email: sendEmail } });
     document.getElementById('adminInviteResult').style.display = '';
-    document.getElementById('adminInviteResult').innerHTML = `Account created for <b>${crmEsc(email)}</b>. Temporary password:<br><code>${crmEsc(temp_password)}</code><br>Share this with them directly — it won't be shown again.`;
+    const statusLine = !sendEmail
+      ? `Share this password with them directly — it won't be shown again.`
+      : emailed
+        ? `Emailed to <b>${crmEsc(email)}</b> — they can sign in now.`
+        : `Could NOT email them (${crmEsc(email_error || 'unknown error')}) — share this password with them directly instead.`;
+    document.getElementById('adminInviteResult').innerHTML = `Account created for <b>${crmEsc(email)}</b>. Temporary password:<br><code>${crmEsc(temp_password)}</code><br>${statusLine}`;
     btn.style.display = 'none';
   } catch (err) {
     errEl.textContent = err.message; errEl.style.display = '';

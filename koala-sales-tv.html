@@ -113,16 +113,16 @@
   .rep-stat-label { font-size: 1.1vh; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
   .rep-stat-value { font-size: 2.15vh; font-weight: 800; }
 
-  /* ---- stale-bid strip (Frank card) ---- */
-  .stale-ticker-wrap {
+  /* ---- rep-card bid strip (Frank's stale 60+d bids; Gabriel/Mike's 7-day follow-up estimates) ---- */
+  .rep-ticker-wrap {
     margin-top: 1.2vh; padding-top: 1vh; border-top: 1px solid var(--gridline);
     overflow: hidden; position: relative; isolation: isolate;
     -webkit-mask-image: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
             mask-image: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
   }
-  .stale-ticker-track { display: flex; white-space: nowrap; animation: scroll-left 20s linear infinite; padding-left: 100%; }
-  .stale-ticker-track span { font-size: 1.25vh; font-weight: 600; padding: 0 2vw; color: var(--text-secondary); }
-  .stale-ticker-track span b { color: var(--status-warn); font-weight: 800; }
+  .rep-ticker-track { display: flex; white-space: nowrap; animation: scroll-left 20s linear infinite; padding-left: 100%; }
+  .rep-ticker-track span { font-size: 1.25vh; font-weight: 600; padding: 0 2vw; color: var(--text-secondary); }
+  .rep-ticker-track span b { color: var(--status-warn); font-weight: 800; }
 
   /* ---- right column ---- */
   .side-col { display: flex; flex-direction: column; gap: 1.4vh; min-height: 0; }
@@ -252,11 +252,18 @@
         <div class="progress-track"><div class="progress-fill" data-el="bar" style="width:0%;background:var(--status-ok)"></div></div>
         <div class="pace-chip" data-el="pace" style="background:var(--status-ok-bg);color:var(--status-ok)">—</div>
       </div>
-      <div class="rep-stats">
-        <div><div class="rep-stat-label">Close Rate</div><div class="rep-stat-value" data-el="closerate">—</div></div>
-        <div><div class="rep-stat-label">Est. Sent</div><div class="rep-stat-value" data-el="sent">—</div></div>
-        <div><div class="rep-stat-label">This Week</div><div class="rep-stat-value" data-el="week">—</div></div>
-        <div><div class="rep-stat-label">MTD</div><div class="rep-stat-value" data-el="mtd">—</div></div>
+      <div>
+        <div class="rep-stats">
+          <div><div class="rep-stat-label">Close Rate</div><div class="rep-stat-value" data-el="closerate">—</div></div>
+          <div><div class="rep-stat-label">Est. Sent</div><div class="rep-stat-value" data-el="sent">—</div></div>
+          <div><div class="rep-stat-label">This Week</div><div class="rep-stat-value" data-el="week">—</div></div>
+          <div><div class="rep-stat-label">MTD</div><div class="rep-stat-value" data-el="mtd">—</div></div>
+        </div>
+        <!-- Still-open estimates sent in the last 7 days, to follow up on — added 2026-09-15 per
+             Pranav, mirrors Frank's stale-bid strip. Hidden entirely when there's nothing to show. -->
+        <div class="rep-ticker-wrap" data-el="followup-ticker-wrap" style="display:none;">
+          <div class="rep-ticker-track" data-el="followup-ticker"></div>
+        </div>
       </div>
     </div>
 
@@ -274,11 +281,16 @@
         <div class="progress-track"><div class="progress-fill" data-el="bar" style="width:0%;background:var(--status-ok)"></div></div>
         <div class="pace-chip" data-el="pace" style="background:var(--status-ok-bg);color:var(--status-ok)">—</div>
       </div>
-      <div class="rep-stats">
-        <div><div class="rep-stat-label">Close Rate</div><div class="rep-stat-value" data-el="closerate">—</div></div>
-        <div><div class="rep-stat-label">Est. Sent</div><div class="rep-stat-value" data-el="sent">—</div></div>
-        <div><div class="rep-stat-label">This Week</div><div class="rep-stat-value" data-el="week">—</div></div>
-        <div><div class="rep-stat-label">MTD</div><div class="rep-stat-value" data-el="mtd">—</div></div>
+      <div>
+        <div class="rep-stats">
+          <div><div class="rep-stat-label">Close Rate</div><div class="rep-stat-value" data-el="closerate">—</div></div>
+          <div><div class="rep-stat-label">Est. Sent</div><div class="rep-stat-value" data-el="sent">—</div></div>
+          <div><div class="rep-stat-label">This Week</div><div class="rep-stat-value" data-el="week">—</div></div>
+          <div><div class="rep-stat-label">MTD</div><div class="rep-stat-value" data-el="mtd">—</div></div>
+        </div>
+        <div class="rep-ticker-wrap" data-el="followup-ticker-wrap" style="display:none;">
+          <div class="rep-ticker-track" data-el="followup-ticker"></div>
+        </div>
       </div>
     </div>
 
@@ -306,8 +318,8 @@
         <!-- Which bids are stale (sent 60+ days ago, still no decision) — added 2026-09-15 per
              Pranav. Horizontal auto-scrolling strip, edges faded via CSS mask, oldest bid first.
              Hidden entirely when there are none. -->
-        <div class="stale-ticker-wrap" id="frankStaleTickerWrap" style="display:none;">
-          <div class="stale-ticker-track" id="frankStaleTicker"></div>
+        <div class="rep-ticker-wrap" id="frankStaleTickerWrap" style="display:none;">
+          <div class="rep-ticker-track" id="frankStaleTicker"></div>
         </div>
       </div>
     </div>
@@ -545,14 +557,23 @@
     return { sent, closeRate: decided > 0 ? won / decided : null, decided, won };
   }
 
+  // How many whole Mountain-Time calendar days ago a ServiceMinder "sent" date was, relative to
+  // today — pure calendar-day difference (todayLocalISO() vs. the parsed sent date), not a raw Date
+  // subtraction, so it isn't sensitive to the driving machine's own OS timezone. Returns null if the
+  // date didn't parse.
+  function bidAgeDays(sentDate, todayISO) {
+    const d = parseSMDate(sentDate);
+    if (!d) return null;
+    const sentISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return daysBetweenISO(sentISO, todayISO);
+  }
+
   // Open (undecided) pipeline for a rep, plus how much of it has been sitting for 60+ days
   // without a decision — this is the number that actually matters for a commercial bid pipeline,
   // where "Expired" (no answer ever came back) is common and easy to lose track of. Also collects
   // the individual stale bids (name/value/age) — added 2026-09-15 per Pranav, who wanted to see
   // WHICH bids are behind the "Stale 60+d" count, not just the number — sorted oldest-first (the
-  // most overdue-for-a-follow-up bid leads). Age is computed as a pure Mountain-Time calendar-day
-  // difference (todayLocalISO() vs. the bid's sent date), not a raw Date subtraction, so it's not
-  // sensitive to the driving machine's own OS timezone.
+  // most overdue-for-a-follow-up bid leads).
   function repOpenPipeline(fullName) {
     if (!allProposalsCache) return { count: 0, value: 0, staleCount: 0, staleBids: [] };
     const todayISO = todayLocalISO();
@@ -561,23 +582,39 @@
     for (const [v, status, acceptedDate, owner, leadSource, sentDate, name] of allProposalsCache) {
       if (owner !== fullName || status !== 'Open') continue;
       count++; value += Number(v) || 0;
-      const d = parseSMDate(sentDate);
-      if (!d) continue;
-      const sentISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      const ageDays = daysBetweenISO(sentISO, todayISO);
-      if (ageDays > 60) staleBids.push({ name: name || '(unnamed)', value: Number(v) || 0, ageDays });
+      const ageDays = bidAgeDays(sentDate, todayISO);
+      if (ageDays !== null && ageDays > 60) staleBids.push({ name: name || '(unnamed)', value: Number(v) || 0, ageDays });
     }
     staleBids.sort((a, b) => b.ageDays - a.ageDays);
     return { count, value, staleCount: staleBids.length, staleBids };
   }
 
-  function renderFrankStaleTicker(bids) {
-    const wrap = document.getElementById('frankStaleTickerWrap');
-    const track = document.getElementById('frankStaleTicker');
-    if (!wrap || !track) return;
-    if (!bids.length) { wrap.style.display = 'none'; track.innerHTML = ''; return; }
-    wrap.style.display = '';
-    track.innerHTML = bids.map(b => `<span><b>${b.ageDays}d</b> ${escapeHtml(b.name)} — ${fmtMoney(b.value)}</span>`).join('');
+  // Gabriel/Mike's residential-pace counterpart to repOpenPipeline's stale list: their still-Open
+  // (undecided) estimates sent within the last `days` days — added 2026-09-15 per Pranav so their
+  // cards show the same kind of "who to follow up on" strip as Frank's, just on a fresher window
+  // (residential estimates should get a callback within about a week, not 60 days). Sorted
+  // oldest-in-window first, so the one closest to aging out of the "still fresh" window leads.
+  function repRecentOpenBids(fullName, days) {
+    if (!allProposalsCache) return [];
+    const todayISO = todayLocalISO();
+    const bids = [];
+    for (const [v, status, acceptedDate, owner, leadSource, sentDate, name] of allProposalsCache) {
+      if (owner !== fullName || status !== 'Open') continue;
+      const ageDays = bidAgeDays(sentDate, todayISO);
+      if (ageDays !== null && ageDays >= 0 && ageDays <= days) bids.push({ name: name || '(unnamed)', value: Number(v) || 0, ageDays });
+    }
+    bids.sort((a, b) => b.ageDays - a.ageDays);
+    return bids;
+  }
+
+  // Shared renderer for the horizontal bid strip under a rep card's stats row — used for Frank's
+  // stale (60+d) bids and Gabriel/Mike's recent (7d) open estimates alike. Hides the strip entirely
+  // when there's nothing to show, so an empty rep card doesn't carry dead space.
+  function renderBidTicker(wrapEl, trackEl, bids) {
+    if (!wrapEl || !trackEl) return;
+    if (!bids.length) { wrapEl.style.display = 'none'; trackEl.innerHTML = ''; return; }
+    wrapEl.style.display = '';
+    trackEl.innerHTML = bids.map(b => `<span><b>${b.ageDays}d</b> ${escapeHtml(b.name)} — ${fmtMoney(b.value)}</span>`).join('');
   }
 
   // ---- render helpers ----
@@ -735,6 +772,8 @@
       el(card, 'closerate').textContent = fmtPct(stats.closeRate);
       el(card, 'sent').textContent = stats.sent === null ? '—' : stats.sent;
       if (stats.decided) { teamDecided += stats.decided; teamWon += stats.won; }
+      // Still-open estimates sent in the last 7 days — follow-up nudge, mirrors Frank's stale strip.
+      renderBidTicker(el(card, 'followup-ticker-wrap'), el(card, 'followup-ticker'), repRecentOpenBids(rep.fullName, 7));
     });
     document.getElementById('teamCloseRate').textContent = teamDecided ? fmtPct(teamWon / teamDecided) : '—';
 
@@ -753,7 +792,7 @@
     const frankPipeline = repOpenPipeline('Frank Emanuel');
     document.getElementById('frankOpenValue').textContent = fmtMoney(frankPipeline.value);
     document.getElementById('frankStale').textContent = frankPipeline.staleCount;
-    renderFrankStaleTicker(frankPipeline.staleBids);
+    renderBidTicker(document.getElementById('frankStaleTickerWrap'), document.getElementById('frankStaleTicker'), frankPipeline.staleBids);
 
     markSynced();
   }

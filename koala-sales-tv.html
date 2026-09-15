@@ -666,15 +666,22 @@
   // resolution/layout turns out to be), falling back to the font-ratio constant only if either
   // box isn't in the DOM yet.
   const TICKER_SPEED_PX_PER_SEC_FOOTER = TICKER_SPEED_PX_PER_SEC * (1.7 / 1.25);
+  // Round 3 (2026-09-15): the width-ratio fix above was verified live at ~252px/s (loop time cut
+  // from 57s to ~23s) and STILL reported "still very slow." Two calibrated theories (font-ratio,
+  // then width-ratio) have both undershot what actually reads as "fast enough" on the real screen,
+  // so this stops trying to derive the "correct" number from a model and just pushes it decisively
+  // further — on top of the width-ratio fix, not instead of it. Comfortable readability is being
+  // deprioritized in favor of matching what's being asked for; turn this down if it overshoots.
+  const TICKER_FOOTER_BOOST = 2.2;
   function tickerFooterSpeed() {
     const footerWrap = document.querySelector('.ticker-wrap');
     const repWrap = document.querySelector('.rep-ticker-wrap');
     if (footerWrap && repWrap) {
       const footerW = footerWrap.getBoundingClientRect().width;
       const repW = repWrap.getBoundingClientRect().width;
-      if (footerW > 0 && repW > 0) return TICKER_SPEED_PX_PER_SEC * (footerW / repW);
+      if (footerW > 0 && repW > 0) return TICKER_SPEED_PX_PER_SEC * (footerW / repW) * TICKER_FOOTER_BOOST;
     }
-    return TICKER_SPEED_PX_PER_SEC_FOOTER;
+    return TICKER_SPEED_PX_PER_SEC_FOOTER * TICKER_FOOTER_BOOST;
   }
 
   // Shared renderer for the horizontal bid strip under a rep card's stats row — used for Frank's

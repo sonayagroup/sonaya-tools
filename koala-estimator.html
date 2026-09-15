@@ -200,12 +200,29 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
   transition: background .15s, color .15s;
 }
 .option-tab .tab-close:hover { background: #fce4ec; color: var(--red); }
+.tab-add-wrap {
+  position: relative; margin-bottom: -2px;
+}
 .tab-add {
   padding: 10px 14px; font-size: .95rem; font-weight: 700;
   color: var(--navy); background: transparent;
-  border: none; cursor: pointer; margin-bottom: -2px;
+  border: none; cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
 }
 .tab-add:hover { color: var(--green-dark); }
+.tab-add-menu {
+  display: none; position: absolute; top: 100%; left: 0; z-index: 100;
+  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: var(--shadow-lg); min-width: 190px; overflow: hidden;
+}
+.tab-add-menu.open { display: block; }
+.tab-add-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px;
+  border: none; background: transparent; cursor: pointer;
+  font: inherit; font-size: .85rem; color: var(--text-primary); text-align: left;
+}
+.tab-add-menu button:hover { background: var(--surface-2); }
+.tab-add-menu button .menu-icon { font-size: 1rem; width: 20px; text-align: center; }
 .option-container { display: none; padding-top: 16px; }
 .option-container.active { display: block; }
 
@@ -1418,12 +1435,20 @@ function renderTabs() {
     };
     bar.appendChild(btn);
   });
-  const addBtn = document.createElement('button');
-  addBtn.className = 'tab-add';
-  addBtn.textContent = '+';
-  addBtn.title = 'Add estimate option';
-  addBtn.onclick = () => createOption('Option ' + (options.length + 1));
-  bar.appendChild(addBtn);
+  const addWrap = document.createElement('div');
+  addWrap.className = 'tab-add-wrap';
+  addWrap.innerHTML = `
+    <button class="tab-add" title="Add estimate option">+ Add Option ▾</button>
+    <div class="tab-add-menu" id="tabAddMenu">
+      <button onclick="duplicateOption()"><span class="menu-icon">📋</span> Duplicate Option</button>
+      <button onclick="createCustomOption()"><span class="menu-icon">✏️</span> Custom Option</button>
+    </div>`;
+  addWrap.querySelector('.tab-add').onclick = (e) => {
+    e.stopPropagation();
+    const menu = addWrap.querySelector('.tab-add-menu');
+    menu.classList.toggle('open');
+  };
+  bar.appendChild(addWrap);
 }
 
 function switchToOption(idx) {
@@ -1434,6 +1459,211 @@ function switchToOption(idx) {
   if (container) container.classList.add('active');
   renderTabs();
   recalc();
+}
+
+function duplicateOption() {
+  // Close menu
+  const m = document.getElementById('tabAddMenu');
+  if (m) m.classList.remove('open');
+
+  // Serialize the currently active option's data
+  const srcOpt = options[activeOptionIdx];
+  const sp = optPrefixFor(srcOpt);
+  const marginCb = $(sp + 'marginOverrideCheck');
+  const srcData = {
+    marginOverride: marginCb?.checked ? ($(sp + 'marginOverride')?.value || '50') : null,
+    jobDetailsOverride: $(sp + 'jobDetailsCheck')?.checked ? {
+      jobType: $(sp + 'jobType')?.value || '',
+      targetR: $(sp + 'targetR')?.value || '',
+      framingDepth: $(sp + 'framingDepth')?.value || '',
+      studSpacing: $(sp + 'studSpacing')?.value || '',
+      ceilingAreas: getOptAreaData(sp, 'ceiling'),
+      wallAreas: getOptAreaData(sp, 'wall')
+    } : null,
+    trip: {
+      tier: $(sp + 'tripTier')?.value || '0',
+      miles: $(sp + 'tripMiles')?.value || '0',
+      chargeAmt: $(sp + 'tripChargeAmt')?.value || '0',
+      days: $(sp + 'tripDays')?.value || '1',
+      genHours: $(sp + 'genHours')?.value || '0',
+      fuelRate: $(sp + 'fuelRate')?.value || '4.00'
+    },
+    blowIn: [], batt: [], spf: [], labor: [], misc: []
+  };
+
+  srcOpt.rows.blowIn.forEach(id => {
+    const sel = document.querySelector(`.${CSS.escape(sp)}bi-sel[data-id="${id}"]`);
+    const qty = document.querySelector(`.${CSS.escape(sp)}bi-qty[data-id="${id}"]`);
+    const price = document.querySelector(`.${CSS.escape(sp)}bi-price[data-id="${id}"]`);
+    srcData.blowIn.push({ material: sel?.value || '', qty: qty?.value || '0', price: price?.value || '' });
+  });
+  srcOpt.rows.batt.forEach(id => {
+    const sel = document.querySelector(`.${CSS.escape(sp)}bt-sel[data-id="${id}"]`);
+    const qty = document.querySelector(`.${CSS.escape(sp)}bt-qty[data-id="${id}"]`);
+    const price = document.querySelector(`.${CSS.escape(sp)}bt-price[data-id="${id}"]`);
+    srcData.batt.push({ product: sel?.value || '', qty: qty?.value || '0', price: price?.value || '' });
+  });
+  srcOpt.rows.spf.forEach(id => {
+    const sel = document.querySelector(`.${CSS.escape(sp)}sf-sel[data-id="${id}"]`);
+    const qty = document.querySelector(`.${CSS.escape(sp)}sf-qty[data-id="${id}"]`);
+    const price = document.querySelector(`.${CSS.escape(sp)}sf-price[data-id="${id}"]`);
+    srcData.spf.push({ type: sel?.value || '', qty: qty?.value || '0', price: price?.value || '' });
+  });
+  srcOpt.rows.labor.forEach(id => {
+    const label = document.querySelector(`.${CSS.escape(sp)}lb-label[data-id="${id}"]`);
+    const hrs = document.querySelector(`.${CSS.escape(sp)}lb-hrs[data-id="${id}"]`);
+    const rate = document.querySelector(`.${CSS.escape(sp)}lb-rate[data-id="${id}"]`);
+    const ot = document.querySelector(`.${CSS.escape(sp)}lb-ot[data-id="${id}"]`);
+    const otRate = document.querySelector(`.${CSS.escape(sp)}lb-otrate[data-id="${id}"]`);
+    const bonus = document.querySelector(`.${CSS.escape(sp)}lb-bonus[data-id="${id}"]`);
+    srcData.labor.push({ label: label?.value||'', hrs: hrs?.value||'0', rate: rate?.value||'25', ot: ot?.value||'0', otRate: otRate?.value||'37.50', bonus: bonus?.value||'0' });
+  });
+  srcOpt.rows.misc.forEach(m => {
+    const nameInput = document.querySelector(`.${CSS.escape(sp)}ms-name[data-id="${m.id}"]`);
+    const qty = document.querySelector(`.${CSS.escape(sp)}ms-qty[data-id="${m.id}"]`);
+    const price = document.querySelector(`.${CSS.escape(sp)}ms-price[data-id="${m.id}"]`);
+    srcData.misc.push({ itemName: nameInput?.value||'', qty: qty?.value||'1', price: price?.value||'0', auto: m.auto||false });
+  });
+
+  // Create new option
+  const newOpt = createOption(srcOpt.name + ' (Copy)');
+  const p = optPrefixFor(newOpt);
+
+  // Apply margin override
+  if (srcData.marginOverride != null) {
+    const cb = $(p + 'marginOverrideCheck');
+    if (cb) { cb.checked = true; toggleMarginOverride(p, true); }
+    const mi = $(p + 'marginOverride');
+    if (mi) mi.value = srcData.marginOverride;
+  }
+
+  // Apply job details override
+  if (srcData.jobDetailsOverride) {
+    const cb = $(p + 'jobDetailsCheck');
+    if (cb) { cb.checked = true; toggleJobDetailsOverride(p, true); }
+    const jd = srcData.jobDetailsOverride;
+    if ($(p + 'jobType')) $(p + 'jobType').value = jd.jobType || '';
+    if ($(p + 'targetR')) $(p + 'targetR').value = jd.targetR || '';
+    if ($(p + 'framingDepth')) $(p + 'framingDepth').value = jd.framingDepth || '';
+    if ($(p + 'studSpacing')) $(p + 'studSpacing').value = jd.studSpacing || '';
+    const cContainer = $(p + 'ceilingAreaRows');
+    const wContainer = $(p + 'wallAreaRows');
+    if (cContainer) cContainer.innerHTML = '';
+    if (wContainer) wContainer.innerHTML = '';
+    (jd.ceilingAreas || []).forEach(a => addOptAreaRow(p, 'ceiling', a.sqft || 0, a.location, a.rValue || ''));
+    (jd.wallAreas || []).forEach(a => addOptAreaRow(p, 'wall', a.sqft || 0, a.location, a.rValue || ''));
+    if (cContainer && !cContainer.children.length) addOptAreaRow(p, 'ceiling');
+    if (wContainer && !wContainer.children.length) addOptAreaRow(p, 'wall');
+  }
+
+  // Apply trip
+  if (srcData.trip) {
+    $(p + 'tripTier').value = srcData.trip.tier || '0';
+    onTripTierChange(p);
+    $(p + 'tripMiles').value = srcData.trip.miles || '0';
+    $(p + 'tripChargeAmt').value = srcData.trip.chargeAmt || '0';
+    $(p + 'tripDays').value = srcData.trip.days || '1';
+    $(p + 'genHours').value = srcData.trip.genHours || '0';
+    $(p + 'fuelRate').value = srcData.trip.fuelRate || '4.00';
+  }
+
+  // Blow-in
+  srcData.blowIn.forEach(row => {
+    addBlowIn();
+    const lastId = newOpt.rows.blowIn[newOpt.rows.blowIn.length - 1];
+    const sel = document.querySelector(`.${CSS.escape(p)}bi-sel[data-id="${lastId}"]`);
+    const qty = document.querySelector(`.${CSS.escape(p)}bi-qty[data-id="${lastId}"]`);
+    if (sel) sel.value = row.material;
+    if (qty) qty.value = row.qty;
+    onBlowInSelect(p, lastId);
+    if (row.price != null && row.price !== '') {
+      const priceInput = document.querySelector(`.${CSS.escape(p)}bi-price[data-id="${lastId}"]`);
+      if (priceInput) priceInput.value = row.price;
+    }
+  });
+
+  // Batt
+  srcData.batt.forEach(row => {
+    addBatt();
+    const lastId = newOpt.rows.batt[newOpt.rows.batt.length - 1];
+    const sel = document.querySelector(`.${CSS.escape(p)}bt-sel[data-id="${lastId}"]`);
+    const qty = document.querySelector(`.${CSS.escape(p)}bt-qty[data-id="${lastId}"]`);
+    if (sel) sel.value = row.product;
+    if (qty) qty.value = row.qty;
+    onBattSelect(p, lastId);
+    if (row.price != null && row.price !== '') {
+      const priceInput = document.querySelector(`.${CSS.escape(p)}bt-price[data-id="${lastId}"]`);
+      if (priceInput) priceInput.value = row.price;
+    }
+  });
+
+  // SPF
+  srcData.spf.forEach(row => {
+    addSpf();
+    const lastId = newOpt.rows.spf[newOpt.rows.spf.length - 1];
+    const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${lastId}"]`);
+    const qty = document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${lastId}"]`);
+    if (sel) sel.value = row.type;
+    if (qty) qty.value = row.qty;
+    onSpfSelect(p, lastId);
+    if (row.price != null && row.price !== '') {
+      const priceInput = document.querySelector(`.${CSS.escape(p)}sf-price[data-id="${lastId}"]`);
+      if (priceInput) priceInput.value = row.price;
+    }
+  });
+
+  // Remove default labor row, then add source labor
+  while (newOpt.rows.labor.length > 0) {
+    const lid = newOpt.rows.labor[0];
+    const tr = document.getElementById(p + 'lb-' + lid);
+    if (tr) tr.remove();
+    newOpt.rows.labor.splice(0, 1);
+  }
+  srcData.labor.forEach(row => {
+    addLabor(row.label || '', parseFloat(row.rate) || DEFAULT_LABOR_RATE, parseFloat(row.otRate) || DEFAULT_OT_RATE);
+    const lastId = newOpt.rows.labor[newOpt.rows.labor.length - 1];
+    const label = document.querySelector(`.${CSS.escape(p)}lb-label[data-id="${lastId}"]`);
+    const hrs = document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${lastId}"]`);
+    const rate = document.querySelector(`.${CSS.escape(p)}lb-rate[data-id="${lastId}"]`);
+    const ot = document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${lastId}"]`);
+    const otRate = document.querySelector(`.${CSS.escape(p)}lb-otrate[data-id="${lastId}"]`);
+    const bonus = document.querySelector(`.${CSS.escape(p)}lb-bonus[data-id="${lastId}"]`);
+    if (label) label.value = row.label || '';
+    if (hrs) hrs.value = row.hrs;
+    if (rate) rate.value = row.rate;
+    if (ot) ot.value = row.ot;
+    if (otRate) otRate.value = row.otRate;
+    if (bonus) bonus.value = row.bonus || '0';
+  });
+
+  // Misc
+  srcData.misc.forEach(row => {
+    addMisc(row.itemName || undefined, parseInt(row.qty) || 1, row.auto);
+    const lastMisc = newOpt.rows.misc[newOpt.rows.misc.length - 1];
+    const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${lastMisc.id}"]`);
+    if (priceInput && row.price) priceInput.value = row.price;
+  });
+
+  recalc();
+  showToast('Duplicated "' + srcOpt.name + '" → "' + newOpt.name + '"', 'success');
+}
+
+function createCustomOption() {
+  // Close menu
+  const m = document.getElementById('tabAddMenu');
+  if (m) m.classList.remove('open');
+
+  const newOpt = createOption('Custom ' + (options.length));
+  const p = optPrefixFor(newOpt);
+
+  // Auto-check "Custom Job Details"
+  const cb = $(p + 'jobDetailsCheck');
+  if (cb) { cb.checked = true; toggleJobDetailsOverride(p, true); }
+
+  addLabor();
+  addMobilization();
+  recalc();
+  showToast('Created custom option with its own job details', 'success');
 }
 
 function buildOptionContainer(opt) {
@@ -3665,6 +3895,14 @@ function createFinalCombined() {
 }
 
 // ─── INIT ───────────────────────────────────────────────────────────────────
+
+// Close add-option dropdown on any outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.tab-add-wrap')) {
+    const m = document.getElementById('tabAddMenu');
+    if (m) m.classList.remove('open');
+  }
+});
 
 _suppressAutoSave = true; // suppress during init
 initAreaRows();

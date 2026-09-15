@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.09.15k -->
+<!-- v2026.09.15L -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -6162,10 +6162,30 @@ const RECAP_QUESTIONS = [
   { key: 'google', text: 'What is your Google Rating and how many new 5-star reviews did you receive?' },
 ];
 
+// Helper: map a weekEnd date (Tuesday) to fiscal week key and return full LP store data
+function getLPWeeklyStoreData(weekEnd, storeId) {
+  const lpw = typeof REAL_LOSS_PREVENTION_WEEKLY !== 'undefined' ? REAL_LOSS_PREVENTION_WEEKLY : null;
+  if (!lpw) return null;
+  // Use the endMap from findLPWeeklyForStore to map Tuesday weekEnd dates to fiscal week keys
+  const endMap = { '2026-08-05': 'FY2026-P12-W1', '2026-08-12': 'FY2026-P12-W2', '2026-08-19': 'FY2026-P12-W3', '2026-08-26': 'FY2026-P12-W4', '2026-09-02': 'FY2026-P13-W1', '2026-09-09': 'FY2026-P13-W2', '2026-09-16': 'FY2026-P13-W3' };
+  const wk = endMap[weekEnd];
+  if (!wk || !lpw[wk]) return null;
+  if (!storeId) return lpw[wk].groupTotal || null;
+  return lpw[wk].stores ? lpw[wk].stores[storeId] : null;
+}
+
 const RECAP_KPI_RULES = [
   { key: 'weeklySales', label: 'Weekly Net Sales', unit: '$', direction: 'gte',
     desc: 'Great: $37,500+ · Good: $30,750+ · NI: $28,501+ · IA: below $28,500',
     getValue: (storeId, weekDates) => {
+      const weekEnd = weekDates[weekDates.length - 1];
+      // Use LP Weekly net sales (authoritative source, matches DT Standard W-T)
+      const lpStore = getLPWeeklyStoreData(weekEnd, storeId);
+      if (lpStore && lpStore.netSales !== undefined) {
+        const ns = lpStore.netSales;
+        return { value: ns, display: '$' + ns.toLocaleString('en-US', { maximumFractionDigits: 0 }) };
+      }
+      // Fallback: sum daily net sales if no LP data
       let totalNS = 0, hasData = false;
       weekDates.forEach(d => {
         const day = dataStore.realSalesDaily[d];
@@ -6281,12 +6301,11 @@ const RECAP_KPI_RULES = [
   { key: 'voids', label: 'Overrings / Voids',
     desc: 'Great: <0.75% · Good: ≤1% · NI: ≤2% · IA: >2%',
     getValue: (storeId, weekDates) => {
-      // Pull from loss prevention weekly data if available
-      const lp = dataStore.lossPreventionWeekly;
-      if (!lp) return null;
+      // Pull from LP weekly data (REAL_LOSS_PREVENTION_WEEKLY)
       const weekEnd = weekDates[weekDates.length - 1];
-      if (lp[weekEnd] && lp[weekEnd][storeId] && lp[weekEnd][storeId].voidsPct !== undefined) {
-        const v = lp[weekEnd][storeId].voidsPct;
+      const lpStore = getLPWeeklyStoreData(weekEnd, storeId);
+      if (lpStore && lpStore.grossSales > 0) {
+        const v = +((lpStore.voids / lpStore.grossSales) * 100).toFixed(2);
         return { value: v, display: v.toFixed(2) + '%' };
       }
       return null;

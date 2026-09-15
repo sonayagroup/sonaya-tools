@@ -2831,7 +2831,8 @@ function renderCompetitors() {
   html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Brand Name</label><input class="form-input" name="name" required placeholder="e.g. Taco Bell"></div><div class="form-group"><label class="form-label">Notes</label><input class="form-input" name="notes" placeholder="What are they doing differently?"></div></div>`;
   html += `<div class="form-row" style="grid-template-columns:repeat(4,1fr)">`;
   ['Instagram','TikTok','Facebook','YouTube'].forEach(p => { html += `<div class="form-group"><label class="form-label" style="color:${PLAT_HEX[p]}">${p}</label><input class="form-input" name="plat_${p}" placeholder="@handle"></div>`; });
-  html += `</div><button type="submit" class="btn btn-primary" style="margin-top:4px">+ Add Competitor</button></form></div>`;
+  html += `</div><div class="form-row two-col"><div class="form-group"><label class="form-label">Posts / Week (est.)</label><input class="form-input" type="number" name="postsPerWeek" step="0.1" min="0" max="99" placeholder="e.g. 3.5"></div><div class="form-group"><label class="form-label">Avg Engagement % (est.)</label><input class="form-input" type="number" name="avgEngagement" step="0.1" min="0" max="100" placeholder="e.g. 2.4"></div></div>`;
+  html += `<button type="submit" class="btn btn-primary" style="margin-top:4px">+ Add Competitor</button></form></div>`;
 
   html += `<div class="competitor-grid">`;
   if (S.competitors.length === 0) html += `<div style="grid-column:1/-1">${emptyState('&#128065;', 'No competitors tracked yet. Add one above to start benchmarking.')}</div>`;
@@ -2844,7 +2845,7 @@ function renderCompetitors() {
   const compareFreq = [{ label: us.name, value: us.postsPerWeek, color: 'var(--accent)' }, ...S.competitors.map(c => ({ label: c.name, value: c.postsPerWeek, color: '#94a3b8' }))];
   const compareEng = [{ label: us.name, value: us.avgEngagement, color: 'var(--accent)' }, ...S.competitors.map(c => ({ label: c.name, value: c.avgEngagement, color: '#94a3b8' }))];
   html += `<div class="charts-row" style="margin-top:22px"><div class="chart-card"><div class="chart-title">Posting Frequency (posts / week)</div>${drawGroupedBarChart(compareFreq)}</div><div class="chart-card"><div class="chart-title">Engagement Rate Comparison (%)</div>${drawGroupedBarChart(compareEng)}</div></div>`;
-  html += `<p style="font-size:11px;color:var(--ink-3);margin-top:4px">Competitor stats are estimates you enter manually. A live Supabase-backed table (with scheduled scraping) is planned for a future phase.</p>`;
+  html += `<p style="font-size:11px;color:var(--ink-3);margin-top:4px">Competitor stats are estimates you enter when adding a competitor. Update them periodically for accurate benchmarking.</p>`;
 
   html += `</div>`;
   document.getElementById('main-view').innerHTML = html;
@@ -2858,8 +2859,8 @@ function renderCompetitors() {
       name,
       notes: (fd.get('notes')||'').toString().trim(),
       platforms: { Instagram: (fd.get('plat_Instagram')||'').toString().trim(), TikTok: (fd.get('plat_TikTok')||'').toString().trim(), Facebook: (fd.get('plat_Facebook')||'').toString().trim(), YouTube: (fd.get('plat_YouTube')||'').toString().trim() },
-      postsPerWeek: +(Math.random()*6+1).toFixed(1),
-      avgEngagement: +(Math.random()*4+0.8).toFixed(1),
+      postsPerWeek: +(parseFloat(fd.get('postsPerWeek')) || 0).toFixed(1),
+      avgEngagement: +(parseFloat(fd.get('avgEngagement')) || 0).toFixed(1),
     };
     S.competitors.push(competitor);
     saveCompetitorsToStorage();
@@ -3960,10 +3961,9 @@ function openAdminUserModal(userId) {
     </form>
   </div>`;
 
-  const overlay = document.getElementById('modal-overlay');
-  const modal = document.getElementById('modal-content');
-  modal.innerHTML = html;
-  overlay.hidden = false;
+  const panel = document.getElementById('modal-panel'); panel.classList.remove('wide');
+  panel.innerHTML = html;
+  document.getElementById('modal-overlay').hidden = false;
 }
 
 async function adminSaveUser(userId) {

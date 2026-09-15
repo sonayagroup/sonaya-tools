@@ -636,6 +636,16 @@
     return bids;
   }
 
+  // Constant scroll SPEED (px/s), not a fixed duration — every rep-card ticker used a flat 20s
+  // animation-duration regardless of how much text it held, so a short list (Frank's, e.g.)
+  // crawled while a long one (Gabriel's) raced past at 3x the speed. Measured live 2026-09-15:
+  // Gabriel ~95px/s, Mike ~72px/s, Frank ~31px/s, all nominally "20s" — Pranav flagged the
+  // mismatch and preferred Mike's pace, so that's the constant now. Duration is derived per
+  // card from its own (single-copy) content width below, so speed stays visually identical
+  // across cards no matter how many bids or how long the names are.
+  const TICKER_SPEED_PX_PER_SEC = 72.25;
+  const TICKER_MIN_DURATION_S = 8; // floor so a very short (1-2 item) list doesn't blur past
+
   // Shared renderer for the horizontal bid strip under a rep card's stats row — used for Frank's
   // stale (60+d) bids and Gabriel/Mike's recent (7d) open estimates alike. Hides the strip entirely
   // when there's nothing to show, so an empty rep card doesn't carry dead space.
@@ -648,6 +658,11 @@
     // (.rep-ticker-track) so the track's own box is exactly two copies wide and the animation
     // loops seamlessly on any content length. See the CSS comment for the full explanation.
     trackEl.innerHTML = html + html;
+    // One copy's width (half the doubled track) divided by the shared speed constant gives a
+    // duration that makes every card scroll at the same visual pace, however much content it holds.
+    const singleCopyWidth = trackEl.scrollWidth / 2;
+    const duration = Math.max(TICKER_MIN_DURATION_S, singleCopyWidth / TICKER_SPEED_PX_PER_SEC);
+    trackEl.style.animationDuration = duration.toFixed(2) + 's';
   }
 
   // ---- render helpers ----

@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.09.15c -->
+<!-- v2026.09.15d -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -754,6 +754,7 @@ body {
 .crm-stat { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; text-align: center; min-width: 100px; }
 .crm-stat .stat-val { font-size: 24px; font-weight: 700; color: var(--text-primary); }
 .crm-stat .stat-lbl { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.crm-stat-user { border-left: 3px solid #ED1C2E; }
 .crm-table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
 .crm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .crm-table th { background: #1a1a2e; color: #ccc; text-align: left; padding: 10px 12px; font-weight: 600; position: sticky; top: 0; z-index: 2; }
@@ -6748,17 +6749,7 @@ function renderCRM() {
   const contacted = total - notCalled;
   const pct = total > 0 ? Math.round((contacted / total) * 100) : 0;
 
-  document.getElementById('crmStats').innerHTML = `
-    <div class="crm-stat"><div class="stat-val">${total}</div><div class="stat-lbl">Total Leads</div></div>
-    <div class="crm-stat"><div class="stat-val" style="color:#0a7c42;">${called}</div><div class="stat-lbl">Called</div></div>
-    <div class="crm-stat"><div class="stat-val" style="color:#ED1C2E;">${interested}</div><div class="stat-lbl">Interested</div></div>
-    <div class="crm-stat"><div class="stat-val" style="color:#2563eb;">${emailSent}</div><div class="stat-lbl">Email Sent</div></div>
-    <div class="crm-stat"><div class="stat-val">${notCalled}</div><div class="stat-lbl">Not Called</div></div>
-    <div class="crm-stat"><div class="stat-val">${pct}%</div><div class="stat-lbl">Contacted</div></div>
-  `;
-
-  document.getElementById('crmProgressBar').style.width = pct + '%';
-  document.getElementById('crmProgressText').textContent = `${contacted}/${total}`;
+  renderCRMStats(data, contacted, pct);
 
   // Table
   const storeMap = {};
@@ -6823,15 +6814,23 @@ async function setCRMStatus(id, newStatus, selectEl) {
   } catch(e) { console.error('CRM status update error:', e); }
 }
 
-function updateCRMStats() {
-  const data = crmState.data;
+function renderCRMStats(data, contacted, pct) {
+  if (!data) data = crmState.data;
   const total = data.length;
   const called = data.filter(b => b.status === 'called').length;
   const interested = data.filter(b => b.status === 'interested').length;
   const emailSent = data.filter(b => b.status === 'email_sent').length;
   const notCalled = data.filter(b => b.status === 'not_called').length;
-  const contacted = total - notCalled;
-  const pct = total > 0 ? Math.round((contacted / total) * 100) : 0;
+  if (contacted === undefined) contacted = total - notCalled;
+  if (pct === undefined) pct = total > 0 ? Math.round((contacted / total) * 100) : 0;
+
+  // Per-user contacted counts (any status other than not_called, where user is assigned)
+  const userCards = CRM_USERS.map(u => {
+    const assigned = data.filter(b => b.assigned_to === u);
+    const done = assigned.filter(b => b.status !== 'not_called').length;
+    const firstName = u.split(' ')[0];
+    return `<div class="crm-stat crm-stat-user"><div class="stat-val">${done}<span style="font-size:13px;font-weight:400;color:var(--text-secondary);">/${assigned.length}</span></div><div class="stat-lbl">${firstName}</div></div>`;
+  }).join('');
 
   document.getElementById('crmStats').innerHTML = `
     <div class="crm-stat"><div class="stat-val">${total}</div><div class="stat-lbl">Total Leads</div></div>
@@ -6840,10 +6839,14 @@ function updateCRMStats() {
     <div class="crm-stat"><div class="stat-val" style="color:#2563eb;">${emailSent}</div><div class="stat-lbl">Email Sent</div></div>
     <div class="crm-stat"><div class="stat-val">${notCalled}</div><div class="stat-lbl">Not Called</div></div>
     <div class="crm-stat"><div class="stat-val">${pct}%</div><div class="stat-lbl">Contacted</div></div>
+    <div style="width:1px;background:var(--border);align-self:stretch;margin:0 4px;"></div>
+    ${userCards}
   `;
   document.getElementById('crmProgressBar').style.width = pct + '%';
   document.getElementById('crmProgressText').textContent = `${contacted}/${total}`;
 }
+
+function updateCRMStats() { renderCRMStats(); }
 
 async function saveCRMField(id, field, value) {
   const item = crmState.data.find(b => b.id === id);

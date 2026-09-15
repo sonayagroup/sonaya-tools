@@ -113,6 +113,17 @@
   .rep-stat-label { font-size: 1.1vh; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
   .rep-stat-value { font-size: 2.15vh; font-weight: 800; }
 
+  /* ---- stale-bid strip (Frank card) ---- */
+  .stale-ticker-wrap {
+    margin-top: 1.2vh; padding-top: 1vh; border-top: 1px solid var(--gridline);
+    overflow: hidden; position: relative; isolation: isolate;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
+            mask-image: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
+  }
+  .stale-ticker-track { display: flex; white-space: nowrap; animation: scroll-left 20s linear infinite; padding-left: 100%; }
+  .stale-ticker-track span { font-size: 1.25vh; font-weight: 600; padding: 0 2vw; color: var(--text-secondary); }
+  .stale-ticker-track span b { color: var(--status-warn); font-weight: 800; }
+
   /* ---- right column ---- */
   .side-col { display: flex; flex-direction: column; gap: 1.4vh; min-height: 0; }
   .tile { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -285,11 +296,19 @@
         <div class="progress-track"><div class="progress-fill" id="frankBar" style="width:0%;background:var(--status-ok)"></div></div>
         <div class="pace-chip" id="frankPace" style="background:var(--status-ok-bg);color:var(--status-ok)">—</div>
       </div>
-      <div class="rep-stats">
-        <div><div class="rep-stat-label">Close Rate</div><div class="rep-stat-value" id="frankCloseRate">—</div></div>
-        <div><div class="rep-stat-label">Bids Sent</div><div class="rep-stat-value" id="frankSent">—</div></div>
-        <div><div class="rep-stat-label">Open Pipeline</div><div class="rep-stat-value" id="frankOpenValue" style="font-size:1.75vh">—</div></div>
-        <div><div class="rep-stat-label">Stale 60+d</div><div class="rep-stat-value" id="frankStale" style="color:var(--status-warn)">—</div></div>
+      <div>
+        <div class="rep-stats">
+          <div><div class="rep-stat-label">Close Rate</div><div class="rep-stat-value" id="frankCloseRate">—</div></div>
+          <div><div class="rep-stat-label">Bids Sent</div><div class="rep-stat-value" id="frankSent">—</div></div>
+          <div><div class="rep-stat-label">Open Pipeline</div><div class="rep-stat-value" id="frankOpenValue" style="font-size:1.75vh">—</div></div>
+          <div><div class="rep-stat-label">Stale 60+d</div><div class="rep-stat-value" id="frankStale" style="color:var(--status-warn)">—</div></div>
+        </div>
+        <!-- Which bids are stale (sent 60+ days ago, still no decision) — added 2026-09-15 per
+             Pranav. Horizontal auto-scrolling strip, edges faded via CSS mask, oldest bid first.
+             Hidden entirely when there are none. -->
+        <div class="stale-ticker-wrap" id="frankStaleTickerWrap" style="display:none;">
+          <div class="stale-ticker-track" id="frankStaleTicker"></div>
+        </div>
       </div>
     </div>
 
@@ -385,21 +404,66 @@
     if (n === null || n === undefined || isNaN(n)) return '—';
     return Math.round(n * 100) + '%';
   }
-  function isoDate(d) { return d.toISOString().slice(0, 10); }
+
+  // ---- Mountain Time date/clock helpers ------------------------------------------------------
+  // Koala Insulation of New Mexico runs on Mountain Time. Previously every "what day/time is it"
+  // calculation here (today's date for revenue bucketing, weekend detection, business-hours pacing,
+  // bid staleness) read straight off the browser's Date object, which reflects whatever OS timezone
+  // the machine actually driving the TV happens to be set to — if that machine's clock/timezone is
+  // ever wrong (set to UTC, DST didn't apply, etc.), every date-bucketed tile would silently shift.
+  // Fixed 2026-09-15 (Pranav: "the time you show is linked to the computer") by hard-coding Mountain
+  // Time via Intl.DateTimeFormat for anything that means "today"/"right now" for bucketing or pacing
+  // purposes, so the page behaves the same regardless of the driving machine's own timezone setting.
+  const MT_TIMEZONE = 'America/Denver';
+  function mtDateParts(date) {
+    date = date || new Date();
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: MT_TIMEZONE, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+    const parts = {};
+    for (const p of fmt.formatToParts(date)) { if (p.type !== 'literal') parts[p.type] = p.value; }
+    let hour = Number(parts.hour);
+    if (hour === 24) hour = 0; // midnight can render as "24" with hour12:false in some engines
+    return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day), hour, minute: Number(parts.minute), second: Number(parts.second) };
+  }
   function todayLocalISO() {
-    const d = new Date();
-    const off = d.getTimezoneOffset();
-    const local = new Date(d.getTime() - off * 60000);
-    return local.toISOString().slice(0, 10);
+    const p = mtDateParts();
+    return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+  }
+  function mtHourFrac() {
+    const p = mtDateParts();
+    return p.hour + p.minute / 60 + p.second / 3600;
+  }
+  // Everything below is pure calendar-date arithmetic done via Date.UTC, which is deliberately
+  // timezone-independent (unlike using a Date object's local getters/setters), so it stays correct
+  // no matter what timezone the machine's OS clock is set to.
+  function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+  function addDaysISO(dateISO, days) {
+    const [y, m, d] = dateISO.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  }
+  function dayOfWeekISO(dateISO) { // 0=Sun..6=Sat
+    const [y, m, d] = dateISO.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  }
+  function daysBetweenISO(fromISO, toISO) {
+    const [fy, fm, fd] = fromISO.split('-').map(Number);
+    const [ty, tm, td] = toISO.split('-').map(Number);
+    return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000);
   }
   function mondayOf(dateISO) {
-    const d = new Date(dateISO + 'T00:00:00');
-    const day = d.getDay(); // 0=Sun..6=Sat
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + diff);
-    return isoDate(d);
+    const dow = dayOfWeekISO(dateISO);
+    const diff = dow === 0 ? -6 : 1 - dow;
+    return addDaysISO(dateISO, diff);
   }
   function monthStartOf(dateISO) { return dateISO.slice(0, 7) + '-01'; }
+  function monthFracElapsed() {
+    const p = mtDateParts();
+    const daysInMonth = new Date(Date.UTC(p.year, p.month, 0)).getUTCDate();
+    return Math.min(1, (p.day - 1 + dayFracElapsed()) / daysInMonth);
+  }
 
   async function fetchJSON(url, opts) {
     const resp = await fetch(url, opts);
@@ -483,18 +547,37 @@
 
   // Open (undecided) pipeline for a rep, plus how much of it has been sitting for 60+ days
   // without a decision — this is the number that actually matters for a commercial bid pipeline,
-  // where "Expired" (no answer ever came back) is common and easy to lose track of.
+  // where "Expired" (no answer ever came back) is common and easy to lose track of. Also collects
+  // the individual stale bids (name/value/age) — added 2026-09-15 per Pranav, who wanted to see
+  // WHICH bids are behind the "Stale 60+d" count, not just the number — sorted oldest-first (the
+  // most overdue-for-a-follow-up bid leads). Age is computed as a pure Mountain-Time calendar-day
+  // difference (todayLocalISO() vs. the bid's sent date), not a raw Date subtraction, so it's not
+  // sensitive to the driving machine's own OS timezone.
   function repOpenPipeline(fullName) {
-    if (!allProposalsCache) return { count: 0, value: 0, staleCount: 0 };
-    const now = new Date();
-    let count = 0, value = 0, staleCount = 0;
-    for (const [v, status, acceptedDate, owner, leadSource, sentDate] of allProposalsCache) {
+    if (!allProposalsCache) return { count: 0, value: 0, staleCount: 0, staleBids: [] };
+    const todayISO = todayLocalISO();
+    let count = 0, value = 0;
+    const staleBids = [];
+    for (const [v, status, acceptedDate, owner, leadSource, sentDate, name] of allProposalsCache) {
       if (owner !== fullName || status !== 'Open') continue;
       count++; value += Number(v) || 0;
       const d = parseSMDate(sentDate);
-      if (d && (now - d) / 86400000 > 60) staleCount++;
+      if (!d) continue;
+      const sentISO = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const ageDays = daysBetweenISO(sentISO, todayISO);
+      if (ageDays > 60) staleBids.push({ name: name || '(unnamed)', value: Number(v) || 0, ageDays });
     }
-    return { count, value, staleCount };
+    staleBids.sort((a, b) => b.ageDays - a.ageDays);
+    return { count, value, staleCount: staleBids.length, staleBids };
+  }
+
+  function renderFrankStaleTicker(bids) {
+    const wrap = document.getElementById('frankStaleTickerWrap');
+    const track = document.getElementById('frankStaleTicker');
+    if (!wrap || !track) return;
+    if (!bids.length) { wrap.style.display = 'none'; track.innerHTML = ''; return; }
+    wrap.style.display = '';
+    track.innerHTML = bids.map(b => `<span><b>${b.ageDays}d</b> ${escapeHtml(b.name)} — ${fmtMoney(b.value)}</span>`).join('');
   }
 
   // ---- render helpers ----
@@ -521,13 +604,12 @@
   // real signal. Saturday/Sunday are treated as non-business days (no pace alarm).
   const BUSINESS_START_HOUR = 8, BUSINESS_END_HOUR = 17;
   function dayFracElapsed() {
-    const now = new Date();
-    const hoursIn = (now.getHours() + now.getMinutes() / 60) - BUSINESS_START_HOUR;
+    const hoursIn = mtHourFrac() - BUSINESS_START_HOUR;
     return Math.max(0, Math.min(1, hoursIn / (BUSINESS_END_HOUR - BUSINESS_START_HOUR)));
   }
   function isNonBusinessDay() {
-    const dow = new Date().getDay();
-    return dow === 0 || dow === 6; // Sun/Sat
+    const dow = dayOfWeekISO(todayLocalISO());
+    return dow === 0 || dow === 6; // Sun/Sat, Mountain Time
   }
 
   // Commercial (Frank) runs on a monthly target, not daily — pace against the fraction of the
@@ -623,9 +705,7 @@
     document.getElementById('frankGoal').textContent = fmtMoney(frankGoal);
     document.getElementById('frankRevenue').textContent = fmtMoney(frankRevenue);
 
-    const now = new Date();
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const monthFrac = Math.min(1, (now.getDate() - 1 + dayFracElapsed()) / daysInMonth);
+    const monthFrac = monthFracElapsed();
     const frankFrac = frankGoal > 0 ? frankRevenue / frankGoal : 0;
     document.getElementById('frankBar').style.width = Math.min(100, frankFrac * 100) + '%';
     const fStatus = monthPaceStatus(frankFrac, monthFrac);
@@ -673,6 +753,7 @@
     const frankPipeline = repOpenPipeline('Frank Emanuel');
     document.getElementById('frankOpenValue').textContent = fmtMoney(frankPipeline.value);
     document.getElementById('frankStale').textContent = frankPipeline.staleCount;
+    renderFrankStaleTicker(frankPipeline.staleBids);
 
     markSynced();
   }
@@ -746,9 +827,7 @@
     document.getElementById('mtdTeamRevenueGoal').textContent = fmtMoney(TEAM_MTD_GOAL);
 
     const frac = TEAM_MTD_GOAL > 0 ? revenue / TEAM_MTD_GOAL : 0;
-    const now = new Date();
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const monthFrac = Math.min(1, (now.getDate() - 1 + dayFracElapsed()) / daysInMonth);
+    const monthFrac = monthFracElapsed();
     const status = monthPaceStatus(frac, monthFrac);
     const pctEl = document.getElementById('mtdTeamRevenuePct');
     pctEl.textContent = Math.round(frac * 100) + '%';
@@ -885,10 +964,12 @@
   }
 
   // ---- clock ----
+  // Hard-coded to Mountain Time (see MT_TIMEZONE above) via the Intl timeZone option, rather than
+  // whatever timezone the machine driving the TV happens to be set to — added 2026-09-15 per Pranav.
   function tickClock() {
     const now = new Date();
-    document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    document.getElementById('dateLine').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: MT_TIMEZONE });
+    document.getElementById('dateLine').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: MT_TIMEZONE }) + ' · MT';
   }
 
   // ---- theme ----

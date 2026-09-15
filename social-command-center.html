@@ -4832,19 +4832,45 @@ async function bulkDeletePosts() {
 }
 
 // ══════════════════════════════════════════════
-// PHASE 3: AI CAPTION ASSIST (TEMPLATE-BASED)
+// PHASE 3: AI CAPTION ASSIST (BRAND-AWARE)
 // ══════════════════════════════════════════════
-const CAPTION_TONE_OPENERS = {
-  casual: ['Hey y\'all!', 'Okay but seriously —', 'Real talk:', 'Guess what?'],
-  professional: ['We\'re proud to share:', 'Announcing:', 'Here\'s an update:', 'Introducing:'],
-  playful: ['Plot twist! 🎉', 'Okay THIS is fun —', 'Brace yourselves 👀', 'Say hello to'],
-  urgent: ['Don\'t miss this!', 'Last chance:', 'Time-sensitive:', 'Act fast —']
+
+// Real hashtags per brand — pulled from sm_hashtags table
+const BRAND_HASHTAGS = {
+  'Del Taco': {
+    always: ['#deltaco'],
+    rotate: ['#newmexicofood', '#albuquerquefood', '#nmtrue', '#newmexico', '#tacos', '#burritos', '#greenchile', '#hatchchile', '#foodie', '#delyeahrewards']
+  },
+  'Koala Insulation': {
+    always: ['#koalainsulation'],
+    rotate: ['#newmexico', '#albuquerque', '#santafe', '#homeimprovement', '#energyefficiency', '#insulation', '#insulationcontractor', '#sprayfoam']
+  }
 };
-const CAPTION_TONE_CLOSERS = {
-  casual: ['Tell us what you think in the comments!', 'Tag a friend who needs to see this.', 'See you soon!'],
-  professional: ['Learn more via the link in our bio.', 'Reach out with any questions.', 'Thank you for your continued support.'],
-  playful: ['Who\'s ready?! 🙋', 'Drop a 🔥 if you\'re in.', 'Let\'s gooo!'],
-  urgent: ['Offer ends soon — don\'t wait!', 'Limited availability — act now.', 'This won\'t last long!']
+
+// Pillar-to-caption-angle mapping — drives style without ever naming the pillar
+const PILLAR_ANGLES = {
+  // Del Taco
+  'Product Spotlight':         { angle: 'hero_item', cta: 'order', voice: 'craveable' },
+  'Menu & Cravings':           { angle: 'food_sizzle', cta: 'order', voice: 'sensory' },
+  'Customer / UGC Reactions':  { angle: 'reaction', cta: 'share', voice: 'conversational' },
+  'Local & Community':         { angle: 'community', cta: 'engage', voice: 'warm' },
+  'Team & Culture':            { angle: 'crew', cta: 'connect', voice: 'human' },
+  // Koala
+  'Show the Invisible':        { angle: 'reveal', cta: 'book', voice: 'dramatic' },
+  'Intro / Meet Us':           { angle: 'intro', cta: 'follow', voice: 'welcoming' },
+  'Direct Response':           { angle: 'offer', cta: 'book', voice: 'direct' },
+  'Meet the Crew':             { angle: 'crew', cta: 'connect', voice: 'human' },
+  'Social Proof / Reviews':    { angle: 'proof', cta: 'book', voice: 'trust' },
+  'We Own It':                 { angle: 'ownership', cta: 'connect', voice: 'honest' },
+  'Fun / Humor':               { angle: 'fun', cta: 'share', voice: 'playful' },
+  'NM House Truths / Educational': { angle: 'educate', cta: 'save', voice: 'expert' },
+  'Spanish Content':           { angle: 'spanish', cta: 'book', voice: 'welcoming' },
+  'Finance / The Numbers':     { angle: 'roi', cta: 'book', voice: 'direct' },
+  'How We Prep':               { angle: 'process', cta: 'book', voice: 'expert' },
+  'Office / Customer Journey': { angle: 'journey', cta: 'book', voice: 'welcoming' },
+  'In-Office Desk Review':     { angle: 'educate', cta: 'book', voice: 'expert' },
+  'Building Science':          { angle: 'educate', cta: 'save', voice: 'expert' },
+  'Builder & Commercial':      { angle: 'b2b', cta: 'connect', voice: 'professional' }
 };
 
 function toggleCaptionAssist() {
@@ -4918,35 +4944,173 @@ function runCaptionAssist() {
 }
 
 /**
- * Template-based caption generator. NOTE: this stands in for a real AI
- * integration — swap the body of this function for a fetch() to the
- * Claude API (or a Supabase edge function that wraps it) later; keep
- * the same signature/return shape (array of 3 strings) so the UI above
- * needs no changes.
+ * Brand-aware caption generator. Produces 3 variations that sound like
+ * a real social media manager wrote them — no internal labels, no pillar
+ * names, brand-specific voice. Swap the body for a Claude API call later;
+ * keep the same signature/return shape (array of 3 strings).
  */
 function generateCaptionVariations({ brandName, platformName, pillarName, title, tone, length }) {
-  const openers = CAPTION_TONE_OPENERS[tone] || CAPTION_TONE_OPENERS.casual;
-  const closers = CAPTION_TONE_CLOSERS[tone] || CAPTION_TONE_CLOSERS.casual;
-  const topic = pillarName ? `${title} — part of our ${pillarName} content` : title;
-  const hashtagLine = `#${brandName.replace(/[^A-Za-z0-9]/g, '')} #${(pillarName||platformName||'Content').replace(/[^A-Za-z0-9]/g,'')}`;
+  const pa = PILLAR_ANGLES[pillarName] || { angle: 'general', cta: 'engage', voice: 'conversational' };
+  const bh = BRAND_HASHTAGS[brandName] || { always: [`#${brandName.replace(/[^A-Za-z0-9]/g,'')}`], rotate: [] };
+  const shuffled = [...bh.rotate].sort(() => Math.random() - 0.5);
+  const hashtags = [...bh.always, ...shuffled.slice(0, 4)].join(' ');
+  const isDT = brandName === 'Del Taco';
 
-  const bodies = [
-    `${topic} is here, and we couldn't be more excited to share it with you.`,
-    `At ${brandName}, we're always working on something new — and this is one of our favorites.`,
-    `This one's for the community that keeps showing up for ${brandName} every day.`
-  ];
+  // Build 3 distinct hooks based on the post title and pillar angle
+  function hook(variant) {
+    const t = title.replace(/^(VIDEO BRIEF.*?\n\n)/, '').trim();
+    if (pa.angle === 'hero_item' || pa.angle === 'food_sizzle') {
+      return [
+        t,
+        `Your screen is about to smell like ${isDT ? 'New Mexico' : 'something good'}.`,
+        `Stop scrolling. This one\'s worth it.`
+      ][variant];
+    }
+    if (pa.angle === 'reveal') {
+      return [
+        `Your attic has a secret. We brought the thermal camera.`,
+        `Looks fine from the outside. The thermal camera says otherwise.`,
+        t
+      ][variant];
+    }
+    if (pa.angle === 'reaction') {
+      return [
+        `We didn\'t tell them what to say. We didn\'t have to.`,
+        `First bite. No script. Just watch.`,
+        `Real people. Real reactions. ${t}`
+      ][variant];
+    }
+    if (pa.angle === 'crew' || pa.angle === 'intro') {
+      return [
+        `The people behind ${isDT ? 'your order' : 'the truck'}.`,
+        t,
+        `Faces you\'ll see when ${isDT ? 'you pull up to the window' : 'we show up at your door'}.`
+      ][variant];
+    }
+    if (pa.angle === 'community') {
+      return [
+        `This is bigger than ${isDT ? 'tacos' : 'insulation'}. This is home.`,
+        t,
+        `New Mexico, this one\'s for you.`
+      ][variant];
+    }
+    if (pa.angle === 'offer' || pa.angle === 'roi') {
+      return [
+        t,
+        `The math is simple. The savings are real.`,
+        `Free estimate. No obligation. Here\'s what we find.`
+      ][variant];
+    }
+    if (pa.angle === 'educate') {
+      return [
+        t,
+        `Most homeowners don\'t know this. Now you do.`,
+        `Your house is trying to tell you something.`
+      ][variant];
+    }
+    if (pa.angle === 'proof') {
+      return [
+        `Don\'t take our word for it.`,
+        t,
+        `Straight from a real ${isDT ? 'customer' : 'homeowner'}. No edits.`
+      ][variant];
+    }
+    if (pa.angle === 'fun') {
+      return [
+        t,
+        `We don\'t just insulate. We also have fun.`,
+        `Job sites aren\'t always serious.`
+      ][variant];
+    }
+    if (pa.angle === 'process') {
+      return [
+        `What happens before we touch your attic.`,
+        t,
+        `Prep is where the quality starts.`
+      ][variant];
+    }
+    if (pa.angle === 'ownership' || pa.angle === 'honest') {
+      return [
+        `We own this business. We own our mistakes too.`,
+        t,
+        `No corporate number. You get us.`
+      ][variant];
+    }
+    if (pa.angle === 'b2b') {
+      return [
+        t,
+        `Builders — this one\'s for you.`,
+        `Commercial projects need a different conversation.`
+      ][variant];
+    }
+    // fallback
+    return [t, `New from ${brandName}.`, t][variant];
+  }
+
+  // CTA lines by type
+  function cta(variant) {
+    const ctaMap = {
+      order: [
+        isDT ? 'What\'s your go-to order? Drop it below 👇' : '',
+        isDT ? 'Link in bio. Your stomach will thank you.' : '',
+        isDT ? 'Tag someone who needs this in their life.' : ''
+      ],
+      book: [
+        'Free assessment — link in bio or call (505) 219-1799',
+        'Comment VERDICT and we\'ll reach out.',
+        'Tap the link in bio to book yours.'
+      ],
+      share: [
+        'Tag someone who needs to see this.',
+        'Send this to a friend. You know the one.',
+        'Share this — we want to hear your take.'
+      ],
+      engage: [
+        'What do you think? Tell us below.',
+        'Drop a comment — we read every one.',
+        'Let us know 👇'
+      ],
+      connect: [
+        'Come say hi next time.',
+        'Follow along — there\'s more coming.',
+        'This is who you get when you call us.'
+      ],
+      follow: [
+        'Follow along — we\'re just getting started.',
+        'More coming. Stay tuned.',
+        'Welcome to the team. 🤙'
+      ],
+      save: [
+        'Save this for later — you\'ll need it.',
+        'Bookmark this one. Seriously.',
+        'Share this with your neighbor. They need it too.'
+      ]
+    };
+    const options = ctaMap[pa.cta] || ctaMap.engage;
+    return options[variant] || options[0];
+  }
+
+  // Tone modifiers
+  function toneWrap(text) {
+    if (tone === 'professional') return text.replace(/👇|🤙|🔥/g, '').trim();
+    if (tone === 'playful') return text + (text.includes('!') ? '' : ' 🔥');
+    if (tone === 'urgent') return text.replace(/\.$/, ' — don\'t wait.');
+    return text; // casual
+  }
 
   return [0, 1, 2].map(i => {
-    const opener = openers[i % openers.length];
-    const closer = closers[i % closers.length];
-    const body = bodies[i % bodies.length];
+    const h = hook(i);
+    const c = cta(i);
     let text;
     if (length === 'short') {
-      text = `${opener} ${topic}. ${closer}`;
+      text = toneWrap(`${h} ${c}`);
     } else if (length === 'long') {
-      text = `${opener}\n\n${body} ${topic} reflects everything we love about creating for ${platformName} — bold, genuine, and made for you.\n\n${closer}\n\n${hashtagLine}`;
+      const body = isDT
+        ? `Made fresh in New Mexico. Every day, every order. This is what sets us apart — real ingredients, real people, and a menu that goes way beyond what you\'d expect from a drive-thru.`
+        : `Your home\'s comfort starts where you can\'t see it. We use thermal imaging to show you exactly what\'s happening in your attic, walls, and crawlspace — then we fix it. Locally owned, personally accountable.`;
+      text = toneWrap(`${h}\n\n${body}\n\n${c}\n\n${hashtags}`);
     } else { // medium
-      text = `${opener}\n\n${body}\n\n${closer}\n\n${hashtagLine}`;
+      text = toneWrap(`${h}\n\n${c}\n\n${hashtags}`);
     }
     return text;
   });

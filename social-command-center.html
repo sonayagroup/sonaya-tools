@@ -5023,7 +5023,7 @@ function generateCaptionVariations({ brandName, platformName, pillarName, title,
       text = `${hookLine}\n\n${bodyLine}\n\n${ctaLine}`;
     } else {
       text = `${hookLine}\n\n${ctaLine}`;
-      if (v === 0) text = `${hookLine}\n\n${bodyLine.split('. ').slice(0,2).join('. ')+'.'}\n\n${ctaLine}`;
+      if (v === 0) { const trimBody = bodyLine.split('. ').slice(0,2).join('. ').replace(/\.+$/,'') + '.'; text = `${hookLine}\n\n${trimBody}\n\n${ctaLine}`; }
     }
 
     // Apply tone BEFORE hashtags
@@ -5163,26 +5163,24 @@ function buildCTA(ctaType, isDT, variant) {
 }
 
 function applyTone(text, tone) {
+  function cleanPunct(s) { return s.replace(/([.!?])\1+/g, '$1').replace(/\.\!/g, '!').replace(/\!\./g, '!').replace(/\s{2,}/g, ' '); }
   if (tone === 'professional') {
-    // Remove casual punctuation, keep it clean
-    return text.replace(/!+/g, '.').replace(/\.\./g, '.').replace(/\s{2,}/g, ' ');
+    return cleanPunct(text.replace(/!+/g, '.'));
   }
   if (tone === 'playful') {
-    // Add energy to the end of sentences
-    return text.replace(/\.(\s|$)/g, (m, after) => {
-      return Math.random() > 0.6 ? '! ' + after : m;
+    const result = text.replace(/\.(\s|$)/g, (m, after) => {
+      return Math.random() > 0.6 ? '!' + after : m;
     });
+    return cleanPunct(result);
   }
   if (tone === 'urgent') {
-    // Add urgency markers
     const lines = text.split('\n');
     if (lines.length > 0) {
-      lines[0] = lines[0].replace(/\.$/, '') + ' — and here\'s why it matters now.';
+      lines[0] = lines[0].replace(/[.!?]+$/, '') + ' — and here\'s why it matters now.';
     }
-    return lines.join('\n');
+    return cleanPunct(lines.join('\n'));
   }
-  // casual = no modification
-  return text;
+  return cleanPunct(text);
 }
 
 // ══════════════════════════════════════════════

@@ -111,6 +111,7 @@
      above and below it, so there's no single stark void, just modest breathing room in two
      places. Fixed 2026-09-15 per Pranav (round 2, "still having the same issue"). */
   .rep-card > div:last-child { margin-top: auto; margin-bottom: auto; }
+  .rep-card > div { min-width: 0; }
   .rep-top { display: flex; align-items: center; gap: 14px; }
   .rep-avatar {
     width: 6.2vh; height: 6.2vh; border-radius: 50%; color: #fff; font-weight: 800; font-size: 2.4vh;
@@ -138,9 +139,19 @@
     -webkit-mask-image: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
             mask-image: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
   }
-  .rep-ticker-track { display: flex; white-space: nowrap; animation: scroll-left 20s linear infinite; padding-left: 100%; min-width: 0; }
+  /* NOT the padding-left:100%/translateX(-100%) technique used by the footer's .ticker-track —
+     that sweeps a fixed distance equal to 2x the WRAP's own width, which only happens to reveal
+     all the content when the content is roughly as wide as the wrap. It isn't: real bid lists
+     are usually much wider than the card. Fixed 2026-09-15 per Pranav ("ticker disappears
+     halfway through the second proposal") — width:max-content makes the track size itself to
+     its own (doubled) content instead of the wrap, and renderBidTicker() below renders the bid
+     list TWICE back-to-back, so translateX(-50%) — exactly one copy's width — always scrolls
+     the full list before seamlessly looping into the second (identical) copy, regardless of
+     how long the real content is relative to the card. */
+  .rep-ticker-track { display: flex; white-space: nowrap; width: max-content; animation: rep-ticker-scroll 20s linear infinite; min-width: 0; }
   .rep-ticker-track span { font-size: 1.25vh; font-weight: 600; padding: 0 2vw; color: var(--text-secondary); }
   .rep-ticker-track span b { color: var(--status-warn); font-weight: 800; }
+  @keyframes rep-ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
   /* ---- right column ---- */
   .side-col { display: flex; flex-direction: column; gap: 1.4vh; min-height: 0; }
@@ -632,7 +643,11 @@
     if (!wrapEl || !trackEl) return;
     if (!bids.length) { wrapEl.style.display = 'none'; trackEl.innerHTML = ''; return; }
     wrapEl.style.display = '';
-    trackEl.innerHTML = bids.map(b => `<span><b>${b.ageDays}d</b> ${escapeHtml(b.name)} — ${fmtMoney(b.value)}</span>`).join('');
+    const html = bids.map(b => `<span><b>${b.ageDays}d</b> ${escapeHtml(b.name)} — ${fmtMoney(b.value)}</span>`).join('');
+    // Rendered TWICE back-to-back — required by the width:max-content/translateX(-50%) CSS
+    // (.rep-ticker-track) so the track's own box is exactly two copies wide and the animation
+    // loops seamlessly on any content length. See the CSS comment for the full explanation.
+    trackEl.innerHTML = html + html;
   }
 
   // ---- render helpers ----

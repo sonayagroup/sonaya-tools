@@ -366,6 +366,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <a class="theme-toggle" href="https://tools.sonayagroup.com/koala-field-ops.html" style="text-decoration:none;display:inline-flex;align-items:center">Field Ops →</a>
         <a class="theme-toggle" href="https://tools.sonayagroup.com/koala-sales-tv.html" style="text-decoration:none;display:inline-flex;align-items:center">Sales TV →</a>
     <span class="current-user-badge" id="currentUserBadge"></span>
+    <button class="theme-toggle" onclick="openChangePasswordModal()" id="changePasswordBtn">Change password</button>
     <button class="theme-toggle" onclick="handleSignOut()" id="signOutBtn">Sign out</button>
     <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">Dark</button>
   </div>
@@ -635,6 +636,33 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   </div>
 </div>
 
+<div class="modal-backdrop" id="changePasswordModalBackdrop" onclick="if(event.target===this) closeChangePasswordModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="changePasswordModalTitle">
+    <div class="modal-header">
+      <div>
+        <h3 id="changePasswordModalTitle">Change your password</h3>
+        <p>Updates the password for your own account right now.</p>
+      </div>
+      <button class="modal-close-btn" onclick="closeChangePasswordModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="crm-form-row"><label>New password</label><input class="crm-form-input" id="changePasswordNew" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>
+      <div class="crm-form-row"><label>Confirm new password</label><input class="crm-form-input" id="changePasswordConfirm" type="password" autocomplete="new-password" placeholder="Retype it"></div>
+      <div class="crm-form-error" id="changePasswordError" style="display:none;"></div>
+      <div class="admin-temp-pw" id="changePasswordResult" style="display:none;">Password updated. You'll use this new password next time you sign in.</div>
+    </div>
+    <div class="modal-footer-note">
+      <div class="crm-modal-actions">
+        <div></div>
+        <div>
+          <button class="crm-btn crm-btn-secondary" onclick="closeChangePasswordModal()">Close</button>
+          <button class="crm-btn crm-btn-primary" id="changePasswordSubmitBtn" onclick="handleChangePassword()">Update password</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ---------------- Live ServiceMinder data (Supabase Edge Function) ---------------- */
 // The serviceminder-revenue Edge Function proxies ServiceMinder's Download API so this static
@@ -855,6 +883,42 @@ async function handleAdminInvite() {
     errEl.textContent = err.message; errEl.style.display = '';
   } finally {
     btn.disabled = false; btn.textContent = 'Create account';
+  }
+}
+
+/* ---- Self-service change password (any signed-in user, own account) — uses sbClient.auth
+   directly since this only ever touches the CALLER's own session, no admin/service-role needed. ---- */
+function openChangePasswordModal() {
+  document.getElementById('changePasswordNew').value = '';
+  document.getElementById('changePasswordConfirm').value = '';
+  document.getElementById('changePasswordError').style.display = 'none';
+  document.getElementById('changePasswordResult').style.display = 'none';
+  document.getElementById('changePasswordSubmitBtn').style.display = '';
+  document.getElementById('changePasswordModalBackdrop').classList.add('open');
+}
+function closeChangePasswordModal() {
+  document.getElementById('changePasswordModalBackdrop').classList.remove('open');
+}
+async function handleChangePassword() {
+  const pw = document.getElementById('changePasswordNew').value;
+  const confirm = document.getElementById('changePasswordConfirm').value;
+  const errEl = document.getElementById('changePasswordError');
+  errEl.style.display = 'none';
+  if (pw.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; errEl.style.display = ''; return; }
+  if (pw !== confirm) { errEl.textContent = "Passwords don't match."; errEl.style.display = ''; return; }
+  const btn = document.getElementById('changePasswordSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Updating…';
+  try {
+    const { error } = await sbClient.auth.updateUser({ password: pw });
+    if (error) throw error;
+    document.getElementById('changePasswordResult').style.display = '';
+    btn.style.display = 'none';
+    document.getElementById('changePasswordNew').value = '';
+    document.getElementById('changePasswordConfirm').value = '';
+  } catch (err) {
+    errEl.textContent = err.message; errEl.style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Update password';
   }
 }
 

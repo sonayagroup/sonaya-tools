@@ -652,6 +652,13 @@
   // across cards no matter how many bids or how long the names are.
   const TICKER_SPEED_PX_PER_SEC = 72.25;
   const TICKER_MIN_DURATION_S = 8; // floor so a very short (1-2 item) list doesn't blur past
+  // The footer's "Recent Wins" ticker (.ticker-track) renders its text at 1.7vh vs. the rep
+  // cards' 1.25vh — 36% bigger. Matching it to the SAME raw px/s (as first tried, 2026-09-15)
+  // measured identically on both but still visibly read as "way slower" per Pranav — bigger
+  // text moving the same absolute number of pixels per second covers less relative distance
+  // (proportionally less of its own size) each second, so it reads as slower even though the
+  // math is equal. Scaling speed by the font-size ratio fixes the PERCEIVED pace to match.
+  const TICKER_SPEED_PX_PER_SEC_FOOTER = TICKER_SPEED_PX_PER_SEC * (1.7 / 1.25);
 
   // Shared renderer for the horizontal bid strip under a rep card's stats row — used for Frank's
   // stale (60+d) bids and Gabriel/Mike's recent (7d) open estimates alike. Hides the strip entirely
@@ -1001,12 +1008,13 @@
     const html = jobs.length
       ? jobs.map(j => `<span>🏆 <b>${escapeHtml(j.name)}</b>${j.rep && j.rep !== '(Unassigned)' ? ' — ' + escapeHtml(j.rep) : ''} — ${fmtMoney(j.value)}</span>`).join('')
       : '<span>No recently closed jobs in ServiceMinder yet this cycle — keep pushing 💪</span>';
-    // Doubled content + speed-derived duration — same technique and the same
-    // TICKER_SPEED_PX_PER_SEC constant as renderBidTicker(), so this ticker scrolls at the
-    // identical visual pace as the rep-card tickers regardless of how many jobs are listed.
+    // Doubled content + speed-derived duration — same technique as renderBidTicker(), but using
+    // TICKER_SPEED_PX_PER_SEC_FOOTER (not the plain rep-card constant) since this ticker's
+    // larger font needs a proportionally faster px/s to read as the same visual pace — see that
+    // constant's comment above.
     track.innerHTML = html + html;
     const singleCopyWidth = track.scrollWidth / 2;
-    const duration = Math.max(TICKER_MIN_DURATION_S, singleCopyWidth / TICKER_SPEED_PX_PER_SEC);
+    const duration = Math.max(TICKER_MIN_DURATION_S, singleCopyWidth / TICKER_SPEED_PX_PER_SEC_FOOTER);
     track.style.animationDuration = duration.toFixed(2) + 's';
   }
 

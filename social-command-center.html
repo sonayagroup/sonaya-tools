@@ -2314,7 +2314,7 @@ function renderBriefing() {
     gaps.forEach(g => { if (!gapsByDay[g.day.str]) gapsByDay[g.day.str] = { day: g.day, brands: [] }; gapsByDay[g.day.str].brands.push(g.brand); });
     Object.values(gapsByDay).forEach(g => {
       const brandNames = g.brands.map(b => `<span style="color:${b.color||'var(--accent)'}">${b.logo_emoji||''} ${b.name.split(' ')[0]}</span>`).join(', ');
-      html += `<div class="briefing-gap-row"><div class="briefing-gap-icon">&#128197;</div><div class="briefing-gap-text"><strong>${g.day.dow} ${MONTH_NAMES[new Date(g.day.date).getMonth()].slice(0,3)} ${g.day.dom}</strong> — no posts for ${brandNames}</div><button class="briefing-gap-add" onclick="S.view='calendar';S.calView='week';S.weekAnchor=startOfWeek(new Date('${g.day.str}T00:00:00'));document.querySelectorAll('.sb-nav-link').forEach(n=>n.classList.toggle('active',n.dataset.view==='calendar'));render()">+ Add</button></div>`;
+      html += `<div class="briefing-gap-row"><div class="briefing-gap-icon">&#128197;</div><div class="briefing-gap-text"><strong>${g.day.dow} ${MONTH_NAMES[new Date(g.day.date).getMonth()].slice(0,3)} ${g.day.dom}</strong> — no posts for ${brandNames}</div><button class="briefing-gap-add" onclick="openPostModal(null,'${g.day.str}')">+ Add</button></div>`;
     });
   }
   html += `</div></div>`;
@@ -2341,7 +2341,7 @@ function renderBriefing() {
 // ══════════════════════════════════════════════
 function renderCalendarView() {
   const wrap = document.getElementById('main-view');
-  let html = `<div class="v-header"><div class="v-header-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><h1>Content Calendar</h1><p class="v-sub">Plan and schedule content across brands and platforms</p></div><button class="btn btn-ghost btn-sm" id="feed-preview-btn">&#128241; Feed Preview</button></div></div><div class="v-body"><div class="tab-bar" id="cal-view-tabs"><button class="tab-btn ${S.calView==='month'?'active':''}" data-calview="month">Monthly</button><button class="tab-btn ${S.calView==='week'?'active':''}" data-calview="week">Weekly</button><button class="tab-btn ${S.calView==='list'?'active':''}" data-calview="list">List</button></div><div class="cal-filter-row" id="cal-filter-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px"></div><div id="cal-body"></div></div>`;
+  let html = `<div class="v-header"><div class="v-header-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><h1>Content Calendar</h1><p class="v-sub">Plan and schedule content across brands and platforms</p></div><button class="btn btn-primary btn-sm" onclick="openPostModal()">&#43; New Post</button><button class="btn btn-ghost btn-sm" id="feed-preview-btn">&#128241; Feed Preview</button></div></div><div class="v-body"><div class="tab-bar" id="cal-view-tabs"><button class="tab-btn ${S.calView==='month'?'active':''}" data-calview="month">Monthly</button><button class="tab-btn ${S.calView==='week'?'active':''}" data-calview="week">Weekly</button><button class="tab-btn ${S.calView==='list'?'active':''}" data-calview="list">List</button></div><div class="cal-filter-row" id="cal-filter-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px"></div><div id="cal-body"></div></div>`;
   wrap.innerHTML = html;
   document.getElementById('cal-view-tabs').addEventListener('click', e => { const btn = e.target.closest('.tab-btn'); if (!btn) return; S.calView = btn.dataset.calview; renderCalendarView(); });
   document.getElementById('feed-preview-btn').onclick = openFeedPreviewModal;
@@ -2429,7 +2429,7 @@ function renderCalendarWeek() {
   days.forEach(d => {
     const dateStr = toDateStr(d); const dayPosts = (byDate[dateStr]||[]).sort((a,b)=>(a.scheduled_time||'').localeCompare(b.scheduled_time||''));
     const holiday = holidayMap[dateStr];
-    html += `<div class="week-col${dateStr===todayStr?' today':''}"><div class="week-col-head"><div class="week-col-dow">${DOW_SHORT[d.getDay()]}</div><div class="week-col-num">${d.getDate()}</div></div>`;
+    html += `<div class="week-col${dateStr===todayStr?' today':''}" data-date="${dateStr}" style="cursor:pointer"><div class="week-col-head"><div class="week-col-dow">${DOW_SHORT[d.getDay()]}</div><div class="week-col-num">${d.getDate()}</div></div>`;
     if (holiday) html += `<span class="cal-event-chip ${holiday.type}" style="margin-bottom:8px" title="${escAttr(holiday.name)}">${escHtml(holiday.name)}</span>`;
     if (dayPosts.length === 0) { html += `<div class="week-empty">No posts</div>`; }
     else { dayPosts.forEach(p => {
@@ -2446,7 +2446,10 @@ function renderCalendarWeek() {
   document.getElementById('week-prev').onclick = () => { S.weekAnchor.setDate(S.weekAnchor.getDate()-7); renderCalendarWeek(); };
   document.getElementById('week-next').onclick = () => { S.weekAnchor.setDate(S.weekAnchor.getDate()+7); renderCalendarWeek(); };
   document.getElementById('week-today').onclick = () => { S.weekAnchor = startOfWeek(new Date()); renderCalendarWeek(); };
-  document.querySelectorAll('.week-card').forEach(el => { el.onclick = () => openPostModal(el.dataset.postId); });
+  document.querySelectorAll('.week-card').forEach(el => { el.onclick = (e) => { e.stopPropagation(); openPostModal(el.dataset.postId); }; });
+  document.querySelectorAll('.week-col').forEach(el => {
+    el.onclick = (e) => { if (!e.target.closest('.week-card')) openPostModal(null, el.dataset.date); };
+  });
   wireCalendarDragDrop('week');
 }
 
@@ -2475,7 +2478,7 @@ function renderCalendarList() {
       const br = brandById(p.brand_id); const pids = p.platform_ids || (p.platform_id ? [p.platform_id] : []);
       const plats = pids.map(id=>platById(id)).filter(Boolean); const pil = pillarById(p.content_pillar_id);
       const meta = STATUS_META[p.status] || { label: p.status, color: 'var(--ink-3)' };
-      html += `<tr class="list-row" data-post-id="${p.id}" style="cursor:pointer">${bulkActionsRowCheckboxHtml(p)}<td>${fmtDate(p.scheduled_date)}</td><td>${p.scheduled_time?fmtTime(p.scheduled_time):'—'}</td><td style="font-weight:500;color:var(--ink-1)">${escHtml(p.title)}</td><td>${br?escHtml(br.name):'—'}</td><td>${plats.length?plats.map(pl=>`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PLAT_HEX[pl.name]||'#6366f1'};margin-right:4px;vertical-align:middle"></span>`).join('')+plats.map(pl=>escHtml(pl.name)).join(', '):'—'}</td><td>${pil?escHtml(pil.name):'—'}</td><td><span class="list-status-badge" style="background:${meta.color}" data-post-id="${p.id}" onclick="event.stopPropagation();toggleStatusMenu(event,'${p.id}')">${meta.label}</span></td><td><button class="metrics-btn" onclick="event.stopPropagation();generateBrief('${p.id}')" title="Generate Brief">&#128203;</button></td></tr>`;
+      html += `<tr class="list-row" data-post-id="${p.id}" style="cursor:pointer">${bulkActionsRowCheckboxHtml(p)}<td>${fmtDate(p.scheduled_date)}</td><td>${p.scheduled_time?fmtTime(p.scheduled_time):(p.scheduled_date?fmtTime('09:00'):'—')}</td><td style="font-weight:500;color:var(--ink-1)">${escHtml(p.title)}</td><td>${br?escHtml(br.name):'—'}</td><td>${plats.length?plats.map(pl=>`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PLAT_HEX[pl.name]||'#6366f1'};margin-right:4px;vertical-align:middle"></span>`).join('')+plats.map(pl=>escHtml(pl.name)).join(', '):'—'}</td><td>${pil?escHtml(pil.name):'—'}</td><td><span class="list-status-badge" style="background:${meta.color}" data-post-id="${p.id}" onclick="event.stopPropagation();toggleStatusMenu(event,'${p.id}')">${meta.label}</span></td><td><button class="metrics-btn" onclick="event.stopPropagation();generateBrief('${p.id}')" title="Generate Brief">&#128203;</button></td></tr>`;
     });
     html += `</tbody></table></div>`;
   }
@@ -2491,7 +2494,7 @@ function renderCalendarList() {
 // ══════════════════════════════════════════════
 function renderPipeline() {
   const posts = filteredPosts();
-  let html = `<div class="v-header"><h1>Content Pipeline</h1><p class="v-sub">Track posts through your workflow</p></div><div class="v-body"><div class="pipeline-board">`;
+  let html = `<div class="v-header"><div class="v-header-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><h1>Content Pipeline</h1><p class="v-sub">Track posts through your workflow</p></div><button class="btn btn-primary btn-sm" onclick="openPostModal()">&#43; New Post</button></div></div><div class="v-body"><div class="pipeline-board">`;
   STATUS_ORDER.forEach(status => {
     const meta = STATUS_META[status]; const col = posts.filter(p => p.status === status);
     html += `<div class="pipeline-col" style="border-top-color:${meta.color}"><div class="pipeline-col-header"><span class="pipeline-col-title" style="color:${meta.color}">${meta.label}</span><span class="pipeline-col-count">${col.length}</span></div>`;
@@ -2593,8 +2596,8 @@ function analyticsOverviewHtml() {
   const mediaTypeCounts = {}; posts.forEach(p => { const t = p.media_type || 'unspecified'; mediaTypeCounts[t] = (mediaTypeCounts[t]||0)+1; });
   const donutData = Object.entries(mediaTypeCounts).map(([k,v],i) => ({ label:k, value:v, color: CHART_PALETTE[i%CHART_PALETTE.length] }));
 
-  html += `<div class="charts-row"><div class="chart-card"><div class="chart-title">Platform Comparison (Reach)</div>${drawGroupedBarChart(platArr.map(p => ({ label:p.name, value:p.reach, color: PLAT_HEX[p.name]||'#6366f1' })))}</div><div class="chart-card"><div class="chart-title">Content Type Mix</div>${drawDonut(donutData)}</div></div>`;
-  html += `<div class="charts-row"><div class="chart-card" style="grid-column:1/-1"><div class="chart-title">Best Times to Post</div>${drawHeatmap(posts)}</div></div>`;
+  html += `<div class="charts-row"><div class="chart-card"><div class="chart-title">Platform Comparison (Reach)</div>${drawGroupedBarChart(platArr.map(p => ({ label:p.name, value:p.reach, color: PLAT_HEX[p.name]||'#6366f1' })))}</div><div class="chart-card"><div class="chart-title">Content Type Mix</div>${donutData.length <= 1 ? `<div style="padding:20px 0;text-align:center;font-size:13px;color:var(--ink-3)">All ${posts.length} posts are <strong style="color:var(--ink-1)">${donutData[0]?.label || 'unspecified'}</strong> content. Mix will show once you use multiple types.</div>` : drawDonut(donutData)}</div></div>`;
+  html += `<div class="charts-row"><div class="chart-card" style="grid-column:1/-1"><div class="chart-title">Posting Schedule Distribution</div>${drawHeatmap(posts)}</div></div>`;
   html += `<div class="chart-card" style="margin-bottom:20px"><div class="chart-title">Pipeline Fullness — Posts by Status</div>${drawStatusStackedBar(posts)}</div>`;
 
   const sorted = [...withMetrics].sort((a,b) => (b.m.reach||0) - (a.m.reach||0)).slice(0,10);
@@ -2665,6 +2668,7 @@ function wireDateRangeDropdown() {
       menu.classList.remove('open');
       // Placeholder: actual filtering will re-query Supabase by date range once wired up server-side.
       renderAnalyticsContent();
+      showToast('Date range selected — filtering coming soon', 'info');
     };
   });
 }
@@ -2703,7 +2707,7 @@ function analyticsDemographicsHtml() {
 
   let langList = languages.map(([name,pct]) => `<div class="demo-lang-row"><span>${name}</span><span style="font-weight:700;color:var(--ink-1)">${pct}%</span></div>`).join('');
 
-  return `<div class="chart-card" style="margin-top:20px"><div class="chart-title">Audience Demographics</div><div class="demo-grid">
+  return `<div class="chart-card" style="margin-top:20px"><div class="chart-title">Audience Demographics <span style="font-size:11px;font-weight:400;color:var(--ink-3);margin-left:6px">Sample data — not connected</span></div><div class="demo-grid">
     <div><div style="font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:8px">Age Groups</div>${drawDonut(ageData).replace('posts</text>','followers</text>')}</div>
     <div><div style="font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:8px">Gender Split</div>${genderBar}
       <div style="font-size:12px;font-weight:700;color:var(--ink-2);margin:16px 0 8px">Top Languages</div>${langList}
@@ -2723,11 +2727,11 @@ function kpiCard(label, value, sub, series, color) {
 }
 
 function trendFromSeries(series) {
-  if (!series || series.length < 2) return { dir:'flat', arrow:'—', pct:'' };
+  if (!series || series.length < 3) return { dir:'flat', arrow:'—', pct:'—' };
   const half = Math.max(1, Math.floor(series.length/2));
   const first = series.slice(0, half).reduce((a,b)=>a+b,0) / half;
   const last = series.slice(-half).reduce((a,b)=>a+b,0) / half;
-  if (first === 0 && last === 0) return { dir:'flat', arrow:'—', pct:'0%' };
+  if (first === 0 && last === 0) return { dir:'flat', arrow:'—', pct:'No data' };
   const pct = first === 0 ? 100 : ((last-first)/Math.abs(first))*100;
   if (Math.abs(pct) < 1) return { dir:'flat', arrow:'—', pct:'0%' };
   return pct > 0 ? { dir:'up', arrow:'&#9650;', pct: Math.abs(pct).toFixed(0)+'%' } : { dir:'down', arrow:'&#9660;', pct: Math.abs(pct).toFixed(0)+'%' };
@@ -2815,12 +2819,13 @@ function drawStatusStackedBar(posts) {
 // COMPETITOR TRACKING
 // ══════════════════════════════════════════════
 function ourBrandStats() {
-  const posted = S.posts.filter(p => p.status === 'posted');
+  const allPosts = S.posts;
+  const posted = allPosts.filter(p => p.status === 'posted');
   const withMetrics = posted.map(p => ({ ...p, m: metricsForPost(p.id) })).filter(x => x.m);
   const avgEngagement = withMetrics.length ? +(withMetrics.reduce((s,x)=>s+parseFloat(x.m.engagement_rate||0),0)/withMetrics.length).toFixed(1) : 0;
   const ninetyAgo = new Date(); ninetyAgo.setDate(ninetyAgo.getDate()-90); const ninetyAgoStr = toDateStr(ninetyAgo);
-  const recent = posted.filter(p => p.scheduled_date && p.scheduled_date >= ninetyAgoStr);
-  const postsPerWeek = +((recent.length / 13) || 0).toFixed(1);
+  const recentAll = allPosts.filter(p => p.scheduled_date && p.scheduled_date >= ninetyAgoStr);
+  const postsPerWeek = +((recentAll.length / 13) || 0).toFixed(1);
   return { name: 'Sonaya Group (Us)', postsPerWeek, avgEngagement };
 }
 
@@ -2999,7 +3004,8 @@ function renderThemes() {
 }
 
 function renderHashtags() {
-  const tags = filterByBrand(S.hashtags);
+  const rawTags = filterByBrand(S.hashtags);
+  const seenTags = new Set(); const tags = rawTags.filter(h => { const key = h.tag.toLowerCase(); if (seenTags.has(key)) return false; seenTags.add(key); return true; });
   let html = `<div class="v-header"><h1>Hashtag Library</h1><p class="v-sub">Curated hashtags organized by category</p></div><div class="v-body">`;
   if (tags.length === 0) html += emptyState('#', 'No hashtags loaded.');
   else {
@@ -3019,7 +3025,7 @@ function renderStores() {
   let html = `<div class="v-header"><h1>Store Rotation</h1><p class="v-sub">Filming locations and rotation schedule</p></div><div class="v-body">`;
   if (stores.length === 0) html += emptyState('&#127978;', 'No store locations loaded.');
   else {
-    html += `<div class="data-table-wrap"><div class="data-table-title">Store Locations</div><div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Store #</th><th>Name</th><th>Market</th><th>Video Owner</th><th>Rotation Weeks</th></tr></thead><tbody>`;
+    html += `<div class="data-table-wrap"><div class="data-table-title">Store Locations</div><div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Store #</th><th>Name</th><th>Market</th><th title="Assign video owners in Supabase store settings">Video Owner</th><th>Rotation Weeks</th></tr></thead><tbody>`;
     stores.forEach(s => { const weeks = Array.isArray(s.rotation_weeks)?s.rotation_weeks.join(', '):(s.rotation_weeks||'—'); html += `<tr><td style="font-weight:600;color:var(--ink-1)">#${s.store_number||''}</td><td>${escHtml(s.name)}</td><td><span class="tag">${escHtml(s.market||'')}</span></td><td>${escHtml(s.video_owner||'—')}</td><td style="font-variant-numeric:tabular-nums">${weeks}</td></tr>`; });
     html += `</tbody></table></div></div>`;
     const markets = {}; stores.forEach(s => { const m = s.market||'Unknown'; markets[m]=(markets[m]||0)+1; });
@@ -3167,13 +3173,51 @@ function saveConnectionSettings() {
   showToast('Connection settings saved', 'success');
 }
 
-function testAllConnections() {
+async function testAllConnections() {
   const state = loadApiConnections();
   const keys = Object.keys(state.platforms||{}).filter(k => state.platforms[k]?.connected);
   if (state.drive?.connected) keys.push('drive');
   if (keys.length === 0) { showToast('No connections to test', 'info'); return; }
   showToast(`Testing ${keys.length} connection${keys.length>1?'s':''}...`, 'info');
-  setTimeout(() => showToast('All connections responded OK', 'success'), 900);
+
+  const results = [];
+  for (const key of keys) {
+    if (key === 'drive') {
+      // Drive: check if we have valid OAuth
+      const driveOk = !!(state.drive?.access_token || state.drive?.connected);
+      results.push({ name: 'Google Drive', ok: driveOk, msg: driveOk ? 'Connected' : 'Token missing' });
+      continue;
+    }
+    const conn = state.platforms[key];
+    try {
+      if (key === 'youtube' && conn.api_key && conn.channel_id) {
+        const resp = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=id&id=${encodeURIComponent(conn.channel_id)}&key=${encodeURIComponent(conn.api_key)}`);
+        results.push({ name: 'YouTube', ok: resp.ok, msg: resp.ok ? 'API responding' : `HTTP ${resp.status}` });
+      } else if (key === 'instagram' && conn.user_access_token) {
+        const resp = await fetch(`https://graph.facebook.com/v18.0/me?access_token=${encodeURIComponent(conn.user_access_token)}`);
+        results.push({ name: 'Instagram', ok: resp.ok, msg: resp.ok ? 'Token valid' : 'Token expired or invalid' });
+      } else if (key === 'facebook' && conn.user_access_token) {
+        const resp = await fetch(`https://graph.facebook.com/v18.0/me?access_token=${encodeURIComponent(conn.user_access_token)}`);
+        results.push({ name: 'Facebook', ok: resp.ok, msg: resp.ok ? 'Token valid' : 'Token expired or invalid' });
+      } else if (key === 'tiktok') {
+        results.push({ name: 'TikTok', ok: false, msg: 'Not connected' });
+      } else {
+        results.push({ name: key, ok: !!conn.connected, msg: conn.connected ? 'Credentials stored' : 'Not configured' });
+      }
+    } catch(e) {
+      results.push({ name: key, ok: false, msg: e.message || 'Network error' });
+    }
+  }
+
+  const passed = results.filter(r => r.ok);
+  const failed = results.filter(r => !r.ok);
+  if (failed.length === 0) {
+    showToast(`All ${passed.length} connections OK`, 'success');
+  } else if (passed.length === 0) {
+    showToast(`All connections failed: ${failed.map(f=>f.name+' — '+f.msg).join('; ')}`, 'error');
+  } else {
+    showToast(`${passed.length} OK, ${failed.length} failed: ${failed.map(f=>f.name+' — '+f.msg).join('; ')}`, 'error');
+  }
 }
 
 async function syncPlatform(key) {
@@ -3547,7 +3591,7 @@ function openPostModal(postId, prefillDate, isQuickIdea) {
   html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Content Pillar</label><select class="form-select" name="content_pillar_id" id="post-pillar"><option value="">— None —</option>${pillarsForBrand.map(p=>`<option value="${p.id}" ${post&&post.content_pillar_id===p.id?'selected':''}>${p.name}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">Media Type</label><select class="form-select" name="media_type"><option value="">— None —</option>${MEDIA_TYPES.map(t=>`<option value="${t}" ${post&&post.media_type===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}</select></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Title</label><input class="form-input" name="title" required value="${escAttr(post?.title||'')}" placeholder="Post title" autofocus></div></div>`;
   const captionVal = post?.caption||'';
-  html += `<div class="form-row full"><div class="form-group"><div class="form-label" style="display:flex;align-items:center">Caption <span class="char-count" id="caption-count">${captionVal.length}/2200</span><button type="button" class="btn btn-ghost btn-sm caption-assist-btn" id="caption-assist-btn" onclick="toggleCaptionAssist()">&#10024; Generate Caption</button></div><textarea class="form-textarea" name="caption" id="post-caption" placeholder="Write your caption...">${escHtml(captionVal)}</textarea><div class="caption-preview" id="caption-preview">${escHtml(captionVal)}</div><div id="caption-assist-panel" class="caption-assist-panel" hidden></div></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><div class="form-label" style="display:flex;align-items:center">Caption / Brief <span class="char-count" id="caption-count">${captionVal.length}/2200</span><button type="button" class="btn btn-ghost btn-sm caption-assist-btn" id="caption-assist-btn" onclick="toggleCaptionAssist()">&#10024; Generate Caption</button></div><textarea class="form-textarea" name="caption" id="post-caption" placeholder="Write your caption...">${escHtml(captionVal)}</textarea><div class="caption-preview" id="caption-preview" style="font-size:11px;color:var(--ink-3);padding:6px 0"><span id="caption-platform-limits"></span></div><div id="caption-assist-panel" class="caption-assist-panel" hidden></div></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Hashtags</label><input class="form-input" name="hashtags" id="post-hashtags" value="${escAttr(post?.hashtags||'')}" placeholder="#hashtag1 #hashtag2"><div class="hashtag-suggestions" id="hashtag-suggestions"></div></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Media URL</label><div style="display:flex;gap:8px"><input class="form-input" name="media_url" id="post-media-url" value="${escAttr(post?.media_url||'')}" placeholder="https://... or select from Drive" style="flex:1"><button type="button" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="openDrivePickerModal()">&#128193; From Drive</button></div></div></div>`;
   if (!isQuickIdea) {
@@ -3564,7 +3608,7 @@ function openPostModal(postId, prefillDate, isQuickIdea) {
   document.getElementById('post-pillar').onchange = function() { if (this.value) applyPillarPlatforms(this.value); };
   if (!isEdit) { const pillarSel = document.getElementById('post-pillar'); if (pillarSel.value) applyPillarPlatforms(pillarSel.value); }
   const captionEl = document.getElementById('post-caption'); const countEl = document.getElementById('caption-count'); const previewEl = document.getElementById('caption-preview');
-  captionEl.addEventListener('input', () => { const len = captionEl.value.length; countEl.textContent = `${len}/2200`; countEl.classList.toggle('over', len > 2200); previewEl.textContent = captionEl.value; });
+  captionEl.addEventListener('input', () => { const len = captionEl.value.length; countEl.textContent = `${len}/2200`; countEl.classList.toggle('over', len > 2200); const limits = []; if (len > 2200) limits.push('Over Instagram limit (2,200)'); if (len > 63206) limits.push('Over Facebook limit'); if (len > 150) limits.push('Consider shorter for TikTok'); previewEl.innerHTML = limits.length ? limits.map(l=>'<span style="color:var(--st-rejected);margin-right:8px">'+l+'</span>').join('') : '<span style="color:var(--st-approved)">Length OK for all platforms</span>'; });
   renderHashtagSuggestions(brandId);
 }
 
@@ -4306,7 +4350,7 @@ function renderInbox() {
   if (f.brand !== 'all') items = items.filter(i => i.brand_id === f.brand);
   items.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
-  let html = `<div class="inbox-toolbar">
+  let html = `<div style="background:var(--warning-bg,#fff3cd);color:var(--warning-text,#856404);padding:8px 14px;border-radius:8px;font-size:12px;margin-bottom:10px;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> <strong>Demo Mode</strong> — Messages below are sample data. Connect your social accounts to receive real messages.</div><div class="inbox-toolbar">
     <select class="form-select" id="inbox-filter-platform">
       <option value="all">All Platforms</option>
       ${platforms.map(p => `<option value="${escAttr(p)}" ${f.platform===p?'selected':''}>${escHtml(p)}</option>`).join('')}
@@ -4323,6 +4367,9 @@ function renderInbox() {
     </select>
     <div class="inbox-toolbar-spacer"></div>
     <button class="btn btn-primary btn-sm" id="inbox-add-btn">+ Add Interaction</button>
+  </div>
+  <div style="padding:10px 14px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:var(--r-sm);margin-bottom:12px;font-size:12px;color:var(--ink-2)">
+    <strong>Demo mode</strong> — These are sample conversations. Connect your social accounts to see real messages.
   </div>
   <div class="inbox-layout">
     <div class="data-table-wrap" id="inbox-list"></div>
@@ -4880,7 +4927,7 @@ function toggleCaptionAssist() {
   panel.hidden = false;
   renderCaptionAssistControls();
   // Scroll the panel into view within the modal body
-  setTimeout(() => panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+  setTimeout(() => { const mb = panel.closest('.modal-body'); if (mb) mb.scrollTop = mb.scrollHeight; else panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 50);
 }
 
 function renderCaptionAssistControls() {
@@ -4952,205 +4999,190 @@ function runCaptionAssist() {
 function generateCaptionVariations({ brandName, platformName, pillarName, title, tone, length }) {
   const pa = PILLAR_ANGLES[pillarName] || { angle: 'general', cta: 'engage', voice: 'conversational' };
   const bh = BRAND_HASHTAGS[brandName] || { always: [`#${brandName.replace(/[^A-Za-z0-9]/g,'')}`], rotate: [] };
-  const shuffled = [...bh.rotate].sort(() => Math.random() - 0.5);
-  const hashtags = [...bh.always, ...shuffled.slice(0, 4)].join(' ');
   const isDT = brandName === 'Del Taco';
+  // Clean title of video brief formatting
+  const cleanTitle = title.replace(/^VIDEO BRIEF[\s\S]*?\n\n/i, '').replace(/^HOOK.*?:\s*/i, '').trim() || 'our latest';
 
-  // Build 3 distinct hooks based on the post title and pillar angle
-  function hook(variant) {
-    const t = title.replace(/^(VIDEO BRIEF.*?\n\n)/, '').trim();
-    if (pa.angle === 'hero_item' || pa.angle === 'food_sizzle') {
-      return [
-        t,
-        `Your screen is about to smell like ${isDT ? 'New Mexico' : 'something good'}.`,
-        `Stop scrolling. This one\'s worth it.`
-      ][variant];
-    }
-    if (pa.angle === 'reveal') {
-      return [
-        `Your attic has a secret. We brought the thermal camera.`,
-        `Looks fine from the outside. The thermal camera says otherwise.`,
-        t
-      ][variant];
-    }
-    if (pa.angle === 'reaction') {
-      return [
-        `We didn\'t tell them what to say. We didn\'t have to.`,
-        `First bite. No script. Just watch.`,
-        `Real people. Real reactions. ${t}`
-      ][variant];
-    }
-    if (pa.angle === 'crew' || pa.angle === 'intro') {
-      return [
-        `The people behind ${isDT ? 'your order' : 'the truck'}.`,
-        t,
-        `Faces you\'ll see when ${isDT ? 'you pull up to the window' : 'we show up at your door'}.`
-      ][variant];
-    }
-    if (pa.angle === 'community') {
-      return [
-        `This is bigger than ${isDT ? 'tacos' : 'insulation'}. This is home.`,
-        t,
-        `New Mexico, this one\'s for you.`
-      ][variant];
-    }
-    if (pa.angle === 'offer' || pa.angle === 'roi') {
-      return [
-        t,
-        `The math is simple. The savings are real.`,
-        `Free estimate. No obligation. Here\'s what we find.`
-      ][variant];
-    }
-    if (pa.angle === 'educate') {
-      return [
-        t,
-        `Most homeowners don\'t know this. Now you do.`,
-        `Your house is trying to tell you something.`
-      ][variant];
-    }
-    if (pa.angle === 'proof') {
-      return [
-        `Don\'t take our word for it.`,
-        t,
-        `Straight from a real ${isDT ? 'customer' : 'homeowner'}. No edits.`
-      ][variant];
-    }
-    if (pa.angle === 'fun') {
-      return [
-        t,
-        `We don\'t just insulate. We also have fun.`,
-        `Job sites aren\'t always serious.`
-      ][variant];
-    }
-    if (pa.angle === 'process') {
-      return [
-        `What happens before we touch your attic.`,
-        t,
-        `Prep is where the quality starts.`
-      ][variant];
-    }
-    if (pa.angle === 'ownership' || pa.angle === 'honest') {
-      return [
-        `We own this business. We own our mistakes too.`,
-        t,
-        `No corporate number. You get us.`
-      ][variant];
-    }
-    if (pa.angle === 'b2b') {
-      return [
-        t,
-        `Builders — this one\'s for you.`,
-        `Commercial projects need a different conversation.`
-      ][variant];
-    }
-    // fallback
-    return [t, `New from ${brandName}.`, t][variant];
-  }
+  const variations = [];
+  for (let v = 0; v < 3; v++) {
+    // Shuffle hashtags per variation
+    const shuffled = [...bh.rotate].sort(() => Math.random() - 0.5);
+    const tags = [...bh.always, ...shuffled.slice(0, 3 + v)].join(' ');
 
-  // CTA lines by type
-  function cta(variant) {
-    const ctaMap = {
-      order: [
-        isDT ? 'What\'s your go-to order? Drop it below 👇' : '',
-        isDT ? 'Link in bio. Your stomach will thank you.' : '',
-        isDT ? 'Tag someone who needs this in their life.' : ''
-      ],
-      book: [
-        'Free assessment — link in bio or call (505) 219-1799',
-        'Comment VERDICT and we\'ll reach out.',
-        'Tap the link in bio to book yours.'
-      ],
-      share: [
-        'Tag someone who needs to see this.',
-        'Send this to a friend. You know the one.',
-        'Share this — we want to hear your take.'
-      ],
-      engage: [
-        'What do you think? Tell us below.',
-        'Drop a comment — we read every one.',
-        'Let us know 👇'
-      ],
-      connect: [
-        'Come say hi next time.',
-        'Follow along — there\'s more coming.',
-        'This is who you get when you call us.'
-      ],
-      follow: [
-        'Follow along — we\'re just getting started.',
-        'More coming. Stay tuned.',
-        'Welcome to the team. 🤙'
-      ],
-      save: [
-        'Save this for later — you\'ll need it.',
-        'Bookmark this one. Seriously.',
-        'Share this with your neighbor. They need it too.'
-      ]
-    };
-    const options = ctaMap[pa.cta] || ctaMap.engage;
-    return options[variant] || options[0];
-  }
+    // Build hook from title + angle
+    const hookLine = buildHook(cleanTitle, pa.angle, isDT, v);
+    // Build body from pillar angle
+    const bodyLine = buildBody(pa.angle, pa.voice, isDT, cleanTitle, v);
+    // Build CTA
+    const ctaLine = buildCTA(pa.cta, isDT, v);
 
-  // Tone modifiers
-  function toneWrap(text) {
-    if (tone === 'professional') return text.replace(/👇|🤙|🔥/g, '').trim();
-    if (tone === 'playful') return text + (text.includes('!') ? '' : ' 🔥');
-    if (tone === 'urgent') return text.replace(/\.$/, ' — don\'t wait.');
-    return text; // casual
-  }
-
-  // 3 distinct body paragraphs per brand so long-form isn't the same every time
-  const bodies = isDT ? [
-    `Made fresh in New Mexico. Every day, every order. Real ingredients, real people, and a menu that goes way beyond what you'd expect from a drive-thru.`,
-    `We've been feeding Albuquerque since day one. Green chile that actually hits, a kitchen that doesn't cut corners, and a crew that treats every order like it matters — because it does.`,
-    `This isn't a chain pretending to be local. We live here. We eat here. And everything on the menu reflects that — from our Hatch green chile to our fresh-cracked eggs.`
-  ] : [
-    `Your home's comfort starts where you can't see it. We use thermal imaging to show you exactly what's happening in your attic, walls, and crawlspace — then we fix it. Locally owned, personally accountable.`,
-    `Most insulation companies give you a quote and leave. We show up with a thermal camera, walk you through every finding, and only recommend what actually makes a difference on your energy bill.`,
-    `We're a local crew that treats your house like our own. No pressure, no upsells — just honest assessments, quality materials, and work we stand behind long after we leave.`
-  ];
-
-  // --- Build 3 structurally different captions ---
-  return [0, 1, 2].map(i => {
-    const h = hook(i);
-    const c = cta(i);
     let text;
-
     if (length === 'short') {
-      // V1: hook + CTA  |  V2: CTA-first  |  V3: merged single line
-      if (i === 0) text = `${h} ${c}`;
-      else if (i === 1) text = `${c} ${h}`;
-      else text = h.endsWith('?') ? `${h} ${c}` : `${h} — ${c.toLowerCase().replace(/^comment|^tag|^tap/i, m => m.toLowerCase())}`;
-
+      text = `${hookLine} ${ctaLine}`;
     } else if (length === 'long') {
-      // V1: Hook → body → CTA  |  V2: Question + body → CTA  |  V3: Story structure
-      if (i === 0) {
-        text = `${h}\n\n${bodies[0]}\n\n${c}\n\n${hashtags}`;
-      } else if (i === 1) {
-        text = `${bodies[1]}\n\n${h}\n\n${c}\n\n${hashtags}`;
-      } else {
-        text = `${h}\n\n${bodies[2]}\n\n${c}\n\n${hashtags}`;
-      }
-
-    } else { // medium — the most common selection
-      // V1: Hook → CTA → hashtags  |  V2: One-liner + hashtags  |  V3: Micro-story + CTA
-      if (i === 0) {
-        text = `${h}\n\n${c}\n\n${hashtags}`;
-      } else if (i === 1) {
-        // Compact: hook and CTA woven together, then hashtags
-        const bridge = isDT
-          ? `Every bite tells you we're different.`
-          : `It's not just insulation — it's how your home feels every day.`;
-        text = `${h}\n\n${bridge} ${c}\n\n${hashtags}`;
-      } else {
-        // Flip: CTA first, hook as the closer
-        const kicker = isDT
-          ? `Because good food deserves real attention.`
-          : `Because your home deserves better than guesswork.`;
-        text = `${c}\n\n${h} ${kicker}\n\n${hashtags}`;
-      }
+      text = `${hookLine}\n\n${bodyLine}\n\n${ctaLine}`;
+    } else {
+      text = `${hookLine}\n\n${ctaLine}`;
+      if (v === 0) text = `${hookLine}\n\n${bodyLine.split('. ').slice(0,2).join('. ')+'.'}\n\n${ctaLine}`;
     }
-    return toneWrap(text);
-  });
+
+    // Apply tone BEFORE hashtags
+    text = applyTone(text, tone);
+    text = text.trim() + '\n\n' + tags;
+    variations.push(text);
+  }
+  return variations;
+}
+
+function buildHook(title, angle, isDT, variant) {
+  // Always use the actual title as one of the hooks
+  const titleHook = title.length > 80 ? title.substring(0, 77) + '...' : title;
+
+  if (angle === 'hero_item' || angle === 'food_sizzle') {
+    return [titleHook, `Stop scrolling. You need to see this.`, `This is what ${isDT ? 'New Mexico cravings' : 'comfort'} look like.`][variant];
+  }
+  if (angle === 'reveal') {
+    return [titleHook, `Your attic has a secret. We brought the thermal camera.`, `Looks fine from the outside. The thermal camera says otherwise.`][variant];
+  }
+  if (angle === 'reaction') {
+    return [`Real people. Real reactions. ${titleHook}`, `We didn't tell them what to say. We didn't have to.`, titleHook][variant];
+  }
+  if (angle === 'crew' || angle === 'intro') {
+    return [titleHook, `The people behind ${isDT ? 'your order' : 'every install'}.`, `Faces you'll see when ${isDT ? 'you pull up to the window' : 'we show up at your door'}.`][variant];
+  }
+  if (angle === 'community') {
+    return [titleHook, `This is bigger than ${isDT ? 'tacos' : 'insulation'}. This is home.`, `New Mexico, this one's for you.`][variant];
+  }
+  if (angle === 'offer' || angle === 'roi') {
+    return [titleHook, `The math is simple. The savings are real.`, `Free estimate. No obligation. Here's what we find.`][variant];
+  }
+  if (angle === 'educate') {
+    return [titleHook, `Most homeowners don't know this. Now you do.`, `Your house is trying to tell you something.`][variant];
+  }
+  if (angle === 'proof') {
+    return [`Don't take our word for it. ${titleHook}`, titleHook, `Straight from a real ${isDT ? 'customer' : 'homeowner'}. No edits.`][variant];
+  }
+  if (angle === 'fun') {
+    return [titleHook, `We're not always serious. But we're always real.`, `This one's just for fun.`][variant];
+  }
+  if (angle === 'process') {
+    return [titleHook, `Here's how we prep before every install.`, `Behind the scenes — what happens before we knock on your door.`][variant];
+  }
+  if (angle === 'ownership') {
+    return [titleHook, `We're not a franchise. We own this.`, `Local. Owner-operated. Every job.`][variant];
+  }
+  if (angle === 'b2b') {
+    return [titleHook, `Builders — here's what we bring to your project.`, `Commercial grade. Local team.`][variant];
+  }
+  if (angle === 'journey') {
+    return [titleHook, `From first call to finished install — here's what it looks like.`, `Walk through our process.`][variant];
+  }
+  if (angle === 'spanish') {
+    return [titleHook, `Para nuestra comunidad. En español.`, `Estamos aquí para ti, Nuevo México.`][variant];
+  }
+  // general fallback
+  return [titleHook, `Here's what's happening.`, `You're going to want to see this.`][variant];
+}
+
+function buildBody(angle, voice, isDT, title, variant) {
+  // Pillar-specific body content that varies by variant
+  if (angle === 'hero_item' || angle === 'food_sizzle') {
+    return [`Made fresh with real Hatch green chile. This is what ${isDT ? 'Del Taco NM' : 'we'} do different.`,
+      `One bite and you'll know why people drive across town for this. It's not fast food — it's New Mexico food.`,
+      `The menu item everyone's been asking about. Now you know why.`][variant];
+  }
+  if (angle === 'reveal' || angle === 'educate') {
+    return [`Most homes in New Mexico are under-insulated. We see it every day with our thermal cameras — hot spots, air leaks, energy pouring out. The fix is simpler than you think.`,
+      `Your energy bill is telling you something. Spray foam insulation seals the gaps that blown-in and fiberglass miss. We show you exactly where the problems are before we start.`,
+      `Every home inspection starts with a thermal scan. No guesswork. We show you the problem, explain the fix, and give you a number — all in one visit.`][variant];
+  }
+  if (angle === 'reaction' || angle === 'proof') {
+    return [`We let the results speak for themselves. Real ${isDT ? 'customers' : 'homeowners'}, unscripted.`,
+      `No paid actors. No scripts. Just honest reactions from people who experienced it firsthand.`,
+      `This is what happens when the work speaks for itself. Real stories from real people right here in New Mexico.`][variant];
+  }
+  if (angle === 'crew' || angle === 'intro') {
+    return [`Meet the team that ${isDT ? 'makes your food and keeps this place running' : 'shows up at your door and gets the job done right'}. Every one of them is local.`,
+      `We're not a faceless company. These are the people behind every ${isDT ? 'order' : 'install'} — and they take pride in what they do.`,
+      `Small team. Big commitment. That's how we operate at ${isDT ? 'Del Taco NM' : 'Koala Insulation'}.`][variant];
+  }
+  if (angle === 'community') {
+    return [`This community has supported us from day one. Here's how we give back.`,
+      `New Mexico isn't just where we work — it's home. And we show up for our neighbors.`,
+      `Being local means being part of something. This is what that looks like.`][variant];
+  }
+  if (angle === 'offer' || angle === 'roi') {
+    return [`A properly insulated home can save 20-40% on energy bills. We've seen it with our New Mexico customers. The investment pays for itself.`,
+      `Here's the math: one install, lower bills every month, year after year. Plus rebates that bring the upfront cost down even more.`,
+      `No pressure. No gimmicks. Just a free estimate that shows you exactly what you'd save.`][variant];
+  }
+  if (angle === 'fun') {
+    return [`Sometimes you just have to have a little fun with it. We're ${isDT ? 'a taco shop' : 'insulation contractors'} — we don't take ourselves too seriously.`,
+      `Behind every serious business is a team that knows how to laugh. This is that side of us.`,
+      `Work hard, have fun. That's how we do things around here.`][variant];
+  }
+  if (angle === 'process') {
+    return [`Before every install, our crew goes through a detailed prep checklist. Clean workspace, proper masking, safety checks — every time.`,
+      `What does install day actually look like? Here's a behind-the-scenes look at how we prep your home.`,
+      `The work you don't see is what separates a good job from a great one. Here's our process.`][variant];
+  }
+  if (angle === 'ownership') {
+    return [`We own this business. We live in this community. When we do a job, our name is on it — and that matters to us.`,
+      `Owner-operated means the person who quoted your job checks the work. That's accountability you won't get from a national chain.`,
+      `Local ownership. Local crew. Local accountability. That's Koala Insulation NM.`][variant];
+  }
+  // general
+  return [`Here's what's been happening at ${isDT ? 'Del Taco NM' : 'Koala Insulation NM'}. Stay tuned for more.`,
+    `Another day, another reason to love what we do here in New Mexico.`,
+    `Thanks for following along. More to come.`][variant];
+}
+
+function buildCTA(ctaType, isDT, variant) {
+  if (ctaType === 'order') {
+    return [`Grab yours at any Del Taco NM location.`, `Link in bio. Order ahead and skip the line.`, `Come through — we're open late.`][variant];
+  }
+  if (ctaType === 'book') {
+    return [`Book your free estimate — link in bio.`, `Ready to save on energy? Free estimates, no obligation.`, `DM us or call for a free home assessment.`][variant];
+  }
+  if (ctaType === 'share') {
+    return [`What do you think? Drop a comment.`, `Tag someone who needs to see this.`, `Share this with a friend.`][variant];
+  }
+  if (ctaType === 'engage') {
+    return [`What do you think? Tell us below.`, `Drop a comment — we read every one.`, `Have a story like this? We'd love to hear it.`][variant];
+  }
+  if (ctaType === 'follow') {
+    return [`Follow along for more.`, `Hit follow to stay in the loop.`, `More coming. Stay tuned.`][variant];
+  }
+  if (ctaType === 'connect') {
+    return [`Questions? DM us anytime.`, `We're always happy to chat — reach out.`, `Connect with us — link in bio.`][variant];
+  }
+  if (ctaType === 'save') {
+    return [`Save this for later — you'll want it.`, `Bookmark this one. Trust us.`, `Save and share with someone who needs this.`][variant];
+  }
+  return [`Let us know what you think.`, `More to come — stay tuned.`, `Thanks for being here.`][variant];
+}
+
+function applyTone(text, tone) {
+  if (tone === 'professional') {
+    // Remove casual punctuation, keep it clean
+    return text.replace(/!+/g, '.').replace(/\.\./g, '.').replace(/\s{2,}/g, ' ');
+  }
+  if (tone === 'playful') {
+    // Add energy to the end of sentences
+    return text.replace(/\.(\s|$)/g, (m, after) => {
+      return Math.random() > 0.6 ? '! ' + after : m;
+    });
+  }
+  if (tone === 'urgent') {
+    // Add urgency markers
+    const lines = text.split('\n');
+    if (lines.length > 0) {
+      lines[0] = lines[0].replace(/\.$/, '') + ' — and here\'s why it matters now.';
+    }
+    return lines.join('\n');
+  }
+  // casual = no modification
+  return text;
 }
 
 // ══════════════════════════════════════════════

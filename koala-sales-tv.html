@@ -84,11 +84,18 @@
   .sync-text { font-size: 1.25vh; color: var(--text-muted); }
 
   /* ---- hero grid ---- */
-  .hero { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1fr 1fr 1.05fr; gap: 1.2vw; min-height: 0; }
+  /* minmax(0, Nfr) — not bare "Nfr" — on every column. A bare "1fr" column is really
+     minmax(auto, 1fr): its floor is its content's natural (unwrapped) width. The rep-card
+     bid ticker uses white-space:nowrap spans for the marquee effect, and that nowrap text's
+     width was leaking through as Gabriel's column's minimum, blowing his card out wide and
+     squeezing Frank's column down to fit — reported 2026-09-15 per Pranav ("Gabriel's card
+     is wider... after you added the scroll"). minmax(0, Nfr) removes that content-based
+     floor so all 4 columns stay evenly sized regardless of ticker content length. */
+  .hero { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.05fr); gap: 1.2vw; min-height: 0; }
 
   .card {
     background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow-md); padding: 2vh 1.4vw; display: flex; flex-direction: column; min-height: 0;
+    box-shadow: var(--shadow-md); padding: 2vh 1.4vw; display: flex; flex-direction: column; min-height: 0; min-width: 0;
   }
 
   /* ---- rep card ---- */
@@ -127,11 +134,11 @@
   /* ---- rep-card bid strip (Frank's stale 60+d bids; Gabriel/Mike's 7-day follow-up estimates) ---- */
   .rep-ticker-wrap {
     margin-top: 1.2vh; padding-top: 1vh; border-top: 1px solid var(--gridline);
-    overflow: hidden; position: relative; isolation: isolate;
+    overflow: hidden; position: relative; isolation: isolate; min-width: 0;
     -webkit-mask-image: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
             mask-image: linear-gradient(to right, transparent, #000 4%, #000 96%, transparent);
   }
-  .rep-ticker-track { display: flex; white-space: nowrap; animation: scroll-left 20s linear infinite; padding-left: 100%; }
+  .rep-ticker-track { display: flex; white-space: nowrap; animation: scroll-left 20s linear infinite; padding-left: 100%; min-width: 0; }
   .rep-ticker-track span { font-size: 1.25vh; font-weight: 600; padding: 0 2vw; color: var(--text-secondary); }
   .rep-ticker-track span b { color: var(--status-warn); font-weight: 800; }
 

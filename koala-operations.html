@@ -301,9 +301,54 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   .modal-card { max-width: 100%; max-height: 100vh; border-radius: 0; height: 100%; }
   .store-table { font-size: 12px; }
 }
+
+/* ---------------- Login / auth ---------------- */
+.login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--surface-page); padding: 20px; }
+.login-card { width: 100%; max-width: 360px; background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); padding: 32px 28px; text-align: center; }
+.login-logo { height: 40px; margin-bottom: 14px; }
+.login-card h1 { font-size: 18px; margin: 0 0 6px; }
+.login-sub { font-size: 12.5px; color: var(--text-muted); margin: 0 0 20px; }
+.login-field { text-align: left; margin-bottom: 14px; }
+.login-field label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; }
+.login-field input { width: 100%; padding: 9px 11px; border: 1px solid var(--gridline); border-radius: var(--radius-sm); background: var(--surface-card); color: var(--text-primary); font-size: 14px; font-family: inherit; box-sizing: border-box; }
+.login-submit-btn { width: 100%; background: var(--brand-teal); color: #fff; border: none; border-radius: var(--radius-sm); padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+.login-submit-btn:disabled { opacity: .6; cursor: default; }
+.login-error { background: var(--status-critical-bg); color: var(--status-critical); border-radius: var(--radius-sm); padding: 9px 11px; font-size: 12.5px; margin-bottom: 14px; text-align: left; }
+.login-footnote { font-size: 11px; color: var(--text-muted); margin: 18px 0 0; }
+.current-user-badge { font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
+.admin-temp-pw { background: var(--status-good-bg); color: var(--status-good); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 13px; margin-top: 4px; line-height: 1.6; }
+.admin-temp-pw code { background: rgba(0,0,0,.08); padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+.admin-role-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 8px; text-transform: uppercase; letter-spacing: .3px; }
+.admin-role-admin { color: var(--brand-teal); background: rgba(52,168,83,.12); }
+.admin-role-viewer { color: var(--text-secondary); background: var(--surface-page); }
+.admin-status-active { color: var(--status-good); font-weight: 600; }
+.admin-status-inactive { color: var(--status-critical); font-weight: 600; }
 </style>
 </head>
 <body>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<div id="loginScreen" class="login-screen">
+  <form id="loginForm" class="login-card" onsubmit="handleLoginSubmit(event)">
+    <img class="login-logo" src="https://imagedelivery.net/uX8LTtWSHgeVJ6eG75QgxQ/koalainsulation.com/2024/06/Logo.png/w=200,h=140" alt="Koala Insulation" onerror="this.style.display='none'">
+    <h1>Koala Insulation Dashboard</h1>
+    <p class="login-sub">Sign in to view operations, financials, and the CRM pipeline.</p>
+    <div class="login-error" id="loginError" style="display:none;"></div>
+    <div class="login-field">
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" required autocomplete="username" placeholder="you@sonayagroup.com">
+    </div>
+    <div class="login-field">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" required autocomplete="current-password" placeholder="••••••••">
+    </div>
+    <button type="submit" class="login-submit-btn" id="loginSubmitBtn">Sign in</button>
+    <p class="login-footnote">Access is by invitation only. Contact Pranav if you need an account.</p>
+  </form>
+</div>
+
+<div id="appRoot" style="display:none;">
 
 <header class="app-header">
   <div class="header-left">
@@ -320,6 +365,8 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <span class="last-updated" id="lastUpdated">ServiceMinder live &bull; QuickBooks not yet connected</span>
     <a class="theme-toggle" href="https://tools.sonayagroup.com/koala-field-ops.html" style="text-decoration:none;display:inline-flex;align-items:center">Field Ops →</a>
         <a class="theme-toggle" href="https://tools.sonayagroup.com/koala-sales-tv.html" style="text-decoration:none;display:inline-flex;align-items:center">Sales TV →</a>
+    <span class="current-user-badge" id="currentUserBadge"></span>
+    <button class="theme-toggle" onclick="handleSignOut()" id="signOutBtn">Sign out</button>
     <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">Dark</button>
   </div>
 </header>
@@ -328,6 +375,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   <button class="tab-btn active" data-tab="sales">Sales Performance</button>
   <button class="tab-btn" data-tab="financial">Financial Snapshot</button>
   <button class="tab-btn" data-tab="crm">CRM Pipeline</button>
+  <button class="tab-btn" data-tab="admin" id="manageUsersTabBtn" style="display:none;">Manage Users</button>
 </nav>
 
 <!-- TAB: SALES PERFORMANCE -->
@@ -482,9 +530,27 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   </div>
 </div>
 
+<!-- TAB: MANAGE USERS (admin only) -->
+<div class="tab-content" id="tab-admin">
+  <div class="container-wide">
+    <div class="section-title">Manage Users <span class="section-title-sub">— who can sign in to this dashboard</span></div>
+    <div class="controls" style="margin-bottom:14px;">
+      <button type="button" class="crm-add-deal-btn" onclick="openAdminInviteModal()">+ Invite user</button>
+    </div>
+    <div class="store-table-wrap">
+      <table class="store-table" id="adminUsersTable">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Added</th><th></th></tr></thead>
+        <tbody id="adminUsersTbody"><tr><td colspan="6" class="modal-status">Loading users…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <footer class="app-footer">
   Koala Insulation Dashboard &mdash; Patel Insulation LLC &mdash; ServiceMinder live, QuickBooks pending &mdash; tools.sonayagroup.com
 </footer>
+
+</div><!-- #appRoot -->
 
 <div class="modal-backdrop" id="onBooksModalBackdrop" onclick="if(event.target===this) closeOnTheBooksModal();">
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="onBooksModalTitle">
@@ -536,6 +602,39 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   </div>
 </div>
 
+<div class="modal-backdrop" id="adminInviteModalBackdrop" onclick="if(event.target===this) closeAdminInviteModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="adminInviteModalTitle">
+    <div class="modal-header">
+      <div>
+        <h3 id="adminInviteModalTitle">Invite a user</h3>
+        <p>Creates a real sign-in account with a temporary password.</p>
+      </div>
+      <button class="modal-close-btn" onclick="closeAdminInviteModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="adminInviteModalBody">
+      <div class="crm-form-row"><label>Name</label><input class="crm-form-input" id="adminInviteName" placeholder="e.g. Frank Emanuel"></div>
+      <div class="crm-form-row"><label>Email</label><input class="crm-form-input" id="adminInviteEmail" type="email" placeholder="name@sonayagroup.com"></div>
+      <div class="crm-form-row"><label>Role</label>
+        <select class="crm-form-select" id="adminInviteRole">
+          <option value="viewer">Viewer — can use the dashboard</option>
+          <option value="admin">Admin — can also manage users</option>
+        </select>
+      </div>
+      <div class="crm-form-error" id="adminInviteError" style="display:none;"></div>
+      <div class="admin-temp-pw" id="adminInviteResult" style="display:none;"></div>
+    </div>
+    <div class="modal-footer-note">
+      <div class="crm-modal-actions">
+        <div></div>
+        <div>
+          <button class="crm-btn crm-btn-secondary" onclick="closeAdminInviteModal()">Close</button>
+          <button class="crm-btn crm-btn-primary" id="adminInviteSubmitBtn" onclick="handleAdminInvite()">Create account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ---------------- Live ServiceMinder data (Supabase Edge Function) ---------------- */
 // The serviceminder-revenue Edge Function proxies ServiceMinder's Download API so this static
@@ -556,6 +655,207 @@ async function callSMEdge(params) {
   try { body = await resp.json(); } catch (e) { throw new Error('Unexpected response from the live data service.'); }
   if (!resp.ok || body.error) throw new Error(body.error || `Live data request failed (HTTP ${resp.status}).`);
   return body;
+}
+
+/* ---------------- Auth gate (real Supabase Auth — sensitive CRM/financial data lives behind
+   this login) ---------------- */
+// Reuses the same project anon/publishable key already embedded above for the ServiceMinder edge
+// function — it's the standard public Supabase key, safe client-side either way.
+const SUPABASE_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
+const ADMIN_USERS_EDGE = SUPABASE_URL + '/functions/v1/koala-admin-users';
+const sbClient = window.supabase.createClient(SUPABASE_URL, SM_ANON_KEY);
+
+let currentUser = null; // { id, email, name, role } once signed in and authorized
+
+function showLoginScreen(message) {
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  const err = document.getElementById('loginError');
+  if (message) { err.textContent = message; err.style.display = ''; }
+  else { err.style.display = 'none'; }
+}
+
+function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = '';
+}
+
+// crm_deals/crm_activity RLS checks auth.uid() against koala_dashboard_users, so every CRM fetch
+// needs the signed-in user's own access token (not the shared anon key) in Authorization.
+function updateCrmAuthHeaders(accessToken) {
+  CRM_HEADERS = { apikey: CRM_SUPABASE_KEY, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' };
+}
+
+// koala_dashboard_users' only policy is "read your own row" — this asks "is the person who just
+// signed in actually allowed to use this dashboard, and what's their role?" Using the REST API
+// directly (rather than sbClient) keeps this consistent with the rest of the file's fetch-based style.
+async function fetchDashboardUserRow(session) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/koala_dashboard_users?id=eq.${session.user.id}&select=*`, {
+    headers: { apikey: SM_ANON_KEY, Authorization: `Bearer ${session.access_token}` }
+  });
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows[0] || null;
+}
+
+async function handleAuthedSession(session) {
+  const row = await fetchDashboardUserRow(session);
+  if (!row || !row.is_active) {
+    await sbClient.auth.signOut();
+    showLoginScreen(row
+      ? 'Your account has been deactivated. Contact Pranav for access.'
+      : "This account isn't set up for this dashboard yet. Contact Pranav for access.");
+    return false;
+  }
+  currentUser = { id: row.id, email: row.email, name: row.name || row.email, role: row.role };
+  updateCrmAuthHeaders(session.access_token);
+  document.getElementById('currentUserBadge').textContent = currentUser.name + (currentUser.role === 'admin' ? ' · Admin' : '');
+  document.getElementById('manageUsersTabBtn').style.display = currentUser.role === 'admin' ? '' : 'none';
+  showApp();
+  return true;
+}
+
+function startApp() {
+  renderAll();
+  loadLiveProposalsSummary();
+  loadLiveRevenueTiles();
+  refreshSalesRangeDefault();
+  loadLiveCurrentMonthProxy();
+}
+
+async function initAuthGate() {
+  const { data: { session } } = await sbClient.auth.getSession();
+  if (session) {
+    if (await handleAuthedSession(session)) startApp();
+  } else {
+    showLoginScreen();
+  }
+
+  sbClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'TOKEN_REFRESHED' && session) updateCrmAuthHeaders(session.access_token);
+  });
+}
+
+async function handleLoginSubmit(e) {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const btn = document.getElementById('loginSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Sign in';
+  if (error) {
+    showLoginScreen(error.message === 'Invalid login credentials' ? 'Incorrect email or password.' : error.message);
+    return;
+  }
+  if (await handleAuthedSession(data.session)) startApp();
+}
+
+async function handleSignOut() {
+  await sbClient.auth.signOut();
+  currentUser = null;
+  location.reload();
+}
+
+/* ---- Manage Users (admin only) — talks to the koala-admin-users edge function, which holds the
+   service-role key server-side and re-checks the caller is an active admin before doing anything. ---- */
+async function callAdminUsersEdge(action, opts) {
+  const { data: { session } } = await sbClient.auth.getSession();
+  if (!session) throw new Error('Your session expired — please sign in again.');
+  const method = opts && opts.body ? 'POST' : 'GET';
+  const res = await fetch(`${ADMIN_USERS_EDGE}?action=${action}`, {
+    method,
+    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: opts && opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body.error) throw new Error(body.error || `Request failed (HTTP ${res.status}).`);
+  return body;
+}
+
+function adminRoleBadge(role) {
+  return `<span class="admin-role-badge admin-role-${role}">${role}</span>`;
+}
+
+async function renderAdminUsersTab() {
+  const tbody = document.getElementById('adminUsersTbody');
+  tbody.innerHTML = `<tr><td colspan="6" class="modal-status">Loading users…</td></tr>`;
+  try {
+    const { users } = await callAdminUsersEdge('list');
+    if (!users.length) { tbody.innerHTML = `<tr><td colspan="6" class="modal-status">No users yet.</td></tr>`; return; }
+    tbody.innerHTML = users.map(u => {
+      const isSelf = u.id === currentUser.id;
+      const created = u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+      const statusHtml = `<span class="${u.is_active ? 'admin-status-active' : 'admin-status-inactive'}">${u.is_active ? 'Active' : 'Deactivated'}</span>`;
+      const actions = isSelf
+        ? `<span style="color:var(--text-muted); font-size:11.5px;">(you)</span>`
+        : `
+          <button class="crm-btn crm-btn-secondary" style="padding:5px 10px;font-size:12px;" onclick="handleAdminToggleRole('${u.id}','${u.role === 'admin' ? 'viewer' : 'admin'}')">Make ${u.role === 'admin' ? 'viewer' : 'admin'}</button>
+          <button class="crm-btn crm-btn-secondary" style="padding:5px 10px;font-size:12px;" onclick="handleAdminToggleActive('${u.id}',${u.is_active})">${u.is_active ? 'Deactivate' : 'Reactivate'}</button>
+          <button class="crm-btn crm-btn-secondary" style="padding:5px 10px;font-size:12px;" onclick="handleAdminResetPassword('${u.id}','${crmEsc(u.email)}')">Reset password</button>
+        `;
+      return `<tr>
+        <td>${crmEsc(u.name || '—')}</td>
+        <td>${crmEsc(u.email)}</td>
+        <td>${adminRoleBadge(u.role)}</td>
+        <td>${statusHtml}</td>
+        <td>${created}</td>
+        <td style="white-space:nowrap;">${actions}</td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" class="modal-status">Could not load users: ${crmEsc(err.message)}</td></tr>`;
+  }
+}
+
+async function handleAdminToggleRole(userId, newRole) {
+  try { await callAdminUsersEdge('update', { body: { user_id: userId, role: newRole } }); await renderAdminUsersTab(); }
+  catch (err) { alert('Could not update role: ' + err.message); }
+}
+async function handleAdminToggleActive(userId, isActive) {
+  try { await callAdminUsersEdge('update', { body: { user_id: userId, is_active: !isActive } }); await renderAdminUsersTab(); }
+  catch (err) { alert('Could not update status: ' + err.message); }
+}
+async function handleAdminResetPassword(userId, email) {
+  if (!confirm(`Reset the password for ${email}? You'll get a new temporary password to give them.`)) return;
+  try {
+    const { temp_password } = await callAdminUsersEdge('reset_password', { body: { user_id: userId } });
+    alert(`New temporary password for ${email}:\n\n${temp_password}\n\nShare this with them directly — it won't be shown again.`);
+  } catch (err) { alert('Could not reset password: ' + err.message); }
+}
+
+function openAdminInviteModal() {
+  document.getElementById('adminInviteName').value = '';
+  document.getElementById('adminInviteEmail').value = '';
+  document.getElementById('adminInviteRole').value = 'viewer';
+  document.getElementById('adminInviteError').style.display = 'none';
+  document.getElementById('adminInviteResult').style.display = 'none';
+  document.getElementById('adminInviteSubmitBtn').style.display = '';
+  document.getElementById('adminInviteModalBackdrop').classList.add('open');
+}
+function closeAdminInviteModal() {
+  document.getElementById('adminInviteModalBackdrop').classList.remove('open');
+  renderAdminUsersTab();
+}
+async function handleAdminInvite() {
+  const name = document.getElementById('adminInviteName').value.trim();
+  const email = document.getElementById('adminInviteEmail').value.trim();
+  const role = document.getElementById('adminInviteRole').value;
+  const errEl = document.getElementById('adminInviteError');
+  errEl.style.display = 'none';
+  if (!email) { errEl.textContent = 'Email is required.'; errEl.style.display = ''; return; }
+  const btn = document.getElementById('adminInviteSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const { temp_password } = await callAdminUsersEdge('invite', { body: { name, email, role } });
+    document.getElementById('adminInviteResult').style.display = '';
+    document.getElementById('adminInviteResult').innerHTML = `Account created for <b>${crmEsc(email)}</b>. Temporary password:<br><code>${crmEsc(temp_password)}</code><br>Share this with them directly — it won't be shown again.`;
+    btn.style.display = 'none';
+  } catch (err) {
+    errEl.textContent = err.message; errEl.style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create account';
+  }
 }
 
 // "Today" for the dashboard's STATIC illustrative content (chart date labels, the Aug 20 snapshot
@@ -993,6 +1293,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     // see renderAll below). The Edge Function's own 15-minute cache keeps repeated switches cheap.
     if (btn.dataset.tab === 'sales') { loadLiveProposalsSummary(); loadLiveRevenueTiles(); refreshSalesRangeDefault(); }
     if (btn.dataset.tab === 'financial') { loadLiveCurrentMonthProxy(); }
+    if (btn.dataset.tab === 'admin') { renderAdminUsersTab(); }
   });
 });
 
@@ -1781,7 +2082,12 @@ const CRM_SUPABASE_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
 const CRM_SUPABASE_KEY = 'sb_publishable_-hprPPqnVl6bA4hh2Aozdg_ks95GRvF';
 const CRM_REST = CRM_SUPABASE_URL + '/rest/v1/crm_deals';
 const CRM_ACTIVITY_REST = CRM_SUPABASE_URL + '/rest/v1/crm_activity';
-const CRM_HEADERS = { apikey: CRM_SUPABASE_KEY, Authorization: 'Bearer ' + CRM_SUPABASE_KEY, 'Content-Type': 'application/json' };
+// crm_deals/crm_activity now require RLS authorization (see the 2026-09-15 migration) — a plain
+// anon-key Authorization header no longer carries a usable auth.uid() for the policy check. This
+// gets replaced with the signed-in user's real access token by updateCrmAuthHeaders() right after
+// login (and again on every token refresh); the anon key here is only a safe fallback before that
+// first happens, and calls made with it will correctly get rejected by RLS rather than served.
+let CRM_HEADERS = { apikey: CRM_SUPABASE_KEY, Authorization: 'Bearer ' + CRM_SUPABASE_KEY, 'Content-Type': 'application/json' };
 
 const CRM_PROSPECT_ACTIVE = ['Prospecting List', 'Prospecting 1st Contact', 'Prospecting 2nd Contact', 'Prospecting 3rd Contact'];
 const CRM_PROSPECT_OUTCOMES = ['Prospecting On Hold', 'Dead Prospecting List', 'Prospect Won'];
@@ -2418,18 +2724,11 @@ function renderAll() {
   renderFinancialTab();
   renderCrmTab();
 }
-renderAll();
 
-// Kick off the live-on-page-load fetches once at startup (not on every renderAll() call — renderAll()
-// also re-runs on every theme toggle, and re-fetching live data on a light/dark switch would be wasteful
-// and cause a visible loading flash for no reason). Per Pranav's approval (2026-09-03): Revenue Pacing &
-// On the Books and the Lead/Rep period breakdown all fetch live ServiceMinder data as soon as the
-// dashboard loads, independent of which tab happens to be active — matching how the CRM Pipeline tab has
-// always auto-loaded on page load. The Financial Snapshot tab's current-month proxy tile does the same.
-loadLiveProposalsSummary();
-loadLiveRevenueTiles();
-refreshSalesRangeDefault();
-loadLiveCurrentMonthProxy();
+// Nothing above renders or fetches anything on its own anymore — renderAll() and the live-data
+// fetches (previously fired unconditionally here) now only run from startApp(), which itself only
+// runs after initAuthGate() confirms a signed-in, authorized user. See the "Auth gate" block above.
+initAuthGate();
 </script>
 </body>
 </html>

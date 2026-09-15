@@ -653,12 +653,29 @@
   const TICKER_SPEED_PX_PER_SEC = 72.25;
   const TICKER_MIN_DURATION_S = 8; // floor so a very short (1-2 item) list doesn't blur past
   // The footer's "Recent Wins" ticker (.ticker-track) renders its text at 1.7vh vs. the rep
-  // cards' 1.25vh — 36% bigger. Matching it to the SAME raw px/s (as first tried, 2026-09-15)
-  // measured identically on both but still visibly read as "way slower" per Pranav — bigger
-  // text moving the same absolute number of pixels per second covers less relative distance
-  // (proportionally less of its own size) each second, so it reads as slower even though the
-  // math is equal. Scaling speed by the font-size ratio fixes the PERCEIVED pace to match.
+  // cards' 1.25vh — 36% bigger. Matching it to the SAME raw px/s (first tried 2026-09-15)
+  // measured identically on both but still visibly read as "way slower" per Pranav. Scaling
+  // by that font-size ratio (below, kept as a fallback constant) was the first correction —
+  // still reported "still very slow" on 2026-09-15 round 2. Measured live: the footer bar
+  // (.ticker-wrap) is ~3.4x WIDER than a single rep card's ticker box (.rep-ticker-wrap) —
+  // 1185px vs 345px at one tested size. Same px/s across boxes of very different width means
+  // the footer text takes proportionally far longer to sweep across its own visible bar (the
+  // thing a viewer is actually watching), which is the dominant reason it reads as crawling —
+  // bigger than the font-size effect. tickerFooterSpeed() below fixes this properly by scaling
+  // speed to the LIVE measured width ratio each refresh (robust to whatever the real TV's
+  // resolution/layout turns out to be), falling back to the font-ratio constant only if either
+  // box isn't in the DOM yet.
   const TICKER_SPEED_PX_PER_SEC_FOOTER = TICKER_SPEED_PX_PER_SEC * (1.7 / 1.25);
+  function tickerFooterSpeed() {
+    const footerWrap = document.querySelector('.ticker-wrap');
+    const repWrap = document.querySelector('.rep-ticker-wrap');
+    if (footerWrap && repWrap) {
+      const footerW = footerWrap.getBoundingClientRect().width;
+      const repW = repWrap.getBoundingClientRect().width;
+      if (footerW > 0 && repW > 0) return TICKER_SPEED_PX_PER_SEC * (footerW / repW);
+    }
+    return TICKER_SPEED_PX_PER_SEC_FOOTER;
+  }
 
   // Shared renderer for the horizontal bid strip under a rep card's stats row — used for Frank's
   // stale (60+d) bids and Gabriel/Mike's recent (7d) open estimates alike. Hides the strip entirely
@@ -1009,12 +1026,12 @@
       ? jobs.map(j => `<span>🏆 <b>${escapeHtml(j.name)}</b>${j.rep && j.rep !== '(Unassigned)' ? ' — ' + escapeHtml(j.rep) : ''} — ${fmtMoney(j.value)}</span>`).join('')
       : '<span>No recently closed jobs in ServiceMinder yet this cycle — keep pushing 💪</span>';
     // Doubled content + speed-derived duration — same technique as renderBidTicker(), but using
-    // TICKER_SPEED_PX_PER_SEC_FOOTER (not the plain rep-card constant) since this ticker's
-    // larger font needs a proportionally faster px/s to read as the same visual pace — see that
-    // constant's comment above.
+    // tickerFooterSpeed() (not the plain rep-card constant) since this ticker's box is both a
+    // bigger font AND a much wider bar than a rep card's ticker — see that function's comment
+    // above for why both matter and why it's measured live rather than a fixed constant.
     track.innerHTML = html + html;
     const singleCopyWidth = track.scrollWidth / 2;
-    const duration = Math.max(TICKER_MIN_DURATION_S, singleCopyWidth / TICKER_SPEED_PX_PER_SEC_FOOTER);
+    const duration = Math.max(TICKER_MIN_DURATION_S, singleCopyWidth / tickerFooterSpeed());
     track.style.animationDuration = duration.toFixed(2) + 's';
   }
 

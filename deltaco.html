@@ -202,7 +202,7 @@ body {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: 12px;
 }
 .store-table thead th {
   background: var(--surface-card);
@@ -211,7 +211,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.4px;
   font-size: 11px;
-  padding: 10px 14px;
+  padding: 10px 10px;
   text-align: left;
   border-bottom: 1px solid var(--gridline);
   position: sticky;
@@ -225,7 +225,7 @@ body {
 .store-table thead th.sorted .sort-arrow { opacity: 1; color: var(--brand-red); }
 .store-table thead th:first-child { padding-left: 20px; }
 .store-table tbody td {
-  padding: 12px 14px;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -233,7 +233,7 @@ body {
 .store-table tbody tr:last-child td { border-bottom: none; }
 .store-table tbody tr:hover td { background: var(--surface-page); }
 .store-table tfoot td {
-  padding: 12px 14px;
+  padding: 10px 10px;
   white-space: nowrap;
   border-top: 2px solid var(--border);
   font-weight: 700;
@@ -3752,7 +3752,7 @@ function renderOps() {
     // Clear KPI, table, and charts — no data to render
     document.getElementById('opsKpiRow').innerHTML = '';
     document.getElementById('opsTableHead').innerHTML = '';
-    document.getElementById('opsTableBody').innerHTML = `<tr><td colspan="15" style="text-align:center;padding:32px;color:var(--text-muted);font-size:15px;">No data available for this date. Use the date picker to select a date with loaded data.</td></tr>`;
+    document.getElementById('opsTableBody').innerHTML = `<tr><td colspan="13" style="text-align:center;padding:32px;color:var(--text-muted);font-size:15px;">No data available for this date. Use the date picker to select a date with loaded data.</td></tr>`;
     ['chartGCA','chartLabor','chartSales','chartRatings'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = ''; });
     const detailView = document.getElementById('storeDetailView');
     if (detailView) detailView.style.display = 'none';
@@ -3832,7 +3832,6 @@ function renderOps() {
     { key: 'sos', label: 'Window (s)' },
     { key: 'voidsPct', label: 'Voids %' },
     { key: 'refunds', label: 'Refunds $' },
-    { key: 'newReviews', label: 'New Reviews' },
     { key: 'googleRating', label: 'Google' },
     { key: 'serviceChecks', label: 'Prob SCs' },
     { key: 'compositeScore', label: 'Score' },
@@ -3859,7 +3858,6 @@ function renderOps() {
     const checklistClass = d.checklistPct !== null ? (d.checklistPct >= 95 ? 'cell-good' : (d.checklistPct >= 80 ? 'cell-warn' : 'cell-critical')) : '';
     const laborVarStr = laborVar != null ? (laborVar >= 0 ? '+' : '') + laborVar.toFixed(2) + '%' : '--';
     const laborVarClass = laborVarAbs != null ? (laborVarAbs <= 0.25 ? 'cell-great' : laborVarAbs <= 0.50 ? 'cell-good' : laborVarAbs <= 1.00 ? 'cell-warn' : 'cell-critical') : '';
-    const newRevs = getNewReviews(d.storeId);
     const overallStatus = getOverallStatus(d);
     const cs = computeCompositeScore(d);
     d.compositeScore = cs.total;
@@ -3876,8 +3874,7 @@ function renderOps() {
       <td class="cell-${sosR2.cls}">${d.sos != null ? d.sos : '--'}</td>
       <td class="cell-${voidsR2.cls}">${d.voidsPct != null ? (+d.voidsPct).toFixed(2) + '%' : '--'}</td>
       <td class="${refundClass}">${d.refunds != null ? '$' + d.refunds.toFixed(2) : '--'}</td>
-      <td>${newRevs !== null ? (newRevs > 0 ? '<span style="color:#0ca30c">+' + newRevs + '</span>' : '0') : '--'}</td>
-      <td class="${ratingClass}">${d.googleRating != null ? renderStars(+d.googleRating) + ' ' + d.googleRating : '--'} <span style="color:var(--text-muted);font-size:11px">(${d.totalReviews ? d.totalReviews.toLocaleString() : '--'})</span></td>
+      <td class="${ratingClass}">${d.googleRating != null ? d.googleRating : '--'} <span style="color:var(--text-muted);font-size:10px">(${d.totalReviews ? d.totalReviews.toLocaleString() : '--'})</span></td>
       <td>${d.serviceChecks != null ? d.serviceChecks : '--'}</td>
       <td title="${scoreTitle}"><span class="score-badge ${scoreCls}">${cs.total}/${cs.maxScore}</span></td>
       <td><span class="status-pill ${overallStatus}"><span class="status-dot ${overallStatus}"></span>${overallStatus === 'good' ? 'On Track' : (overallStatus === 'warn' ? 'Watch' : 'Attention')}</span></td>
@@ -3905,7 +3902,6 @@ function renderOps() {
   const footVoids = voidsVals.length > 0 ? voidsVals.reduce((s, d) => s + +d.voidsPct, 0) / voidsVals.length : null;
   const refVals = withData.filter(d => d.refunds != null);
   const avgRef = refVals.length > 0 ? refVals.reduce((s, d) => s + d.refunds, 0) / refVals.length : null;
-  const totalNewRevs = withData.reduce((s, d) => { const nr = getNewReviews(d.storeId); return s + (nr || 0); }, 0);
   const ratingVals = withData.filter(d => d.googleRating != null);
   const avgRating = ratingVals.length > 0 ? ratingVals.reduce((s, d) => s + +d.googleRating, 0) / ratingVals.length : null;
   const avgTotalSC = withData.reduce((s, d) => s + (d.serviceChecks || 0), 0);
@@ -3932,7 +3928,6 @@ function renderOps() {
     <td class="cell-${avgSosR.cls}">${avgSosRow != null ? avgSosRow : '--'}</td>
     <td class="cell-${avgVoidsR.cls}">${footVoids != null ? footVoids.toFixed(2) + '%' : '--'}</td>
     <td class="${avgRefClass}">${avgRef != null ? '$' + avgRef.toFixed(2) : '--'}</td>
-    <td>${totalNewRevs > 0 ? '+' + totalNewRevs : '0'}</td>
     <td class="${avgRatingClass}">${avgRating != null ? avgRating.toFixed(1) : '--'}</td>
     <td>${avgTotalSC}</td>
     <td>${avgScore != null ? '<span class="score-badge">' + avgScore + '/' + maxScoreVal + '</span>' : '--'}</td>

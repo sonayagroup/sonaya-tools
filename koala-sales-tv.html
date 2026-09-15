@@ -223,20 +223,27 @@
   .footer-stat .fs-sub { font-size: 1.05vh; color: var(--text-muted); font-weight: 700; margin-top: 2px; }
   .ticker-wrap {
     flex: 1; background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
-    overflow: hidden; display: flex; align-items: center; position: relative; isolation: isolate;
+    overflow: hidden; display: flex; align-items: center; position: relative; isolation: isolate; min-width: 0;
   }
   .ticker-tag {
     flex: 0 0 auto; background: var(--brand-teal); color: #10210a; font-weight: 800; font-size: 1.3vh;
     letter-spacing: 0.08em; text-transform: uppercase; padding: 0 1.4vh; align-self: stretch; display: flex; align-items: center;
     position: relative; z-index: 2; opacity: 1; transform: translateZ(0); backface-visibility: hidden;
   }
+  /* Same width:max-content/translateX(-50%) technique as .rep-ticker-track (see its comment),
+     reusing the same @keyframes rep-ticker-scroll — content is now rendered twice by
+     refreshRecentWins() below, and duration is computed from TICKER_SPEED_PX_PER_SEC so this
+     ticker visibly scrolls at the SAME pace as Gabriel's/Mike's/Frank's, per Pranav 2026-09-15
+     ("speed on the recent wins ticker should match the [rep card] tickers"). Previously this
+     used a flat 32s/padding-left:100%/-100% (the old scroll-left keyframe, now unused) which,
+     same as the rep tickers before their fix, only "worked" by coincidence. */
   .ticker-track {
-    display: flex; white-space: nowrap; animation: scroll-left 32s linear infinite; padding-left: 100%;
+    display: flex; white-space: nowrap; width: max-content; min-width: 0;
+    animation: rep-ticker-scroll 20s linear infinite;
     position: relative; z-index: 1; transform: translateZ(0);
   }
   .ticker-track span { font-size: 1.7vh; font-weight: 600; padding: 0 3vw; color: var(--text-primary); }
   .ticker-track span b { color: var(--brand-teal); }
-  @keyframes scroll-left { from { transform: translateX(0); } to { transform: translateX(-100%); } }
 
   .theme-btn {
     position: fixed; bottom: 10px; right: 10px; opacity: 0.15; background: var(--surface-card); color: var(--text-secondary);
@@ -991,11 +998,16 @@
     const data = await fetchJSON(fnUrl('recentclosed', { from, through }));
     const jobs = (data.jobs || []).slice(0, 10);
     const track = document.getElementById('tickerTrack');
-    if (jobs.length) {
-      track.innerHTML = jobs.map(j => `<span>🏆 <b>${escapeHtml(j.name)}</b>${j.rep && j.rep !== '(Unassigned)' ? ' — ' + escapeHtml(j.rep) : ''} — ${fmtMoney(j.value)}</span>`).join('');
-    } else {
-      track.innerHTML = '<span>No recently closed jobs in ServiceMinder yet this cycle — keep pushing 💪</span>';
-    }
+    const html = jobs.length
+      ? jobs.map(j => `<span>🏆 <b>${escapeHtml(j.name)}</b>${j.rep && j.rep !== '(Unassigned)' ? ' — ' + escapeHtml(j.rep) : ''} — ${fmtMoney(j.value)}</span>`).join('')
+      : '<span>No recently closed jobs in ServiceMinder yet this cycle — keep pushing 💪</span>';
+    // Doubled content + speed-derived duration — same technique and the same
+    // TICKER_SPEED_PX_PER_SEC constant as renderBidTicker(), so this ticker scrolls at the
+    // identical visual pace as the rep-card tickers regardless of how many jobs are listed.
+    track.innerHTML = html + html;
+    const singleCopyWidth = track.scrollWidth / 2;
+    const duration = Math.max(TICKER_MIN_DURATION_S, singleCopyWidth / TICKER_SPEED_PX_PER_SEC);
+    track.style.animationDuration = duration.toFixed(2) + 's';
   }
 
   function escapeHtml(s) {

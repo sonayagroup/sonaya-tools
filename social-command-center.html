@@ -5098,21 +5098,58 @@ function generateCaptionVariations({ brandName, platformName, pillarName, title,
     return text; // casual
   }
 
+  // 3 distinct body paragraphs per brand so long-form isn't the same every time
+  const bodies = isDT ? [
+    `Made fresh in New Mexico. Every day, every order. Real ingredients, real people, and a menu that goes way beyond what you'd expect from a drive-thru.`,
+    `We've been feeding Albuquerque since day one. Green chile that actually hits, a kitchen that doesn't cut corners, and a crew that treats every order like it matters — because it does.`,
+    `This isn't a chain pretending to be local. We live here. We eat here. And everything on the menu reflects that — from our Hatch green chile to our fresh-cracked eggs.`
+  ] : [
+    `Your home's comfort starts where you can't see it. We use thermal imaging to show you exactly what's happening in your attic, walls, and crawlspace — then we fix it. Locally owned, personally accountable.`,
+    `Most insulation companies give you a quote and leave. We show up with a thermal camera, walk you through every finding, and only recommend what actually makes a difference on your energy bill.`,
+    `We're a local crew that treats your house like our own. No pressure, no upsells — just honest assessments, quality materials, and work we stand behind long after we leave.`
+  ];
+
+  // --- Build 3 structurally different captions ---
   return [0, 1, 2].map(i => {
     const h = hook(i);
     const c = cta(i);
     let text;
+
     if (length === 'short') {
-      text = toneWrap(`${h} ${c}`);
+      // V1: hook + CTA  |  V2: CTA-first  |  V3: merged single line
+      if (i === 0) text = `${h} ${c}`;
+      else if (i === 1) text = `${c} ${h}`;
+      else text = h.endsWith('?') ? `${h} ${c}` : `${h} — ${c.toLowerCase().replace(/^comment|^tag|^tap/i, m => m.toLowerCase())}`;
+
     } else if (length === 'long') {
-      const body = isDT
-        ? `Made fresh in New Mexico. Every day, every order. This is what sets us apart — real ingredients, real people, and a menu that goes way beyond what you\'d expect from a drive-thru.`
-        : `Your home\'s comfort starts where you can\'t see it. We use thermal imaging to show you exactly what\'s happening in your attic, walls, and crawlspace — then we fix it. Locally owned, personally accountable.`;
-      text = toneWrap(`${h}\n\n${body}\n\n${c}\n\n${hashtags}`);
-    } else { // medium
-      text = toneWrap(`${h}\n\n${c}\n\n${hashtags}`);
+      // V1: Hook → body → CTA  |  V2: Question + body → CTA  |  V3: Story structure
+      if (i === 0) {
+        text = `${h}\n\n${bodies[0]}\n\n${c}\n\n${hashtags}`;
+      } else if (i === 1) {
+        text = `${bodies[1]}\n\n${h}\n\n${c}\n\n${hashtags}`;
+      } else {
+        text = `${h}\n\n${bodies[2]}\n\n${c}\n\n${hashtags}`;
+      }
+
+    } else { // medium — the most common selection
+      // V1: Hook → CTA → hashtags  |  V2: One-liner + hashtags  |  V3: Micro-story + CTA
+      if (i === 0) {
+        text = `${h}\n\n${c}\n\n${hashtags}`;
+      } else if (i === 1) {
+        // Compact: hook and CTA woven together, then hashtags
+        const bridge = isDT
+          ? `Every bite tells you we're different.`
+          : `It's not just insulation — it's how your home feels every day.`;
+        text = `${h}\n\n${bridge} ${c}\n\n${hashtags}`;
+      } else {
+        // Flip: CTA first, hook as the closer
+        const kicker = isDT
+          ? `Because good food deserves real attention.`
+          : `Because your home deserves better than guesswork.`;
+        text = `${c}\n\n${h} ${kicker}\n\n${hashtags}`;
+      }
     }
-    return text;
+    return toneWrap(text);
   });
 }
 

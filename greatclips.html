@@ -410,6 +410,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
     <div class="recap-q"><label>What actionable items did you take this week to work on these metrics?</label><textarea id="q_actions"></textarea></div>
     <div class="recap-q"><label>What actions have you completed to add more floor hours in the short term and long term?</label><textarea id="q_floorhours"></textarea></div>
     <div class="recap-q"><label>Are schedules up to date and entered?</label><textarea id="q_schedules"></textarea></div>
+    <div class="recap-q"><label>Are all stylists licenses posted and current with a color photo and is the current business license and establishment license posted?</label><select id="q_licenses_posted" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:9px 10px;font:inherit;font-size:13px;background:#fcfdfe"><option value="">— Select —</option><option value="yes">Yes</option><option value="no">No</option></select></div>
   </div>
 </section>
 
@@ -748,12 +749,12 @@ function computeWTD(){
 // --- Supabase recaps (read + upsert) ---
 function supaHeaders(extra){return Object.assign({apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},extra||{});}
 function mapRecapRow(x){return {salonId:x.salon_id,weekEnding:x.week_ending,areaManager:x.area_manager,
-  actions:x.actions,floorhours:x.floorhours,schedules:x.schedules,cphdays:x.cphdays,stylistflags:x.stylistflags,
+  actions:x.actions,floorhours:x.floorhours,schedules:x.schedules,licenses_posted:x.licenses_posted,cphdays:x.cphdays,stylistflags:x.stylistflags,
   quality:x.quality,reach:x.reach,updatedBy:x.updated_by,updatedAt:x.updated_at,status:x.status||'final'};}
 function fetchRecaps(){ if(!supaReady())return Promise.resolve([]);
   return fetch(SUPA_URL+"/rest/v1/recaps?select=*",{headers:supaHeaders()}).then(r=>r.ok?r.json():[]).then(rows=>(rows||[]).map(mapRecapRow)).catch(()=>[]);}
 function upsertRecap(p){ if(!supaReady())return Promise.reject(new Error("Supabase not configured yet (add your URL + anon key)"));
-  const body={salon_id:p.salon,week_ending:p.week,area_manager:p.areaManager||"",actions:p.actions||"",floorhours:p.floorhours||"",schedules:p.schedules||"",cphdays:p.cphdays||"",stylistflags:p.stylistflags||"",quality:p.quality||"",reach:p.reach||"",updated_by:p.updatedBy||"",updated_at:new Date().toISOString(),status:p.status||"final"};
+  const body={salon_id:p.salon,week_ending:p.week,area_manager:p.areaManager||"",actions:p.actions||"",floorhours:p.floorhours||"",schedules:p.schedules||"",licenses_posted:p.licenses_posted||"",cphdays:p.cphdays||"",stylistflags:p.stylistflags||"",quality:p.quality||"",reach:p.reach||"",updated_by:p.updatedBy||"",updated_at:new Date().toISOString(),status:p.status||"final"};
   return fetch(SUPA_URL+"/rest/v1/recaps",{method:"POST",headers:supaHeaders({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(body)})
     .then(r=>{if(!r.ok)throw new Error("save failed ("+r.status+")");return {ok:true};});}
 
@@ -1864,6 +1865,7 @@ function renderRecap(){
   const wk=$("#recapWeek").value||curWeek||lastFriday();$("#recapWeek").value=wk;
   const r=recaps.find(x=>String(x.salonId)===String(id)&&String(x.weekEnding)===String(wk))||{};
   ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(el)el.value=r[k]||"";});
+  const lpSel=$("#q_licenses_posted");if(lpSel)lpSel.value=r.licenses_posted||"";
   const isDraft=r.status==='draft';
   $("#recapBanner").innerHTML=isDraft?'<div style="background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:8px">📝 <strong>Draft</strong> — this recap has not been finalized yet</div>':(r.status==='final'&&r.updatedAt?'<div style="background:#d1fae5;color:#065f46;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:8px">✓ <strong>Finalized</strong> '+new Date(r.updatedAt).toLocaleString()+'</div>':'');
   $("#recapMsg").innerHTML=r.updatedAt?'<span style="color:var(--muted)">last saved '+new Date(r.updatedAt).toLocaleString()+(r.updatedBy?" by "+r.updatedBy:"")+(isDraft?" (draft)":"")+'</span>':"";
@@ -1876,8 +1878,9 @@ function doRecapSave(status){
     // --- validate all fields are filled ---
     document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));
     const missing=[];
-    const labels={actions:"Actionable items",floorhours:"Floor hours actions",schedules:"Schedules up to date"};
+    const labels={actions:"Actionable items",floorhours:"Floor hours actions",schedules:"Schedules up to date",licenses_posted:"Licenses posted & current"};
     ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(!el.value.trim()){missing.push(labels[k]);el.classList.add('recap-missing');}});
+    const lpEl=$("#q_licenses_posted");if(!lpEl.value){missing.push(labels.licenses_posted);lpEl.classList.add('recap-missing');}
     document.querySelectorAll('#oosSection textarea[data-oos]').forEach(t=>{if(!t.value.trim()){missing.push((t.dataset.cat==="kpi"?"KPI explanation":"Stylist flag")+": "+t.dataset.key);t.classList.add('recap-missing');}});
     document.querySelectorAll('#oosSection select[data-yn]').forEach(s=>{if(!s.value){const lbl=(s.dataset.cat==="qc"?"Quality Connection":"REACH")+": "+s.dataset.key;missing.push(lbl);s.classList.add('recap-missing');}});
     if(missing.length){const first=document.querySelector('.recap-missing');if(first)first.scrollIntoView({behavior:'smooth',block:'center'});alert("Please fill out all fields before submitting.\n\nMissing:\n• "+missing.join("\n• "));return;}
@@ -1885,6 +1888,7 @@ function doRecapSave(status){
   }else{document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));}
   const p={salon:id,week:wk,areaManager:"",updatedBy:"",status:status};
   ["actions","floorhours","schedules"].forEach(k=>p[k]=$("#q_"+k).value);
+  p.licenses_posted=$("#q_licenses_posted").value;
   const oos=collectOOS();p.cphdays=oos.cphdays;p.stylistflags=oos.stylistflags;p.quality=oos.quality;p.reach=oos.reach;
   const m=$("#recapMsg");m.textContent="Saving…";m.style.color="var(--muted)";
   upsertRecap(p).then(j=>{if(j.ok){m.textContent=status==='draft'?"✓ Draft saved":"✓ Finalized";m.style.color=GREEN;loadRecaps().then(()=>renderRecap());}else{m.textContent="Error: "+(j.error||"save failed");m.style.color=RED;}}).catch(e=>{m.textContent="Error: "+e.message;m.style.color=RED;});

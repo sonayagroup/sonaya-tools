@@ -79,6 +79,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .btn-danger{background:var(--critical);color:#fff}
 .btn-danger:hover{opacity:.9}
 .btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text-secondary)}.btn-outline:hover{background:var(--bg-hover);color:var(--text-primary)}
 .btn-icon{padding:6px 8px;background:none;color:var(--text-muted)}
 .btn-icon:hover{color:var(--text-primary);background:var(--surface-2)}
 
@@ -691,7 +692,7 @@ function renderKPIRow(openWO, emergWO, allWO){
 function renderDashboard(){
   $('#page-title').textContent='Dashboard';
   $('#topbar-actions').innerHTML='';
-  const wo = cache.dt_work_orders||[];
+  const wo = (cache.dt_work_orders||[]).filter(w=>!w.archived);
   const eq = cache.dt_equipment||[];
   const pm = cache.dt_pm_schedules||[];
   const costs = cache.dt_work_order_costs||[];
@@ -776,9 +777,12 @@ function renderDashboard(){
 function renderWorkOrders(){
   $('#page-title').textContent='Work Orders';
   $('#topbar-actions').innerHTML='<button class="btn btn-primary" onclick="openWOForm()">+ New Work Order</button>';
-  const wo = cache.dt_work_orders||[];
+  const allWoRaw = cache.dt_work_orders||[];
+  const wo = allWoRaw.filter(w=>!w.archived);
+  const archivedWOs = allWoRaw.filter(w=>w.archived);
   const filt = { status:'', location:'', priority:'' };
   let woSort = { col:'created_at', dir:'desc' };
+  let showArchived = false;
   function draw(items){
     const tbl = document.getElementById('wo-table');
     if(!tbl)return;
@@ -804,26 +808,45 @@ function renderWorkOrders(){
       <td>${formatDate(w.due_date)}</td>
       <td><span title="${formatTimestamp(w.created_at)}">${daysAgo(w.created_at)}</span></td>
       <td>
-        <button class="btn-icon btn-sm" onclick="openWOForm('${w.id}')" title="Edit">✏️</button>
-        <button class="btn-icon btn-sm" onclick="deleteWO('${w.id}')" title="Delete">🗑️</button>
+        ${w.archived?`<button class="btn-icon btn-sm" onclick="restoreWO('${w.id}')" title="Restore">♻️</button>`:`<button class="btn-icon btn-sm" onclick="openWOForm('${w.id}')" title="Edit">✏️</button>
+        <button class="btn-icon btn-sm" onclick="deleteWO('${w.id}')" title="Delete">🗑️</button>`}
       </td>
     </tr>`).join('')}</tbody></table>`;
   }
   function applyFilters(){
-    let items = [...wo];
+    let items = showArchived ? [...archivedWOs] : [...wo];
     const s=$('#f-status')?.value, l=$('#f-loc')?.value, p=$('#f-prio')?.value, q=$('#f-search')?.value?.toLowerCase();
     if(s)items=items.filter(w=>w.status===s);
     if(l)items=items.filter(w=>w.location_id===l);
     if(p)items=items.filter(w=>w.priority===p);
-    if(q)items=items.filter(w=>(w.title||'').toLowerCase().includes(q)||(w.description||'').toLowerCase().includes(q));
+    if(q)items=items.filter(w=>(w.title||'').toLowerCase().includes(q)||(w.description||'').toLowerCase().includes(q)||(w.wo_number+'').includes(q));
     draw(items);
   }
+  window._toggleArchived = function(){
+    showArchived = !showArchived;
+    const btn = document.getElementById('archive-toggle');
+    if(btn){
+      btn.textContent = showArchived ? '← Back to Active' : '📦 Archived ('+archivedWOs.length+')';
+      btn.className = showArchived ? 'btn btn-sm' : 'btn btn-sm btn-outline';
+    }
+    const hdr = document.getElementById('wo-section-label');
+    if(hdr) hdr.textContent = showArchived ? 'Archived Work Orders' : 'Work Orders';
+    applyFilters();
+  };
+  window.restoreWO = async function(id){
+    const res = await sb.from('dt_work_orders').update({archived:false,status:'open',updated_at:new Date().toISOString()}).eq('id',id);
+    if(res.error){toast('Error restoring: '+res.error.message,'error');return;}
+    toast('Work order restored to active');
+    await load('dt_work_orders','created_at',false);
+    render();
+  };
   $('#content').innerHTML=`
-    <div class="filter-row">
+    <div class="filter-row" style="align-items:center">
       <input type="text" id="f-search" class="search-input" placeholder="Search work orders..." oninput="this.closest('.content')&&document.getElementById('f-search')&&(${''})">
       <select id="f-status"><option value="">All Statuses</option><option value="open">Open</option><option value="in_progress">In Progress</option><option value="waiting_parts">Waiting Parts</option><option value="waiting_vendor">Waiting Vendor</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select>
       <select id="f-prio"><option value="">All Priorities</option><option value="emergency">Emergency</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
       <select id="f-loc"><option value="">All Locations</option>${(cache.dt_locations||[]).map(l=>`<option value="${l.id}">#${l.store_number} ${l.name}</option>`).join('')}</select>
+      <button id="archive-toggle" class="btn btn-sm btn-outline" onclick="window._toggleArchived()" style="white-space:nowrap">📦 Archived (${archivedWOs.length})</button>
     </div>
     <div class="card"><div class="card-body"><div class="table-scroll" id="wo-table"></div></div></div>`;
   draw(wo);
@@ -878,6 +901,7 @@ window.saveWO = async function(id){
   // Detect transition to completed (not re-saving an already-completed WO)
   const oldWO = id ? (cache.dt_work_orders||[]).find(w=>w.id===id) : null;
   const justCompleted = row.status==='completed' && oldWO && oldWO.status!=='completed';
+  if(justCompleted) row.archived = true;
   if(await upsert('dt_work_orders',row,id||undefined)){
     // Sync assignees in junction table
     const woId = id || (cache.dt_work_orders||[]).find(w=>w.title===row.title&&w.location_id===row.location_id)?.id;
@@ -930,7 +954,7 @@ function renderEquipment(){
   $('#page-title').textContent='Equipment';
   $('#topbar-actions').innerHTML='<button class="btn btn-primary" onclick="openEqForm()">+ Add Equipment</button>';
   const eq = cache.dt_equipment||[];
-  const wo=cache.dt_work_orders||[];
+  const wo=(cache.dt_work_orders||[]).filter(w=>!w.archived);
   $('#content').innerHTML=`
     <div class="filter-row">
       <input type="text" id="eq-search" class="search-input" placeholder="Search equipment...">
@@ -1382,7 +1406,7 @@ function renderLocations(){
   $('#topbar-actions').innerHTML='<button class="btn btn-primary" onclick="openLocForm()">+ Add Location</button>';
   const locs = cache.dt_locations||[];
   const eqCounts={};(cache.dt_equipment||[]).forEach(e=>{eqCounts[e.location_id]=(eqCounts[e.location_id]||0)+1});
-  const woCounts={};(cache.dt_work_orders||[]).filter(w=>w.status!=='completed'&&w.status!=='cancelled').forEach(w=>{woCounts[w.location_id]=(woCounts[w.location_id]||0)+1});
+  const woCounts={};(cache.dt_work_orders||[]).filter(w=>!w.archived&&w.status!=='completed'&&w.status!=='cancelled').forEach(w=>{woCounts[w.location_id]=(woCounts[w.location_id]||0)+1});
   $('#content').innerHTML=`<div class="card"><div class="card-body"><div class="table-scroll">
     ${locs.length===0?'<div class="empty"><div class="icon">📍</div><p>No locations yet. Add your first Del Taco location.</p><button class="btn btn-primary" onclick="openLocForm()">+ Add Location</button></div>':
     `<table><thead><tr><th>Store#</th><th>Name</th><th>Address</th><th>Manager</th><th>Phone</th><th>Equipment</th><th>Open WOs</th><th>Status</th><th></th></tr></thead><tbody>

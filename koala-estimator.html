@@ -820,7 +820,11 @@ body.customer-mode .customer-total-box { display: block; }
             <option value="densepack">Dense Pack</option>
             <option value="netblow">Net &amp; Blow</option>
             <option value="removal">Removal</option>
+            <option value="metal">Metal Building</option>
+            <option value="shed">Storage Shed</option>
+            <option value="other">Other</option>
           </select>
+          <input type="text" id="jobTypeOther" placeholder="Enter job type..." style="display:none;margin-top:4px;font-size:.85rem" oninput="scheduleAutoSave()">
         </div>
         <div class="field">
           <label>Target R-Value</label>
@@ -1118,6 +1122,9 @@ const JOB_AUTO_SUPPLIES = {
   densepack: [{ name: 'Insulweb (cellulose)', qty: 1 }],
   netblow:   [{ name: 'Insulweb (cellulose)', qty: 1 }],
   removal:   [{ name: 'Dumpster', qty: 1 }, { name: 'Removal Bags', qty: 10 }, { name: 'N95 Mask', qty: 4 }],
+  metal:     [],
+  shed:      [],
+  other:     [],
 };
 
 const TRIP_RATE_PER_MILE = 2.00;
@@ -1474,6 +1481,7 @@ function duplicateOption() {
     marginOverride: marginCb?.checked ? ($(sp + 'marginOverride')?.value || '50') : null,
     jobDetailsOverride: $(sp + 'jobDetailsCheck')?.checked ? {
       jobType: $(sp + 'jobType')?.value || '',
+      jobTypeOther: $(sp + 'jobTypeOther')?.value || '',
       targetR: $(sp + 'targetR')?.value || '',
       framingDepth: $(sp + 'framingDepth')?.value || '',
       studSpacing: $(sp + 'studSpacing')?.value || '',
@@ -1543,6 +1551,10 @@ function duplicateOption() {
     if (cb) { cb.checked = true; toggleJobDetailsOverride(p, true); }
     const jd = srcData.jobDetailsOverride;
     if ($(p + 'jobType')) $(p + 'jobType').value = jd.jobType || '';
+    if ($(p + 'jobTypeOther')) {
+      $(p + 'jobTypeOther').value = jd.jobTypeOther || '';
+      $(p + 'jobTypeOther').style.display = jd.jobType === 'other' ? '' : 'none';
+    }
     if ($(p + 'targetR')) $(p + 'targetR').value = jd.targetR || '';
     if ($(p + 'framingDepth')) $(p + 'framingDepth').value = jd.framingDepth || '';
     if ($(p + 'studSpacing')) $(p + 'studSpacing').value = jd.studSpacing || '';
@@ -1698,13 +1710,17 @@ function buildOptionContainer(opt) {
         <div class="row" style="margin-bottom:6px">
           <div class="field" style="flex:2">
             <label style="font-size:.8rem">Job Type</label>
-            <select id="${p}jobType" onchange="recalc()" style="font-size:.85rem">
+            <select id="${p}jobType" onchange="onOptionJobTypeChange('${p}')" style="font-size:.85rem">
               <option value="">-- Select --</option>
               <option value="attic">Attic Retrofit</option>
               <option value="densepack">Dense Pack</option>
               <option value="netblow">Net &amp; Blow</option>
               <option value="removal">Removal</option>
+              <option value="metal">Metal Building</option>
+              <option value="shed">Storage Shed</option>
+              <option value="other">Other</option>
             </select>
+            <input type="text" id="${p}jobTypeOther" placeholder="Enter job type..." style="display:none;margin-top:4px;font-size:.85rem" oninput="scheduleAutoSave()">
           </div>
           <div class="field">
             <label style="font-size:.8rem">Target R-Value</label>
@@ -2192,8 +2208,17 @@ function removeRow(section, trId, id) {
 
 // ─── JOB TYPE AUTO-FILL ─────────────────────────────────────────────────────
 
+function onOptionJobTypeChange(p) {
+  const otherInput = $(p + 'jobTypeOther');
+  if (otherInput) otherInput.style.display = $(p + 'jobType').value === 'other' ? '' : 'none';
+  recalc();
+}
+
 function onJobTypeChange() {
   const jobType = $('jobType').value;
+  // Show/hide "Other" text input
+  const otherInput = $('jobTypeOther');
+  if (otherInput) otherInput.style.display = jobType === 'other' ? '' : 'none';
   // Auto-fill misc supplies for every option
   options.forEach((opt, idx) => {
     const p = optPrefixFor(opt);
@@ -2912,6 +2937,7 @@ function serializeForm() {
     custPhone: $('custPhone').value,
     custEmail: $('custEmail').value,
     jobType: $('jobType').value,
+    jobTypeOther: $('jobTypeOther')?.value || '',
     targetR: $('targetR').value,
     framingDepth: $('framingDepth').value,
     studSpacing: $('studSpacing').value,
@@ -2933,6 +2959,7 @@ function serializeForm() {
       marginOverride: marginCb?.checked ? ($(p + 'marginOverride')?.value || '50') : null,
       jobDetailsOverride: $(p + 'jobDetailsCheck')?.checked ? {
         jobType: $(p + 'jobType')?.value || '',
+        jobTypeOther: $(p + 'jobTypeOther')?.value || '',
         targetR: $(p + 'targetR')?.value || '',
         framingDepth: $(p + 'framingDepth')?.value || '',
         studSpacing: $(p + 'studSpacing')?.value || '',
@@ -3024,6 +3051,10 @@ function deserializeForm(data) {
   $('custEmail').value = data.custEmail || '';
   $('leadSource').value = data.leadSource || '';
   $('jobType').value = data.jobType || '';
+  if ($('jobTypeOther')) {
+    $('jobTypeOther').value = data.jobTypeOther || '';
+    $('jobTypeOther').style.display = data.jobType === 'other' ? '' : 'none';
+  }
   $('targetR').value = data.targetR || '';
   $('framingDepth').value = data.framingDepth || '';
   $('studSpacing').value = data.studSpacing || '';
@@ -3064,6 +3095,10 @@ function deserializeForm(data) {
       if (cb) { cb.checked = true; toggleJobDetailsOverride(p, true); }
       const jd = optData.jobDetailsOverride;
       if ($(p + 'jobType')) $(p + 'jobType').value = jd.jobType || '';
+      if ($(p + 'jobTypeOther')) {
+        $(p + 'jobTypeOther').value = jd.jobTypeOther || '';
+        $(p + 'jobTypeOther').style.display = jd.jobType === 'other' ? '' : 'none';
+      }
       if ($(p + 'targetR')) $(p + 'targetR').value = jd.targetR || '';
       if ($(p + 'framingDepth')) $(p + 'framingDepth').value = jd.framingDepth || '';
       if ($(p + 'studSpacing')) $(p + 'studSpacing').value = jd.studSpacing || '';

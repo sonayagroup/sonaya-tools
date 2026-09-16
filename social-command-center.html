@@ -3818,11 +3818,28 @@ function generateBrief(postId) {
   rows.forEach(([k,v]) => { tableHtml += `<tr style="border-bottom:1px solid var(--surface-border)"><td style="padding:8px 10px;font-weight:600;color:var(--ink-3);width:140px;vertical-align:top">${k}</td><td style="padding:8px 10px;color:var(--ink-1);white-space:pre-wrap">${escHtml(v)}</td></tr>`; });
   tableHtml += `</table>`;
   const panel = document.getElementById('modal-panel'); panel.classList.add('wide');
-  panel.innerHTML = `<div class="modal-header"><span class="modal-title">&#128203; Production Brief</span><button class="modal-close" onclick="closeModal()">&#10005;</button></div><div class="modal-body" style="padding:16px 20px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div><p style="color:var(--ink-3);font-size:12px">Generated ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p></div><div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" onclick="copyBrief()">&#128203; Copy</button><button class="btn btn-ghost btn-sm" onclick="printBrief()">&#128424; Print</button></div></div><div id="brief-content" style="background:var(--surface-0);border:1px solid var(--surface-border);border-radius:var(--r-md);padding:16px">${tableHtml}</div></div><div class="modal-footer"><button class="btn btn-ghost" onclick="openPostModal('${postId}')">&#8592; Back to Post</button><div style="flex:1"></div><button class="btn btn-ghost" onclick="closeModal()">Close</button></div>`;
+  panel.innerHTML = `<div class="modal-header"><span class="modal-title">&#128203; Production Brief</span><button class="modal-close" onclick="closeModal()">&#10005;</button></div><div class="modal-body" style="padding:16px 20px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div><p style="color:var(--ink-3);font-size:12px">Generated ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p></div><div style="display:flex;gap:6px"><button id="brief-edit-btn" class="btn btn-ghost btn-sm" onclick="toggleBriefEdit()">&#9998; Edit</button><button class="btn btn-ghost btn-sm" onclick="copyBrief()">&#128203; Copy</button><button class="btn btn-ghost btn-sm" onclick="printBrief()">&#128424; Print</button></div></div><div id="brief-content" style="background:var(--surface-0);border:1px solid var(--surface-border);border-radius:var(--r-md);padding:16px">${tableHtml}</div></div><div class="modal-footer"><button class="btn btn-ghost" onclick="openPostModal('${postId}')">&#8592; Back to Post</button><div style="flex:1"></div><button class="btn btn-ghost" onclick="closeModal()">Close</button></div>`;
   document.getElementById('modal-overlay').hidden = false;
 }
 function copyBrief() { const el = document.getElementById('brief-content'); if (!el) return; let text='=== PRODUCTION BRIEF ===\n\n'; el.querySelectorAll('tr').forEach(row => { const cells = row.querySelectorAll('td'); if (cells.length===2) text += cells[0].textContent.trim()+': '+cells[1].textContent.trim()+'\n'; }); text += '\n=== END BRIEF ==='; navigator.clipboard.writeText(text).then(() => showToast('Brief copied to clipboard','success')).catch(() => showToast('Select text and copy manually','info')); }
 function printBrief() { const el = document.getElementById('brief-content'); if (!el) return; const win = window.open('','_blank','width=800,height=600'); win.document.write(`<!DOCTYPE html><html><head><title>Production Brief</title><style>body{font-family:'DM Sans',system-ui,sans-serif;margin:24px;color:#1a1a1a}table{width:100%;border-collapse:collapse}td{padding:8px 10px;border-bottom:1px solid #e5e7eb}td:first-child{font-weight:600;color:#555;width:140px}@media print{body{margin:12px}}</style></head><body><h2 style="font-family:Outfit,sans-serif;margin:0 0 16px">Production Brief</h2>${el.innerHTML}</body></html>`); win.document.close(); setTimeout(() => win.print(), 300); }
+function toggleBriefEdit() {
+  const el = document.getElementById('brief-content'); if (!el) return;
+  const btn = document.getElementById('brief-edit-btn');
+  const cells = el.querySelectorAll('tr td:last-child');
+  const isEditing = cells[0]?.contentEditable === 'true';
+  cells.forEach(td => {
+    td.contentEditable = isEditing ? 'false' : 'true';
+    td.style.outline = isEditing ? '' : '1px dashed var(--accent)';
+    td.style.borderRadius = isEditing ? '' : '4px';
+    td.style.minHeight = isEditing ? '' : '24px';
+  });
+  btn.innerHTML = isEditing ? '&#9998; Edit' : '&#10003; Done';
+  btn.style.background = isEditing ? '' : 'var(--accent-soft)';
+  btn.style.color = isEditing ? '' : 'var(--accent-ink)';
+  if (isEditing) showToast('Editing done — changes will be included when you Copy or Print', 'success');
+  else showToast('Click any value to edit it before printing', 'info');
+}
 
 // ══════════════════════════════════════════════
 // CRUD OPERATIONS

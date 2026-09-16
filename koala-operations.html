@@ -540,8 +540,8 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     </div>
     <div class="store-table-wrap">
       <table class="store-table" id="adminUsersTable">
-        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Added</th><th></th></tr></thead>
-        <tbody id="adminUsersTbody"><tr><td colspan="6" class="modal-status">Loading users…</td></tr></tbody>
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Follow-up emails</th><th>Added</th><th></th></tr></thead>
+        <tbody id="adminUsersTbody"><tr><td colspan="7" class="modal-status">Loading users…</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -808,14 +808,16 @@ function adminRoleBadge(role) {
 
 async function renderAdminUsersTab() {
   const tbody = document.getElementById('adminUsersTbody');
-  tbody.innerHTML = `<tr><td colspan="6" class="modal-status">Loading users…</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="7" class="modal-status">Loading users…</td></tr>`;
   try {
     const { users } = await callAdminUsersEdge('list');
-    if (!users.length) { tbody.innerHTML = `<tr><td colspan="6" class="modal-status">No users yet.</td></tr>`; return; }
+    if (!users.length) { tbody.innerHTML = `<tr><td colspan="7" class="modal-status">No users yet.</td></tr>`; return; }
     tbody.innerHTML = users.map(u => {
       const isSelf = u.id === currentUser.id;
       const created = u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
       const statusHtml = `<span class="${u.is_active ? 'admin-status-active' : 'admin-status-inactive'}">${u.is_active ? 'Active' : 'Deactivated'}</span>`;
+      const notifyHtml = `<span class="${u.notify_crm_followups ? 'admin-status-active' : 'admin-status-inactive'}">${u.notify_crm_followups ? 'On' : 'Off'}</span>
+          <button class="crm-btn crm-btn-secondary" style="padding:3px 8px;font-size:11.5px;margin-left:6px;" onclick="handleAdminToggleNotify('${u.id}',${!!u.notify_crm_followups})">Turn ${u.notify_crm_followups ? 'off' : 'on'}</button>`;
       const actions = isSelf
         ? `<span style="color:var(--text-muted); font-size:11.5px;">(you)</span>`
         : `
@@ -828,12 +830,13 @@ async function renderAdminUsersTab() {
         <td>${crmEsc(u.email)}</td>
         <td>${adminRoleBadge(u.role)}</td>
         <td>${statusHtml}</td>
+        <td style="white-space:nowrap;">${notifyHtml}</td>
         <td>${created}</td>
         <td style="white-space:nowrap;">${actions}</td>
       </tr>`;
     }).join('');
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="6" class="modal-status">Could not load users: ${crmEsc(err.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="modal-status">Could not load users: ${crmEsc(err.message)}</td></tr>`;
   }
 }
 
@@ -844,6 +847,10 @@ async function handleAdminToggleRole(userId, newRole) {
 async function handleAdminToggleActive(userId, isActive) {
   try { await callAdminUsersEdge('update', { body: { user_id: userId, is_active: !isActive } }); await renderAdminUsersTab(); }
   catch (err) { alert('Could not update status: ' + err.message); }
+}
+async function handleAdminToggleNotify(userId, current) {
+  try { await callAdminUsersEdge('update', { body: { user_id: userId, notify_crm_followups: !current } }); await renderAdminUsersTab(); }
+  catch (err) { alert('Could not update notification setting: ' + err.message); }
 }
 async function handleAdminResetPassword(userId, email) {
   if (!confirm(`Reset the password for ${email}? They'll be emailed a new temporary password.`)) return;

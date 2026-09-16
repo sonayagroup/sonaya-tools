@@ -192,10 +192,30 @@ tbody tr:hover { background: var(--green-light); }
 }
 .price-cell:hover .select-btn { display: block; }
 .price-cell.selected .select-btn { display: block; background: var(--navy); color: #fff; }
+.price-cell .edit-sup-btn {
+  display: none; position: absolute; top: 50%; left: 4px;
+  transform: translateY(-50%);
+  background: none; border: none; cursor: pointer;
+  font-size: .75rem; color: var(--text-muted); padding: 2px 4px;
+  z-index: 2;
+}
+.price-cell:hover .edit-sup-btn { display: block; }
+.price-cell .edit-sup-btn:hover { color: var(--navy); }
 
 /* Current price col */
 .current-price { font-weight: 700; color: var(--navy); }
 .current-source { font-size: .7rem; color: var(--text-muted); display: block; }
+.current-price-cell { cursor: pointer; position: relative; }
+.current-price-cell:hover { background: rgba(4,57,104,.04); }
+.current-price-cell:hover .current-price { text-decoration: underline; }
+
+/* Row edit button */
+.row-edit-btn {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; padding: 4px 8px; font-size: .8rem; color: var(--text-muted);
+  transition: all .15s;
+}
+.row-edit-btn:hover { background: var(--navy); color: #fff; border-color: var(--navy); }
 
 /* Coverage col */
 .coverage-val { font-size: .82rem; }
@@ -477,7 +497,7 @@ tbody tr:hover { background: var(--green-light); }
 
   <!-- Filter bar -->
   <div class="filter-bar">
-    <input type="text" id="searchInput" placeholder="Search products..." oninput="renderTable()">
+    <input type="text" id="searchInput" placeholder="Search products..." oninput="renderTable()" autocomplete="off">
     <select id="categoryFilter" onchange="renderTable()">
       <option value="">All Categories</option>
       <option value="Insulation">Insulation</option>
@@ -539,6 +559,7 @@ tbody tr:hover { background: var(--green-light); }
           <th class="supplier-col">Cameron Ashley</th>
           <th class="supplier-col">Lowe's</th>
           <th class="supplier-col">Misc</th>
+          <th style="width:40px"></th>
         </tr>
       </thead>
       <tbody id="pricingBody"></tbody>
@@ -936,7 +957,21 @@ function renderTable() {
       covHtml += `<div class="prod-detail" style="color:var(--green-dark);font-weight:600">$${perSf}/${perUnitLabel}</div>`;
     }
     html += `<td class="coverage-val">${covHtml}</td>`;
-    html += `<td><span class="current-price">${currentPrice > 0 ? '$' + fmt(currentPrice) : '—'}</span>`;
+
+    // Find active supplier product for edit actions
+    let activeSupProd = null;
+    if (currentSource) {
+      const srcMatches = matches[currentSource] || [];
+      const srcWithPrice = srcMatches.filter(p => p.unit_price > 0);
+      activeSupProd = srcWithPrice.length ? srcWithPrice.reduce((a, b) => a.unit_price < b.unit_price ? a : b) : srcMatches[0];
+    }
+
+    if (activeSupProd && currentPrice > 0) {
+      html += `<td class="current-price-cell" onclick="openEditModal('${activeSupProd.id}','${esc(item.product_type)}','${currentSource}',${activeSupProd.unit_price},${activeSupProd.coverage_sqft || 0})" title="Click to edit price">`;
+    } else {
+      html += `<td>`;
+    }
+    html += `<span class="current-price">${currentPrice > 0 ? '$' + fmt(currentPrice) : '—'}</span>`;
     html += `<span class="current-source">${currentSource ? SUPPLIER_LABELS[currentSource] || currentSource : 'not set'}</span></td>`;
 
     for (const sup of SUPPLIERS) {
@@ -952,16 +987,23 @@ function renderTable() {
         if (isSelected) cls.push('selected');
         if (isLowest) cls.push('lowest-price');
         if (isHighest) cls.push('highest-price');
-        html += `<td class="${cls.join(' ')}" ondblclick="openEditModal('${prod.id}','${esc(item.product_type)}','${sup}',${prod.unit_price},${prod.coverage_sqft || 0})" title="Double-click to edit price">`;
+        html += `<td class="${cls.join(' ')}">`;
         html += `<span class="price-val">$${fmt(prod.unit_price)}</span>`;
         if (prod.coverage_sqft > 0) html += `<span class="price-sqft">${prod.coverage_sqft}${covUnit}</span>`;
         html += `<button class="select-btn" onclick="event.stopPropagation();selectSource('${item.id}','${sup}',${prod.unit_price},${prod.coverage_sqft || 0},${prod.price_per_sqft || 0})">${isSelected ? '✓' : 'Use'}</button>`;
+        html += `<button class="edit-sup-btn" onclick="event.stopPropagation();openEditModal('${prod.id}','${esc(item.product_type)}','${sup}',${prod.unit_price},${prod.coverage_sqft || 0})" title="Edit ${SUPPLIER_LABELS[sup] || sup} price">&#9998;</button>`;
         html += `</td>`;
       } else if (prod) {
         html += `<td class="price-cell no-price">avail</td>`;
       } else {
         html += `<td class="price-cell no-price">—</td>`;
       }
+    }
+    // Edit button column
+    if (activeSupProd) {
+      html += `<td style="text-align:center"><button class="row-edit-btn" onclick="openEditModal('${activeSupProd.id}','${esc(item.product_type)}','${currentSource}',${activeSupProd.unit_price},${activeSupProd.coverage_sqft || 0})" title="Edit price">&#9998;</button></td>`;
+    } else {
+      html += `<td></td>`;
     }
     html += `</tr>`;
   }

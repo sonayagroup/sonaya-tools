@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.09.16B -->
+<!-- v2026.09.16C -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -782,6 +782,30 @@ body {
   .crm-controls select, .crm-controls input { width: 100%; }
   .crm-stats { flex-direction: column; }
 }
+.crm-add-btn { padding: 6px 14px; background: #0a7c42; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.crm-add-btn:hover { background: #086835; }
+.crm-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.crm-modal { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+.crm-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.crm-modal-close { background: none; border: none; font-size: 22px; color: var(--text-secondary); cursor: pointer; padding: 0 4px; line-height: 1; }
+.crm-modal-close:hover { color: #ED1C2E; }
+.crm-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 20px; }
+.crm-form-group { display: flex; flex-direction: column; gap: 4px; }
+.crm-form-group label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.crm-form-group input, .crm-form-group select, .crm-form-group textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-primary); font-size: 13px; font-family: inherit; }
+.crm-form-group input:focus, .crm-form-group select:focus, .crm-form-group textarea:focus { outline: none; border-color: #ED1C2E; box-shadow: 0 0 0 2px rgba(237,28,46,0.15); }
+.crm-form-wide { grid-column: 1 / -1; }
+.crm-req { color: #ED1C2E; }
+.crm-form-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--border); }
+.crm-btn-cancel { padding: 8px 18px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 600; cursor: pointer; }
+.crm-btn-cancel:hover { background: var(--border); }
+.crm-btn-save { padding: 8px 18px; border: none; border-radius: 6px; background: #0a7c42; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+.crm-btn-save:hover { background: #086835; }
+.crm-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+@media(max-width:600px) {
+  .crm-form-grid { grid-template-columns: 1fr; }
+  .crm-modal { max-width: 100%; }
+}
 </style>
 </head>
 <body>
@@ -1293,7 +1317,10 @@ body {
         <h2 style="margin:0; font-size:20px; color:var(--text-primary);">Catering Outreach CRM</h2>
         <p style="margin:4px 0 0; font-size:13px; color:var(--text-secondary);">Track catering outreach calls to local businesses near each Del Taco location.</p>
       </div>
-      <a class="crm-flyer-link" href="https://deltaco.com/catering" target="_blank">&#128196; Catering Menu</a>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="crm-add-btn" onclick="openAddCRM()">+ Add Business</button>
+        <a class="crm-flyer-link" href="https://deltaco.com/catering" target="_blank">&#128196; Catering Menu</a>
+      </div>
     </div>
 
     <div class="crm-stats" id="crmStats"></div>
@@ -1340,6 +1367,79 @@ body {
       </table>
     </div>
     <div style="text-align:center; padding:16px; color:var(--text-secondary); font-size:13px;" id="crmEmpty" style="display:none;">No businesses match your filters.</div>
+  </div>
+</div>
+
+<!-- Add Business Modal -->
+<div class="crm-modal-overlay" id="crmModal" style="display:none;" onclick="if(event.target===this)closeCRMModal()">
+  <div class="crm-modal">
+    <div class="crm-modal-header">
+      <h3 style="margin:0;font-size:18px;">Add New Business</h3>
+      <button class="crm-modal-close" onclick="closeCRMModal()">&times;</button>
+    </div>
+    <form id="crmAddForm" onsubmit="return submitCRMAdd(event)">
+      <div class="crm-form-grid">
+        <div class="crm-form-group crm-form-wide">
+          <label>Business Name <span class="crm-req">*</span></label>
+          <input type="text" id="crmF_name" required placeholder="e.g. Holiday Inn Express">
+        </div>
+        <div class="crm-form-group crm-form-wide">
+          <label>Address</label>
+          <input type="text" id="crmF_address" placeholder="e.g. 1234 Main St NW, ABQ 87110">
+        </div>
+        <div class="crm-form-group">
+          <label>Phone</label>
+          <input type="tel" id="crmF_phone" placeholder="(505) 555-1234">
+        </div>
+        <div class="crm-form-group">
+          <label>Category <span class="crm-req">*</span></label>
+          <select id="crmF_category" required>
+            <option value="">Select category...</option>
+          </select>
+        </div>
+        <div class="crm-form-group">
+          <label>Nearest Store <span class="crm-req">*</span></label>
+          <select id="crmF_store" required>
+            <option value="">Select store...</option>
+          </select>
+        </div>
+        <div class="crm-form-group">
+          <label>Assigned To</label>
+          <select id="crmF_assigned">
+            <option value="">—</option>
+          </select>
+        </div>
+        <div class="crm-form-group">
+          <label>Contact Name</label>
+          <input type="text" id="crmF_contact" placeholder="Contact person name">
+        </div>
+        <div class="crm-form-group">
+          <label>Contact Position</label>
+          <input type="text" id="crmF_position" placeholder="e.g. Manager, Office Admin">
+        </div>
+        <div class="crm-form-group">
+          <label>Contact Email</label>
+          <input type="email" id="crmF_email" placeholder="email@example.com">
+        </div>
+        <div class="crm-form-group">
+          <label>Status</label>
+          <select id="crmF_status">
+            <option value="not_called">Not Called</option>
+            <option value="called">Called</option>
+            <option value="interested">Interested</option>
+            <option value="email_sent">Email Sent</option>
+          </select>
+        </div>
+        <div class="crm-form-group crm-form-wide">
+          <label>Notes</label>
+          <textarea id="crmF_notes" rows="2" placeholder="Any additional notes..."></textarea>
+        </div>
+      </div>
+      <div class="crm-form-actions">
+        <button type="button" class="crm-btn-cancel" onclick="closeCRMModal()">Cancel</button>
+        <button type="submit" class="crm-btn-save" id="crmSaveBtn">Save Business</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -6963,6 +7063,69 @@ async function saveCRMField(id, field, value) {
       prefer: 'return=minimal'
     });
   } catch(e) { console.error('CRM field save error:', e); }
+}
+
+// --- Add Business Modal ---
+function openAddCRM() {
+  const catSel = document.getElementById('crmF_category');
+  const storeSel = document.getElementById('crmF_store');
+  const assignSel = document.getElementById('crmF_assigned');
+  // Populate categories
+  catSel.innerHTML = '<option value="">Select category...</option>' +
+    CRM_CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
+  // Populate stores
+  storeSel.innerHTML = '<option value="">Select store...</option>' +
+    STORES.map(s => `<option value="${s.id}">#${s.id} ${s.name}</option>`).join('');
+  // Populate assigned-to
+  assignSel.innerHTML = '<option value="">—</option>' +
+    CRM_USERS.map(u => `<option value="${u}">${u}</option>`).join('');
+  // Reset form and show
+  document.getElementById('crmAddForm').reset();
+  document.getElementById('crmModal').style.display = 'flex';
+}
+function closeCRMModal() {
+  document.getElementById('crmModal').style.display = 'none';
+  document.getElementById('crmAddForm').reset();
+}
+async function submitCRMAdd(e) {
+  e.preventDefault();
+  const btn = document.getElementById('crmSaveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  const record = {
+    business_name: document.getElementById('crmF_name').value.trim(),
+    address: document.getElementById('crmF_address').value.trim() || null,
+    phone: document.getElementById('crmF_phone').value.trim() || null,
+    category: document.getElementById('crmF_category').value,
+    store_id: document.getElementById('crmF_store').value,
+    assigned_to: document.getElementById('crmF_assigned').value || '',
+    contact_name: document.getElementById('crmF_contact').value.trim() || '',
+    contact_position: document.getElementById('crmF_position').value.trim() || '',
+    contact_email: document.getElementById('crmF_email').value.trim() || '',
+    status: document.getElementById('crmF_status').value,
+    notes: document.getElementById('crmF_notes').value.trim() || ''
+  };
+  try {
+    const res = await sbFetch('dt_catering_crm', {
+      method: 'POST',
+      body: JSON.stringify(record),
+      prefer: 'return=representation'
+    });
+    if (res && res.length) {
+      crmState.data.push(res[0]);
+    } else {
+      // Reload all data as fallback
+      await loadCateringCRM();
+    }
+    closeCRMModal();
+    renderCRM();
+  } catch(err) {
+    console.error('CRM add error:', err);
+    alert('Failed to save business. Please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save Business';
+  }
 }
 
 // Load CRM when tab is clicked

@@ -590,7 +590,10 @@
       decided++;
       if (WON_STATUSES.has(status)) won++;
     }
-    return { sent, closeRate: decided > 0 ? won / decided : null, decided, won };
+    // Close rate = won / sent (not won / decided) — per Pranav 2026-09-16: still-open estimates
+    // should count against the rate, not be excluded from it, so it isn't inflated early in a
+    // week/month when most of what's been sent hasn't been decided yet.
+    return { sent, closeRate: sent > 0 ? won / sent : null, decided, won };
   }
 
   // How many whole Mountain-Time calendar days ago a ServiceMinder "sent" date was, relative to
@@ -854,25 +857,27 @@
     const onbooks = await fetchJSON(fnUrl('onthebooks', {}));
     allProposalsCache = onbooks.allProposals || null;
 
-    let teamDecided = 0, teamWon = 0;
+    // Close rate = won / sent (see repFunnelStats) — accumulate sent/won here to match, not
+    // decided/won, so still-open estimates count against the team rate too.
+    let teamSent = 0, teamWon = 0;
     REPS.forEach(rep => {
       const card = document.getElementById(`repCard-${rep.key}`);
       const stats = repFunnelStats(rep.fullName, weekStart);
       el(card, 'closerate').textContent = fmtPct(stats.closeRate);
       el(card, 'sent').textContent = stats.sent === null ? '—' : stats.sent;
-      if (stats.decided) { teamDecided += stats.decided; teamWon += stats.won; }
+      if (stats.sent) { teamSent += stats.sent; teamWon += stats.won; }
       // Still-open estimates sent in the last 7 days — follow-up nudge, mirrors Frank's stale strip.
       renderBidTicker(el(card, 'followup-ticker-wrap'), el(card, 'followup-ticker'), repRecentOpenBids(rep.fullName, 7));
     });
-    document.getElementById('teamCloseRate').textContent = teamDecided ? fmtPct(teamWon / teamDecided) : '—';
+    document.getElementById('teamCloseRate').textContent = teamSent ? fmtPct(teamWon / teamSent) : '—';
 
     // MTD team close rate (footer)
-    let mtdDecided = 0, mtdWon = 0;
+    let mtdSent = 0, mtdWon = 0;
     REPS.forEach(rep => {
       const s = repFunnelStats(rep.fullName, monthStart);
-      if (s.decided) { mtdDecided += s.decided; mtdWon += s.won; }
+      if (s.sent) { mtdSent += s.sent; mtdWon += s.won; }
     });
-    document.getElementById('mtdCloseRate').textContent = mtdDecided ? fmtPct(mtdWon / mtdDecided) : '—';
+    document.getElementById('mtdCloseRate').textContent = mtdSent ? fmtPct(mtdWon / mtdSent) : '—';
 
     // ---- Frank Emanuel (commercial) close rate / bids sent / open pipeline ----
     const frankStats = repFunnelStats('Frank Emanuel', monthStart);

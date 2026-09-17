@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.09.17A -->
+<!-- v2026.09.17C -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -928,39 +928,9 @@ body {
     <!-- Breakdowns Row -->
     <div class="charts-grid" style="margin-bottom:24px;">
       <div class="chart-card">
-        <h3>Contact Method</h3>
-        <p class="chart-subtitle">How customers reached out</p>
-        <div id="scMethodBreakdown" style="padding:8px 0;"></div>
-      </div>
-      <div class="chart-card">
-        <h3>Category Breakdown</h3>
-        <p class="chart-subtitle">Type of contact received</p>
-        <div id="scCategoryBreakdown" style="padding:8px 0;"></div>
-      </div>
-    </div>
-    <div class="charts-grid" style="margin-bottom:24px;">
-      <div class="chart-card">
         <h3>Business Segment</h3>
         <p class="chart-subtitle">Where contacts originated</p>
         <div id="scSegmentBreakdown" style="padding:8px 0;"></div>
-      </div>
-      <div class="chart-card">
-        <h3>Retention Status</h3>
-        <p class="chart-subtitle">Open vs closed contacts</p>
-        <div id="scRetention" style="padding:12px 0;"></div>
-      </div>
-    </div>
-
-    <div class="chart-card" style="margin-bottom:24px;">
-      <h3>Top Problem Issues</h3>
-      <p class="chart-subtitle">Most common problem categories this week</p>
-      <div class="store-table-wrap" style="border:none;box-shadow:none;">
-        <table class="store-table" id="scIssuesTable">
-          <thead>
-            <tr><th>Issue Category</th><th>Count</th><th>Impact</th></tr>
-          </thead>
-          <tbody id="scIssuesBody"></tbody>
-        </table>
       </div>
     </div>
     <div class="charts-grid">
@@ -982,9 +952,26 @@ body {
         <h3>Executive Summary</h3>
         <p class="chart-subtitle">ServiceCheck contacts overview (rolling period)</p>
         <div id="execKpis"></div>
+        <div class="charts-grid" style="margin:16px 0;">
+          <div>
+            <h4 style="font-size:14px;color:var(--text-secondary);margin:0 0 8px;">Category Breakdown</h4>
+            <div id="scCategoryBreakdown" style="padding:8px 0;"></div>
+          </div>
+          <div>
+            <h4 style="font-size:14px;color:var(--text-secondary);margin:0 0 8px;">Top Problem Issues</h4>
+            <div class="store-table-wrap" style="border:none;box-shadow:none;">
+              <table class="store-table" id="scIssuesTable">
+                <thead>
+                  <tr><th>Issue Category</th><th>Count</th><th>Impact</th></tr>
+                </thead>
+                <tbody id="scIssuesBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
         <h4 style="font-size:14px;color:var(--text-secondary);margin:16px 0 8px;">Monthly Contact Trend</h4>
         <div class="chart-area" id="execTrendChart"></div>
-        <h4 style="font-size:14px;color:var(--text-secondary);margin:16px 0 8px;">Top Problems</h4>
+        <h4 style="font-size:14px;color:var(--text-secondary);margin:16px 0 8px;">Top Problems (Period)</h4>
         <div id="execTopProblems"></div>
       </div>
     </div>
@@ -3619,7 +3606,8 @@ function getFoodData(weekEnd) {
     const dollarVar = actualCost - theoryCost;
     const theoryPct = +(rng(26, 32, i*8+3)).toFixed(1);
     const actualPct = +(theoryPct + variancePct).toFixed(1);
-    return { storeId: s.id, storeName: s.name, weekEnd, theoryCost, actualCost, dollarVar, variancePct, theoryPct, actualPct, _real: false };
+    const grossSales = theoryPct > 0 ? Math.round(theoryCost / (theoryPct / 100)) : 0;
+    return { storeId: s.id, storeName: s.name, weekEnd, theoryCost, actualCost, dollarVar, variancePct, theoryPct, actualPct, grossSales, _real: false };
   });
 }
 
@@ -3696,7 +3684,7 @@ function getWeeksForPeriod(periodStr) {
   const m = periodStr.match(/P(\d+)/);
   if (!m) return [];
   const pNum = parseInt(m[1]);
-  const fyStart = new Date('2025-10-01T12:00:00'); // first week_ending of FY2026
+  const fyStart = new Date('2025-09-30T12:00:00'); // first week_ending of FY2026 (Tuesday)
   const weeks = [];
   for (let w = 0; w < 4; w++) {
     const d = new Date(fyStart);
@@ -3718,7 +3706,10 @@ function getFoodDataForPeriod(periodStr) {
       accum[d.storeId].theoryCost += d.theoryCost;
       accum[d.storeId].actualCost += d.actualCost;
       accum[d.storeId].dollarVar += d.dollarVar;
-      accum[d.storeId].grossSales += (d.grossSales || 0);
+      // Use explicit grossSales if available, otherwise back-calculate from theoryPct
+      const wkGross = (d.grossSales && d.grossSales > 0) ? d.grossSales
+        : (d.theoryPct > 0 ? Math.round(d.theoryCost / (d.theoryPct / 100)) : 0);
+      accum[d.storeId].grossSales += wkGross;
       accum[d.storeId].count++;
       if (d._real) hasReal = true;
     });
@@ -4553,24 +4544,8 @@ function renderSC() {
   renderSCBarChart('chartSCByStore', chartData);
   renderSCTrendChart();
 
-  // Contact Method & Category breakdown
-  const methodEl = document.getElementById('scMethodBreakdown');
+  // Category breakdown (now in Executive Summary section)
   const catEl = document.getElementById('scCategoryBreakdown');
-  if (methodEl && scData.byMethod) {
-    const methods = Object.entries(scData.byMethod);
-    methodEl.innerHTML = methods.map(([m, count]) => {
-      const label = m.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-      const pct = totalAll > 0 ? (count / totalAll * 100).toFixed(0) : 0;
-      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-        <span style="min-width:90px;font-size:13px;color:var(--text-secondary)">${label}</span>
-        <div style="flex:1;height:18px;background:var(--surface-input);border-radius:4px;overflow:hidden;">
-          <div style="height:100%;width:${pct}%;background:var(--cat-1);border-radius:4px;min-width:2px;"></div>
-        </div>
-        <span style="font-size:12px;font-weight:600;color:var(--text-primary);min-width:44px;text-align:right">${count} (${pct}%)</span>
-      </div>`;
-    }).join('');
-  } else if (methodEl) { methodEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No method data</p>'; }
-
   if (catEl && scData.byCategory) {
     const cats = Object.entries(scData.byCategory).sort((a,b) => b[1] - a[1]);
     const catColors = ['var(--cat-1)','var(--cat-2)','var(--cat-3)','var(--cat-4)','var(--cat-5)'];
@@ -4603,21 +4578,6 @@ function renderSC() {
       </div>`;
     }).join('');
   } else if (segEl) { segEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No segment data</p>'; }
-
-  // Retention
-  const retEl = document.getElementById('scRetention');
-  if (retEl && scData.retention) {
-    const total = Object.values(scData.retention).reduce((a,b) => a+b, 0);
-    retEl.innerHTML = Object.entries(scData.retention).map(([status, count]) => {
-      const color = status === 'closed' ? 'var(--status-good)' : 'var(--status-warn)';
-      return `<div style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;padding:8px 16px;border-radius:8px;background:var(--surface-input);">
-        <span style="width:10px;height:10px;border-radius:50%;background:${color};"></span>
-        <span style="font-size:13px;color:var(--text-secondary);text-transform:capitalize">${status}</span>
-        <span style="font-size:16px;font-weight:700;color:var(--text-primary)">${count}</span>
-        <span style="font-size:11px;color:var(--text-muted)">(${total > 0 ? (count/total*100).toFixed(0) : 0}%)</span>
-      </div>`;
-    }).join('');
-  } else if (retEl) { retEl.innerHTML = ''; }
 
   // Executive Summary
   renderExecSummary();

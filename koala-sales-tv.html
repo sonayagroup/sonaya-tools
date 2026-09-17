@@ -969,11 +969,20 @@
     markSynced();
   }
 
+  // Compact "2p" / "2:30p" time label, mirrors crmFmtTimeShort() in koala-operations.html.
+  function tvFmtTimeShort(dueTime) {
+    if (!dueTime) return '';
+    const [hh, mm] = dueTime.split(':').map(Number);
+    const h12 = hh % 12 === 0 ? 12 : hh % 12;
+    const ampm = hh < 12 ? 'a' : 'p';
+    return mm === 0 ? `${h12}${ampm}` : `${h12}:${String(mm).padStart(2, '0')}${ampm}`;
+  }
+
   // ---- CRM: open estimates + follow-ups + stale, from crm_deals ----
   async function refreshCRM() {
     const todayISO = todayLocalISO();
     const rows = await fetchJSON(
-      restUrl('crm_deals', 'select=name,stage,reps,due_date,due_complete,last_activity_at&archived=not.is.true&limit=2000'),
+      restUrl('crm_deals', 'select=name,stage,reps,due_date,due_time,due_complete,last_activity_at&archived=not.is.true&limit=2000'),
       { headers: REST_HEADERS }
     );
 
@@ -987,10 +996,17 @@
       if (OPEN_STAGES.has(d.stage)) openEstimates++;
       if (d.last_activity_at && new Date(d.last_activity_at) < ninetyDaysAgo && !TERMINAL_STAGES.has(d.stage)) stale++;
       if (d.due_date && d.due_complete !== true) {
-        const due = new Date(d.due_date + 'T00:00:00');
-        const today = new Date(todayISO + 'T00:00:00');
-        const diffDays = Math.round((today - due) / 86400000);
-        if (diffDays >= 0) followups.push({ name: d.name, reps: d.reps || [], diffDays });
+        // due_time (2026-09-17, per Pranav) makes this precise: a deal due "2pm" today only counts
+        // as due once 2pm actually passes, instead of the whole calendar day counting from
+        // midnight. No due_time set keeps the original date-only (midnight) behavior. Mirrors
+        // crmDueBadge() in koala-operations.html and the koala-crm-followup-reminder edge function.
+        const deadlineInstant = new Date(d.due_date + 'T' + (d.due_time ? d.due_time.slice(0, 5) : '00:00') + ':00');
+        if (deadlineInstant.getTime() <= Date.now()) {
+          const due = new Date(d.due_date + 'T00:00:00');
+          const today = new Date(todayISO + 'T00:00:00');
+          const diffDays = Math.round((today - due) / 86400000);
+          followups.push({ name: d.name, reps: d.reps || [], diffDays, dueTime: d.due_time });
+        }
       }
     }
     followups.sort((a, b) => b.diffDays - a.diffDays);
@@ -1007,7 +1023,7 @@
       // needs to be truncated with a "+N more" line anymore.
       list.innerHTML = followups.map(f => {
         const who = (f.reps || []).map(r => r.split(' ').map(w => w[0]).join('')).join(', ');
-        const when = f.diffDays === 0 ? 'Due today' : `${f.diffDays}d overdue`;
+        const when = f.diffDays === 0 ? ('Due today' + (f.dueTime ? ' · ' + tvFmtTimeShort(f.dueTime) : '')) : `${f.diffDays}d overdue`;
         const whenClass = f.diffDays === 0 ? 'today' : '';
         return `<li><span class="followup-name">${escapeHtml(f.name)}${who ? ' — ' + who : ''}</span><span class="followup-when ${whenClass}">${when}</span></li>`;
       }).join('');

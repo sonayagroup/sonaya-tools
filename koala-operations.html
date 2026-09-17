@@ -2339,12 +2339,28 @@ function crmAgeBadge(days) {
   const cls = days >= 90 ? 'crm-age-stale' : days >= 30 ? 'crm-age-warm' : 'crm-age-fresh';
   return `<span class="crm-age-badge ${cls}">${days}d</span>`;
 }
-function crmDueBadge(dueDate, dueComplete) {
+// Compact "2p" / "2:30p" time label \u2014 keeps the due badge pill short. dueTime is the "HH:MM" (or
+// "HH:MM:SS", from PostgREST) time-of-day string; returns '' when not set.
+function crmFmtTimeShort(dueTime) {
+  if (!dueTime) return '';
+  const [hh, mm] = dueTime.split(':').map(Number);
+  const h12 = hh % 12 === 0 ? 12 : hh % 12;
+  const ampm = hh < 12 ? 'a' : 'p';
+  return mm === 0 ? `${h12}${ampm}` : `${h12}:${String(mm).padStart(2, '0')}${ampm}`;
+}
+// due_time (added 2026-09-17, per Pranav) makes the deadline precise: a deal due "2pm" isn't
+// overdue until 2pm actually passes, instead of the whole calendar day counting as overdue from
+// midnight. A deal with no due_time keeps the original date-only behavior (overdue from midnight
+// of due_date) \u2014 see the due_time column comment. This same due_date+due_time combination logic
+// is mirrored in koala-sales-tv.html's refreshCRM() and the koala-crm-followup-reminder edge
+// function; keep all three in sync if this changes.
+function crmDueBadge(dueDate, dueComplete, dueTime) {
   if (!dueDate) return '';
-  const d = new Date(dueDate + 'T00:00:00');
+  const d = new Date(dueDate + 'T' + (dueTime ? dueTime.slice(0, 5) : '00:00') + ':00');
   const isOverdue = !dueComplete && d.getTime() < Date.now();
-  const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return `<span class="crm-due-badge${isOverdue ? ' crm-due-overdue' : ''}">${isOverdue ? '\u26a0 ' : ''}${label}</span>`;
+  const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const timeLabel = dueTime ? `, ${crmFmtTimeShort(dueTime)}` : '';
+  return `<span class="crm-due-badge${isOverdue ? ' crm-due-overdue' : ''}">${isOverdue ? '\u26a0 ' : ''}${dateLabel}${timeLabel}</span>`;
 }
 function crmKnownReps() {
   const set = new Set();
@@ -2390,7 +2406,7 @@ function renderCrmBoards() {
   }
 }
 function crmCardHtml(d) {
-  const due = crmDueBadge(d.due_date, d.due_complete);
+  const due = crmDueBadge(d.due_date, d.due_complete, d.due_time);
   const age = crmAgeBadge(crmDaysStale(d.last_activity_at));
   const valueHtml = d.value != null ? `<div class="crm-card-value">${fmtMoneyCompact(d.value)}</div>` : '';
   const notesIcon = d.notes && d.notes.trim()
@@ -2506,8 +2522,9 @@ function openCrmDealModal(id, presetStage) {
     <datalist id="crmRepList">${crmKnownReps().map(r => `<option value="${crmEsc(r)}">`).join('')}</datalist>
     <div class="crm-form-grid">
       <div class="crm-form-row"><label>Due Date</label><input class="crm-form-input" id="crmFDue" type="date" value="${deal && deal.due_date ? deal.due_date : ''}"></div>
-      <div class="crm-form-row"><label>&nbsp;</label><label class="crm-form-check"><input type="checkbox" id="crmFDueComplete" ${deal && deal.due_complete ? 'checked' : ''}> Due date complete</label></div>
+      <div class="crm-form-row"><label>Due Time <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label><input class="crm-form-input" id="crmFDueTime" type="time" value="${deal && deal.due_time ? deal.due_time.slice(0, 5) : ''}"></div>
     </div>
+    <div class="crm-form-row"><label class="crm-form-check"><input type="checkbox" id="crmFDueComplete" ${deal && deal.due_complete ? 'checked' : ''}> Due date complete</label></div>
     <div class="crm-form-row"><label>Notes</label><textarea class="crm-form-textarea" id="crmFNotes" placeholder="Optional">${crmEsc(deal ? deal.notes || '' : '')}</textarea></div>
     <div class="crm-form-error" id="crmFormError" style="display:none;"></div>
     ${isEdit ? `<div class="crm-form-row"><label>Activity</label><div class="crm-activity-panel" id="crmActivityPanel"></div></div>` : ''}
@@ -2534,6 +2551,10 @@ async function crmSaveCurrentDeal() {
   const repsRaw = document.getElementById('crmFReps').value.trim();
   const reps = repsRaw ? repsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
   const dueDate = document.getElementById('crmFDue').value || null;
+  const dueTimeRaw = document.getElementById('crmFDueTime').value || null;
+  // A due_time with no due_date is meaningless (and the "time" input can't be filled in without a
+  // date picked first anyway per the UI order) — only persist it alongside a real due_date.
+  const dueTime = dueDate ? dueTimeRaw : null;
   const dueComplete = document.getElementById('crmFDueComplete').checked;
   const notes = document.getElementById('crmFNotes').value.trim() || null;
   const nowIso = new Date().toISOString();
@@ -2542,7 +2563,7 @@ async function crmSaveCurrentDeal() {
   try {
     if (crmEditingId) {
       const existing = crmDeals.find(d => d.id === crmEditingId);
-      const patch = { name, stage, reps, value, due_date: dueDate, due_complete: dueComplete, notes, updated_at: nowIso, last_activity_at: nowIso };
+      const patch = { name, stage, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, notes, updated_at: nowIso, last_activity_at: nowIso };
       if (existing && existing.stage !== stage) {
         const groups = crmDealsByStage();
         const target = groups[stage] || [];
@@ -2558,6 +2579,8 @@ async function crmSaveCurrentDeal() {
         const newReps = reps.join(', ');
         if (existingReps !== newReps) changes.push(`Rep(s): ${existingReps || '—'} → ${newReps || '—'}`);
         if ((existing.due_date || null) !== dueDate) changes.push(`Due date: ${existing.due_date || '—'} → ${dueDate || '—'}`);
+        const existingDueTime = existing.due_time ? existing.due_time.slice(0, 5) : null;
+        if (existingDueTime !== dueTime) changes.push(`Due time: ${existingDueTime || '—'} → ${dueTime || '—'}`);
         if (!!existing.due_complete !== dueComplete) changes.push(`Due complete: ${dueComplete ? 'yes' : 'no'}`);
         if ((existing.notes || '') !== (notes || '')) changes.push('Notes updated');
         if (changes.length) {
@@ -2568,7 +2591,7 @@ async function crmSaveCurrentDeal() {
       const groups = crmDealsByStage();
       const target = groups[stage] || [];
       const position = target.length ? Math.max(...target.map(d => d.position)) + 1 : 0;
-      const created = await crmCreateDeal({ name, stage, reps, value, due_date: dueDate, due_complete: dueComplete, notes, position, last_activity_at: nowIso });
+      const created = await crmCreateDeal({ name, stage, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, notes, position, last_activity_at: nowIso });
       await crmLogActivity(created.id, 'created', `Deal created in ${stage}${reps.length ? ' — assigned to ' + reps.join(', ') : ''}`);
     }
     closeCrmStageModal();
@@ -2604,7 +2627,7 @@ function openCrmStageModal(stageName) {
     <td>${d.reps && d.reps.length ? crmEsc(d.reps.join(', ')) : '<span style="color:var(--text-muted);">unassigned</span>'}</td>
     <td>${d.value != null ? fmtMoney(d.value) : '\u2014'}</td>
     <td>${crmDaysStale(d.last_activity_at)}d ago</td>
-    <td>${d.due_date || '\u2014'}</td>
+    <td>${d.due_date ? d.due_date + (d.due_time ? ', ' + crmFmtTimeShort(d.due_time) : '') : '\u2014'}</td>
   </tr>`).join('');
   document.getElementById('crmStageModalBody').innerHTML = `
     <div class="store-table-wrap" style="margin-bottom:0;">

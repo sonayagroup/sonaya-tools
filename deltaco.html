@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.09.17D -->
+<!-- v2026.09.17E -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -1195,19 +1195,45 @@ body {
     <!-- Break-Even Trend -->
     <div style="margin-top:24px;">
       <div class="chart-card" style="max-width:100%;">
-        <h3>Break-Even Trajectory</h3>
-        <p class="chart-subtitle" id="beTrendSubtitle">Monthly cushion/(gap) progression — cumulative YTD average</p>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h3 style="margin:0;">Break-Even Trajectory</h3>
+            <p class="chart-subtitle" id="beTrendSubtitle" style="margin:4px 0 0;">Monthly cushion/(gap) progression — cumulative YTD average</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);">
+            <label>From</label>
+            <select id="beTrendStart" onchange="renderBeTrend()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);">
+              <option value="0">Jan</option><option value="1">Feb</option><option value="2">Mar</option><option value="3">Apr</option>
+              <option value="4">May</option><option value="5">Jun</option><option value="6">Jul</option><option value="7">Aug</option>
+            </select>
+            <label>To</label>
+            <select id="beTrendEnd" onchange="renderBeTrend()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);">
+              <option value="0">Jan</option><option value="1">Feb</option><option value="2">Mar</option><option value="3">Apr</option>
+              <option value="4">May</option><option value="5">Jun</option><option value="6">Jul</option><option value="7" selected>Aug</option>
+            </select>
+          </div>
+        </div>
         <div id="beTrendChart" style="margin-top:12px;"></div>
         <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">
-          Each point shows the store's avg monthly cushion/(gap) vs break-even if only data through that month were used. An upward trend means the store is moving further above break-even; downward means it's losing margin. Break-even includes corporate overhead ($4,278/store/mo).
+          Each point shows the store's avg monthly cushion/(gap) vs break-even using data through that month. Upward = improving margin; downward = losing margin. Includes corporate overhead ($4,278/store/mo).
         </p>
       </div>
     </div>
     <!-- Sales Trending & Forecasting -->
     <div style="margin-top:24px;">
       <div class="chart-card" style="max-width:100%;">
-        <h3>Sales Trending &amp; Momentum</h3>
-        <p class="chart-subtitle" id="salesTrendSubtitle">Rolling 4-week net sales trends with momentum indicators</p>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h3 style="margin:0;">Sales Trending &amp; Momentum</h3>
+            <p class="chart-subtitle" id="salesTrendSubtitle" style="margin:4px 0 0;">Rolling 4-week net sales trends with momentum indicators</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);">
+            <label>From</label>
+            <input type="date" id="salesTrendStart" onchange="renderSalesTrend()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);">
+            <label>To</label>
+            <input type="date" id="salesTrendEnd" onchange="renderSalesTrend()" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);">
+          </div>
+        </div>
         <div id="salesTrendChart" style="margin-top:12px;"></div>
         <div id="salesMomentumTable" style="margin-top:16px;"></div>
       </div>
@@ -5543,8 +5569,8 @@ function renderBreakeven() {
 
 /* ===== BREAK-EVEN TREND CHART ===== */
 const STORE_COLORS = [
-  '#4e79a7','#f28e2b','#e15759','#76b7b2','#59a14f',
-  '#edc948','#b07aa1','#ff9da7','#9c755f','#bab0ac'
+  '#2563eb','#ea580c','#dc2626','#0d9488','#16a34a',
+  '#ca8a04','#9333ea','#e11d48','#78716c','#64748b'
 ];
 
 function renderBeTrend() {
@@ -5553,16 +5579,23 @@ function renderBeTrend() {
   const pl = dataStore.breakevenPL;
   if (!pl || !pl.periods) { el.innerHTML = '<p style="color:var(--text-muted)">No break-even data available.</p>'; return; }
   const corpOH = pl.corpOverheadPerStore;
-  const monthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
-  const numMonths = 8;
+  const allMonthLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
+  const totalAvail = 8;
 
-  // Get per-store varCostPct and fixedPerMonth from the breakeven config (weighted avg)
+  // Read month range from selectors
+  const startSel = document.getElementById('beTrendStart');
+  const endSel = document.getElementById('beTrendEnd');
+  const mStart = startSel ? parseInt(startSel.value) || 0 : 0;
+  const mEnd = endSel ? Math.max(parseInt(endSel.value) || totalAvail - 1, mStart) : totalAvail - 1;
+  const monthLabels = allMonthLabels.slice(mStart, mEnd + 1);
+  const numMonths = mEnd + 1; // still compute cumulative through mEnd
+
   const be = computeBreakeven();
   if (!be) { el.innerHTML = '<p style="color:var(--text-muted)">No break-even data available.</p>'; return; }
 
   const filterStore = state.finStore && state.finStore !== 'all' ? state.finStore : null;
 
-  // Build trend data: for each store, compute cumulative avg revenue at each month boundary
+  // Build trend data per store — only show mStart..mEnd range
   const storeTrends = {};
   STORES.forEach(st => {
     if (filterStore && st.id !== filterStore) return;
@@ -5573,20 +5606,22 @@ function renderBeTrend() {
     const cm = (100 - stBE.varCostPct) / 100;
     if (cm <= 0) return;
     const beIncl = (stBE.fixedPerMonth + corpOH) / cm;
-    const points = [];
+    const allPts = [];
     let cumSales = 0;
     for (let m = 0; m < Math.min(numMonths, monthly.length); m++) {
       cumSales += monthly[m].sales;
       const avgRev = cumSales / (m + 1);
-      points.push(avgRev - beIncl);
+      allPts.push(avgRev - beIncl);
     }
-    storeTrends[st.id] = points;
+    // Slice to display range
+    const points = allPts.slice(mStart, mEnd + 1);
+    if (points.length > 0) storeTrends[st.id] = points;
   });
 
   const storeIds = Object.keys(storeTrends);
   if (storeIds.length === 0) { el.innerHTML = '<p style="color:var(--text-muted)">No data for selected store.</p>'; return; }
 
-  // Forecast: if single store, extend 2 months via linear regression on last 4 points
+  // Forecast for single store
   let forecastPts = null;
   if (filterStore && storeTrends[filterStore]) {
     const pts = storeTrends[filterStore];
@@ -5601,66 +5636,91 @@ function renderBeTrend() {
     const slope = (useN * sumXY - sumX * sumY) / (useN * sumX2 - sumX * sumX);
     const intercept = (sumY - slope * sumX) / useN;
     forecastPts = [];
-    for (let m = n; m < n + 2; m++) {
-      forecastPts.push(intercept + slope * m);
-    }
+    for (let m = n; m < n + 2; m++) forecastPts.push(intercept + slope * m);
   }
 
-  // Chart dimensions
-  const W = 600, H = 300;
-  const pad = { top: 20, right: 20, bottom: 50, left: 75 };
+  // Sort stores by final value for better readability (top performers first)
+  storeIds.sort((a, b) => {
+    const aLast = storeTrends[a][storeTrends[a].length - 1];
+    const bLast = storeTrends[b][storeTrends[b].length - 1];
+    return bLast - aLast;
+  });
+
+  // Chart dimensions — full width, taller
+  const W = 900, H = 380;
+  const pad = { top: 24, right: 140, bottom: 40, left: 72 };
   const cW = W - pad.left - pad.right, cH = H - pad.top - pad.bottom;
   const totalLabels = forecastPts ? numMonths + 2 : numMonths;
   const allLabels = [...monthLabels];
-  if (forecastPts) { allLabels.push('Sep*', 'Oct*'); }
+  if (forecastPts) allLabels.push('Sep*', 'Oct*');
 
-  // Compute Y range
+  // Y range
   let allVals = [];
   storeIds.forEach(sid => { allVals = allVals.concat(storeTrends[sid]); });
   if (forecastPts) allVals = allVals.concat(forecastPts);
   allVals.push(0);
   let minV = Math.min(...allVals), maxV = Math.max(...allVals);
-  const yPad = (maxV - minV) * 0.1 || 1000;
+  const yPad = (maxV - minV) * 0.08 || 1000;
   minV -= yPad; maxV += yPad;
 
   const xScale = (i) => pad.left + (i / (totalLabels - 1)) * cW;
   const yScale = (v) => pad.top + cH - ((v - minV) / (maxV - minV)) * cH;
 
-  // Y-axis ticks
-  const nTicks = 5;
-  const tickStep = (maxV - minV) / nTicks;
-  let yTicks = '';
-  for (let i = 0; i <= nTicks; i++) {
-    const v = minV + tickStep * i;
-    const y = yScale(v);
-    yTicks += `<line x1="${pad.left}" y1="${y}" x2="${pad.left + cW}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="${v === 0 ? 'none' : '2,2'}"/>`;
-    yTicks += `<text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="10">${v >= 0 ? '+' : ''}${fmtDollar(v)}</text>`;
+  // Format Y labels as $XK
+  function fmtYAxis(v) {
+    const abs = Math.abs(v);
+    if (abs >= 1000) return (v >= 0 ? '+$' : '-$') + (abs / 1000).toFixed(0) + 'K';
+    return (v >= 0 ? '+$' : '-$') + abs.toFixed(0);
   }
 
-  // Zero line
+  // Nice Y-axis ticks
+  const rawStep = (maxV - minV) / 5;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const niceStep = [1, 2, 5, 10].map(m => m * mag).find(s => s >= rawStep) || rawStep;
+  const tickStart = Math.ceil(minV / niceStep) * niceStep;
+  let gridLines = '';
+  for (let v = tickStart; v <= maxV; v += niceStep) {
+    const y = yScale(v);
+    const isZero = Math.abs(v) < niceStep * 0.1;
+    gridLines += `<line x1="${pad.left}" y1="${y}" x2="${pad.left + cW}" y2="${y}" stroke="${isZero ? 'var(--text-muted)' : 'var(--border)'}" stroke-width="${isZero ? 0 : 0.5}" stroke-dasharray="${isZero ? '' : '3,3'}"/>`;
+    gridLines += `<text x="${pad.left - 10}" y="${y + 4}" text-anchor="end" fill="var(--text-muted)" font-size="11" font-variant-numeric="tabular-nums">${fmtYAxis(v)}</text>`;
+  }
+
+  // Zero line — prominent
   const zeroY = yScale(0);
-  let zeroLine = `<line x1="${pad.left}" y1="${zeroY}" x2="${pad.left + cW}" y2="${zeroY}" stroke="var(--text-muted)" stroke-width="1.5" stroke-dasharray="6,3"/>`;
+  const zeroLine = `<line x1="${pad.left}" y1="${zeroY}" x2="${pad.left + cW}" y2="${zeroY}" stroke="var(--text-secondary)" stroke-width="1.5"/>
+    <text x="${pad.left - 10}" y="${zeroY + 4}" text-anchor="end" fill="var(--text-secondary)" font-size="11" font-weight="600">$0</text>
+    <text x="${pad.left + cW + 6}" y="${zeroY + 4}" fill="var(--text-muted)" font-size="10">Break-even</text>`;
+
+  // Shade above/below zero
+  const shading = `<rect x="${pad.left}" y="${pad.top}" width="${cW}" height="${zeroY - pad.top}" fill="var(--delta-up-good)" opacity="0.03"/>
+    <rect x="${pad.left}" y="${zeroY}" width="${cW}" height="${pad.top + cH - zeroY}" fill="var(--delta-down-bad)" opacity="0.03"/>`;
 
   // X-axis labels
   let xLabels = '';
   allLabels.forEach((lbl, i) => {
-    const x = xScale(i);
-    xLabels += `<text x="${x}" y="${pad.top + cH + 18}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${lbl}</text>`;
+    xLabels += `<text x="${xScale(i)}" y="${pad.top + cH + 20}" text-anchor="middle" fill="var(--text-muted)" font-size="11">${lbl}</text>`;
   });
 
-  // Draw lines
+  // Draw lines + endpoint labels
   let lines = '';
-  storeIds.forEach(sid => {
+  storeIds.forEach((sid, rank) => {
     const pts = storeTrends[sid];
     const colorIdx = STORES.findIndex(s => s.id === sid);
     const color = STORE_COLORS[colorIdx >= 0 ? colorIdx : 0];
-    const strokeW = filterStore ? 2.5 : 1.5;
+    const strokeW = filterStore ? 3 : 2;
     const pathD = pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ');
-    lines += `<path d="${pathD}" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linejoin="round"/>`;
-    // Dots
+    lines += `<path d="${pathD}" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    // Dots on each point
     pts.forEach((v, i) => {
-      lines += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(v).toFixed(1)}" r="${filterStore ? 4 : 2.5}" fill="${color}"/>`;
+      lines += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(v).toFixed(1)}" r="${filterStore ? 4 : 3}" fill="${color}" stroke="var(--bg-card)" stroke-width="1.5"/>`;
     });
+    // Endpoint label (store name + value) — right side of chart
+    const lastV = pts[pts.length - 1];
+    const lastY = yScale(lastV);
+    const stName = STORES.find(s => s.id === sid)?.name || sid;
+    const labelOffset = filterStore ? 8 : 6;
+    lines += `<text x="${xScale(pts.length - 1) + labelOffset}" y="${lastY + 4}" fill="${color}" font-size="11" font-weight="600">${stName}</text>`;
   });
 
   // Forecast dashed line
@@ -5675,42 +5735,22 @@ function renderBeTrend() {
     forecastPts.forEach((v, i) => {
       fd += ` L${xScale(lastRealIdx + 1 + i).toFixed(1)},${yScale(v).toFixed(1)}`;
     });
-    forecastLine = `<path d="${fd}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="6,4" opacity="0.7"/>`;
+    forecastLine = `<path d="${fd}" fill="none" stroke="${color}" stroke-width="2" stroke-dasharray="6,4" opacity="0.6"/>`;
     forecastPts.forEach((v, i) => {
-      forecastLine += `<circle cx="${xScale(lastRealIdx + 1 + i).toFixed(1)}" cy="${yScale(v).toFixed(1)}" r="3.5" fill="${color}" opacity="0.6" stroke="${color}" stroke-dasharray="3,2"/>`;
+      forecastLine += `<circle cx="${xScale(lastRealIdx + 1 + i).toFixed(1)}" cy="${yScale(v).toFixed(1)}" r="3.5" fill="var(--bg-card)" stroke="${color}" stroke-width="2" stroke-dasharray="3,2" opacity="0.7"/>`;
     });
   }
 
-  // Legend
-  const legendStores = filterStore ? STORES.filter(s => s.id === filterStore) : STORES;
-  let legendX = pad.left;
-  let legendItems = '';
-  const legendY = H - 5;
-  const maxPerRow = 5;
-  legendStores.forEach((st, i) => {
-    if (!storeTrends[st.id]) return;
-    const colorIdx = STORES.findIndex(s => s.id === st.id);
-    const color = STORE_COLORS[colorIdx >= 0 ? colorIdx : 0];
-    const row = Math.floor(i / maxPerRow);
-    const col = i % maxPerRow;
-    const lx = pad.left + col * 110;
-    const ly = legendY + row * 14;
-    legendItems += `<rect x="${lx}" y="${ly - 6}" width="10" height="10" rx="2" fill="${color}"/>`;
-    legendItems += `<text x="${lx + 14}" y="${ly + 3}" fill="var(--text-secondary)" font-size="10">${st.name} (${st.id})</text>`;
-  });
-  const legendRows = Math.ceil(legendStores.filter(s => storeTrends[s.id]).length / maxPerRow);
-  const totalH = H + (legendRows - 1) * 14 + 8;
-
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${totalH}" style="width:100%;max-width:${W}px;height:auto;font-family:inherit;">
-    ${yTicks}${zeroLine}${xLabels}${lines}${forecastLine}${legendItems}
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;font-family:inherit;">
+    ${shading}${gridLines}${zeroLine}${xLabels}${lines}${forecastLine}
   </svg>`;
 
-  // Update subtitle
+  // Subtitle
   const sub = document.getElementById('beTrendSubtitle');
   if (sub) {
     if (filterStore) {
       const sName = STORES.find(s => s.id === filterStore)?.name || filterStore;
-      sub.textContent = `${sName} (#${filterStore}) — cumulative avg cushion/(gap) with 2-month forecast`;
+      sub.textContent = sName + ' (#' + filterStore + ') — cumulative avg cushion/(gap) with 2-month forecast';
     } else {
       sub.textContent = 'Monthly cushion/(gap) progression — cumulative YTD average (all stores)';
     }
@@ -5730,21 +5770,36 @@ function renderSalesTrend() {
     return;
   }
 
-  // Get sorted dates
-  const allDates = Object.keys(daily).sort();
+  const allDatesRaw = Object.keys(daily).sort();
 
-  // Helper: get ISO week number and year for a date
+  // Date range filter
+  const startInput = document.getElementById('salesTrendStart');
+  const endInput = document.getElementById('salesTrendEnd');
+  // Set defaults on first render
+  if (startInput && !startInput.value && allDatesRaw.length > 0) {
+    // Default: last 8 weeks of data
+    const cutoff = new Date(allDatesRaw[allDatesRaw.length - 1] + 'T12:00:00');
+    cutoff.setDate(cutoff.getDate() - 56);
+    const y = cutoff.getFullYear(), m = String(cutoff.getMonth() + 1).padStart(2, '0'), d = String(cutoff.getDate()).padStart(2, '0');
+    startInput.value = y + '-' + m + '-' + d;
+  }
+  if (endInput && !endInput.value && allDatesRaw.length > 0) {
+    endInput.value = allDatesRaw[allDatesRaw.length - 1];
+  }
+  const dateFrom = startInput && startInput.value ? startInput.value : '';
+  const dateTo = endInput && endInput.value ? endInput.value : '';
+  const allDates = allDatesRaw.filter(d => (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo));
+
   function isoWeekKey(dateStr) {
     const d = new Date(dateStr + 'T12:00:00');
-    const dayOfWeek = d.getDay() || 7; // Mon=1..Sun=7
-    d.setDate(d.getDate() + 4 - dayOfWeek); // Thursday of that week
+    const dayOfWeek = d.getDay() || 7;
+    d.setDate(d.getDate() + 4 - dayOfWeek);
     const yearStart = new Date(d.getFullYear(), 0, 1);
     const weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
-    return `${d.getFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+    return d.getFullYear() + '-W' + String(weekNo).padStart(2, '0');
   }
 
-  // Group daily net sales by ISO week per store
-  const weeklyByStore = {}; // storeId -> { weekKey -> totalNetSales }
+  const weeklyByStore = {};
   const weekKeys = new Set();
   STORES.forEach(st => { weeklyByStore[st.id] = {}; });
 
@@ -5762,8 +5817,7 @@ function renderSalesTrend() {
 
   const sortedWeeks = Array.from(weekKeys).sort();
 
-  // Compute rolling 4-week avg for each store
-  const rolling = {}; // storeId -> [{week, avg}]
+  const rolling = {};
   STORES.forEach(st => {
     rolling[st.id] = [];
     for (let i = 3; i < sortedWeeks.length; i++) {
@@ -5772,15 +5826,13 @@ function renderSalesTrend() {
         const v = weeklyByStore[st.id][sortedWeeks[j]];
         if (v) { sum += v; count++; }
       }
-      if (count > 0) {
-        rolling[st.id].push({ week: sortedWeeks[i], avg: sum / count });
-      }
+      if (count > 0) rolling[st.id].push({ week: sortedWeeks[i], avg: sum / count });
     }
   });
 
   const filterStore = state.finStore && state.finStore !== 'all' ? state.finStore : null;
 
-  // Build momentum table data
+  // Build momentum rows, sorted by change %
   const momentumData = [];
   STORES.forEach((st, idx) => {
     if (filterStore && st.id !== filterStore) return;
@@ -5789,65 +5841,101 @@ function renderSalesTrend() {
     const current = r[r.length - 1].avg;
     const prior = r[r.length - 2].avg;
     const changePct = prior > 0 ? ((current - prior) / prior) * 100 : 0;
-    let momentum = 'Stable';
-    let momentumClass = 'color:var(--text-muted)';
-    let arrow = '—';
-    if (changePct > 3) { momentum = 'Accelerating'; momentumClass = 'color:var(--delta-up-good)'; arrow = '▲'; }
-    else if (changePct < -3) { momentum = 'Decelerating'; momentumClass = 'color:var(--delta-down-bad)'; arrow = '▼'; }
-    momentumData.push({
-      id: st.id, name: st.name, storeIdx: idx,
-      sparkData: r, current, prior, changePct, momentum, momentumClass, arrow
-    });
+    momentumData.push({ id: st.id, name: st.name, storeIdx: idx, sparkData: r, current, prior, changePct });
   });
+  momentumData.sort((a, b) => b.changePct - a.changePct); // best first
 
-  // Draw sparklines in the table
-  function buildSparkline(data, color) {
-    const W = 200, H = 40, pad = 4;
-    if (data.length < 2) return `<svg width="${W}" height="${H}"></svg>`;
+  // Build sparkline with area fill
+  function buildSparkline(data, color, changePct) {
+    const W = 160, H = 36, padX = 2, padY = 4;
+    if (data.length < 2) return '';
     const vals = data.map(d => d.avg);
     const minV = Math.min(...vals), maxV = Math.max(...vals);
     const range = maxV - minV || 1;
-    const xStep = (W - 2 * pad) / (vals.length - 1);
-    const pathD = vals.map((v, i) => {
-      const x = pad + i * xStep;
-      const y = pad + (H - 2 * pad) * (1 - (v - minV) / range);
-      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(' ');
-    const lastX = pad + (vals.length - 1) * xStep;
-    const lastY = pad + (H - 2 * pad) * (1 - (vals[vals.length - 1] - minV) / range);
-    return `<svg width="${W}" height="${H}" style="display:block;"><path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.5"/><circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="3" fill="${color}"/></svg>`;
+    const coords = vals.map((v, i) => {
+      const x = padX + i * ((W - 2 * padX) / (vals.length - 1));
+      const y = padY + (H - 2 * padY) * (1 - (v - minV) / range);
+      return [x, y];
+    });
+    const lineD = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ',' + c[1].toFixed(1)).join(' ');
+    // Area fill
+    const areaD = lineD + ' L' + coords[coords.length-1][0].toFixed(1) + ',' + H + ' L' + coords[0][0].toFixed(1) + ',' + H + ' Z';
+    const last = coords[coords.length - 1];
+    return '<svg width="' + W + '" height="' + H + '" style="display:block;overflow:visible;">'
+      + '<path d="' + areaD + '" fill="' + color + '" opacity="0.1"/>'
+      + '<path d="' + lineD + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+      + '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="3.5" fill="' + color + '" stroke="var(--bg-card)" stroke-width="1.5"/>'
+      + '</svg>';
   }
 
-  // Render table
-  let tableHTML = `<div class="store-table-wrap"><table class="store-table" style="font-size:13px;">
-    <thead><tr>
-      <th>Store</th><th>4-Week Trend</th><th style="text-align:right;">Current 4-Wk Avg</th>
-      <th style="text-align:right;">Prior 4-Wk Avg</th><th style="text-align:right;">Change</th><th>Momentum</th>
-    </tr></thead><tbody>`;
+  // Change bar — visual magnitude indicator
+  function changeBar(pct) {
+    const maxBar = 80;
+    const abs = Math.min(Math.abs(pct), 25);
+    const w = (abs / 25) * maxBar;
+    const color = pct >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)';
+    const align = pct >= 0 ? 'left' : 'right';
+    return '<div style="width:' + maxBar + 'px;height:6px;background:var(--border);border-radius:3px;position:relative;margin:0 auto;">'
+      + '<div style="position:absolute;' + align + ':' + (pct >= 0 ? '50%' : 'auto') + ';' + (pct < 0 ? 'right:50%' : '') + ';width:' + w.toFixed(0) + 'px;height:100%;background:' + color + ';border-radius:3px;"></div>'
+      + '</div>';
+  }
 
-  momentumData.forEach(d => {
+  // Render compact grid layout
+  let html = '<div style="display:grid;grid-template-columns:minmax(130px,1fr) 160px repeat(3,auto) auto;gap:0;align-items:center;font-size:13px;">';
+  // Header
+  html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);padding:8px 0;border-bottom:2px solid var(--border);font-weight:600;">Store</div>';
+  html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);padding:8px 0;border-bottom:2px solid var(--border);font-weight:600;">Trend</div>';
+  html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);padding:8px 4px;border-bottom:2px solid var(--border);text-align:right;font-weight:600;">Current Avg</div>';
+  html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);padding:8px 4px;border-bottom:2px solid var(--border);text-align:right;font-weight:600;">Prior Avg</div>';
+  html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);padding:8px 4px;border-bottom:2px solid var(--border);text-align:center;font-weight:600;">Change</div>';
+  html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);padding:8px 0;border-bottom:2px solid var(--border);text-align:center;font-weight:600;">Signal</div>';
+
+  momentumData.forEach((d, i) => {
     const color = STORE_COLORS[d.storeIdx] || STORE_COLORS[0];
-    const spark = buildSparkline(d.sparkData, color);
-    const chgColor = d.changePct >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
-    tableHTML += `<tr>
-      <td style="font-weight:600;">${d.name} (${d.id})</td>
-      <td>${spark}</td>
-      <td style="text-align:right;">${fmtDollar(d.current)}/wk</td>
-      <td style="text-align:right;">${fmtDollar(d.prior)}/wk</td>
-      <td style="text-align:right;${chgColor};font-weight:600;">${d.changePct >= 0 ? '+' : ''}${d.changePct.toFixed(1)}%</td>
-      <td style="${d.momentumClass};font-weight:600;">${d.arrow} ${d.momentum}</td>
-    </tr>`;
+    const spark = buildSparkline(d.sparkData, color, d.changePct);
+    const chgColor = d.changePct >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)';
+    let signal, sigColor, sigIcon;
+    if (d.changePct > 3) { signal = 'Accelerating'; sigColor = 'var(--delta-up-good)'; sigIcon = '▲'; }
+    else if (d.changePct > -3) { signal = 'Stable'; sigColor = 'var(--text-muted)'; sigIcon = '●'; }
+    else if (d.changePct > -10) { signal = 'Slowing'; sigColor = '#ca8a04'; sigIcon = '▼'; }
+    else { signal = 'Declining'; sigColor = 'var(--delta-down-bad)'; sigIcon = '▼▼'; }
+    const rowBg = i % 2 === 0 ? '' : 'background:var(--bg-card-alt,rgba(0,0,0,0.02));';
+    const bb = 'border-bottom:1px solid var(--border);';
+
+    html += '<div style="padding:10px 0;' + bb + rowBg + 'font-weight:600;display:flex;align-items:center;gap:8px;">'
+      + '<span style="width:4px;height:24px;border-radius:2px;background:' + color + ';flex-shrink:0;"></span>'
+      + d.name + ' <span style="color:var(--text-muted);font-weight:400;">' + d.id + '</span></div>';
+    html += '<div style="padding:6px 0;' + bb + rowBg + '">' + spark + '</div>';
+    html += '<div style="padding:10px 4px;' + bb + rowBg + 'text-align:right;font-variant-numeric:tabular-nums;">' + fmtDollar(d.current) + '<span style="color:var(--text-muted);font-size:11px;">/wk</span></div>';
+    html += '<div style="padding:10px 4px;' + bb + rowBg + 'text-align:right;color:var(--text-muted);font-variant-numeric:tabular-nums;">' + fmtDollar(d.prior) + '<span style="font-size:11px;">/wk</span></div>';
+    html += '<div style="padding:10px 4px;' + bb + rowBg + 'text-align:center;">'
+      + '<div style="font-weight:700;color:' + chgColor + ';font-variant-numeric:tabular-nums;">' + (d.changePct >= 0 ? '+' : '') + d.changePct.toFixed(1) + '%</div>'
+      + changeBar(d.changePct) + '</div>';
+    html += '<div style="padding:10px 0;' + bb + rowBg + 'text-align:center;font-weight:600;font-size:12px;color:' + sigColor + ';">'
+      + '<span style="font-size:10px;">' + sigIcon + '</span> ' + signal + '</div>';
   });
-  tableHTML += '</tbody></table></div>';
 
-  tableEl.innerHTML = tableHTML;
-  chartEl.innerHTML = ''; // Sparklines are in the table
+  // Group average
+  if (momentumData.length > 1) {
+    const avgCurrent = momentumData.reduce((s, d) => s + d.current, 0) / momentumData.length;
+    const avgPrior = momentumData.reduce((s, d) => s + d.prior, 0) / momentumData.length;
+    const avgChg = avgPrior > 0 ? ((avgCurrent - avgPrior) / avgPrior) * 100 : 0;
+    const chgColor = avgChg >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)';
+    html += '<div style="padding:10px 0;border-top:2px solid var(--border);font-weight:700;">Group Average</div>';
+    html += '<div style="padding:10px 0;border-top:2px solid var(--border);"></div>';
+    html += '<div style="padding:10px 4px;border-top:2px solid var(--border);text-align:right;font-weight:700;font-variant-numeric:tabular-nums;">' + fmtDollar(avgCurrent) + '<span style="color:var(--text-muted);font-size:11px;font-weight:400;">/wk</span></div>';
+    html += '<div style="padding:10px 4px;border-top:2px solid var(--border);text-align:right;color:var(--text-muted);font-variant-numeric:tabular-nums;">' + fmtDollar(avgPrior) + '<span style="font-size:11px;">/wk</span></div>';
+    html += '<div style="padding:10px 4px;border-top:2px solid var(--border);text-align:center;font-weight:700;color:' + chgColor + ';font-variant-numeric:tabular-nums;">' + (avgChg >= 0 ? '+' : '') + avgChg.toFixed(1) + '%</div>';
+    html += '<div style="padding:10px 0;border-top:2px solid var(--border);"></div>';
+  }
 
-  // Update subtitle
+  html += '</div>';
+  tableEl.innerHTML = html;
+  chartEl.innerHTML = '';
+
   const sub = document.getElementById('salesTrendSubtitle');
   if (sub) {
-    const weekCount = sortedWeeks.length;
-    sub.textContent = `Rolling 4-week net sales trends with momentum indicators (${weekCount} weeks of data)`;
+    sub.textContent = 'Rolling 4-week net sales trends with momentum indicators (' + sortedWeeks.length + ' weeks of data)';
   }
 }
 

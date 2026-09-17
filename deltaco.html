@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.09.16D -->
+<!-- v2026.09.17A -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -3690,6 +3690,71 @@ function generateWeekOptions() {
 
 function generatePeriodOptions() { const p = []; for (let i = 1; i <= 13; i++) p.push(`P${i} 2026`); return p; }
 
+/* FY2026 fiscal calendar: 13 periods × 4 weeks (Wed–Tue cycle).
+   Anchor: P12-W1 week_ending = 2026-08-05 → FY start week_ending = 2025-10-01 */
+function getWeeksForPeriod(periodStr) {
+  const m = periodStr.match(/P(\d+)/);
+  if (!m) return [];
+  const pNum = parseInt(m[1]);
+  const fyStart = new Date('2025-10-01T12:00:00'); // first week_ending of FY2026
+  const weeks = [];
+  for (let w = 0; w < 4; w++) {
+    const d = new Date(fyStart);
+    d.setDate(d.getDate() + ((pNum - 1) * 4 + w) * 7);
+    weeks.push(d.toISOString().slice(0, 10));
+  }
+  return weeks;
+}
+
+function getFoodDataForPeriod(periodStr) {
+  const weekEnds = getWeeksForPeriod(periodStr);
+  // Accumulate per-store across all weeks in the period
+  const accum = {}; // storeId → { theoryCost, actualCost, dollarVar, grossSales, count }
+  let hasReal = false;
+  weekEnds.forEach(we => {
+    const weekData = getFoodData(we);
+    weekData.forEach(d => {
+      if (!accum[d.storeId]) accum[d.storeId] = { storeId: d.storeId, storeName: d.storeName, theoryCost: 0, actualCost: 0, dollarVar: 0, grossSales: 0, count: 0, _real: true };
+      accum[d.storeId].theoryCost += d.theoryCost;
+      accum[d.storeId].actualCost += d.actualCost;
+      accum[d.storeId].dollarVar += d.dollarVar;
+      accum[d.storeId].grossSales += (d.grossSales || 0);
+      accum[d.storeId].count++;
+      if (d._real) hasReal = true;
+    });
+  });
+  return Object.values(accum).map(a => {
+    const gs = a.grossSales > 0 ? a.grossSales : a.actualCost; // fallback if grossSales missing
+    return {
+      storeId: a.storeId, storeName: a.storeName, weekEnd: periodStr,
+      theoryCost: a.theoryCost, actualCost: a.actualCost, dollarVar: a.dollarVar,
+      variancePct: a.theoryCost > 0 ? +((a.dollarVar / a.theoryCost) * 100).toFixed(1) : 0,
+      theoryPct: gs > 0 ? +((a.theoryCost / gs) * 100).toFixed(1) : 0,
+      actualPct: gs > 0 ? +((a.actualCost / gs) * 100).toFixed(1) : 0,
+      grossSales: a.grossSales, _real: hasReal
+    };
+  });
+}
+
+function getVarianceItemsForPeriod(periodStr) {
+  const weekEnds = getWeeksForPeriod(periodStr);
+  const accum = {}; // item+storeId → aggregated
+  weekEnds.forEach(we => {
+    const items = getVarianceItems(we);
+    items.forEach(it => {
+      const key = it.item + '|' + it.storeId;
+      if (!accum[key]) accum[key] = { item: it.item, storeId: it.storeId, storeName: it.storeName, theoryCost: 0, actualCost: 0, dollarVar: 0 };
+      accum[key].theoryCost += it.theoryCost;
+      accum[key].actualCost += it.actualCost;
+      accum[key].dollarVar += it.dollarVar;
+    });
+  });
+  return Object.values(accum).map(a => ({
+    ...a,
+    pctVar: a.theoryCost > 0 ? +((a.dollarVar / a.theoryCost) * 100).toFixed(1) : 0
+  })).sort((a, b) => Math.abs(b.dollarVar) - Math.abs(a.dollarVar)).slice(0, 20);
+}
+
 /* ===== SORTING ===== */
 function sortData(data, col, dir) {
   return [...data].sort((a, b) => {
@@ -4118,8 +4183,9 @@ function getOverallStatus(d) {
 function renderFood() {
   const weeks = generateWeekOptions();
   const weekEnd = state.foodWeek || weeks[0];
-  const data = getFoodData(weekEnd);
-  const items = getVarianceItems(weekEnd);
+  const isPeriodView = state.foodView === 'period';
+  const data = isPeriodView ? getFoodDataForPeriod(state.foodPeriod || 'P13 2026') : getFoodData(weekEnd);
+  const items = isPeriodView ? getVarianceItemsForPeriod(state.foodPeriod || 'P13 2026') : getVarianceItems(weekEnd);
 
   const banner = document.getElementById('foodBanner');
   const qboConnected = dataStore.sources.qbo.connected;
@@ -5593,8 +5659,13 @@ async function init() {
   });
 
   const periods = generatePeriodOptions();
-  state.foodPeriod = periods[0];
-  document.getElementById('foodPeriod').innerHTML = periods.map(p => `<option value="${p}">${p}</option>`).join('');
+  // Default to most recent period with food cost data, fallback to last period
+  const periodsWithData = periods.filter(p => {
+    const wks = getWeeksForPeriod(p);
+    return wks.some(w => dataStore.realFoodCost[w] && dataStore.realFoodCost[w].length);
+  });
+  state.foodPeriod = periodsWithData.length ? periodsWithData[periodsWithData.length - 1] : periods[periods.length - 1];
+  document.getElementById('foodPeriod').innerHTML = periods.map(p => `<option value="${p}"${p === state.foodPeriod ? ' selected' : ''}>${p}</option>`).join('');
 
   // SC week select
   const scWeekSelect = document.getElementById('scWeek');

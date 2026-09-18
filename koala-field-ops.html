@@ -342,7 +342,10 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // 2026-09-04 — SM calls it "Foam Pack", not "Foam Back").
 const JOB_TYPES = ['Residential New Installation','Residential Retrofit','B2B New Installation','B2B Retrofit','Call Back','Foam Pack'];
 const EQUIP_CATEGORIES = ['Vehicle','Trailer','Generator','Removal Machine','Blow-In Machine'];
-const MOUNTABLE_ON_CATEGORIES = ['Vehicle','Trailer']; // categories that other equipment (generators, blow-in machines, etc.) can be linked to
+const MOUNT_TARGET_CATEGORIES = ['Vehicle','Trailer']; // categories other equipment can be mounted ON
+// Per Pranav 2026-09-18: only Generator and Blow-In Machine equipment can be linked to a truck/trailer
+// (Removal Machine, and Vehicle/Trailer themselves, don't get a "Mounted On" field).
+const MOUNTABLE_CATEGORIES = ['Generator','Blow-In Machine'];
 const EQUIP_LOCATIONS = ['Albuquerque','Las Cruces'];
 let equipmentLocationFilter = 'All';
 const VENDORS = ['CA','IDI','RIS','Home Depot',"Lowe's",'Other'];
@@ -800,17 +803,21 @@ function renderEquipment() {
   const byCat = {};
   EQUIP_CATEGORIES.forEach(c => byCat[c] = []);
   visible.forEach(e => { (byCat[e.category] = byCat[e.category] || []).push(e); });
-  list.innerHTML = Object.entries(byCat).filter(([, items]) => items.length).map(([cat, items]) => `
+  list.innerHTML = Object.entries(byCat).filter(([, items]) => items.length).map(([cat, items]) => {
+    const isMountTarget = MOUNT_TARGET_CATEGORIES.includes(cat);
+    const isMountable = MOUNTABLE_CATEGORIES.includes(cat);
+    const showMountCol = isMountTarget || isMountable;
+    return `
     <div class="card">
       <h2>${cat}${items.length > 1 ? ' (' + items.length + ')' : ''}</h2>
-      <div class="table-scroll"><table><thead><tr><th>Name</th><th>ID</th><th>Location</th><th>Assigned To</th><th>${MOUNTABLE_ON_CATEGORIES.includes(cat) ? 'Mounted Equipment' : 'Mounted On'}</th><th>Last Service</th><th>Status</th><th></th></tr></thead><tbody>
+      <div class="table-scroll"><table><thead><tr><th>Name</th><th>ID</th><th>Location</th><th>Assigned To</th>${showMountCol ? `<th>${isMountTarget ? 'Mounted Equipment' : 'Mounted On'}</th>` : ''}<th>Last Service</th><th>Status</th><th></th></tr></thead><tbody>
         ${items.map(e => `
           <tr>
             <td><b>${esc(e.name)}</b>${e.notes ? `<div class="small-note">${esc(e.notes)}</div>` : ''}</td>
             <td>${esc(e.identifier) || '—'}</td>
             <td>${locationBadge(e.location)}</td>
             <td>${esc(e.assigned_to) || '—'}</td>
-            <td>${MOUNTABLE_ON_CATEGORIES.includes(e.category) ? mountedEquipmentBadges(e) : mountedOnBadge(e)}</td>
+            ${showMountCol ? `<td>${isMountTarget ? mountedEquipmentBadges(e) : mountedOnBadge(e)}</td>` : ''}
             <td>${e.last_service_date ? fmtDate(e.last_service_date) : '—'}</td>
             <td>${dueBadge(e)}</td>
             <td style="text-align:right;white-space:nowrap">
@@ -820,15 +827,17 @@ function renderEquipment() {
             </td>
           </tr>`).join('')}
       </tbody></table></div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function openEquipmentModal(id) {
   const e = id ? state.equipment.find(x => x.id === id) : null;
+  const initialCat = e ? e.category : EQUIP_CATEGORIES[0];
   openModal(`
     <h3>${e ? 'Edit Equipment' : 'Add Equipment'}</h3>
     <div class="grid-2">
-      ${field('Category', `<select id="e_cat">${EQUIP_CATEGORIES.map(c => `<option ${e && e.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`)}
+      ${field('Category', `<select id="e_cat" onchange="onEquipCategoryChange()">${EQUIP_CATEGORIES.map(c => `<option ${e && e.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>`)}
       ${field('Name', `<input id="e_name" value="${esc(e && e.name)}" placeholder="e.g. Truck 3 - Ford F250">`)}
     </div>
     <div class="grid-2">
@@ -837,7 +846,9 @@ function openEquipmentModal(id) {
     </div>
     <div class="grid-2">
       ${field('Location', `<select id="e_location"><option value="">— Unassigned —</option>${EQUIP_LOCATIONS.map(l => `<option ${e && e.location === l ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
-      ${field('Mounted On (Truck/Trailer)', `<select id="e_mounted"><option value="">— None —</option>${state.equipment.filter(x => MOUNTABLE_ON_CATEGORIES.includes(x.category) && (!e || x.id !== e.id)).map(x => `<option value="${x.id}" ${e && e.mounted_on_equipment_id === x.id ? 'selected' : ''}>${esc(x.name.trim())}</option>`).join('')}</select>`)}
+    </div>
+    <div class="grid-2" id="e_mounted_row" style="display:${MOUNTABLE_CATEGORIES.includes(initialCat) ? '' : 'none'}">
+      ${field('Mounted On (Truck/Trailer)', `<select id="e_mounted"><option value="">— None —</option>${state.equipment.filter(x => MOUNT_TARGET_CATEGORIES.includes(x.category) && (!e || x.id !== e.id)).map(x => `<option value="${x.id}" ${e && e.mounted_on_equipment_id === x.id ? 'selected' : ''}>${esc(x.name.trim())}</option>`).join('')}</select>`)}
     </div>
     <div class="grid-3">
       ${field('Service Interval (days)', `<input type="number" id="e_interval" value="${e && e.service_interval_days || ''}">`)}
@@ -852,14 +863,32 @@ function openEquipmentModal(id) {
     </div>`);
 }
 
+// Only Generator / Blow-In Machine equipment can be linked to a truck/trailer (per Pranav 2026-09-18).
+// Toggle the "Mounted On" row as the category changes, and clear any stale selection when it's hidden
+// so switching a piece of equipment's category away from Generator/Blow-In Machine can't leave a
+// mount link behind unseen.
+function onEquipCategoryChange() {
+  const cat = document.getElementById('e_cat').value;
+  const row = document.getElementById('e_mounted_row');
+  if (!row) return;
+  if (MOUNTABLE_CATEGORIES.includes(cat)) {
+    row.style.display = '';
+  } else {
+    row.style.display = 'none';
+    const sel = document.getElementById('e_mounted');
+    if (sel) sel.value = '';
+  }
+}
+
 async function saveEquipment(id) {
+  const category = document.getElementById('e_cat').value;
   const payload = {
-    category: document.getElementById('e_cat').value,
+    category,
     name: document.getElementById('e_name').value,
     identifier: document.getElementById('e_ident').value,
     assigned_to: document.getElementById('e_assigned').value,
     location: document.getElementById('e_location').value || null,
-    mounted_on_equipment_id: document.getElementById('e_mounted').value || null,
+    mounted_on_equipment_id: MOUNTABLE_CATEGORIES.includes(category) ? (document.getElementById('e_mounted').value || null) : null,
     service_interval_days: document.getElementById('e_interval').value ? Number(document.getElementById('e_interval').value) : null,
     last_service_date: document.getElementById('e_last').value || null,
     next_service_due: document.getElementById('e_next').value || null,

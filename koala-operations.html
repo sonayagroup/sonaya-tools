@@ -2369,10 +2369,21 @@ function crmKnownReps() {
   EXCLUDED_REPS.forEach(r => set.delete(r));
   return [...set].sort();
 }
+// Deadline instant for sorting: due_date + due_time when both are set, midnight of due_date when
+// only the date is set, and +Infinity (sinks to the bottom) when there's no due date at all.
+function crmDueInstant(d) {
+  if (!d.due_date) return Infinity;
+  return new Date(d.due_date + 'T' + (d.due_time ? d.due_time.slice(0, 5) : '00:00') + ':00').getTime();
+}
 function crmDealsByStage(dealsList) {
   const groups = {};
   (dealsList || crmDeals).forEach(d => { (groups[d.stage] = groups[d.stage] || []).push(d); });
-  Object.keys(groups).forEach(k => groups[k].sort((a, b) => a.position - b.position));
+  // Sorted by due date, earliest first — deals with no due date sink to the bottom. Changed from
+  // manual drag position to due-date sort 2026-09-18 (per Pranav: "sorted by due date, earliest at
+  // top"). `position` (the tie-breaker below) still tracks drag order and still drives where a
+  // deal lands when it's dragged into a new stage — it just no longer determines on-screen order
+  // within a column by itself.
+  Object.keys(groups).forEach(k => groups[k].sort((a, b) => crmDueInstant(a) - crmDueInstant(b) || a.position - b.position));
   return groups;
 }
 

@@ -342,6 +342,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // 2026-09-04 — SM calls it "Foam Pack", not "Foam Back").
 const JOB_TYPES = ['Residential New Installation','Residential Retrofit','B2B New Installation','B2B Retrofit','Call Back','Foam Pack'];
 const EQUIP_CATEGORIES = ['Vehicle','Trailer','Generator','Removal Machine','Blow-In Machine'];
+const MOUNTABLE_ON_CATEGORIES = ['Vehicle','Trailer']; // categories that other equipment (generators, blow-in machines, etc.) can be linked to
 const EQUIP_LOCATIONS = ['Albuquerque','Las Cruces'];
 let equipmentLocationFilter = 'All';
 const VENDORS = ['CA','IDI','RIS','Home Depot',"Lowe's",'Other'];
@@ -759,6 +760,22 @@ function locationBadge(loc) {
   return `<span class="badge ${cls}">${esc(loc)}</span>`;
 }
 
+// Equipment (generators, blow-in machines, removal machines, ...) can optionally be linked to the
+// Vehicle/Trailer it rides on via mounted_on_equipment_id. These two helpers render that link from
+// either side: the child's badge showing what it's mounted on, and the parent's badge showing what's
+// mounted on it. Added 2026-09-18 per Pranav so a truck/trailer's generator + blow-in machine are
+// tracked as linked equipment rather than just free-text notes.
+function mountedOnBadge(e) {
+  if (!e.mounted_on_equipment_id) return `<span class="badge muted">Unmounted</span>`;
+  const parent = state.equipment.find(x => x.id === e.mounted_on_equipment_id);
+  return parent ? `<span class="badge good">${esc(parent.name.trim())}</span>` : `<span class="badge muted">Unmounted</span>`;
+}
+function mountedEquipmentBadges(e) {
+  const items = state.equipment.filter(x => x.mounted_on_equipment_id === e.id);
+  if (!items.length) return `<span class="badge muted">None</span>`;
+  return items.map(i => `<span class="badge good">${esc(i.category)}: ${esc(i.name.trim())}</span>`).join(' ');
+}
+
 function renderEquipmentLocationFilter() {
   const row = document.getElementById('equipmentLocationFilterRow');
   if (!row) return;
@@ -786,13 +803,14 @@ function renderEquipment() {
   list.innerHTML = Object.entries(byCat).filter(([, items]) => items.length).map(([cat, items]) => `
     <div class="card">
       <h2>${cat}${items.length > 1 ? ' (' + items.length + ')' : ''}</h2>
-      <div class="table-scroll"><table><thead><tr><th>Name</th><th>ID</th><th>Location</th><th>Assigned To</th><th>Last Service</th><th>Status</th><th></th></tr></thead><tbody>
+      <div class="table-scroll"><table><thead><tr><th>Name</th><th>ID</th><th>Location</th><th>Assigned To</th><th>${MOUNTABLE_ON_CATEGORIES.includes(cat) ? 'Mounted Equipment' : 'Mounted On'}</th><th>Last Service</th><th>Status</th><th></th></tr></thead><tbody>
         ${items.map(e => `
           <tr>
             <td><b>${esc(e.name)}</b>${e.notes ? `<div class="small-note">${esc(e.notes)}</div>` : ''}</td>
             <td>${esc(e.identifier) || '—'}</td>
             <td>${locationBadge(e.location)}</td>
             <td>${esc(e.assigned_to) || '—'}</td>
+            <td>${MOUNTABLE_ON_CATEGORIES.includes(e.category) ? mountedEquipmentBadges(e) : mountedOnBadge(e)}</td>
             <td>${e.last_service_date ? fmtDate(e.last_service_date) : '—'}</td>
             <td>${dueBadge(e)}</td>
             <td style="text-align:right;white-space:nowrap">
@@ -819,6 +837,7 @@ function openEquipmentModal(id) {
     </div>
     <div class="grid-2">
       ${field('Location', `<select id="e_location"><option value="">— Unassigned —</option>${EQUIP_LOCATIONS.map(l => `<option ${e && e.location === l ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
+      ${field('Mounted On (Truck/Trailer)', `<select id="e_mounted"><option value="">— None —</option>${state.equipment.filter(x => MOUNTABLE_ON_CATEGORIES.includes(x.category) && (!e || x.id !== e.id)).map(x => `<option value="${x.id}" ${e && e.mounted_on_equipment_id === x.id ? 'selected' : ''}>${esc(x.name.trim())}</option>`).join('')}</select>`)}
     </div>
     <div class="grid-3">
       ${field('Service Interval (days)', `<input type="number" id="e_interval" value="${e && e.service_interval_days || ''}">`)}
@@ -840,6 +859,7 @@ async function saveEquipment(id) {
     identifier: document.getElementById('e_ident').value,
     assigned_to: document.getElementById('e_assigned').value,
     location: document.getElementById('e_location').value || null,
+    mounted_on_equipment_id: document.getElementById('e_mounted').value || null,
     service_interval_days: document.getElementById('e_interval').value ? Number(document.getElementById('e_interval').value) : null,
     last_service_date: document.getElementById('e_last').value || null,
     next_service_due: document.getElementById('e_next').value || null,

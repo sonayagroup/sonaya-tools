@@ -49,6 +49,7 @@ section.panel{display:none;padding-top:20px}section.panel.active{display:block}
 @media (max-width:860px){.grid2{grid-template-columns:1fr}}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
 input[type=text],input[type=search],input[type=email],input[type=tel],input[type=date],textarea,select{font:inherit;font-size:13.5px;padding:7px 9px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink)}
+.grid2>div:last-child select{width:100%;box-sizing:border-box}
 input:focus,textarea:focus,select:focus{outline:none;border-color:var(--blue)}
 .btn{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer}
 .btn:hover{background:var(--blue-dk)}.btn:disabled{opacity:.5;cursor:not-allowed}
@@ -911,19 +912,48 @@ function renderAttachedFiles(files, contactId){
 function openFileUploadModal(contactId){
   openModal(`
     <h3>Attach a File</h3>
-    <div class="field"><label>Choose file *</label><input type="file" id="fuInput"></div>
+    <div id="fuDropZone" style="border:2px dashed var(--line);border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:12px">
+      <div style="font-size:28px;margin-bottom:6px">📂</div>
+      <div style="font-weight:600;font-size:14px;color:var(--ink)">Drag & drop a file here</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">or click to browse</div>
+      <input type="file" id="fuInput" style="display:none">
+    </div>
+    <div id="fuFileName" style="font-size:13px;color:var(--muted);margin-bottom:12px;display:none"></div>
     <div class="modal-actions"><button class="btn sec" onclick="closeModal()">Cancel</button><button class="btn" id="fuSave">Upload</button></div>
   `);
+  const dropZone = document.getElementById('fuDropZone');
+  const inp = document.getElementById('fuInput');
+  const nameEl = document.getElementById('fuFileName');
+  let selectedFile = null;
+
+  function showFile(file){
+    selectedFile = file;
+    const kb = (file.size/1024).toFixed(1);
+    nameEl.style.display='block';
+    nameEl.innerHTML = '<strong>'+file.name+'</strong> ('+kb+' KB)';
+    dropZone.style.borderColor='var(--blue)';
+    dropZone.style.background='rgba(37,99,235,.04)';
+  }
+
+  dropZone.onclick = ()=> inp.click();
+  inp.onchange = ()=>{ if(inp.files[0]) showFile(inp.files[0]); };
+
+  dropZone.ondragover = (e)=>{ e.preventDefault(); dropZone.style.borderColor='var(--blue)'; dropZone.style.background='rgba(37,99,235,.08)'; };
+  dropZone.ondragleave = (e)=>{ e.preventDefault(); dropZone.style.borderColor = selectedFile ? 'var(--blue)' : 'var(--line)'; dropZone.style.background = selectedFile ? 'rgba(37,99,235,.04)' : ''; };
+  dropZone.ondrop = (e)=>{
+    e.preventDefault();
+    dropZone.style.background = 'rgba(37,99,235,.04)';
+    if(e.dataTransfer.files.length) showFile(e.dataTransfer.files[0]);
+  };
+
   document.getElementById('fuSave').onclick = async ()=>{
-    const inp = document.getElementById('fuInput');
-    const file = inp.files[0];
-    if(!file){ alert('Choose a file first'); return; }
+    if(!selectedFile){ alert('Choose a file first'); return; }
     const btn = document.getElementById('fuSave');
     btn.textContent = 'Uploading…'; btn.disabled = true;
-    const path = `${contactId}/${Date.now()}_${file.name}`;
-    const {error: upErr} = await sb.storage.from('gc-crm-files').upload(path, file);
+    const path = `${contactId}/${Date.now()}_${selectedFile.name}`;
+    const {error: upErr} = await sb.storage.from('gc-crm-files').upload(path, selectedFile);
     if(upErr){ alert(upErr.message); btn.textContent='Upload'; btn.disabled=false; return; }
-    await sb.from('gc_crm_files').insert({contact_id: contactId, file_name: file.name, storage_path: path, size_bytes: file.size, uploaded_by: STATE.me?.id});
+    await sb.from('gc_crm_files').insert({contact_id: contactId, file_name: selectedFile.name, storage_path: path, size_bytes: selectedFile.size, uploaded_by: STATE.me?.id});
     closeModal();
     openContact(contactId);
   };

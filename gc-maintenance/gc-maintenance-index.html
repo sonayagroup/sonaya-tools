@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<base target="_top">
+<title>Great Clips — Maintenance Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#048667;--blue-dk:#073b3a;--red:#e4002b;--red-dk:#b30020;--green:#089f45;--amber:#e9a049;
+--bg:#f4f7f5;--card:#fff;--line:#e1ece8;--ink:#12302c;--muted:#5f716d;--shadow:0 1px 3px rgba(7,59,58,.08),0 1px 2px rgba(7,59,58,.06);}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Poppins",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
+a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:1280px;margin:0 auto;padding:0 18px 60px}
+header{background:linear-gradient(135deg,var(--blue),var(--blue-dk));color:#fff;padding:16px 0 14px;box-shadow:var(--shadow)}
+.hdr-inner{max-width:1280px;margin:0 auto;padding:0 18px;display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+header h1{font-size:19px;font-weight:700}
+header .sub{font-size:12px;opacity:.85;margin-top:2px}
+.hdr-meta{font-size:12.5px;opacity:.85;margin-left:auto;text-align:right}
+nav.tabs{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
+.tabs-inner{max-width:1280px;margin:0 auto;padding:0 10px;display:flex;flex-wrap:wrap}
+.tab{padding:12px 16px;min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;user-select:none;font-size:13.5px;touch-action:manipulation}
+.tab:hover{color:var(--blue)}.tab.active{color:var(--blue-dk);border-bottom-color:var(--green)}
+section.panel{display:none;padding-top:20px}section.panel.active{display:block}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:11px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 14px;box-shadow:var(--shadow);cursor:default}
+.kpi .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600}
+.kpi .val{font-size:23px;font-weight:700;margin-top:3px}.kpi .sub{font-size:12px;margin-top:2px;color:var(--muted)}
+.kpi.flagred .val{color:var(--red-dk)}.kpi.flagamber .val{color:#b8790f}
+.grid{display:grid;gap:16px;margin-bottom:18px}.g2{grid-template-columns:repeat(auto-fit,minmax(360px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
+.card h3{font-size:14px;font-weight:700;margin-bottom:2px;color:var(--blue-dk)}.card .hint{font-size:11.5px;color:var(--muted);margin-bottom:12px}
+table{width:100%;border-collapse:collapse;font-size:12.7px}
+th,td{padding:8px 9px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{background:#f0f3f7;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;position:sticky;top:0}
+tbody tr:hover{background:#f7fafd}
+.tbl-scroll{overflow-x:auto}
+.sec-title{font-size:15px;font-weight:700;color:var(--blue-dk);margin:4px 0 10px;display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+select,input[type=text],input[type=date],input[type=number],input[type=email],textarea{
+  font:inherit;font-size:15px;padding:10px 12px;min-height:44px;border:1px solid var(--line);border-radius:8px;background:#fcfdfe;color:var(--ink)}
+select:focus,input:focus,textarea:focus{outline:none;border-color:var(--blue)}
+textarea{width:100%;min-height:70px;resize:vertical;font-family:inherit}
+label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px}
+.field{margin-bottom:12px}
+.field select,.field input,.field textarea{width:100%;box-sizing:border-box}
+.field-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.field-row .field{min-width:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 16px;min-height:44px;border-radius:8px;border:none;font:inherit;font-weight:600;font-size:14px;cursor:pointer;background:var(--blue);color:#fff;transition:background .15s;touch-action:manipulation}
+.btn:hover{background:var(--blue-dk)}
+.btn.secondary{background:#fff;color:var(--blue-dk);border:1px solid var(--line)}
+.btn.secondary:hover{background:#f0f3f7}
+.btn.danger{background:var(--red)}.btn.danger:hover{background:var(--red-dk)}
+.btn.small{padding:7px 12px;min-height:38px;font-size:12.5px}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.badge.open{background:#fdecec;color:var(--red-dk)}
+.badge.progress{background:#fef3d0;color:#8a5c00}
+.badge.hold{background:#eef0f2;color:var(--muted)}
+.badge.done{background:#dff5e6;color:#0b6b34}
+.pri-low{color:var(--muted);font-weight:600}
+.pri-medium{color:#8a5c00;font-weight:700}
+.pri-high{color:var(--red-dk);font-weight:700}
+.pri-urgent{background:var(--red);color:#fff;padding:1px 8px;border-radius:20px;font-weight:700;font-size:11px}
+.status-ok{color:#0b6b34;font-weight:700}
+.status-soon{color:#8a5c00;font-weight:700}
+.status-over{color:var(--red-dk);font-weight:700}
+.status-never{color:var(--muted);font-weight:700}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(7,59,58,.45);z-index:100;align-items:center;justify-content:center;padding:24px 16px}
+.modal-bg.active{display:flex}
+.modal{background:#fff;border-radius:12px;max-width:640px;width:100%;max-height:calc(100vh - 48px);box-shadow:0 10px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden}
+.modal.wide{max-width:900px}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 14px 20px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.modal-head h2{font-size:16px;color:var(--blue-dk)}
+.modal-body{padding:16px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch;flex:1 1 auto}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--line);flex:0 0 auto;background:#fff}
+.close-x{flex:0 0 auto;width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:none;background:transparent;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;touch-action:manipulation}
+.close-x:hover{background:#f0f3f7;color:var(--ink)}
+@media(max-width:640px){
+  .modal-bg{padding:0;align-items:stretch}
+  .modal{max-width:100%;max-height:100%;height:100%;border-radius:0}
+  .modal.wide{max-width:100%}
+}
+.pm-toolbar{display:flex;justify-content:flex-end;gap:16px;margin-bottom:8px}
+.pm-toolbar a{font-size:12.5px;font-weight:600;cursor:pointer}
+.pm-progress{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px}
+.pm-progress-bar{height:6px;width:160px;max-width:40vw;border-radius:4px;background:var(--line);overflow:hidden;margin-top:5px}
+.pm-progress-bar>div{height:100%;background:var(--green);transition:width .2s}
+.pm-autosave-status{font-size:11px;color:var(--green);font-weight:600;margin-top:2px;transition:color .2s}
+.pm-autosave-status.error{color:#d64040}
+.pm-autosave-status.saving{color:var(--muted)}
+.pm-draft-banner{background:#fef3d0;border:1px solid #f0d999;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#6b4d00;margin-bottom:14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between}
+.pm-draft-banner b{display:block;margin-bottom:2px}
+.pm-cat{font-weight:700;color:var(--blue-dk);font-size:13.5px;margin-top:10px;padding:12px 2px;border-bottom:2px solid var(--line);border-top:1px solid transparent;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;min-height:44px;user-select:none;touch-action:manipulation}
+.pm-cat:hover{color:var(--blue)}
+.pm-cat .chev{display:inline-block;transition:transform .15s;color:var(--muted);font-size:11px;margin-right:6px}
+.pm-cat.open .chev{transform:rotate(90deg)}
+.pm-cat .cnt{font-size:11px;font-weight:700;color:var(--muted);background:#eef3f1;border-radius:20px;padding:3px 10px;white-space:nowrap}
+.pm-cat .cnt.done{background:#dff5e6;color:#0b6b34}
+.pm-cat-items{display:none;padding-top:2px}
+.pm-cat-items.open{display:block}
+.pm-item{padding:10px 0;border-bottom:1px solid var(--line)}
+.pm-item-row{display:grid;grid-template-columns:1fr 130px 1fr;gap:10px;align-items:center}
+.pm-item .lbl{font-size:13.5px;color:var(--ink)}
+.pm-item select{width:100%}
+.pm-item input[type=text]{width:100%}
+.pm-item-photos{display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:8px}
+.photo-thumb{position:relative;width:52px;height:52px;border-radius:7px;overflow:hidden;border:1px solid var(--line);flex:0 0 auto}
+.photo-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-thumb .rm{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red-dk,#b3261e);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;cursor:pointer;border:2px solid #fff;touch-action:manipulation}
+.photo-add-btn{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;padding:7px 11px;border:1px dashed var(--blue);border-radius:8px;min-height:36px;touch-action:manipulation;white-space:nowrap}
+.photo-thumbs-view{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.photo-thumbs-view img{width:56px;height:56px;object-fit:cover;border-radius:7px;border:1px solid var(--line)}
+.salon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.salon-card{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:9px;padding:12px 14px;box-shadow:var(--shadow);cursor:pointer}
+.salon-card:hover{background:#f7fafd}
+.salon-card.ok{border-left-color:var(--green)}
+.salon-card.soon{border-left-color:var(--amber)}
+.salon-card.over{border-left-color:var(--red)}
+.salon-card.never{border-left-color:var(--muted)}
+.salon-card .nm{font-weight:700;font-size:13.5px;color:var(--ink)}
+.salon-card .id{font-size:11px;color:var(--muted);margin-bottom:6px}
+.salon-card .st{font-size:12.5px;margin-top:4px}
+.empty-note{color:var(--muted);font-size:12.7px;padding:14px 4px}
+.footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:26px;line-height:1.7}
+.loading{padding:30px;text-align:center;color:var(--muted)}
+.act-links a{margin-right:14px;padding:4px 0;display:inline-block;font-size:12.5px;font-weight:600}
+.act-links a.danger{color:var(--red-dk)}
+.wo-clickable{cursor:pointer;color:var(--blue);transition:color .12s}.wo-clickable:hover{color:var(--blue-dk);text-decoration:underline}
+.wo-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;margin-bottom:18px}
+.wo-detail-grid .dl{font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600;margin-bottom:2px}
+.wo-detail-grid .dd{font-size:14px;color:var(--ink)}
+.wo-detail-full{grid-column:1/-1}
+.wo-detail-photos{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+.wo-detail-photos h4{font-size:13px;font-weight:700;color:var(--blue-dk);margin-bottom:10px}
+.wo-detail-photo-grid{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.wo-detail-photo-grid img{width:120px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+.wo-detail-photo-grid img:hover{border-color:var(--blue);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.inline-status{font:inherit;font-size:12px;font-weight:600;padding:3px 8px;border-radius:20px;border:1px solid var(--line);cursor:pointer;min-height:32px;appearance:auto;-webkit-appearance:auto}
+.inline-status.s-open{background:#fdecec;color:var(--red-dk);border-color:#f4c2c2}
+.inline-status.s-progress{background:#fef3d0;color:#8a5c00;border-color:#f0d999}
+.inline-status.s-hold{background:#eef0f2;color:var(--muted);border-color:#d0d5da}
+.inline-status.s-done{background:#dff5e6;color:#0b6b34;border-color:#b5e3c5}
+.ms-wrap{position:relative}
+.ms-selected{display:flex;flex-wrap:wrap;gap:5px;min-height:44px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:#fcfdfe;cursor:pointer;align-items:center}
+.ms-selected:focus-within{border-color:var(--blue)}
+.ms-chip{display:inline-flex;align-items:center;gap:4px;background:var(--blue);color:#fff;padding:3px 9px;border-radius:16px;font-size:12px;font-weight:600;white-space:nowrap}
+.ms-chip .x{cursor:pointer;opacity:.8;font-size:14px;line-height:1}.ms-chip .x:hover{opacity:1}
+.ms-placeholder{color:var(--muted);font-size:14px}
+.ms-dropdown{position:absolute;top:100%;left:0;right:0;z-index:30;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);margin-top:4px;max-height:200px;overflow-y:auto;display:none}
+.ms-dropdown.open{display:block}
+.ms-option{padding:10px 12px;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.ms-option:hover{background:#f0f3f7}
+.ms-option .check{width:16px;height:16px;border:2px solid var(--line);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex:0 0 auto}
+.ms-option.sel .check{background:var(--blue);border-color:var(--blue)}
+.photo-drop{border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;color:var(--muted);font-size:12.5px;transition:border-color .15s,background .15s;cursor:pointer;margin-top:6px}
+.photo-drop.over{border-color:var(--blue);background:#e8f5f0}
+.contact-role{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#eef3f1;color:var(--blue-dk)}
+@media(max-width:640px){
+  .pm-item-row{grid-template-columns:1fr;gap:6px}
+  .field-row{grid-template-columns:1fr}
+  .modal-head{padding:14px 12px 12px 16px}
+  .modal-body{padding:14px 16px}
+  .modal-actions{padding:12px 16px}
+}
+</style>
+</head>
+<body>
+
+<header><div class="hdr-inner">
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQwAAAAwCAQAAABOSox6AAAC+klEQVR42u2c627sIAyEmYj3f+Xpr93T0wSwzT3YUqVqt2xg+DDjhC2CJJh8B8GjrFJaJ66qJcxDdUD0Kt112g4MdgHtbCieVNoKDHZBzaF4UonZ1yZqeTXG4hwoOAC3iXMRRVCgy6p5X67Ae1SKhe6XkhkOBESv04YqxcxwNTscjsGjRieJSljDY6AJFrtOMaqxQEPMllL8Ora2YIM2L1Ypnjbgii3vBJX4GVc8MFu0cUJ4LRQMIQA3odD4Qn93com10q5NjUNi1vZhcL54vsGF70+NH9L1n1/bi8B/hLQHg8JyDeLVDPX6hzpXSMHopxKN1R6MOfKOYwgIvLrlC2n3+Os3KtvrWry7mGZCDb1GyFUl43d2qj9D16IlFlgYjzo/9c1QcToWKLgEVt574MN2OcuwDq0rVGqH/x1GQByKBRJS57Yz3P4WBi+xwYNuc7ai2hch8T6/cBgzBpVdf3oVidWMDM3Sq6GI0psCDwsN4paJhXJN4/z5VQja/y54/WhhrrqDeWYGmk9NWVtvAXE8Gvr6ZAIYeL3ou/RbDEd89PCrFFurVhA7uJZPH/FYwqIMBgxCYvhUyCbGjyUGoXUvwvGOM59M3vfra+522fCgP/QdC8Xg+js5BeXbKdtJ6ZmIYlO5Nk/IvK0MLIXtahlFfHvsWsIzWK/LYrpc3yrP31aYyxjmsmbiOhx/c7uVSn3UbfqF0muxFcHFVyoqJ7mfSWbb5RiL5sRyfqqmnMoXUm0fo1sMpKn4644zMwbclE1jcdCpw3jsPMw630MTGjIh56pE1bPk1KioA6NUuvaCIbUKNXkGhZYf2NDgXFf+hEf/QtmyTbAmY5QHHQai0U4uNr5W/aesVFRDBkYNHKgcEFVXQcV/8WCzKeBCUNwPOZmPP8dGw0azYWlOfSNz7pxGydARj3FIyBRFm66OO0+eNnO5v4XqHZ3hnKtS7qsYlhnEXIY9esA2aMYuV93DwfBwMDwcDA8Hw8PB8HAwPBwMDwfDw8HweF38ANCiCWc/qeQQAAAAAElFTkSuQmCC" alt="Great Clips" style="height:28px;filter:brightness(0) invert(1)">  <span style="font-size:15px;font-weight:600;opacity:.92;white-space:nowrap">Maintenance Dashboard</span>
+  <a href="https://tools.sonayagroup.com/greatclips.html" style="color:#fff;opacity:.85;font-size:12.5px;font-weight:600;text-decoration:none;margin-left:auto;padding:6px 12px;border:1px solid rgba(255,255,255,.3);border-radius:6px">← Main Dashboard</a>
+  <div class="hdr-meta" id="hdrMeta">Loading…</div>
+</div></header>
+
+<nav class="tabs">
+  <div class="tabs-inner">
+    <div class="tab active" data-t="overview">Overview</div>
+    <div class="tab" data-t="workorders">Work Orders</div>
+    <div class="tab" data-t="equipment">Equipment</div>
+    <div class="tab" data-t="vendors">Vendors</div>
+    <div class="tab" data-t="pm">PM Checklist</div>
+    <div class="tab" data-t="hvac">HVAC Inspections</div>
+    <div class="tab" data-t="contacts">Contacts</div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <section class="panel active" id="panel-overview">
+    <div class="kpis" id="ov-kpis"><div class="loading">Loading…</div></div>
+    <div class="grid g2">
+      <div class="card">
+        <h3>Open Work Orders</h3>
+        <div class="hint">Sorted by priority, then due date</div>
+        <div class="tbl-scroll" id="ov-wo">Loading…</div>
+      </div>
+      <div class="card">
+        <h3>Preventative Maintenance — Attention Needed</h3>
+        <div class="hint">Salons overdue or due soon for their quarterly checklist</div>
+        <div class="tbl-scroll" id="ov-pm">Loading…</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-workorders">
+    <div class="sec-title">
+      <span>Work Orders</span>
+      <button class="btn" onclick="openWoModal()">+ New Work Order</button>
+    </div>
+    <div class="toolbar">
+      <select id="woFilterSalon"><option value="">All Salons</option></select>
+      <select id="woFilterStatus">
+        <option value="">All Statuses</option>
+        <option>Open</option><option>In Progress</option><option>On Hold</option><option>Completed</option>
+      </select>
+      <select id="woFilterPriority">
+        <option value="">All Priorities</option>
+        <option>Low</option><option>Medium</option><option>High</option><option>Urgent</option>
+      </select>
+    </div>
+    <div class="card"><div class="tbl-scroll" id="wo-table">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-equipment">
+    <div class="sec-title">
+      <span>Equipment</span>
+      <button class="btn" onclick="openEqModal()">+ Add Equipment</button>
+    </div>
+    <div class="toolbar">
+      <select id="eqFilterSalon"><option value="">All Salons</option></select>
+      <select id="eqFilterCat"><option value="">All Categories</option><option>HVAC</option><option>Appliance</option><option>Plumbing</option><option>Sign / Lighting</option><option>Alarm/Security</option><option>Other</option></select>
+    </div>
+    <div class="card"><div class="tbl-scroll" id="eq-table">Loading…</div></div>
+    <div id="eq-detail-wrap" style="display:none;margin-top:22px">
+      <div class="sec-title"><span id="eq-detail-title">Equipment Detail</span><button class="btn secondary small" onclick="closeEqDetail()">Close</button></div>
+      <div class="card" id="eq-detail-body"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-vendors">
+    <div class="sec-title">
+      <span>Vendor Directory</span>
+      <button class="btn" onclick="openVendModal()">+ Add Vendor</button>
+    </div>
+    <div class="card"><div class="tbl-scroll" id="vend-table">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-pm">
+    <div class="sec-title">
+      <span>Preventative Maintenance Checklist</span>
+      <button class="btn" onclick="openPmModal()">+ New Checklist Visit</button>
+    </div>
+    <div class="hint" style="margin-bottom:14px;color:var(--muted);font-size:12.5px">Due quarterly per salon (every 3 months). Click a salon to view its checklist history.</div>
+    <div class="salon-grid" id="pm-salon-grid"><div class="loading">Loading…</div></div>
+
+    <div id="pm-history-wrap" style="display:none;margin-top:22px">
+      <div class="sec-title"><span id="pm-history-title">History</span><button class="btn secondary small" onclick="closePmHistory()">Close</button></div>
+      <div class="card"><div class="tbl-scroll" id="pm-history-table"></div></div>
+      <div id="pm-visit-detail" style="margin-top:16px"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-hvac">
+    <div class="sec-title">
+      <span>HVAC Inspections</span>
+    </div>
+    <div class="hint" style="margin-bottom:14px;color:var(--muted);font-size:12.5px">Quarterly TLC inspections — heating (Q1/Q4) and cooling (Q2/Q3) season checklists for each salon's RTU.</div>
+    <div class="toolbar">
+      <select id="hvacFilterSalon"><option value="">All Salons</option></select>
+      <select id="hvacFilterSeason"><option value="">All Seasons</option><option value="cooling">Cooling</option><option value="heating">Heating</option></select>
+    </div>
+    <div class="kpis" id="hvac-kpis"></div>
+    <div class="card"><div class="tbl-scroll" id="hvac-table">Loading…</div></div>
+    <div id="hvac-detail-wrap" style="display:none;margin-top:22px">
+      <div class="sec-title"><span id="hvac-detail-title">Inspection Detail</span><button class="btn secondary small" onclick="document.getElementById('hvac-detail-wrap').style.display='none'">Close</button></div>
+      <div class="card" id="hvac-detail-body"></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-contacts">
+    <div class="sec-title">
+      <span>Contacts</span>
+      <button class="btn" onclick="openContactModal()">+ Add Contact</button>
+    </div>
+    <div class="hint" style="margin-bottom:14px;color:var(--muted);font-size:12.5px">Manage people who can be assigned to or report work orders. Email notifications are sent to assigned contacts when work orders are created.</div>
+    <div class="card"><div class="tbl-scroll" id="contacts-table">Loading…</div></div>
+  </section>
+
+  <div class="footer">Great Clips Maintenance Dashboard · data via Supabase · Sonaya Group internal tools</div>
+</div>
+
+<!-- Work Order Modal -->
+<div class="modal-bg" id="woModalBg"><div class="modal">
+  <div class="modal-head"><h2 id="woModalTitle">New Work Order</h2><button class="close-x" onclick="closeModal('woModalBg')" aria-label="Close">&times;</button></div>
+  <div class="modal-body">
+  <input type="hidden" id="woId">
+  <div class="field-row">
+    <div class="field"><label>Salon</label><select id="woSalon"></select></div>
+    <div class="field"><label>Category</label>
+      <select id="woCategory">
+        <option>Plumbing</option><option>Electrical</option><option>Casework & Furniture</option>
+        <option>Chairs</option><option>Flooring</option><option>Paint, Walls & Ceiling</option>
+        <option>Doors</option><option>Washer & Dryer</option><option>HVAC</option><option>Other</option>
+      </select>
+    </div>
+  </div>
+  <div class="field"><label>Title</label><input type="text" id="woTitle" style="width:100%"></div>
+  <div class="field"><label>Description</label><textarea id="woDesc"></textarea></div>
+  <div class="field-row">
+    <div class="field"><label>Priority</label>
+      <select id="woPriority"><option>Low</option><option selected>Medium</option><option>High</option><option>Urgent</option></select>
+    </div>
+    <div class="field"><label>Status</label>
+      <select id="woStatus"><option>Open</option><option>In Progress</option><option>On Hold</option><option>Completed</option></select>
+    </div>
+  </div>
+  <div class="field"><label>Assigned To *</label>
+    <div class="ms-wrap" id="woAssignedWrap">
+      <div class="ms-selected" id="woAssignedDisplay" onclick="toggleMsDropdown('woAssignedDd')"><span class="ms-placeholder">Select assignees…</span></div>
+      <div class="ms-dropdown" id="woAssignedDd"></div>
+    </div>
+    <input type="hidden" id="woAssigned">
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Vendor</label><select id="woVendor"><option value="">— None —</option></select></div>
+    <div class="field"><label>Reported By *</label><select id="woReported"></select></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Due Date</label><input type="date" id="woDue" style="width:100%"></div>
+  </div>
+  <div class="field"><label>Estimated / Actual Cost ($)</label><input type="number" step="0.01" id="woCost" style="width:100%"></div>
+  <div class="field"><label>Notes</label><textarea id="woNotes"></textarea></div>
+  <div class="field"><label>Photos</label><div class="pm-item-photos" id="woPhotos"></div>
+    <div class="photo-drop" id="woPhotoDrop" onclick="document.getElementById('woPhotoDropInput').click()">
+      Drag & drop photos here, or click to browse
+      <input type="file" id="woPhotoDropInput" accept="image/*" multiple style="display:none" onchange="woHandlePhotoSelect(this)">
+    </div>
+  </div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('woModalBg')">Cancel</button>
+    <button class="btn" onclick="saveWo()">Save Work Order</button>
+  </div>
+</div></div>
+
+<!-- Equipment Modal -->
+<div class="modal-bg" id="eqModalBg"><div class="modal">
+  <div class="modal-head"><h2 id="eqModalTitle">Add Equipment</h2><button class="close-x" onclick="closeModal('eqModalBg')" aria-label="Close">&times;</button></div>
+  <div class="modal-body">
+  <input type="hidden" id="eqId">
+  <div class="field-row">
+    <div class="field"><label>Salon</label><select id="eqSalon"></select></div>
+    <div class="field"><label>Category</label>
+      <select id="eqCategory">
+        <option>HVAC</option><option>Appliance</option><option>Plumbing</option>
+        <option>Sign / Lighting</option><option>Alarm/Security</option><option>Other</option>
+      </select>
+    </div>
+  </div>
+  <div class="field"><label>Equipment Name / Description</label><input type="text" id="eqName" style="width:100%" placeholder="e.g. Rooftop HVAC Unit 1"></div>
+  <div class="field-row">
+    <div class="field"><label>Model</label><input type="text" id="eqModel" style="width:100%" placeholder="e.g. 48FCEA06A2A5A0A0A0"></div>
+    <div class="field"><label>Serial Number</label><input type="text" id="eqSerial" style="width:100%" placeholder="e.g. 0519C68185"></div>
+  </div>
+  <div class="field"><label>Specs</label><input type="text" id="eqSpecs" style="width:100%" placeholder="e.g. R-410A | 47,500 BTUH cooling | SEER 14"></div>
+  <div class="field-row">
+    <div class="field"><label>Install Date</label><input type="date" id="eqInstall" style="width:100%"></div>
+    <div class="field"><label>Last Service Date</label><input type="date" id="eqLastService" style="width:100%"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Service Interval (months)</label><input type="number" id="eqInterval" style="width:100%"></div>
+    <div class="field"><label>Vendor</label><select id="eqVendor"><option value="">— None —</option></select></div>
+  </div>
+  <div class="field"><label>Notes</label><textarea id="eqNotes"></textarea></div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('eqModalBg')">Cancel</button>
+    <button class="btn" onclick="saveEq()">Save Equipment</button>
+  </div>
+</div></div>
+
+<!-- Vendor Modal -->
+<div class="modal-bg" id="vendModalBg"><div class="modal">
+  <div class="modal-head"><h2 id="vendModalTitle">Add Vendor</h2><button class="close-x" onclick="closeModal('vendModalBg')" aria-label="Close">&times;</button></div>
+  <div class="modal-body">
+  <input type="hidden" id="vendId">
+  <div class="field"><label>Vendor / Company Name</label><input type="text" id="vendName" style="width:100%"></div>
+  <div class="field-row">
+    <div class="field"><label>Category</label>
+      <select id="vendCategory">
+        <option>Plumbing</option><option>Electrical</option><option>HVAC</option><option>General Contractor</option>
+        <option>Flooring</option><option>Locksmith</option><option>Signage</option><option>Cleaning</option><option>Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Contact Name</label><input type="text" id="vendContact" style="width:100%"></div>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Phone</label><input type="text" id="vendPhone" style="width:100%"></div>
+    <div class="field"><label>Email</label><input type="email" id="vendEmail" style="width:100%"></div>
+  </div>
+  <div class="field"><label>Notes</label><textarea id="vendNotes"></textarea></div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('vendModalBg')">Cancel</button>
+    <button class="btn" onclick="saveVendor()">Save Vendor</button>
+  </div>
+</div></div>
+
+<!-- Work Order Detail Modal -->
+<div class="modal-bg" id="woDetailBg"><div class="modal wide">
+  <div class="modal-head"><h2 id="woDetailTitle">Work Order Detail</h2><button class="close-x" onclick="closeModal('woDetailBg')" aria-label="Close">&times;</button></div>
+  <div class="modal-body" id="woDetailBody"></div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('woDetailBg')">Close</button>
+    <button class="btn" id="woDetailEditBtn" onclick="">Edit</button>
+  </div>
+</div></div>
+
+<!-- Contact Modal -->
+<div class="modal-bg" id="contactModalBg"><div class="modal">
+  <div class="modal-head"><h2 id="contactModalTitle">Add Contact</h2><button class="close-x" onclick="closeModal('contactModalBg')" aria-label="Close">&times;</button></div>
+  <div class="modal-body">
+  <input type="hidden" id="contactId">
+  <div class="field"><label>Full Name *</label><input type="text" id="contactName" style="width:100%"></div>
+  <div class="field"><label>Email *</label><input type="email" id="contactEmail" style="width:100%"></div>
+  <div class="field"><label>Role</label>
+    <select id="contactRole">
+      <option value="both">Can be Assigned & Report</option>
+      <option value="assignee">Assignee Only</option>
+      <option value="reporter">Reporter Only</option>
+    </select>
+  </div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('contactModalBg')">Cancel</button>
+    <button class="btn" onclick="saveContact()">Save Contact</button>
+  </div>
+</div></div>
+
+<!-- PM Checklist Modal -->
+<div class="modal-bg" id="pmModalBg"><div class="modal wide">
+  <div class="modal-head">
+    <div>
+      <h2>New Preventative Maintenance Checklist Visit</h2>
+      <div class="pm-progress" id="pmProgressLabel">0 / 0 items answered</div>
+      <div class="pm-progress-bar"><div id="pmProgressBar" style="width:0%"></div></div>
+      <div class="pm-autosave-status" id="pmAutoSaveStatus"></div>
+    </div>
+    <button class="close-x" onclick="closePmModal()" aria-label="Close">&times;</button>
+  </div>
+  <div class="modal-body">
+  <div id="pmDraftBanner" class="pm-draft-banner" style="display:none"></div>
+  <div class="field-row">
+    <div class="field"><label>Salon</label><select id="pmSalon"></select></div>
+    <div class="field"><label>Visit Date</label><input type="date" id="pmVisitDate" style="width:100%"></div>
+    <div class="field"><label>Technician Name</label><input type="text" id="pmTech" style="width:100%"></div>
+  </div>
+  <div id="pmChecklistBody"></div>
+  <div class="field" style="margin-top:14px"><label>Overall Visit Notes</label><textarea id="pmVisitNotes"></textarea></div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closePmModal()">Cancel</button>
+    <button class="btn" id="pmCompleteBtn" onclick="savePmVisit()">Complete &amp; Close</button>
+  </div>
+</div></div>
+
+<script>
+const SUPA_URL="https://vcukhvjwsuaqxgqzotwb.supabase.co";
+const SUPA_KEY=["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9","eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30","Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE"].join(".");
+function hdrs(extra){return Object.assign({apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY},extra||{});}
+async function sGet(path){const r=await fetch(SUPA_URL+"/rest/v1/"+path,{headers:hdrs()});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sPost(table,body){const r=await fetch(SUPA_URL+"/rest/v1/"+table,{method:"POST",headers:hdrs({"Content-Type":"application/json",Prefer:"return=representation"}),body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sPatch(table,id,body){const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"PATCH",headers:hdrs({"Content-Type":"application/json",Prefer:"return=representation"}),body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sDelete(table,id){const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?id=eq."+id,{method:"DELETE",headers:hdrs()});if(!r.ok)throw new Error(await r.text());return true;}
+async function sUploadFile(bucket,path,file){
+  const r=await fetch(SUPA_URL+"/storage/v1/object/"+bucket+"/"+path,{method:"POST",headers:hdrs({"Content-Type":file.type||"application/octet-stream","x-upsert":"true"}),body:file});
+  if(!r.ok)throw new Error(await r.text());
+  return SUPA_URL+"/storage/v1/object/public/"+bucket+"/"+path;
+}
+async function sDeleteFile(bucket,path){
+  const r=await fetch(SUPA_URL+"/storage/v1/object/"+bucket+"/"+path,{method:"DELETE",headers:hdrs()});
+  if(!r.ok)throw new Error(await r.text());
+  return true;
+}
+function photoExt(file){const parts=(file.name||"").split(".");return parts.length>1?parts.pop().toLowerCase().replace(/[^a-z0-9]/g,""):"jpg";}
+
+// ===== PM checklist template (from Salon Preventative Maintenance Checklist.xlsx) =====
+const PM_TEMPLATE=[
+ {cat:"PLUMBING (Inspect, Clean, Tighten and Replace Washers)",items:[
+   "Shampoo Sinks","Shampoo Stations Faucet","Shampoo Stations Drain Assembly",
+   "Bathroom (ensure all bathroom fixtures are properly working)",
+   "Toilet (ensure proper working order and replace parts as needed)",
+   "Utility Sink","Drain Water Heater (if tankless, run descaler)"]},
+ {cat:"ELECTRICAL",items:[
+   "Switches (ensure all are in working order and replace as needed)",
+   "Electrical Outlets (ensure all are in working order and replace as needed)",
+   "Sign Timer (ensure it is set correctly and proper operation and replace if needed)",
+   "Replace any burnt out light bulbs",
+   "Thermostat (check programming and replace batteries)"]},
+ {cat:"CASEWORK & FURNITURE",items:[
+   "Front Desk (inspect and tighten door and drawers and replace any parts as needed)",
+   "Stylist Stations (inspect and tighten door and drawers and replace any parts as needed)",
+   "Hairvac Cabinet (inspect and tighten door and drawers and replace any parts as needed)",
+   "Product Cabinet (inspect and tighten door and drawers and replace any parts as needed)",
+   "Towel Cabinet (inspect and tighten door and drawers and replace any parts as needed)",
+   "Station Sails (adjust or replace as needed)",
+   "Replace any broken lobby coat hanger hooks",
+   "Adjust product shelves as needed"]},
+ {cat:"CHAIRS",items:[
+   "Stylist Chairs (inspect for proper operation and tighten, replace parts, and lubricate shafts)",
+   "Replace Seat Cushions","Inspect lobby chairs"]},
+ {cat:"FLOORING",items:[
+   "Inspect flooring and replace or repair as needed",
+   "Floor Base (repair or replace as needed)",
+   "Transitions (repair or replace as needed)"]},
+ {cat:"PAINT, WALLS & CEILING",items:[
+   "Patch any walls as needed","Paint / touch up any areas as needed",
+   "Ceiling Grid (inspect and repair or replace ceiling grid and tile as needed)"]},
+ {cat:"DOORS",items:[
+   "Inspect doors and ensure proper operation",
+   "Adjust and replace any door closures as needed",
+   "Check all door handles and hinges and adjust as needed"]},
+ {cat:"WASHER & DRYER",items:[
+   "Ensure proper operation of unit","Clean dryer duct"]},
+ {cat:"OTHER",items:[
+   "Remove brush roller and clean vacuum to ensure it is clog free",
+   "Inspect and replace any door graphics and posters as needed",
+   "Replace safe batteries (9V)",
+   "Check roller shade operation and adjust as needed",
+   "Replace hairvac filter as needed"]}
+];
+
+let SALONS={}; // salon_id -> salon_name
+let VENDORS=[];
+let WORKORDERS=[];
+let EQUIPMENT=[];
+let PM_VISITS=[]; // header rows, each with .items loaded on demand for history detail
+let CONTACTS=[]; // gc_maint_contacts rows
+let HVAC_INSPECTIONS=[]; // gc_maint_hvac_inspections rows
+let woAssignedIds=new Set(); // currently selected contact IDs for multi-select
+
+function esc(s){return (s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function fmtDate(d){if(!d)return "—";const dt=new Date(d+"T00:00:00");return isNaN(dt)?d:dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}
+function todayISO(){return new Date().toISOString().slice(0,10);}
+function salonName(id){return SALONS[id]?SALONS[id]+" #"+id:id;}
+function salonOptionsHtml(sel){
+  return Object.keys(SALONS).sort().map(id=>`<option value="${id}" ${id===sel?"selected":""}>${esc(salonName(id))}</option>`).join("");
+}
+function vendorOptionsHtml(sel){
+  return `<option value="">— None —</option>`+VENDORS.map(v=>`<option value="${v.id}" ${String(v.id)===String(sel)?"selected":""}>${esc(v.name)}</option>`).join("");
+}
+
+// ===== Tabs =====
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  document.querySelectorAll("section.panel").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active");
+  document.getElementById("panel-"+t.dataset.t).classList.add("active");
+}));
+
+function closeModal(id){document.getElementById(id).classList.remove("active");}
+function openModal(id){document.getElementById(id).classList.add("active");}
+
+// ===== Load base data =====
+async function loadSalons(){
+  const rows=await sGet("daily_salon?select=salon_id,salon_name,date&order=date.desc");
+  SALONS={};
+  rows.forEach(r=>{if(!(r.salon_id in SALONS))SALONS[r.salon_id]=r.salon_name;});
+}
+async function loadVendors(){VENDORS=await sGet("gc_maint_vendors?select=*&order=name.asc");}
+async function loadWorkOrders(){WORKORDERS=await sGet("gc_maint_work_orders?select=*&order=created_at.desc");}
+async function loadEquipment(){EQUIPMENT=await sGet("gc_maint_equipment?select=*&order=salon_id.asc");}
+async function loadPmVisits(){PM_VISITS=await sGet("gc_maint_pm_visits?select=*&status=eq.completed&order=visit_date.desc");}
+async function loadContacts(){CONTACTS=await sGet("gc_maint_contacts?select=*&active=eq.true&order=name.asc");}
+async function loadHvacInspections(){HVAC_INSPECTIONS=await sGet("gc_maint_hvac_inspections?select=*&order=visit_date.desc");}
+
+// ===== Multi-select helpers =====
+function toggleMsDropdown(id){document.getElementById(id).classList.toggle("open");}
+document.addEventListener("click",function(e){
+  document.querySelectorAll(".ms-dropdown.open").forEach(dd=>{
+    if(!dd.parentElement.contains(e.target))dd.classList.remove("open");
+  });
+});
+function renderAssignedMultiSelect(){
+  const assignees=CONTACTS.filter(c=>c.role==="assignee"||c.role==="both");
+  const dd=document.getElementById("woAssignedDd");
+  dd.innerHTML=assignees.map(c=>`<div class="ms-option ${woAssignedIds.has(c.id)?'sel':''}" onclick="toggleAssignee('${c.id}')">
+    <span class="check">${woAssignedIds.has(c.id)?'✓':''}</span>${esc(c.name)}</div>`).join("")||'<div class="ms-option" style="color:var(--muted)">No assignee contacts yet</div>';
+  const display=document.getElementById("woAssignedDisplay");
+  if(woAssignedIds.size===0){display.innerHTML='<span class="ms-placeholder">Select assignees…</span>';}
+  else{display.innerHTML=[...woAssignedIds].map(cid=>{const c=CONTACTS.find(x=>x.id===cid);return c?`<span class="ms-chip">${esc(c.name)}<span class="x" onclick="event.stopPropagation();toggleAssignee('${c.id}')">&times;</span></span>`:''}).join("");}
+  document.getElementById("woAssigned").value=[...woAssignedIds].map(cid=>{const c=CONTACTS.find(x=>x.id===cid);return c?c.name:''}).filter(Boolean).join(", ");
+}
+function toggleAssignee(cid){
+  if(woAssignedIds.has(cid))woAssignedIds.delete(cid); else woAssignedIds.add(cid);
+  renderAssignedMultiSelect();
+}
+function fillReportedBySelect(sel_val){
+  const reporters=CONTACTS.filter(c=>c.role==="reporter"||c.role==="both");
+  const el=document.getElementById("woReported");
+  el.innerHTML='<option value="">— Select —</option>'+reporters.map(c=>`<option value="${esc(c.name)}" ${c.name===sel_val?'selected':''}>${esc(c.name)}</option>`).join("");
+}
+
+function fillSalonSelects(){
+  document.querySelectorAll("#woSalon,#eqSalon,#pmSalon").forEach(sel=>{sel.innerHTML=salonOptionsHtml();});
+  const woF=document.getElementById("woFilterSalon"), eqF=document.getElementById("eqFilterSalon"), hvF=document.getElementById("hvacFilterSalon");
+  woF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
+  eqF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
+  if(hvF) hvF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
+}
+function fillVendorSelects(){
+  document.querySelectorAll("#woVendor,#eqVendor").forEach(sel=>{sel.innerHTML=vendorOptionsHtml();});
+}
+
+// ===== Overview =====
+function renderOverview(){
+  const open=WORKORDERS.filter(w=>w.status!=="Completed");
+  const highOpen=open.filter(w=>w.priority==="High"||w.priority==="Urgent");
+  const pmStatus=computePmStatusAll();
+  const overdue=pmStatus.filter(p=>p.status==="over"||p.status==="never").length;
+  const dueSoon=pmStatus.filter(p=>p.status==="soon").length;
+
+  document.getElementById("ov-kpis").innerHTML=`
+    <div class="kpi ${open.length?'flagamber':''}"><div class="lbl">Open Work Orders</div><div class="val">${open.length}</div><div class="sub">${WORKORDERS.length} total all-time</div></div>
+    <div class="kpi ${highOpen.length?'flagred':''}"><div class="lbl">High / Urgent Open</div><div class="val">${highOpen.length}</div></div>
+    <div class="kpi ${overdue?'flagred':''}"><div class="lbl">PM Checklist Overdue</div><div class="val">${overdue}</div><div class="sub">of ${Object.keys(SALONS).length} salons</div></div>
+    <div class="kpi ${dueSoon?'flagamber':''}"><div class="lbl">PM Due Soon</div><div class="val">${dueSoon}</div><div class="sub">within 30 days</div></div>
+    <div class="kpi"><div class="lbl">Vendors on File</div><div class="val">${VENDORS.length}</div></div>
+    <div class="kpi"><div class="lbl">Equipment Tracked</div><div class="val">${EQUIPMENT.length}</div></div>`;
+
+  const priRank={Urgent:0,High:1,Medium:2,Low:3};
+  const openSorted=[...open].sort((a,b)=>(priRank[a.priority]??9)-(priRank[b.priority]??9)||String(a.due_date||"9999").localeCompare(String(b.due_date||"9999")));
+  document.getElementById("ov-wo").innerHTML= openSorted.length? `<table><thead><tr><th>Salon</th><th>Title</th><th>Priority</th><th>Status</th><th>Due</th></tr></thead><tbody>`+
+    openSorted.slice(0,12).map(w=>`<tr><td><span class="wo-clickable" onclick="openWoDetail(${w.id})">${esc(salonName(w.salon_id))}</span></td><td><span class="wo-clickable" onclick="openWoDetail(${w.id})">${esc(w.title)}</span></td><td>${priBadge(w.priority)}</td><td>${statusBadge(w.status)}</td><td>${fmtDate(w.due_date)}</td></tr>`).join("")+`</tbody></table>`
+    : `<div class="empty-note">No open work orders.</div>`;
+
+  const attn=pmStatus.filter(p=>p.status==="over"||p.status==="never"||p.status==="soon").sort((a,b)=>a.status==="over"?-1:1);
+  document.getElementById("ov-pm").innerHTML= attn.length? `<table><thead><tr><th>Salon</th><th>Last Visit</th><th>Status</th></tr></thead><tbody>`+
+    attn.map(p=>`<tr><td>${esc(salonName(p.salon_id))}</td><td>${p.lastVisit?fmtDate(p.lastVisit):"Never recorded"}</td><td>${pmStatusLabel(p.status)}</td></tr>`).join("")+`</tbody></table>`
+    : `<div class="empty-note">All salons up to date.</div>`;
+}
+function priBadge(p){
+  if(p==="Urgent")return `<span class="pri-urgent">Urgent</span>`;
+  if(p==="High")return `<span class="pri-high">High</span>`;
+  if(p==="Medium")return `<span class="pri-medium">Medium</span>`;
+  return `<span class="pri-low">Low</span>`;
+}
+function statusBadge(s){
+  const map={Open:"open","In Progress":"progress","On Hold":"hold",Completed:"done"};
+  return `<span class="badge ${map[s]||'open'}">${esc(s)}</span>`;
+}
+function pmStatusLabel(s){
+  if(s==="over")return `<span class="status-over">Overdue</span>`;
+  if(s==="soon")return `<span class="status-soon">Due Soon</span>`;
+  if(s==="never")return `<span class="status-never">Never Recorded</span>`;
+  return `<span class="status-ok">Up to Date</span>`;
+}
+function computePmStatusAll(){
+  const bySalon={};
+  PM_VISITS.forEach(v=>{if(!bySalon[v.salon_id]||v.visit_date>bySalon[v.salon_id])bySalon[v.salon_id]=v.visit_date;});
+  const today=new Date(todayISO());
+  return Object.keys(SALONS).sort().map(id=>{
+    const last=bySalon[id]||null;
+    if(!last)return{salon_id:id,lastVisit:null,nextDue:null,status:"never"};
+    const nextDue=new Date(last+"T00:00:00"); nextDue.setMonth(nextDue.getMonth()+3);
+    const daysLeft=Math.round((nextDue-today)/86400000);
+    let status="ok"; if(daysLeft<0)status="over"; else if(daysLeft<=30)status="soon";
+    return{salon_id:id,lastVisit:last,nextDue:nextDue.toISOString().slice(0,10),status};
+  });
+}
+
+// ===== Work Orders tab =====
+function statusSelectClass(s){return{Open:"s-open","In Progress":"s-progress","On Hold":"s-hold",Completed:"s-done"}[s]||"s-open";}
+function renderWorkOrders(){
+  const fS=document.getElementById("woFilterSalon").value;
+  const fSt=document.getElementById("woFilterStatus").value;
+  const fP=document.getElementById("woFilterPriority").value;
+  let rows=[...WORKORDERS];
+  if(fS)rows=rows.filter(w=>w.salon_id===fS);
+  if(fSt)rows=rows.filter(w=>w.status===fSt);
+  if(fP)rows=rows.filter(w=>w.priority===fP);
+  document.getElementById("wo-table").innerHTML= rows.length? `<table><thead><tr>
+    <th>Salon</th><th>Title</th><th>Category</th><th>Priority</th><th>Status</th><th>Completed</th><th>Vendor</th><th>Due</th><th>Cost</th><th>Actions</th>
+    </tr></thead><tbody>`+rows.map(w=>{
+      const vend=VENDORS.find(v=>String(v.id)===String(w.vendor_id));
+      const compDate=w.completed_at?fmtDate(w.completed_at.slice(0,10)):"—";
+      return `<tr>
+        <td><span class="wo-clickable" onclick="openWoDetail(${w.id})">${esc(salonName(w.salon_id))}</span></td>
+        <td><span class="wo-clickable" onclick="openWoDetail(${w.id})"><b>${esc(w.title)}</b></span>${w.description?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px">${esc(w.description)}</div>`:""}</td>
+        <td>${esc(w.category||"—")}</td>
+        <td>${priBadge(w.priority)}</td>
+        <td><select class="inline-status ${statusSelectClass(w.status)}" onchange="inlineStatusChange(${w.id},this)">
+          <option ${w.status==="Open"?"selected":""}>Open</option>
+          <option ${w.status==="In Progress"?"selected":""}>In Progress</option>
+          <option ${w.status==="On Hold"?"selected":""}>On Hold</option>
+          <option ${w.status==="Completed"?"selected":""}>Completed</option>
+        </select></td>
+        <td>${compDate}</td>
+        <td>${vend?esc(vend.name):(w.assigned_to?esc(w.assigned_to):"—")}</td>
+        <td>${fmtDate(w.due_date)}</td>
+        <td>${w.cost!=null?"$"+Number(w.cost).toFixed(2):"—"}</td>
+        <td class="act-links"><a href="#" onclick="editWo(${w.id});return false;">Edit</a><a href="#" class="danger" onclick="deleteWo(${w.id});return false;">Delete</a></td>
+      </tr>`;}).join("")+`</tbody></table>`
+    : `<div class="empty-note">No work orders match these filters.</div>`;
+}
+async function inlineStatusChange(id,sel){
+  const newStatus=sel.value;
+  sel.className="inline-status "+statusSelectClass(newStatus);
+  const body={status:newStatus,updated_at:new Date().toISOString()};
+  if(newStatus==="Completed"){body.completed_at=new Date().toISOString();}
+  else{body.completed_at=null;}
+  try{
+    await sPatch("gc_maint_work_orders",id,body);
+    const wo=WORKORDERS.find(w=>w.id===id);
+    if(wo){wo.status=newStatus;wo.completed_at=body.completed_at;wo.updated_at=body.updated_at;}
+    renderWorkOrders(); renderOverview();
+  }catch(e){alert("Status update failed: "+e.message);await loadWorkOrders();renderWorkOrders();}
+}
+async function openWoDetail(id){
+  const w=WORKORDERS.find(x=>x.id===id); if(!w)return;
+  const vend=VENDORS.find(v=>String(v.id)===String(w.vendor_id));
+  let photos=[];
+  try{photos=await sGet("gc_maint_photos?select=*&work_order_id=eq."+id+"&order=created_at.asc");}catch(e){}
+  document.getElementById("woDetailTitle").textContent=w.title||"Work Order Detail";
+  document.getElementById("woDetailEditBtn").setAttribute("onclick",`closeModal('woDetailBg');editWo(${id})`);
+  const compDate=w.completed_at?new Date(w.completed_at).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}):"—";
+  let html=`<div class="wo-detail-grid">
+    <div><div class="dl">Salon</div><div class="dd">${esc(salonName(w.salon_id))}</div></div>
+    <div><div class="dl">Category</div><div class="dd">${esc(w.category||"—")}</div></div>
+    <div><div class="dl">Priority</div><div class="dd">${priBadge(w.priority)}</div></div>
+    <div><div class="dl">Status</div><div class="dd">${statusBadge(w.status)}</div></div>
+    <div><div class="dl">Due Date</div><div class="dd">${fmtDate(w.due_date)}</div></div>
+    <div><div class="dl">Completed</div><div class="dd">${compDate}</div></div>
+    <div><div class="dl">Vendor</div><div class="dd">${vend?esc(vend.name):"—"}</div></div>
+    <div><div class="dl">Assigned To</div><div class="dd">${esc(w.assigned_to||"—")}</div></div>
+    <div><div class="dl">Reported By</div><div class="dd">${esc(w.reported_by||"—")}</div></div>
+    <div><div class="dl">Cost</div><div class="dd">${w.cost!=null?"$"+Number(w.cost).toFixed(2):"—"}</div></div>
+    <div class="wo-detail-full"><div class="dl">Description</div><div class="dd">${esc(w.description||"—")}</div></div>
+    <div class="wo-detail-full"><div class="dl">Notes</div><div class="dd">${esc(w.notes||"—")}</div></div>
+    <div><div class="dl">Created</div><div class="dd">${w.created_at?new Date(w.created_at).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}):"—"}</div></div>
+    <div><div class="dl">Updated</div><div class="dd">${w.updated_at?new Date(w.updated_at).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"}):"—"}</div></div>
+  </div>`;
+  html+=`<div class="wo-detail-photos"><h4>Photos</h4>
+    <div class="wo-detail-photo-grid" id="woDetailPhotoGrid">`;
+  if(photos.length){photos.forEach(p=>{html+=`<a href="${p.photo_url}" target="_blank" rel="noopener"><img src="${p.photo_url}" alt="Work order photo"></a>`;});}
+  else{html+=`<span class="empty-note">No photos yet.</span>`;}
+  html+=`</div>
+    <div style="margin-top:10px"><label class="photo-add-btn" for="woDetailPhotoInput">&#128247; Add completion photo</label>
+    <input type="file" id="woDetailPhotoInput" accept="image/*" multiple style="display:none" onchange="woDetailUploadPhotos(${id},this)"></div>
+  </div>`;
+  document.getElementById("woDetailBody").innerHTML=html;
+  openModal("woDetailBg");
+}
+async function woDetailUploadPhotos(woId,input){
+  const files=Array.from(input.files||[]);input.value="";
+  if(!files.length)return;
+  const grid=document.getElementById("woDetailPhotoGrid");
+  for(const file of files){
+    try{
+      const path=`wo/${woId}_${Date.now()}_${Math.random().toString(36).slice(2,7)}.${photoExt(file)}`;
+      const url=await sUploadFile("maintenance-photos",path,file);
+      await sPost("gc_maint_photos",{work_order_id:woId,photo_url:url,storage_path:path});
+      const emptyNote=grid.querySelector(".empty-note");if(emptyNote)emptyNote.remove();
+      grid.insertAdjacentHTML("beforeend",`<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="Work order photo"></a>`);
+    }catch(e){alert("Photo upload failed: "+e.message);}
+  }
+}
+["woFilterSalon","woFilterStatus","woFilterPriority"].forEach(id=>document.getElementById(id).addEventListener("change",renderWorkOrders));
+
+let woStagedPhotos=[];
+let woExistingPhotos=[];
+function woRenderPhotos(){
+  const wrap=document.getElementById("woPhotos");
+  if(!wrap)return;
+  const existingHtml=woExistingPhotos.map(p=>`<div class="photo-thumb"><a href="${p.photo_url}" target="_blank" rel="noopener"><img src="${p.photo_url}"></a><span class="rm" onclick="woDeleteExistingPhoto(${p.id})">&times;</span></div>`).join("");
+  const stagedHtml=woStagedPhotos.map((f,idx)=>`<div class="photo-thumb"><img src="${URL.createObjectURL(f)}"><span class="rm" onclick="woRemoveStagedPhoto(${idx})">&times;</span></div>`).join("");
+  wrap.innerHTML=existingHtml+stagedHtml+
+    `<label class="photo-add-btn" for="woPhotoInput">&#128247; Add photo</label><input type="file" id="woPhotoInput" accept="image/*" multiple style="display:none" onchange="woHandlePhotoSelect(this)">`;
+}
+async function woHandlePhotoSelect(input){
+  const files=Array.from(input.files||[]);
+  input.value="";
+  if(!files.length)return;
+  const woId=document.getElementById("woId").value;
+  if(woId){
+    for(const file of files){
+      try{
+        const path=`wo/${woId}_${Date.now()}_${Math.random().toString(36).slice(2,7)}.${photoExt(file)}`;
+        const url=await sUploadFile("maintenance-photos",path,file);
+        const rows=await sPost("gc_maint_photos",{work_order_id:woId,photo_url:url,storage_path:path});
+        woExistingPhotos.push(rows[0]);
+      }catch(e){alert("Photo upload failed: "+e.message);}
+    }
+  }else{
+    woStagedPhotos.push(...files);
+  }
+  woRenderPhotos();
+}
+function woRemoveStagedPhoto(idx){woStagedPhotos.splice(idx,1);woRenderPhotos();}
+async function woDeleteExistingPhoto(photoId){
+  if(!confirm("Delete this photo?"))return;
+  const photo=woExistingPhotos.find(p=>p.id===photoId);
+  try{
+    await sDelete("gc_maint_photos",photoId);
+    if(photo&&photo.storage_path)sDeleteFile("maintenance-photos",photo.storage_path).catch(()=>{});
+    woExistingPhotos=woExistingPhotos.filter(p=>p.id!==photoId);
+    woRenderPhotos();
+  }catch(e){alert("Delete failed: "+e.message);}
+}
+function openWoModal(){
+  document.getElementById("woModalTitle").textContent="New Work Order";
+  document.getElementById("woId").value="";
+  document.getElementById("woSalon").innerHTML=salonOptionsHtml();
+  document.getElementById("woVendor").innerHTML=vendorOptionsHtml();
+  ["woTitle","woDesc","woDue","woCost","woNotes"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("woCategory").value="Other";
+  document.getElementById("woPriority").value="Medium";
+  document.getElementById("woStatus").value="Open";
+  woAssignedIds=new Set();
+  renderAssignedMultiSelect();
+  fillReportedBySelect("");
+  woStagedPhotos=[]; woExistingPhotos=[]; woRenderPhotos();
+  openModal("woModalBg");
+}
+async function editWo(id){
+  const w=WORKORDERS.find(x=>x.id===id); if(!w)return;
+  document.getElementById("woModalTitle").textContent="Edit Work Order";
+  document.getElementById("woId").value=w.id;
+  document.getElementById("woSalon").innerHTML=salonOptionsHtml(w.salon_id);
+  document.getElementById("woVendor").innerHTML=vendorOptionsHtml(w.vendor_id);
+  document.getElementById("woTitle").value=w.title||"";
+  document.getElementById("woDesc").value=w.description||"";
+  document.getElementById("woCategory").value=w.category||"Other";
+  document.getElementById("woPriority").value=w.priority||"Medium";
+  document.getElementById("woStatus").value=w.status||"Open";
+  // Populate multi-select assigned to
+  woAssignedIds=new Set();
+  if(w.assigned_to){
+    const names=w.assigned_to.split(",").map(s=>s.trim());
+    names.forEach(nm=>{const c=CONTACTS.find(x=>x.name===nm);if(c)woAssignedIds.add(c.id);});
+  }
+  renderAssignedMultiSelect();
+  fillReportedBySelect(w.reported_by||"");
+  document.getElementById("woDue").value=w.due_date||"";
+  document.getElementById("woCost").value=w.cost!=null?w.cost:"";
+  document.getElementById("woNotes").value=w.notes||"";
+  woStagedPhotos=[]; woExistingPhotos=[]; woRenderPhotos();
+  openModal("woModalBg");
+  try{woExistingPhotos=await sGet("gc_maint_photos?select=*&work_order_id=eq."+id+"&order=created_at.asc"); woRenderPhotos();}catch(e){}
+}
+async function saveWo(){
+  const id=document.getElementById("woId").value;
+  const status=document.getElementById("woStatus").value;
+  const assignedNames=[...woAssignedIds].map(cid=>{const c=CONTACTS.find(x=>x.id===cid);return c?c.name:null;}).filter(Boolean);
+  const assignedEmails=[...woAssignedIds].map(cid=>{const c=CONTACTS.find(x=>x.id===cid);return c&&c.email?c.email:null;}).filter(Boolean);
+  const reportedBy=document.getElementById("woReported").value;
+  const body={
+    salon_id:document.getElementById("woSalon").value,
+    title:document.getElementById("woTitle").value.trim(),
+    description:document.getElementById("woDesc").value.trim()||null,
+    category:document.getElementById("woCategory").value,
+    priority:document.getElementById("woPriority").value,
+    status,
+    vendor_id:document.getElementById("woVendor").value||null,
+    assigned_to:assignedNames.length?assignedNames.join(", "):null,
+    assigned_to_emails:assignedEmails.length?assignedEmails:null,
+    reported_by:reportedBy||null,
+    due_date:document.getElementById("woDue").value||null,
+    cost:document.getElementById("woCost").value?Number(document.getElementById("woCost").value):null,
+    notes:document.getElementById("woNotes").value.trim()||null,
+    updated_at:new Date().toISOString()
+  };
+  if(status==="Completed"){if(!id||!WORKORDERS.find(x=>x.id==id&&x.completed_at))body.completed_at=new Date().toISOString();}
+  else{body.completed_at=null;}
+  if(!body.title){alert("Title is required.");return;}
+  if(!assignedNames.length){alert("Assigned To is required. Please select at least one person.");return;}
+  if(!reportedBy){alert("Reported By is required.");return;}
+  try{
+    let woId=id;
+    if(id){await sPatch("gc_maint_work_orders",id,body);}
+    else{const rows=await sPost("gc_maint_work_orders",body); woId=rows[0].id;}
+    if(!id&&woStagedPhotos.length){
+      const photoRows=[];
+      for(let f=0; f<woStagedPhotos.length; f++){
+        const file=woStagedPhotos[f];
+        try{
+          const path=`wo/${woId}_${Date.now()}_${f}.${photoExt(file)}`;
+          const url=await sUploadFile("maintenance-photos",path,file);
+          photoRows.push({work_order_id:woId,photo_url:url,storage_path:path});
+        }catch(e){console.error("Photo upload failed",e);}
+      }
+      if(photoRows.length)await sPost("gc_maint_photos",photoRows);
+    }
+    woStagedPhotos=[];
+    closeModal("woModalBg");
+    // Send email notification to assigned contacts (fire-and-forget)
+    if(assignedEmails.length){
+      sendWoNotification({
+        to:assignedEmails,
+        title:body.title,
+        salon:salonName(body.salon_id),
+        priority:body.priority,
+        category:body.category,
+        description:body.description||"",
+        reported_by:body.reported_by||"",
+        due_date:body.due_date||"",
+        is_new:!id
+      }).catch(e=>console.warn("Email notification failed:",e));
+    }
+    await loadWorkOrders(); renderWorkOrders(); renderOverview();
+  }catch(e){alert("Save failed: "+e.message);}
+}
+async function deleteWo(id){
+  if(!confirm("Delete this work order?"))return;
+  try{await sDelete("gc_maint_work_orders",id); await loadWorkOrders(); renderWorkOrders(); renderOverview();}
+  catch(e){alert("Delete failed: "+e.message);}
+}
+
+// ===== Equipment tab =====
+function renderEquipment(){
+  closeEqDetail();
+  const fS=document.getElementById("eqFilterSalon").value;
+  const fC=document.getElementById("eqFilterCat").value;
+  let rows=[...EQUIPMENT];
+  if(fS)rows=rows.filter(e=>e.salon_id===fS);
+  if(fC)rows=rows.filter(e=>e.category===fC);
+  document.getElementById("eq-table").innerHTML= rows.length? `<table><thead><tr>
+    <th>Salon</th><th>Category</th><th>Name</th><th>Model</th><th>Serial #</th><th>Last Service</th><th>Actions</th>
+    </tr></thead><tbody>`+rows.map(e=>{
+      const vend=VENDORS.find(v=>String(v.id)===String(e.vendor_id));
+      return `<tr style="cursor:pointer" onclick="showEqDetail(${e.id})">
+        <td>${esc(salonName(e.salon_id))}</td><td>${esc(e.category)}</td><td><b>${esc(e.name)}</b></td>
+        <td>${esc(e.model||"—")}</td><td style="font-family:monospace;font-size:11.5px">${esc(e.serial_number||"—")}</td>
+        <td>${fmtDate(e.last_service_date)}</td>
+        <td class="act-links"><a href="#" onclick="event.stopPropagation();editEq(${e.id});return false;">Edit</a><a href="#" class="danger" onclick="event.stopPropagation();deleteEq(${e.id});return false;">Del</a></td>
+      </tr>`;}).join("")+`</tbody></table>`
+    : `<div class="empty-note">No equipment recorded${fS?" for this salon":""} yet.</div>`;
+}
+document.getElementById("eqFilterSalon").addEventListener("change",renderEquipment);
+document.getElementById("eqFilterCat").addEventListener("change",renderEquipment);
+
+function showEqDetail(id){
+  const e=EQUIPMENT.find(x=>x.id===id); if(!e)return;
+  const vend=VENDORS.find(v=>String(v.id)===String(e.vendor_id));
+  document.getElementById("eq-detail-title").textContent=e.name+' — '+salonName(e.salon_id);
+  document.getElementById("eq-detail-body").innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px">
+      <div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Category</span><div style="font-size:15px;font-weight:600;margin-top:2px">${esc(e.category)}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Model</span><div style="font-size:15px;font-weight:600;margin-top:2px;font-family:monospace">${esc(e.model||"—")}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Serial Number</span><div style="font-size:15px;font-weight:600;margin-top:2px;font-family:monospace">${esc(e.serial_number||"—")}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Specs</span><div style="font-size:14px;margin-top:2px">${esc(e.specs||"—")}</div></div>
+      </div>
+      <div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Install Date</span><div style="font-size:15px;font-weight:600;margin-top:2px">${fmtDate(e.install_date)}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Last Service</span><div style="font-size:15px;font-weight:600;margin-top:2px">${fmtDate(e.last_service_date)}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Service Interval</span><div style="font-size:15px;font-weight:600;margin-top:2px">${e.service_interval_months?e.service_interval_months+' months':'—'}</div></div>
+        <div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Vendor</span><div style="font-size:15px;font-weight:600;margin-top:2px">${vend?esc(vend.name):'—'}</div></div>
+        ${e.notes?`<div style="margin-bottom:14px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:600">Notes</span><div style="font-size:13px;margin-top:2px;color:var(--muted)">${esc(e.notes)}</div></div>`:''}
+      </div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn small" onclick="editEq(${e.id})">Edit</button>
+      <button class="btn secondary small danger" onclick="deleteEq(${e.id})">Delete</button>
+    </div>`;
+  document.getElementById("eq-detail-wrap").style.display="block";
+  document.getElementById("eq-detail-wrap").scrollIntoView({behavior:'smooth',block:'start'});
+}
+function closeEqDetail(){document.getElementById("eq-detail-wrap").style.display="none";}
+
+function openEqModal(){
+  document.getElementById("eqModalTitle").textContent="Add Equipment";
+  document.getElementById("eqId").value="";
+  document.getElementById("eqSalon").innerHTML=salonOptionsHtml();
+  document.getElementById("eqVendor").innerHTML=vendorOptionsHtml();
+  ["eqName","eqModel","eqSerial","eqSpecs","eqInstall","eqLastService","eqInterval","eqNotes"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("eqCategory").value="HVAC";
+  openModal("eqModalBg");
+}
+function editEq(id){
+  const e=EQUIPMENT.find(x=>x.id===id); if(!e)return;
+  document.getElementById("eqModalTitle").textContent="Edit Equipment";
+  document.getElementById("eqId").value=e.id;
+  document.getElementById("eqSalon").innerHTML=salonOptionsHtml(e.salon_id);
+  document.getElementById("eqVendor").innerHTML=vendorOptionsHtml(e.vendor_id);
+  document.getElementById("eqCategory").value=e.category||"HVAC";
+  document.getElementById("eqName").value=e.name||"";
+  document.getElementById("eqModel").value=e.model||"";
+  document.getElementById("eqSerial").value=e.serial_number||"";
+  document.getElementById("eqSpecs").value=e.specs||"";
+  document.getElementById("eqInstall").value=e.install_date||"";
+  document.getElementById("eqLastService").value=e.last_service_date||"";
+  document.getElementById("eqInterval").value=e.service_interval_months||"";
+  document.getElementById("eqNotes").value=e.notes||"";
+  openModal("eqModalBg");
+}
+async function saveEq(){
+  const id=document.getElementById("eqId").value;
+  const body={
+    salon_id:document.getElementById("eqSalon").value,
+    category:document.getElementById("eqCategory").value,
+    name:document.getElementById("eqName").value.trim(),
+    model:document.getElementById("eqModel").value.trim()||null,
+    serial_number:document.getElementById("eqSerial").value.trim()||null,
+    specs:document.getElementById("eqSpecs").value.trim()||null,
+    install_date:document.getElementById("eqInstall").value||null,
+    last_service_date:document.getElementById("eqLastService").value||null,
+    service_interval_months:document.getElementById("eqInterval").value?Number(document.getElementById("eqInterval").value):null,
+    vendor_id:document.getElementById("eqVendor").value||null,
+    notes:document.getElementById("eqNotes").value.trim()||null
+  };
+  if(!body.name){alert("Equipment name is required.");return;}
+  try{
+    if(id){await sPatch("gc_maint_equipment",id,body);} else {await sPost("gc_maint_equipment",body);}
+    closeModal("eqModalBg");
+    await loadEquipment(); renderEquipment(); renderOverview();
+  }catch(e){alert("Save failed: "+e.message);}
+}
+async function deleteEq(id){
+  if(!confirm("Delete this equipment record?"))return;
+  try{await sDelete("gc_maint_equipment",id); await loadEquipment(); renderEquipment(); renderOverview();}
+  catch(e){alert("Delete failed: "+e.message);}
+}
+
+// ===== Vendors tab =====
+function renderVendors(){
+  document.getElementById("vend-table").innerHTML= VENDORS.length? `<table><thead><tr>
+    <th>Name</th><th>Category</th><th>Contact</th><th>Phone</th><th>Email</th><th>Notes</th><th>Actions</th>
+    </tr></thead><tbody>`+VENDORS.map(v=>`<tr>
+      <td><b>${esc(v.name)}</b></td><td>${esc(v.category||"—")}</td><td>${esc(v.contact_name||"—")}</td>
+      <td>${esc(v.phone||"—")}</td><td>${v.email?`<a href="mailto:${esc(v.email)}">${esc(v.email)}</a>`:"—"}</td>
+      <td>${esc(v.notes||"—")}</td>
+      <td class="act-links"><a href="#" onclick="editVendor(${v.id});return false;">Edit</a><a href="#" class="danger" onclick="deleteVendor(${v.id});return false;">Delete</a></td>
+    </tr>`).join("")+`</tbody></table>`
+    : `<div class="empty-note">No vendors on file yet.</div>`;
+}
+function openVendModal(){
+  document.getElementById("vendModalTitle").textContent="Add Vendor";
+  document.getElementById("vendId").value="";
+  ["vendName","vendContact","vendPhone","vendEmail","vendNotes"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("vendCategory").value="Plumbing";
+  openModal("vendModalBg");
+}
+function editVendor(id){
+  const v=VENDORS.find(x=>x.id===id); if(!v)return;
+  document.getElementById("vendModalTitle").textContent="Edit Vendor";
+  document.getElementById("vendId").value=v.id;
+  document.getElementById("vendName").value=v.name||"";
+  document.getElementById("vendCategory").value=v.category||"Plumbing";
+  document.getElementById("vendContact").value=v.contact_name||"";
+  document.getElementById("vendPhone").value=v.phone||"";
+  document.getElementById("vendEmail").value=v.email||"";
+  document.getElementById("vendNotes").value=v.notes||"";
+  openModal("vendModalBg");
+}
+function normalizePhone(raw){
+  if(!raw)return null;
+  // Strip everything except digits and 'x'/'ext'
+  let s=raw.replace(/ext\.?\s*/gi,'x').replace(/extension\s*/gi,'x');
+  let ext='';
+  const xi=s.search(/x/i);
+  if(xi>-1){ext=s.slice(xi+1).replace(/\D/g,'');s=s.slice(0,xi);}
+  const digits=s.replace(/\D/g,'');
+  // Handle 10-digit or 11-digit (leading 1) US numbers
+  let d10=digits;
+  if(digits.length===11&&digits[0]==='1')d10=digits.slice(1);
+  if(d10.length!==10)return raw; // can't normalize, return as-is
+  const fmt=`(${d10.slice(0,3)}) ${d10.slice(3,6)}-${d10.slice(6)}`;
+  return ext?fmt+' x'+ext:fmt;
+}
+async function saveVendor(){
+  const id=document.getElementById("vendId").value;
+  const body={
+    name:document.getElementById("vendName").value.trim(),
+    category:document.getElementById("vendCategory").value,
+    contact_name:document.getElementById("vendContact").value.trim()||null,
+    phone:normalizePhone(document.getElementById("vendPhone").value.trim())||null,
+    email:document.getElementById("vendEmail").value.trim()||null,
+    notes:document.getElementById("vendNotes").value.trim()||null
+  };
+  if(!body.name){alert("Vendor name is required.");return;}
+  try{
+    if(id){await sPatch("gc_maint_vendors",id,body);} else {await sPost("gc_maint_vendors",body);}
+    closeModal("vendModalBg");
+    await loadVendors(); renderVendors(); fillVendorSelects(); renderOverview();
+  }catch(e){alert("Save failed: "+e.message);}
+}
+async function deleteVendor(id){
+  if(!confirm("Delete this vendor?"))return;
+  try{await sDelete("gc_maint_vendors",id); await loadVendors(); renderVendors(); fillVendorSelects(); renderOverview();}
+  catch(e){alert("Delete failed: "+e.message);}
+}
+
+// ===== PM Checklist tab =====
+function renderPmGrid(){
+  const statuses=computePmStatusAll();
+  document.getElementById("pm-salon-grid").innerHTML=statuses.map(p=>`
+    <div class="salon-card ${p.status}" onclick="showPmHistory('${p.salon_id}')">
+      <div class="nm">${esc(SALONS[p.salon_id]||p.salon_id)}</div>
+      <div class="id">Salon #${p.salon_id}</div>
+      <div class="st">Last visit: ${p.lastVisit?fmtDate(p.lastVisit):"—"}</div>
+      <div class="st">${pmStatusLabel(p.status)}${p.nextDue?` · next due ${fmtDate(p.nextDue)}`:""}</div>
+    </div>`).join("");
+}
+const PM_DRAFT_KEY="gcPmDraftV1";
+let pmPhotoStaging={};
+let pmActiveVisitId=null;
+let pmItemIds={};
+let pmLastSavedState=null;
+let pmAutoSaving=false;
+function pmRenderPhotoThumbs(si,ii){
+  const wrap=document.getElementById(`pm_photos_${si}_${ii}`);
+  if(!wrap)return;
+  const files=pmPhotoStaging[si+"_"+ii]||[];
+  wrap.innerHTML=files.map((f,idx)=>`<div class="photo-thumb"><img src="${URL.createObjectURL(f)}"><span class="rm" onclick="pmRemovePhoto(${si},${ii},${idx})">&times;</span></div>`).join("")+
+    `<label class="photo-add-btn" for="pm_photo_input_${si}_${ii}">&#128247; Add photo</label><input type="file" id="pm_photo_input_${si}_${ii}" accept="image/*" multiple style="display:none" onchange="pmHandlePhotoSelect(${si},${ii},this)">`;
+}
+function pmHandlePhotoSelect(si,ii,input){
+  const key=si+"_"+ii;
+  if(!pmPhotoStaging[key])pmPhotoStaging[key]=[];
+  pmPhotoStaging[key].push(...Array.from(input.files||[]));
+  input.value="";
+  pmRenderPhotoThumbs(si,ii);
+  pmScheduleDraftSave();
+}
+function pmRemovePhoto(si,ii,idx){
+  const key=si+"_"+ii;
+  if(pmPhotoStaging[key])pmPhotoStaging[key].splice(idx,1);
+  pmRenderPhotoThumbs(si,ii);
+  pmScheduleDraftSave();
+}
+
+function pmToggleCat(si){
+  const items=document.getElementById(`pm_cat_items_${si}`);
+  const head=document.getElementById(`pm_cat_head_${si}`);
+  const open=items.classList.toggle("open");
+  head.classList.toggle("open",open);
+}
+function pmExpandAll(open){
+  PM_TEMPLATE.forEach((sec,si)=>{
+    document.getElementById(`pm_cat_items_${si}`).classList.toggle("open",open);
+    document.getElementById(`pm_cat_head_${si}`).classList.toggle("open",open);
+  });
+}
+function pmUpdateProgress(){
+  let totalAnswered=0,totalItems=0;
+  PM_TEMPLATE.forEach((sec,si)=>{
+    let catAnswered=0;
+    sec.items.forEach((it,ii)=>{
+      const el=document.getElementById(`pm_insp_${si}_${ii}`);
+      if(el&&el.value)catAnswered++;
+    });
+    totalItems+=sec.items.length;totalAnswered+=catAnswered;
+    const cnt=document.getElementById(`pm_cat_cnt_${si}`);
+    if(cnt){cnt.textContent=catAnswered+"/"+sec.items.length;cnt.classList.toggle("done",catAnswered===sec.items.length&&sec.items.length>0);}
+  });
+  const pct=totalItems?Math.round(totalAnswered/totalItems*100):0;
+  const lbl=document.getElementById("pmProgressLabel");if(lbl)lbl.textContent=totalAnswered+" / "+totalItems+" items answered";
+  const bar=document.getElementById("pmProgressBar");if(bar)bar.style.width=pct+"%";
+}
+function pmCollectFormData(){
+  const items={};
+  PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{
+    const inspEl=document.getElementById(`pm_insp_${si}_${ii}`);
+    const cmtEl=document.getElementById(`pm_cmt_${si}_${ii}`);
+    if(inspEl)items[si+"_"+ii]={insp:inspEl.value||"",cmt:cmtEl?cmtEl.value:""};
+  }));
+  return{
+    salon_id:document.getElementById("pmSalon").value,
+    visit_date:document.getElementById("pmVisitDate").value,
+    technician_name:document.getElementById("pmTech").value,
+    notes:document.getElementById("pmVisitNotes").value,
+    items,
+    savedAt:new Date().toISOString()
+  };
+}
+let pmDraftTimer=null;
+function pmShowAutoSaveStatus(msg,isError){
+  const el=document.getElementById("pmAutoSaveStatus");
+  if(el){el.textContent=msg;el.className="pm-autosave-status"+(isError?" error":"");}
+}
+async function pmAutoSave(){
+  if(pmAutoSaving)return;
+  const data=pmCollectFormData();
+  if(!data.salon_id||!data.visit_date){
+    try{localStorage.setItem(PM_DRAFT_KEY,JSON.stringify(data));}catch(e){}
+    pmUpdateProgress();return;
+  }
+  pmAutoSaving=true;
+  pmShowAutoSaveStatus("Saving...");
+  try{
+    if(!pmActiveVisitId){
+      const visitRows=await sPost("gc_maint_pm_visits",{salon_id:data.salon_id,visit_date:data.visit_date,technician_name:data.technician_name||null,notes:data.notes||null,status:"in_progress"});
+      pmActiveVisitId=visitRows[0].id;
+      const items=[];let sort=0;
+      PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{
+        const key=si+"_"+ii;const d=data.items[key]||{};
+        items.push({visit_id:pmActiveVisitId,category:sec.cat,item_label:it,sort_order:sort++,inspected:d.insp||null,comments:d.cmt||null});
+      }));
+      const inserted=await sPost("gc_maint_pm_items",items);
+      pmItemIds={};let idx=0;
+      PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{pmItemIds[si+"_"+ii]=inserted[idx++].id;}));
+      try{localStorage.setItem(PM_DRAFT_KEY,JSON.stringify({...data,_visitId:pmActiveVisitId,_itemIds:pmItemIds}));}catch(e){}
+      pmLastSavedState=JSON.stringify(data);
+      pmShowAutoSaveStatus("All changes saved");
+    }else{
+      const cur=JSON.stringify(data);
+      if(cur===pmLastSavedState){pmShowAutoSaveStatus("All changes saved");pmAutoSaving=false;pmUpdateProgress();return;}
+      const prev=pmLastSavedState?JSON.parse(pmLastSavedState):{};
+      const vp={};
+      if((data.technician_name||"")!==(prev.technician_name||""))vp.technician_name=data.technician_name||null;
+      if((data.notes||"")!==(prev.notes||""))vp.notes=data.notes||null;
+      if(data.salon_id!==(prev.salon_id||""))vp.salon_id=data.salon_id;
+      if(data.visit_date!==(prev.visit_date||""))vp.visit_date=data.visit_date;
+      if(Object.keys(vp).length)await sPatch("gc_maint_pm_visits",pmActiveVisitId,vp);
+      const patches=[];
+      for(const key of Object.keys(data.items)){
+        const c=data.items[key];const o=(prev.items||{})[key]||{};
+        if(c.insp!==o.insp||c.cmt!==o.cmt){
+          const iid=pmItemIds[key];
+          if(iid)patches.push(sPatch("gc_maint_pm_items",iid,{inspected:c.insp||null,comments:c.cmt||null}));
+        }
+      }
+      if(patches.length)await Promise.all(patches);
+      try{localStorage.setItem(PM_DRAFT_KEY,JSON.stringify({...data,_visitId:pmActiveVisitId,_itemIds:pmItemIds}));}catch(e){}
+      pmLastSavedState=cur;
+      pmShowAutoSaveStatus("All changes saved");
+    }
+  }catch(e){
+    console.error("Auto-save failed:",e);
+    pmShowAutoSaveStatus("Save failed — retrying…",true);
+    try{localStorage.setItem(PM_DRAFT_KEY,JSON.stringify(data));}catch(ex){}
+  }
+  pmAutoSaving=false;
+  pmUpdateProgress();
+}
+function pmScheduleDraftSave(){pmUpdateProgress();clearTimeout(pmDraftTimer);pmDraftTimer=setTimeout(pmAutoSave,2000);}
+function pmLoadDraft(){
+  try{const raw=localStorage.getItem(PM_DRAFT_KEY);return raw?JSON.parse(raw):null;}catch(e){return null;}
+}
+function pmDraftHasContent(d){
+  if(!d)return false;
+  if(d.technician_name||d.notes)return true;
+  return Object.values(d.items||{}).some(r=>r.insp||r.cmt);
+}
+function pmExpandAnswered(){
+  PM_TEMPLATE.forEach((sec,si)=>{
+    const has=sec.items.some((it,ii)=>{const el=document.getElementById(`pm_insp_${si}_${ii}`);return el&&el.value;});
+    if(has){
+      document.getElementById(`pm_cat_items_${si}`).classList.add("open");
+      document.getElementById(`pm_cat_head_${si}`).classList.add("open");
+    }
+  });
+}
+async function pmResumeFromSupabase(visitId){
+  try{
+    const visits=await sGet("gc_maint_pm_visits?id=eq."+visitId);
+    if(!visits.length)return;
+    const visit=visits[0];
+    const items=await sGet("gc_maint_pm_items?visit_id=eq."+visitId+"&order=sort_order");
+    pmActiveVisitId=visitId;pmItemIds={};
+    document.getElementById("pmSalon").value=visit.salon_id;
+    document.getElementById("pmVisitDate").value=visit.visit_date;
+    document.getElementById("pmTech").value=visit.technician_name||"";
+    document.getElementById("pmVisitNotes").value=visit.notes||"";
+    let idx=0;
+    PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{
+      if(idx<items.length){
+        const item=items[idx];pmItemIds[si+"_"+ii]=item.id;
+        const inspEl=document.getElementById("pm_insp_"+si+"_"+ii);
+        const cmtEl=document.getElementById("pm_cmt_"+si+"_"+ii);
+        if(inspEl&&item.inspected)inspEl.value=item.inspected;
+        if(cmtEl&&item.comments)cmtEl.value=item.comments;
+        idx++;
+      }
+    }));
+    document.getElementById("pmDraftBanner").style.display="none";
+    pmExpandAnswered();pmUpdateProgress();
+    pmLastSavedState=JSON.stringify(pmCollectFormData());
+    pmShowAutoSaveStatus("Resumed — all changes saved");
+  }catch(e){console.error("Resume failed:",e);alert("Could not resume: "+e.message);}
+}
+async function pmDiscardInProgress(visitId){
+  try{
+    await fetch(SUPA_URL+"/rest/v1/gc_maint_pm_items?visit_id=eq."+visitId,{method:"DELETE",headers:hdrs()});
+    await sDelete("gc_maint_pm_visits",visitId);
+  }catch(e){console.error("Discard failed:",e);}
+  document.getElementById("pmDraftBanner").style.display="none";
+}
+function pmDiscardDraft(){
+  clearTimeout(pmDraftTimer);
+  try{localStorage.removeItem(PM_DRAFT_KEY);}catch(e){}
+  document.getElementById("pmDraftBanner").style.display="none";
+}
+function pmResumeDraft(){
+  const draft=pmLoadDraft();
+  if(!draft)return;
+  if(draft.salon_id)document.getElementById("pmSalon").value=draft.salon_id;
+  if(draft.visit_date)document.getElementById("pmVisitDate").value=draft.visit_date;
+  document.getElementById("pmTech").value=draft.technician_name||"";
+  document.getElementById("pmVisitNotes").value=draft.notes||"";
+  // If this draft had a Supabase visit attached, restore the IDs
+  if(draft._visitId){pmActiveVisitId=draft._visitId;pmItemIds=draft._itemIds||{};pmLastSavedState=JSON.stringify(draft);}
+  Object.keys(draft.items||{}).forEach(key=>{
+    const row=draft.items[key];
+    const inspEl=document.getElementById("pm_insp_"+key);
+    const cmtEl=document.getElementById("pm_cmt_"+key);
+    if(inspEl&&row.insp)inspEl.value=row.insp;
+    if(cmtEl&&row.cmt)cmtEl.value=row.cmt;
+  });
+  document.getElementById("pmDraftBanner").style.display="none";
+  pmExpandAnswered();pmUpdateProgress();
+}
+function closePmModal(){
+  clearTimeout(pmDraftTimer);
+  // If visit was auto-saved to Supabase, it stays as in_progress for later resume
+  if(!pmActiveVisitId){
+    // No Supabase record yet — save to localStorage as fallback
+    try{const d=pmCollectFormData();if(pmDraftHasContent(d))localStorage.setItem(PM_DRAFT_KEY,JSON.stringify(d));}catch(e){}
+  }
+  closeModal("pmModalBg");
+}
+async function openPmModal(){
+  clearTimeout(pmDraftTimer);
+  pmPhotoStaging={};pmActiveVisitId=null;pmItemIds={};pmLastSavedState=null;pmAutoSaving=false;
+  document.getElementById("pmSalon").innerHTML=salonOptionsHtml();
+  document.getElementById("pmVisitDate").value=todayISO();
+  document.getElementById("pmTech").value="";
+  document.getElementById("pmVisitNotes").value="";
+  pmShowAutoSaveStatus("");
+  document.getElementById("pmChecklistBody").innerHTML=`
+    <div class="pm-toolbar"><a onclick="pmExpandAll(true)">Expand all</a><a onclick="pmExpandAll(false)">Collapse all</a></div>
+    `+PM_TEMPLATE.map((sec,si)=>`
+    <div class="pm-cat" id="pm_cat_head_${si}" onclick="pmToggleCat(${si})">
+      <span><span class="chev">&#9656;</span>${esc(sec.cat)}</span>
+      <span class="cnt" id="pm_cat_cnt_${si}">0/${sec.items.length}</span>
+    </div>
+    <div class="pm-cat-items" id="pm_cat_items_${si}">
+    ${sec.items.map((it,ii)=>`
+      <div class="pm-item">
+        <div class="pm-item-row">
+          <div class="lbl">${esc(it)}</div>
+          <select id="pm_insp_${si}_${ii}"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <input type="text" id="pm_cmt_${si}_${ii}" placeholder="Comments">
+        </div>
+        <div class="pm-item-photos" id="pm_photos_${si}_${ii}"></div>
+      </div>`).join("")}
+    </div>`).join("");
+
+  const banner=document.getElementById("pmDraftBanner");
+  banner.style.display="none";banner.innerHTML="";
+
+  // Check Supabase for in-progress visits first
+  let foundInProgress=false;
+  try{
+    const inProg=await sGet("gc_maint_pm_visits?status=eq.in_progress&order=created_at.desc&limit=1");
+    if(inProg.length){
+      foundInProgress=true;
+      const v=inProg[0];
+      const when=new Date(v.created_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+      banner.style.display="flex";
+      banner.innerHTML=`<div><b>In-progress checklist found</b> for Salon #${esc(v.salon_id)}, saved ${esc(when)}. Resume where you left off?</div>
+        <div style="display:flex;gap:8px"><button class="btn small secondary" onclick="pmDiscardInProgress(${v.id})">Discard</button><button class="btn small" onclick="pmResumeFromSupabase(${v.id})">Resume</button></div>`;
+    }
+  }catch(e){console.error("Failed to check in-progress visits:",e);}
+
+  // Fall back to localStorage draft if no Supabase in-progress found
+  if(!foundInProgress){
+    const draft=pmLoadDraft();
+    if(pmDraftHasContent(draft)){
+      const when=draft.savedAt?new Date(draft.savedAt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"earlier";
+      banner.style.display="flex";
+      banner.innerHTML=`<div><b>Unsaved checklist found</b> on this device, saved ${esc(when)}. Resume where you left off?</div>
+        <div style="display:flex;gap:8px"><button class="btn small secondary" onclick="pmDiscardDraft()">Discard</button><button class="btn small" onclick="pmResumeDraft()">Resume</button></div>`;
+    }
+  }
+  PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>pmRenderPhotoThumbs(si,ii)));
+  pmUpdateProgress();
+  openModal("pmModalBg");
+}
+document.getElementById("pmModalBg").addEventListener("input",pmScheduleDraftSave);
+document.getElementById("pmModalBg").addEventListener("change",pmScheduleDraftSave);
+
+async function savePmVisit(){
+  const salon_id=document.getElementById("pmSalon").value;
+  const visit_date=document.getElementById("pmVisitDate").value;
+  if(!salon_id){alert("Please select a salon.");return;}
+  if(!visit_date){alert("Visit date is required.");return;}
+  const btn=document.getElementById("pmCompleteBtn");
+  btn.disabled=true;btn.textContent="Completing…";
+  try{
+    // Force a final auto-save to flush any pending changes
+    clearTimeout(pmDraftTimer);
+    if(!pmActiveVisitId){
+      // Visit was never auto-saved yet — create it now
+      await pmAutoSave();
+      if(!pmActiveVisitId)throw new Error("Could not create visit record");
+    }else{
+      // Sync any remaining changes
+      pmAutoSaving=false;await pmAutoSave();
+    }
+    // Upload any staged photos
+    const photoRows=[];
+    for(const key of Object.keys(pmPhotoStaging)){
+      const files=pmPhotoStaging[key];
+      if(!files||!files.length)continue;
+      const itemId=pmItemIds[key];if(!itemId)continue;
+      for(let f=0;f<files.length;f++){
+        try{
+          const path=`pm/${pmActiveVisitId}_${itemId}_${Date.now()}_${f}.${photoExt(files[f])}`;
+          const url=await sUploadFile("maintenance-photos",path,files[f]);
+          photoRows.push({pm_item_id:itemId,photo_url:url,storage_path:path});
+        }catch(e){console.error("Photo upload failed",e);}
+      }
+    }
+    if(photoRows.length)await sPost("gc_maint_photos",photoRows);
+    // Mark visit as completed
+    await sPatch("gc_maint_pm_visits",pmActiveVisitId,{status:"completed"});
+    // Clean up
+    pmPhotoStaging={};pmActiveVisitId=null;pmItemIds={};pmLastSavedState=null;
+    try{localStorage.removeItem(PM_DRAFT_KEY);}catch(e){}
+    closeModal("pmModalBg");
+    await loadPmVisits(); renderPmGrid(); renderOverview();
+  }catch(e){alert("Complete failed: "+e.message+"\n\nDon't worry — your checklist items are already saved. Try again.");}
+  btn.disabled=false;btn.textContent="Complete & Close";
+}
+async function showPmHistory(salonId){
+  const visits=PM_VISITS.filter(v=>v.salon_id===salonId);
+  document.getElementById("pm-history-title").textContent="History — "+salonName(salonId);
+  document.getElementById("pm-history-table").innerHTML= visits.length? `<table><thead><tr><th>Visit Date</th><th>Technician</th><th>Notes</th><th></th></tr></thead><tbody>`+
+    visits.map(v=>`<tr><td>${fmtDate(v.visit_date)}</td><td>${esc(v.technician_name||"—")}</td><td>${esc(v.notes||"—")}</td><td><a href="#" onclick="showPmVisitDetail(${v.id});return false;">View checklist</a></td></tr>`).join("")+`</tbody></table>`
+    : `<div class="empty-note">No checklist visits recorded for this salon yet.</div>`;
+  document.getElementById("pm-visit-detail").innerHTML="";
+  document.getElementById("pm-history-wrap").style.display="block";
+  document.getElementById("pm-history-wrap").scrollIntoView({behavior:"smooth"});
+}
+function closePmHistory(){document.getElementById("pm-history-wrap").style.display="none";}
+async function showPmVisitDetail(visitId){
+  const items=await sGet("gc_maint_pm_items?select=*&visit_id=eq."+visitId+"&order=sort_order.asc");
+  const itemIds=items.map(it=>it.id);
+  let photos=[];
+  if(itemIds.length){try{photos=await sGet("gc_maint_photos?select=*&pm_item_id=in.("+itemIds.join(",")+")");}catch(e){}}
+  const photosByItem={};
+  photos.forEach(p=>{(photosByItem[p.pm_item_id]=photosByItem[p.pm_item_id]||[]).push(p);});
+  const byCat={};
+  items.forEach(it=>{(byCat[it.category]=byCat[it.category]||[]).push(it);});
+  document.getElementById("pm-visit-detail").innerHTML=`<div class="card">`+
+    Object.keys(byCat).map(cat=>`<div class="pm-cat">${esc(cat)}</div>`+
+      byCat[cat].map(it=>{
+        const pics=photosByItem[it.id]||[];
+        const picsHtml=pics.length?`<div class="photo-thumbs-view">${pics.map(p=>`<a href="${p.photo_url}" target="_blank" rel="noopener"><img src="${p.photo_url}"></a>`).join("")}</div>`:"";
+        return `<div class="pm-item">
+        <div class="pm-item-row" style="grid-template-columns:1fr 90px 1fr">
+          <div class="lbl">${esc(it.item_label)}</div>
+          <div>${it.inspected?esc(it.inspected):"—"}</div>
+          <div style="color:var(--muted)">${esc(it.comments||"")}</div>
+        </div>
+        ${picsHtml}
+      </div>`;}).join("")
+    ).join("")+`</div>`;
+}
+
+// ===== Contacts tab =====
+function renderContacts(){
+  document.getElementById("contacts-table").innerHTML= CONTACTS.length? `<table><thead><tr>
+    <th>Name</th><th>Email</th><th>Role</th><th>Actions</th>
+    </tr></thead><tbody>`+CONTACTS.map(c=>{
+      const roleLabel={assignee:"Assignee",reporter:"Reporter",both:"Assignee & Reporter"}[c.role]||c.role;
+      return `<tr>
+        <td><b>${esc(c.name)}</b></td>
+        <td>${c.email?`<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>`:'<span style="color:var(--muted)">Not set</span>'}</td>
+        <td><span class="contact-role">${esc(roleLabel)}</span></td>
+        <td class="act-links"><a href="#" onclick="editContact('${c.id}');return false;">Edit</a><a href="#" class="danger" onclick="deleteContact('${c.id}');return false;">Delete</a></td>
+      </tr>`;}).join("")+`</tbody></table>`
+    : `<div class="empty-note">No contacts added yet. Add contacts to enable assignment and notifications.</div>`;
+}
+function openContactModal(){
+  document.getElementById("contactModalTitle").textContent="Add Contact";
+  document.getElementById("contactId").value="";
+  ["contactName","contactEmail"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("contactRole").value="both";
+  openModal("contactModalBg");
+}
+function editContact(cid){
+  const c=CONTACTS.find(x=>x.id===cid);if(!c)return;
+  document.getElementById("contactModalTitle").textContent="Edit Contact";
+  document.getElementById("contactId").value=c.id;
+  document.getElementById("contactName").value=c.name||"";
+  document.getElementById("contactEmail").value=c.email||"";
+  document.getElementById("contactRole").value=c.role||"both";
+  openModal("contactModalBg");
+}
+async function saveContact(){
+  const id=document.getElementById("contactId").value;
+  const body={
+    name:document.getElementById("contactName").value.trim(),
+    email:document.getElementById("contactEmail").value.trim(),
+    role:document.getElementById("contactRole").value
+  };
+  if(!body.name){alert("Name is required.");return;}
+  if(!body.email){alert("Email is required for notifications.");return;}
+  try{
+    if(id){await sPatch("gc_maint_contacts",id,body);} else {await sPost("gc_maint_contacts",body);}
+    closeModal("contactModalBg");
+    await loadContacts(); renderContacts();
+  }catch(e){alert("Save failed: "+e.message);}
+}
+async function deleteContact(cid){
+  if(!confirm("Delete this contact?"))return;
+  try{await sDelete("gc_maint_contacts",cid); await loadContacts(); renderContacts();}
+  catch(e){alert("Delete failed: "+e.message);}
+}
+
+// ===== Drag & Drop for work order photos =====
+(function(){
+  document.addEventListener("DOMContentLoaded",function(){setupPhotoDrop();});
+  // Also re-setup after modal opens
+  const origOpenWo=openWoModal;
+  const origEditWo=editWo;
+})();
+function setupPhotoDrop(){
+  const drop=document.getElementById("woPhotoDrop");
+  if(!drop)return;
+  drop.addEventListener("dragover",function(e){e.preventDefault();e.stopPropagation();drop.classList.add("over");});
+  drop.addEventListener("dragleave",function(e){e.preventDefault();e.stopPropagation();drop.classList.remove("over");});
+  drop.addEventListener("drop",function(e){
+    e.preventDefault();e.stopPropagation();drop.classList.remove("over");
+    const files=Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith("image/"));
+    if(!files.length)return;
+    // Simulate the same flow as the file input
+    const woId=document.getElementById("woId").value;
+    if(woId){
+      (async()=>{
+        for(const file of files){
+          try{
+            const path=`wo/${woId}_${Date.now()}_${Math.random().toString(36).slice(2,7)}.${photoExt(file)}`;
+            const url=await sUploadFile("maintenance-photos",path,file);
+            const rows=await sPost("gc_maint_photos",{work_order_id:woId,photo_url:url,storage_path:path});
+            woExistingPhotos.push(rows[0]);
+          }catch(err){alert("Photo upload failed: "+err.message);}
+        }
+        woRenderPhotos();
+      })();
+    }else{
+      woStagedPhotos.push(...files);
+      woRenderPhotos();
+    }
+  });
+}
+
+// ===== Email notification =====
+async function sendWoNotification(data){
+  // Call Supabase Edge Function to send email
+  try{
+    const r=await fetch(SUPA_URL+"/functions/v1/wo-notify",{
+      method:"POST",
+      headers:{"Content-Type":"application/json",Authorization:"Bearer "+SUPA_KEY},
+      body:JSON.stringify(data)
+    });
+    if(!r.ok)console.warn("Notification response:",await r.text());
+  }catch(e){console.warn("Notification failed:",e);}
+}
+
+// ===== HVAC Inspections tab =====
+function renderHvac(){
+  const fS=document.getElementById("hvacFilterSalon").value;
+  const fSe=document.getElementById("hvacFilterSeason").value;
+  let rows=[...HVAC_INSPECTIONS];
+  if(fS)rows=rows.filter(r=>r.salon_id===fS);
+  if(fSe)rows=rows.filter(r=>r.season===fSe);
+
+  // KPI cards
+  const bySalon={};
+  HVAC_INSPECTIONS.forEach(r=>{if(!bySalon[r.salon_id]||r.visit_date>bySalon[r.salon_id])bySalon[r.salon_id]=r.visit_date;});
+  const today=new Date(todayISO());
+  let hvacOverdue=0,hvacOk=0;
+  Object.keys(SALONS).forEach(id=>{
+    const last=bySalon[id];
+    if(!last){hvacOverdue++;return;}
+    const nd=new Date(last+"T00:00:00");nd.setMonth(nd.getMonth()+3);
+    if(nd<today)hvacOverdue++;else hvacOk++;
+  });
+  const repairsNeeded=HVAC_INSPECTIONS.filter(r=>r.repairs_needed&&r.repairs_needed!=='None'&&r.repairs_needed!=='No'&&r.repairs_needed!=='N/A');
+  document.getElementById("hvac-kpis").innerHTML=`
+    <div class="kpi"><div class="lbl">Total Inspections</div><div class="val">${HVAC_INSPECTIONS.length}</div><div class="sub">${Object.keys(bySalon).length} of ${Object.keys(SALONS).length} salons</div></div>
+    <div class="kpi ${hvacOverdue?'flagred':''}"><div class="lbl">HVAC Overdue (Quarterly)</div><div class="val">${hvacOverdue}</div></div>
+    <div class="kpi"><div class="lbl">Up to Date</div><div class="val">${hvacOk}</div></div>
+    <div class="kpi ${repairsNeeded.length?'flagamber':''}"><div class="lbl">Repairs Flagged</div><div class="val">${repairsNeeded.length}</div></div>`;
+
+  document.getElementById("hvac-table").innerHTML= rows.length? `<table><thead><tr>
+    <th>Salon</th><th>Date</th><th>Season</th><th>WO#</th><th>Technician</th><th>Refrigerant</th><th>Voltage</th><th>Comp Amps</th><th>Suction</th><th>Discharge</th>
+    <th>Area</th><th>Coils</th><th>Filters</th><th>Belt</th><th>Electrical</th><th>Repairs</th><th></th>
+    </tr></thead><tbody>`+rows.map(r=>{
+      const yn=v=>v===true?'<span style="color:var(--green);font-weight:700">✓</span>':v===false?'<span style="color:var(--red-dk);font-weight:700">✗</span>':'—';
+      return `<tr>
+        <td>${esc(salonName(r.salon_id))}</td>
+        <td>${fmtDate(r.visit_date)}</td>
+        <td><span style="font-weight:600;color:${r.season==='cooling'?'#0077b6':'#d45e00'}">${r.season==='cooling'?'❄ Cooling':'🔥 Heating'}</span></td>
+        <td>${esc(r.wo_number||'—')}</td>
+        <td>${esc(r.technician||'—')}</td>
+        <td>${esc(r.refrigerant||'—')}</td>
+        <td>${r.voltage||'—'}</td>
+        <td>${esc(r.comp_amps||'—')}</td>
+        <td>${r.suction_psi!=null?r.suction_psi:'—'}</td>
+        <td>${r.discharge_psi!=null?r.discharge_psi:'—'}</td>
+        <td>${yn(r.cleaned_area)}</td>
+        <td>${yn(r.cleaned_coils)}</td>
+        <td>${yn(r.replaced_filters)}</td>
+        <td>${yn(r.inspected_belt)}</td>
+        <td>${yn(r.tightened_electrical)}</td>
+        <td>${r.repairs_needed&&r.repairs_needed!=='None'&&r.repairs_needed!=='No'?'<span style="color:var(--red-dk);font-weight:600">'+esc(r.repairs_needed)+'</span>':'—'}</td>
+        <td><button class="btn secondary small" onclick="showHvacDetail(${r.id})">Detail</button></td>
+      </tr>`;
+    }).join("")+`</tbody></table>`
+    : `<div class="empty-note">No HVAC inspections found.</div>`;
+}
+document.getElementById("hvacFilterSalon").addEventListener("change",renderHvac);
+document.getElementById("hvacFilterSeason").addEventListener("change",renderHvac);
+
+function showHvacDetail(id){
+  const r=HVAC_INSPECTIONS.find(x=>x.id===id);
+  if(!r)return;
+  const yn=v=>v===true?'<span style="color:var(--green);font-weight:700">Yes ✓</span>':v===false?'<span style="color:var(--red-dk);font-weight:700">No ✗</span>':'N/A';
+  document.getElementById("hvac-detail-title").textContent=`${salonName(r.salon_id)} — ${r.season==='cooling'?'Cooling':'Heating'} Season ${fmtDate(r.visit_date)}`;
+  document.getElementById("hvac-detail-body").innerHTML=`
+    <div class="field-row" style="margin-bottom:16px">
+      <div class="field"><label>Date</label><div style="font-size:15px">${fmtDate(r.visit_date)}</div></div>
+      <div class="field"><label>Season</label><div style="font-size:15px">${r.season==='cooling'?'❄ Cooling':'🔥 Heating'}</div></div>
+      <div class="field"><label>WO#</label><div style="font-size:15px">${esc(r.wo_number||'—')}</div></div>
+      <div class="field"><label>Technician</label><div style="font-size:15px">${esc(r.technician||'—')}</div></div>
+    </div>
+    <h3 style="margin:14px 0 8px;font-size:13px;color:var(--blue-dk)">Equipment Readings</h3>
+    <div class="field-row" style="margin-bottom:14px">
+      <div class="field"><label>Refrigerant</label><div>${esc(r.refrigerant||'—')}</div></div>
+      <div class="field"><label>Voltage</label><div>${r.voltage||'—'}V</div></div>
+      <div class="field"><label>Compressor Amps</label><div>${esc(r.comp_amps||'—')}</div></div>
+      <div class="field"><label>Suction PSI</label><div>${r.suction_psi!=null?r.suction_psi:'—'}</div></div>
+    </div>
+    <div class="field-row" style="margin-bottom:14px">
+      <div class="field"><label>Discharge PSI</label><div>${r.discharge_psi!=null?r.discharge_psi:'—'}</div></div>
+      <div class="field"><label>Supply Fan Amps</label><div>${r.supply_fan_amps!=null?r.supply_fan_amps:'—'}</div></div>
+      <div class="field"><label>Return Air Temp</label><div>${r.return_air_temp!=null?r.return_air_temp+'°F':'—'}</div></div>
+      <div class="field"><label>Supply Air Temp</label><div>${r.supply_air_temp!=null?r.supply_air_temp+'°F':'—'}</div></div>
+    </div>
+    <div class="field-row" style="margin-bottom:14px">
+      <div class="field"><label>Condenser Fan Amps</label><div>${r.condenser_fan_amps!=null?r.condenser_fan_amps:'—'}</div></div>
+      ${r.season==='heating'?`<div class="field"><label>Flue CO Temp</label><div>${r.flue_co_temp!=null?r.flue_co_temp+'°F':'—'}</div></div>
+      <div class="field"><label>CO Supply</label><div>${r.co_supply!=null?r.co_supply:'—'}</div></div>`:''}
+    </div>
+    <h3 style="margin:14px 0 8px;font-size:13px;color:var(--blue-dk)">Inspection Checklist</h3>
+    <table><tbody>
+      <tr><td>Cleaned area</td><td>${yn(r.cleaned_area)}</td></tr>
+      ${r.season==='cooling'?`<tr><td>Cleaned condenser coils</td><td>${yn(r.cleaned_coils)}</td></tr>`:''}
+      <tr><td>Replaced/washed air filters</td><td>${yn(r.replaced_filters)}</td></tr>
+      <tr><td>Inspected fan belt</td><td>${yn(r.inspected_belt)}</td></tr>
+      <tr><td>Replaced fan belt</td><td>${yn(r.replaced_belt)}</td></tr>
+      ${r.season==='cooling'?`<tr><td>Lubricated motors/moving parts</td><td>${yn(r.lubricated_motors)}</td></tr>`:''}
+      <tr><td>Inspected/tightened electrical</td><td>${yn(r.tightened_electrical)}</td></tr>
+      ${r.season==='heating'?`<tr><td>Cleaned burner assembly</td><td>${yn(r.cleaned_burner)}</td></tr>`:''}
+    </tbody></table>
+    ${r.repairs_needed&&r.repairs_needed!=='None'&&r.repairs_needed!=='No'?`<div style="margin-top:14px;padding:10px 12px;background:#fdecec;border-radius:8px;border:1px solid #f0c0c0"><b style="color:var(--red-dk)">⚠ Repairs Needed</b><div style="margin-top:4px">${esc(r.repairs_needed)}</div></div>`:''}
+    ${r.notes?`<div style="margin-top:10px"><label>Notes</label><div>${esc(r.notes)}</div></div>`:''}
+  `;
+  document.getElementById("hvac-detail-wrap").style.display="block";
+  document.getElementById("hvac-detail-wrap").scrollIntoView({behavior:"smooth"});
+}
+
+// ===== Init =====
+async function init(){
+  try{
+    await Promise.all([loadSalons(),loadVendors(),loadWorkOrders(),loadEquipment(),loadPmVisits(),loadContacts(),loadHvacInspections()]);
+    fillSalonSelects(); fillVendorSelects();
+    renderOverview(); renderWorkOrders(); renderEquipment(); renderVendors(); renderPmGrid(); renderContacts(); renderHvac();
+    setupPhotoDrop();
+    document.getElementById("hdrMeta").textContent="Loaded "+new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+  }catch(e){
+    document.getElementById("hdrMeta").textContent="Load error";
+    console.error(e);
+    alert("Failed to load dashboard data: "+e.message);
+  }
+}
+init();
+</script>
+</body></html>

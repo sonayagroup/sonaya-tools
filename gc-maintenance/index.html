@@ -84,6 +84,9 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
 .pm-progress{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px}
 .pm-progress-bar{height:6px;width:160px;max-width:40vw;border-radius:4px;background:var(--line);overflow:hidden;margin-top:5px}
 .pm-progress-bar>div{height:100%;background:var(--green);transition:width .2s}
+.pm-autosave-status{font-size:11px;color:var(--green);font-weight:600;margin-top:2px;transition:color .2s}
+.pm-autosave-status.error{color:#d64040}
+.pm-autosave-status.saving{color:var(--muted)}
 .pm-draft-banner{background:#fef3d0;border:1px solid #f0d999;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#6b4d00;margin-bottom:14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between}
 .pm-draft-banner b{display:block;margin-bottom:2px}
 .pm-cat{font-weight:700;color:var(--blue-dk);font-size:13.5px;margin-top:10px;padding:12px 2px;border-bottom:2px solid var(--line);border-top:1px solid transparent;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;min-height:44px;user-select:none;touch-action:manipulation}
@@ -440,6 +443,7 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
       <h2>New Preventative Maintenance Checklist Visit</h2>
       <div class="pm-progress" id="pmProgressLabel">0 / 0 items answered</div>
       <div class="pm-progress-bar"><div id="pmProgressBar" style="width:0%"></div></div>
+      <div class="pm-autosave-status" id="pmAutoSaveStatus"></div>
     </div>
     <button class="close-x" onclick="closePmModal()" aria-label="Close">&times;</button>
   </div>
@@ -455,7 +459,7 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
   </div>
   <div class="modal-actions">
     <button class="btn secondary" onclick="closePmModal()">Cancel</button>
-    <button class="btn" onclick="savePmVisit()">Save Checklist</button>
+    <button class="btn" id="pmCompleteBtn" onclick="savePmVisit()">Complete &amp; Close</button>
   </div>
 </div></div>
 
@@ -565,7 +569,7 @@ async function loadSalons(){
 async function loadVendors(){VENDORS=await sGet("gc_maint_vendors?select=*&order=name.asc");}
 async function loadWorkOrders(){WORKORDERS=await sGet("gc_maint_work_orders?select=*&order=created_at.desc");}
 async function loadEquipment(){EQUIPMENT=await sGet("gc_maint_equipment?select=*&order=salon_id.asc");}
-async function loadPmVisits(){PM_VISITS=await sGet("gc_maint_pm_visits?select=*&order=visit_date.desc");}
+async function loadPmVisits(){PM_VISITS=await sGet("gc_maint_pm_visits?select=*&status=eq.completed&order=visit_date.desc");}
 async function loadContacts(){CONTACTS=await sGet("gc_maint_contacts?select=*&active=eq.true&order=name.asc");}
 async function loadHvacInspections(){HVAC_INSPECTIONS=await sGet("gc_maint_hvac_inspections?select=*&order=visit_date.desc");}
 
@@ -1099,6 +1103,10 @@ function renderPmGrid(){
 }
 const PM_DRAFT_KEY="gcPmDraftV1";
 let pmPhotoStaging={};
+let pmActiveVisitId=null;
+let pmItemIds={};
+let pmLastSavedState=null;
+let pmAutoSaving=false;
 function pmRenderPhotoThumbs(si,ii){
   const wrap=document.getElementById(`pm_photos_${si}_${ii}`);
   if(!wrap)return;
@@ -1166,11 +1174,66 @@ function pmCollectFormData(){
   };
 }
 let pmDraftTimer=null;
-function pmSaveDraft(){
-  try{localStorage.setItem(PM_DRAFT_KEY,JSON.stringify(pmCollectFormData()));}catch(e){}
+function pmShowAutoSaveStatus(msg,isError){
+  const el=document.getElementById("pmAutoSaveStatus");
+  if(el){el.textContent=msg;el.className="pm-autosave-status"+(isError?" error":"");}
+}
+async function pmAutoSave(){
+  if(pmAutoSaving)return;
+  const data=pmCollectFormData();
+  if(!data.salon_id||!data.visit_date){
+    try{localStorage.setItem(PM_DRAFT_KEY,JSON.stringify(data));}catch(e){}
+    pmUpdateProgress();return;
+  }
+  pmAutoSaving=true;
+  pmShowAutoSaveStatus("Saving...");
+  try{
+    if(!pmActiveVisitId){
+      const visitRows=await sPost("gc_maint_pm_visits",{salon_id:data.salon_id,visit_date:data.visit_date,technician_name:data.technician_name||null,notes:data.notes||null,status:"in_progress"});
+      pmActiveVisitId=visitRows[0].id;
+      const items=[];let sort=0;
+      PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{
+        const key=si+"_"+ii;const d=data.items[key]||{};
+        items.push({visit_id:pmActiveVisitId,category:sec.cat,item_label:it,sort_order:sort++,inspected:d.insp||null,comments:d.cmt||null});
+      }));
+      const inserted=await sPost("gc_maint_pm_items",items);
+      pmItemIds={};let idx=0;
+      PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{pmItemIds[si+"_"+ii]=inserted[idx++].id;}));
+      try{localStorage.setItem(PM_DRAFT_KEY,JSON.stringify({...data,_visitId:pmActiveVisitId,_itemIds:pmItemIds}));}catch(e){}
+      pmLastSavedState=JSON.stringify(data);
+      pmShowAutoSaveStatus("All changes saved");
+    }else{
+      const cur=JSON.stringify(data);
+      if(cur===pmLastSavedState){pmShowAutoSaveStatus("All changes saved");pmAutoSaving=false;pmUpdateProgress();return;}
+      const prev=pmLastSavedState?JSON.parse(pmLastSavedState):{};
+      const vp={};
+      if((data.technician_name||"")!==(prev.technician_name||""))vp.technician_name=data.technician_name||null;
+      if((data.notes||"")!==(prev.notes||""))vp.notes=data.notes||null;
+      if(data.salon_id!==(prev.salon_id||""))vp.salon_id=data.salon_id;
+      if(data.visit_date!==(prev.visit_date||""))vp.visit_date=data.visit_date;
+      if(Object.keys(vp).length)await sPatch("gc_maint_pm_visits",pmActiveVisitId,vp);
+      const patches=[];
+      for(const key of Object.keys(data.items)){
+        const c=data.items[key];const o=(prev.items||{})[key]||{};
+        if(c.insp!==o.insp||c.cmt!==o.cmt){
+          const iid=pmItemIds[key];
+          if(iid)patches.push(sPatch("gc_maint_pm_items",iid,{inspected:c.insp||null,comments:c.cmt||null}));
+        }
+      }
+      if(patches.length)await Promise.all(patches);
+      try{localStorage.setItem(PM_DRAFT_KEY,JSON.stringify({...data,_visitId:pmActiveVisitId,_itemIds:pmItemIds}));}catch(e){}
+      pmLastSavedState=cur;
+      pmShowAutoSaveStatus("All changes saved");
+    }
+  }catch(e){
+    console.error("Auto-save failed:",e);
+    pmShowAutoSaveStatus("Save failed — retrying…",true);
+    try{localStorage.setItem(PM_DRAFT_KEY,JSON.stringify(data));}catch(ex){}
+  }
+  pmAutoSaving=false;
   pmUpdateProgress();
 }
-function pmScheduleDraftSave(){pmUpdateProgress();clearTimeout(pmDraftTimer);pmDraftTimer=setTimeout(pmSaveDraft,400);}
+function pmScheduleDraftSave(){pmUpdateProgress();clearTimeout(pmDraftTimer);pmDraftTimer=setTimeout(pmAutoSave,2000);}
 function pmLoadDraft(){
   try{const raw=localStorage.getItem(PM_DRAFT_KEY);return raw?JSON.parse(raw):null;}catch(e){return null;}
 }
@@ -1188,6 +1251,46 @@ function pmExpandAnswered(){
     }
   });
 }
+async function pmResumeFromSupabase(visitId){
+  try{
+    const visits=await sGet("gc_maint_pm_visits?id=eq."+visitId);
+    if(!visits.length)return;
+    const visit=visits[0];
+    const items=await sGet("gc_maint_pm_items?visit_id=eq."+visitId+"&order=sort_order");
+    pmActiveVisitId=visitId;pmItemIds={};
+    document.getElementById("pmSalon").value=visit.salon_id;
+    document.getElementById("pmVisitDate").value=visit.visit_date;
+    document.getElementById("pmTech").value=visit.technician_name||"";
+    document.getElementById("pmVisitNotes").value=visit.notes||"";
+    let idx=0;
+    PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{
+      if(idx<items.length){
+        const item=items[idx];pmItemIds[si+"_"+ii]=item.id;
+        const inspEl=document.getElementById("pm_insp_"+si+"_"+ii);
+        const cmtEl=document.getElementById("pm_cmt_"+si+"_"+ii);
+        if(inspEl&&item.inspected)inspEl.value=item.inspected;
+        if(cmtEl&&item.comments)cmtEl.value=item.comments;
+        idx++;
+      }
+    }));
+    document.getElementById("pmDraftBanner").style.display="none";
+    pmExpandAnswered();pmUpdateProgress();
+    pmLastSavedState=JSON.stringify(pmCollectFormData());
+    pmShowAutoSaveStatus("Resumed — all changes saved");
+  }catch(e){console.error("Resume failed:",e);alert("Could not resume: "+e.message);}
+}
+async function pmDiscardInProgress(visitId){
+  try{
+    await fetch(SUPA_URL+"/rest/v1/gc_maint_pm_items?visit_id=eq."+visitId,{method:"DELETE",headers:hdrs()});
+    await sDelete("gc_maint_pm_visits",visitId);
+  }catch(e){console.error("Discard failed:",e);}
+  document.getElementById("pmDraftBanner").style.display="none";
+}
+function pmDiscardDraft(){
+  clearTimeout(pmDraftTimer);
+  try{localStorage.removeItem(PM_DRAFT_KEY);}catch(e){}
+  document.getElementById("pmDraftBanner").style.display="none";
+}
 function pmResumeDraft(){
   const draft=pmLoadDraft();
   if(!draft)return;
@@ -1195,6 +1298,8 @@ function pmResumeDraft(){
   if(draft.visit_date)document.getElementById("pmVisitDate").value=draft.visit_date;
   document.getElementById("pmTech").value=draft.technician_name||"";
   document.getElementById("pmVisitNotes").value=draft.notes||"";
+  // If this draft had a Supabase visit attached, restore the IDs
+  if(draft._visitId){pmActiveVisitId=draft._visitId;pmItemIds=draft._itemIds||{};pmLastSavedState=JSON.stringify(draft);}
   Object.keys(draft.items||{}).forEach(key=>{
     const row=draft.items[key];
     const inspEl=document.getElementById("pm_insp_"+key);
@@ -1203,30 +1308,25 @@ function pmResumeDraft(){
     if(cmtEl&&row.cmt)cmtEl.value=row.cmt;
   });
   document.getElementById("pmDraftBanner").style.display="none";
-  pmExpandAnswered();
-  pmUpdateProgress();
-}
-function pmDiscardDraft(){
-  clearTimeout(pmDraftTimer);
-  try{localStorage.removeItem(PM_DRAFT_KEY);}catch(e){}
-  document.getElementById("pmDraftBanner").style.display="none";
+  pmExpandAnswered();pmUpdateProgress();
 }
 function closePmModal(){
-  // Flush any in-flight autosave against the CURRENT fields and cancel the
-  // pending debounced timer, so a stale timer can't later fire against the
-  // blank fields a subsequent openPmModal() rebuild will create (which would
-  // silently overwrite a good draft with blanks).
   clearTimeout(pmDraftTimer);
-  pmSaveDraft();
+  // If visit was auto-saved to Supabase, it stays as in_progress for later resume
+  if(!pmActiveVisitId){
+    // No Supabase record yet — save to localStorage as fallback
+    try{const d=pmCollectFormData();if(pmDraftHasContent(d))localStorage.setItem(PM_DRAFT_KEY,JSON.stringify(d));}catch(e){}
+  }
   closeModal("pmModalBg");
 }
-function openPmModal(){
+async function openPmModal(){
   clearTimeout(pmDraftTimer);
-  pmPhotoStaging={};
+  pmPhotoStaging={};pmActiveVisitId=null;pmItemIds={};pmLastSavedState=null;pmAutoSaving=false;
   document.getElementById("pmSalon").innerHTML=salonOptionsHtml();
   document.getElementById("pmVisitDate").value=todayISO();
   document.getElementById("pmTech").value="";
   document.getElementById("pmVisitNotes").value="";
+  pmShowAutoSaveStatus("");
   document.getElementById("pmChecklistBody").innerHTML=`
     <div class="pm-toolbar"><a onclick="pmExpandAll(true)">Expand all</a><a onclick="pmExpandAll(false)">Collapse all</a></div>
     `+PM_TEMPLATE.map((sec,si)=>`
@@ -1248,12 +1348,30 @@ function openPmModal(){
 
   const banner=document.getElementById("pmDraftBanner");
   banner.style.display="none";banner.innerHTML="";
-  const draft=pmLoadDraft();
-  if(pmDraftHasContent(draft)){
-    const when=draft.savedAt?new Date(draft.savedAt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"earlier";
-    banner.style.display="flex";
-    banner.innerHTML=`<div><b>Unsaved checklist found</b>Saved ${esc(when)} on this device — probably from a dropped connection. Resume where you left off?</div>
-      <div style="display:flex;gap:8px"><button class="btn small secondary" onclick="pmDiscardDraft()">Discard</button><button class="btn small" onclick="pmResumeDraft()">Resume</button></div>`;
+
+  // Check Supabase for in-progress visits first
+  let foundInProgress=false;
+  try{
+    const inProg=await sGet("gc_maint_pm_visits?status=eq.in_progress&order=created_at.desc&limit=1");
+    if(inProg.length){
+      foundInProgress=true;
+      const v=inProg[0];
+      const when=new Date(v.created_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+      banner.style.display="flex";
+      banner.innerHTML=`<div><b>In-progress checklist found</b> for Salon #${esc(v.salon_id)}, saved ${esc(when)}. Resume where you left off?</div>
+        <div style="display:flex;gap:8px"><button class="btn small secondary" onclick="pmDiscardInProgress(${v.id})">Discard</button><button class="btn small" onclick="pmResumeFromSupabase(${v.id})">Resume</button></div>`;
+    }
+  }catch(e){console.error("Failed to check in-progress visits:",e);}
+
+  // Fall back to localStorage draft if no Supabase in-progress found
+  if(!foundInProgress){
+    const draft=pmLoadDraft();
+    if(pmDraftHasContent(draft)){
+      const when=draft.savedAt?new Date(draft.savedAt).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"earlier";
+      banner.style.display="flex";
+      banner.innerHTML=`<div><b>Unsaved checklist found</b> on this device, saved ${esc(when)}. Resume where you left off?</div>
+        <div style="display:flex;gap:8px"><button class="btn small secondary" onclick="pmDiscardDraft()">Discard</button><button class="btn small" onclick="pmResumeDraft()">Resume</button></div>`;
+    }
   }
   PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>pmRenderPhotoThumbs(si,ii)));
   pmUpdateProgress();
@@ -1265,44 +1383,45 @@ document.getElementById("pmModalBg").addEventListener("change",pmScheduleDraftSa
 async function savePmVisit(){
   const salon_id=document.getElementById("pmSalon").value;
   const visit_date=document.getElementById("pmVisitDate").value;
-  const technician_name=document.getElementById("pmTech").value.trim()||null;
-  const notes=document.getElementById("pmVisitNotes").value.trim()||null;
   if(!salon_id){alert("Please select a salon.");return;}
   if(!visit_date){alert("Visit date is required.");return;}
+  const btn=document.getElementById("pmCompleteBtn");
+  btn.disabled=true;btn.textContent="Completing…";
   try{
-    const visitRows=await sPost("gc_maint_pm_visits",{salon_id,visit_date,technician_name,notes});
-    const visitId=visitRows[0].id;
-    const items=[];
-    const itemKeys=[];
-    let sort=0;
-    PM_TEMPLATE.forEach((sec,si)=>sec.items.forEach((it,ii)=>{
-      const insp=document.getElementById(`pm_insp_${si}_${ii}`).value||null;
-      const cmt=document.getElementById(`pm_cmt_${si}_${ii}`).value.trim()||null;
-      items.push({visit_id:visitId,category:sec.cat,item_label:it,sort_order:sort++,inspected:insp,comments:cmt});
-      itemKeys.push(si+"_"+ii);
-    }));
-    const insertedItems=await sPost("gc_maint_pm_items",items);
-    // Upload any staged photos, matched back to their item by insertion order
-    // (a single multi-row INSERT returns rows in the same order as the input array).
+    // Force a final auto-save to flush any pending changes
+    clearTimeout(pmDraftTimer);
+    if(!pmActiveVisitId){
+      // Visit was never auto-saved yet — create it now
+      await pmAutoSave();
+      if(!pmActiveVisitId)throw new Error("Could not create visit record");
+    }else{
+      // Sync any remaining changes
+      pmAutoSaving=false;await pmAutoSave();
+    }
+    // Upload any staged photos
     const photoRows=[];
-    for(let i=0;i<insertedItems.length;i++){
-      const files=pmPhotoStaging[itemKeys[i]];
+    for(const key of Object.keys(pmPhotoStaging)){
+      const files=pmPhotoStaging[key];
       if(!files||!files.length)continue;
-      const itemId=insertedItems[i].id;
-      for(let f=0; f<files.length; f++){
+      const itemId=pmItemIds[key];if(!itemId)continue;
+      for(let f=0;f<files.length;f++){
         try{
-          const path=`pm/${visitId}_${itemId}_${Date.now()}_${f}.${photoExt(files[f])}`;
+          const path=`pm/${pmActiveVisitId}_${itemId}_${Date.now()}_${f}.${photoExt(files[f])}`;
           const url=await sUploadFile("maintenance-photos",path,files[f]);
           photoRows.push({pm_item_id:itemId,photo_url:url,storage_path:path});
         }catch(e){console.error("Photo upload failed",e);}
       }
     }
     if(photoRows.length)await sPost("gc_maint_photos",photoRows);
-    pmPhotoStaging={};
-    pmDiscardDraft();
+    // Mark visit as completed
+    await sPatch("gc_maint_pm_visits",pmActiveVisitId,{status:"completed"});
+    // Clean up
+    pmPhotoStaging={};pmActiveVisitId=null;pmItemIds={};pmLastSavedState=null;
+    try{localStorage.removeItem(PM_DRAFT_KEY);}catch(e){}
     closeModal("pmModalBg");
     await loadPmVisits(); renderPmGrid(); renderOverview();
-  }catch(e){alert("Save failed — don't worry, your answers are still saved on this device. Reconnect and hit Save again to retry. Error: "+e.message);}
+  }catch(e){alert("Complete failed: "+e.message+"\n\nDon't worry — your checklist items are already saved. Try again.");}
+  btn.disabled=false;btn.textContent="Complete & Close";
 }
 async function showPmHistory(salonId){
   const visits=PM_VISITS.filter(v=>v.salon_id===salonId);

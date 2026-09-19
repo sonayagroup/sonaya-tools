@@ -61,7 +61,7 @@ tr:hover td{background:#fafbfc}
 <!-- Add Employee Modal -->
 <div id="empModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:12px;padding:24px 28px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)">
-    <h3 style="margin:0 0 16px;color:#1F3864;font-size:16px">Add Employee to Benefits</h3>
+    <h3 id="empModalTitle" style="margin:0 0 16px;color:#1F3864;font-size:16px">Add Employee to Benefits</h3>
     <div style="display:grid;gap:10px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="font-size:11px;color:#6b7480;font-weight:600">FIRST NAME</label><input id="mFirst" style="width:100%;margin-top:2px"></div>
@@ -79,14 +79,10 @@ tr:hover td{background:#fafbfc}
           <label style="font-size:13px;cursor:pointer"><input type="checkbox" id="mLife"> Life Insurance</label>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:#6b7480;font-weight:600">ENROLLMENT DATE</label><input type="date" id="mStart" style="width:100%;margin-top:2px"></div>
-        <div><label style="font-size:11px;color:#6b7480;font-weight:600">NOTES</label><input id="mNotes" style="width:100%;margin-top:2px"></div>
-      </div>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
       <button onclick="closeAddEmp()" style="padding:8px 16px;border:1px solid #cfd6df;border-radius:7px;background:#fff;cursor:pointer;font-size:13px">Cancel</button>
-      <button onclick="saveEmp()" style="padding:8px 16px;border:none;border-radius:7px;background:#1F3864;color:#fff;font-weight:700;cursor:pointer;font-size:13px">Add Employee</button>
+      <button id="empModalSaveBtn" onclick="saveEmp()" style="padding:8px 16px;border:none;border-radius:7px;background:#1F3864;color:#fff;font-weight:700;cursor:pointer;font-size:13px">Add Employee</button>
     </div>
   </div>
 </div>
@@ -209,7 +205,7 @@ function render(){
         '<td class="c">'+dtxt+'</td><td class="c"><span class="pill '+r.cls+'">'+r.status+'</span></td>'+
         '<td>'+(r.opts||'')+'</td><td style="color:#b23;font-size:11px">'+(r.notes||'')+'</td></tr>';}).join('');
   } else {
-    head='<th data-k="name">Employee</th><th data-k="brand"></th><th data-k="entity">Company / Entity</th><th class="c" data-k="health">Health</th><th class="c" data-k="dental">Dental &amp; Vision</th><th class="c" data-k="life">Life</th><th data-k="start">Enrolled</th><th data-k="notes">Notes</th><th class="c">Actions</th>';
+    head='<th data-k="name">Employee</th><th data-k="brand"></th><th data-k="entity">Company / Entity</th><th class="c" data-k="health">Health</th><th class="c" data-k="dental">Dental &amp; Vision</th><th class="c" data-k="life">Life</th><th class="c">Actions</th>';
     body=rows.map((r,i)=>{
       const chk='<span style="color:#2E7D32;font-weight:700;font-size:16px">&#10003;</span>';
       const dash='<span style="color:#ccc">—</span>';
@@ -220,12 +216,10 @@ function render(){
         '<td class="c">'+(r.health?chk:dash)+'</td>'+
         '<td class="c">'+(r.dental?chk:dash)+'</td>'+
         '<td class="c">'+(r.life?chk:dash)+'</td>'+
-        '<td>'+(r.start||'—')+'</td>'+
-        '<td style="color:#6b7480;font-size:11px">'+(r.notes||'')+'</td>'+
-        '<td class="c"><button onclick="removeEmp('+i+')" style="border:none;background:#FFC7CE;color:#9C0006;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer" title="Remove employee">&#10005;</button></td>'+
+        '<td class="c"><button onclick="editEmp('+i+')" style="border:none;background:#e3ecff;color:#1F3864;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer" title="Edit employee">&#9998; Edit</button></td>'+
         '</tr>';}).join('');
   }
-  w.innerHTML='<table><thead><tr>'+head+'</tr></thead><tbody>'+(body||'<tr><td colspan="9" style="text-align:center;color:#8a929c;padding:32px">No employees added yet. Click <b>+ Add Employee</b> above to get started.</td></tr>')+'</tbody></table>';
+  w.innerHTML='<table><thead><tr>'+head+'</tr></thead><tbody>'+(body||'<tr><td colspan="7" style="text-align:center;color:#8a929c;padding:32px">No employees added yet. Click <b>+ Add Employee</b> above to get started.</td></tr>')+'</tbody></table>';
   w.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortAsc=!sortAsc;else{sortK=k;sortAsc=true;}render();});
   document.getElementById('count').textContent=rows.length+' of '+data().length+' shown';
 }
@@ -233,15 +227,25 @@ function render(){
 document.getElementById('foot').innerHTML='Source of truth: the license &amp; policy PDFs in each entity\'s folder. Mirrors the master Excel tracker in Sonaya Group / Ai Files / Compliance Tracker, refreshed weekly by the automated scan. Countdown &amp; colors recompute live against the current date.';
 
 /* Employee Benefits modal & CRUD */
-function openAddEmp(){document.getElementById('empModal').style.display='flex';}
-function closeAddEmp(){document.getElementById('empModal').style.display='none';['mFirst','mLast','mEntity','mNotes','mStart'].forEach(id=>document.getElementById(id).value='');document.getElementById('mBrand').value='';['mHealth','mDental','mLife'].forEach(id=>document.getElementById(id).checked=false);}
+var editingEmpIdx=-1;
+function openAddEmp(){editingEmpIdx=-1;document.getElementById('empModalTitle').textContent='Add Employee to Benefits';document.getElementById('empModalSaveBtn').textContent='Add Employee';document.getElementById('empModal').style.display='flex';}
+function editEmp(idx){
+  editingEmpIdx=idx;var r=EMP[idx],parts=r.name.split(', ');
+  document.getElementById('empModalTitle').textContent='Edit Employee';
+  document.getElementById('empModalSaveBtn').textContent='Save Changes';
+  document.getElementById('mLast').value=parts[0]||'';document.getElementById('mFirst').value=parts[1]||'';
+  document.getElementById('mBrand').value=r.brand||'';document.getElementById('mEntity').value=r.entity||'';
+  document.getElementById('mHealth').checked=!!r.health;document.getElementById('mDental').checked=!!r.dental;document.getElementById('mLife').checked=!!r.life;
+  document.getElementById('empModal').style.display='flex';
+}
+function closeAddEmp(){editingEmpIdx=-1;document.getElementById('empModal').style.display='none';['mFirst','mLast','mEntity'].forEach(id=>document.getElementById(id).value='');document.getElementById('mBrand').value='';['mHealth','mDental','mLife'].forEach(id=>document.getElementById(id).checked=false);}
 function saveEmp(){
   const first=document.getElementById('mFirst').value.trim(),last=document.getElementById('mLast').value.trim();
   if(!first||!last){alert('First and last name are required.');return;}
-  EMP.push({name:last+', '+first,brand:document.getElementById('mBrand').value,entity:document.getElementById('mEntity').value.trim(),health:document.getElementById('mHealth').checked,dental:document.getElementById('mDental').checked,life:document.getElementById('mLife').checked,start:document.getElementById('mStart').value,notes:document.getElementById('mNotes').value.trim()});
+  var obj={name:last+', '+first,brand:document.getElementById('mBrand').value,entity:document.getElementById('mEntity').value.trim(),health:document.getElementById('mHealth').checked,dental:document.getElementById('mDental').checked,life:document.getElementById('mLife').checked,start:'',notes:''};
+  if(editingEmpIdx>=0){EMP[editingEmpIdx]=obj;}else{EMP.push(obj);}
   document.getElementById('nEmp').textContent=EMP.length;closeAddEmp();setView('emp');
 }
-function removeEmp(idx){if(confirm('Remove '+EMP[idx].name+' from the benefits tracker?')){EMP.splice(idx,1);document.getElementById('nEmp').textContent=EMP.length;renderCards();render();}}
 
 setView('lic');
 </script>

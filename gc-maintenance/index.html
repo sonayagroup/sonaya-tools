@@ -159,8 +159,17 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
   .field-row{grid-template-columns:1fr}
   .modal-head{padding:14px 12px 12px 16px}
   .modal-body{padding:14px 16px}
-  .modal-actions{padding:12px 16px}
+  .modal-actions{padding:12px 16px;position:sticky;bottom:0;background:var(--card);border-top:1px solid var(--line);z-index:5}
+  .pm-item select{font-size:16px;min-height:44px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:#fcfdfe}
+  .pm-item input[type=text]{font-size:16px;min-height:44px;padding:8px 10px;border-radius:8px;border:1px solid var(--line)}
+  .pm-autosave-status{font-size:12px}
+  #pmSalon{font-size:16px;min-height:44px}
+  #pmVisitDate{font-size:16px;min-height:44px}
+  #pmTech{font-size:16px;min-height:44px}
 }
+.pm-field-error{border-color:var(--red)!important;box-shadow:0 0 0 2px rgba(228,0,43,.15)!important}
+.pm-field-error-msg{color:var(--red);font-size:11.5px;font-weight:600;margin-top:3px;display:none}
+.pm-field-error-msg.show{display:block}
 </style>
 </head>
 <body>
@@ -450,9 +459,9 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
   <div class="modal-body">
   <div id="pmDraftBanner" class="pm-draft-banner" style="display:none"></div>
   <div class="field-row">
-    <div class="field"><label>Salon</label><select id="pmSalon"></select></div>
-    <div class="field"><label>Visit Date</label><input type="date" id="pmVisitDate" style="width:100%"></div>
-    <div class="field"><label>Technician Name</label><input type="text" id="pmTech" style="width:100%"></div>
+    <div class="field"><label>Salon <span style="color:var(--red)">*</span></label><select id="pmSalon"></select><div class="pm-field-error-msg" id="pmSalonErr">Please select a salon</div></div>
+    <div class="field"><label>Visit Date <span style="color:var(--red)">*</span></label><input type="date" id="pmVisitDate" style="width:100%"><div class="pm-field-error-msg" id="pmDateErr">Visit date is required</div></div>
+    <div class="field"><label>Technician Name</label><input type="text" id="pmTech" style="width:100%" placeholder="Tech name"></div>
   </div>
   <div id="pmChecklistBody"></div>
   <div class="field" style="margin-top:14px"><label>Overall Visit Notes</label><textarea id="pmVisitNotes"></textarea></div>
@@ -1379,12 +1388,26 @@ async function openPmModal(){
 }
 document.getElementById("pmModalBg").addEventListener("input",pmScheduleDraftSave);
 document.getElementById("pmModalBg").addEventListener("change",pmScheduleDraftSave);
+document.getElementById("pmSalon").addEventListener("change",function(){if(this.value){this.classList.remove("pm-field-error");document.getElementById("pmSalonErr").classList.remove("show");}});
+document.getElementById("pmVisitDate").addEventListener("change",function(){if(this.value){this.classList.remove("pm-field-error");document.getElementById("pmDateErr").classList.remove("show");}});
 
+function pmClearFieldErrors(){
+  ["pmSalon","pmVisitDate"].forEach(id=>{document.getElementById(id).classList.remove("pm-field-error");});
+  ["pmSalonErr","pmDateErr"].forEach(id=>{document.getElementById(id).classList.remove("show");});
+}
+function pmValidateRequired(){
+  pmClearFieldErrors();
+  let ok=true;
+  const salon=document.getElementById("pmSalon");
+  const date=document.getElementById("pmVisitDate");
+  if(!salon.value){salon.classList.add("pm-field-error");document.getElementById("pmSalonErr").classList.add("show");salon.scrollIntoView({behavior:"smooth",block:"center"});ok=false;}
+  if(!date.value){date.classList.add("pm-field-error");document.getElementById("pmDateErr").classList.add("show");if(ok)date.scrollIntoView({behavior:"smooth",block:"center"});ok=false;}
+  return ok;
+}
 async function savePmVisit(){
+  if(!pmValidateRequired())return;
   const salon_id=document.getElementById("pmSalon").value;
   const visit_date=document.getElementById("pmVisitDate").value;
-  if(!salon_id){alert("Please select a salon.");return;}
-  if(!visit_date){alert("Visit date is required.");return;}
   const btn=document.getElementById("pmCompleteBtn");
   btn.disabled=true;btn.textContent="Completing…";
   try{

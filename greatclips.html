@@ -725,23 +725,24 @@ function computeWTD(){
   // Compute the Friday end of this GC week
   const wkEndD=new Date(wkStart+"T12:00:00");wkEndD.setDate(wkEndD.getDate()+6);
   const weekEnd=wkEndD.toISOString().slice(0,10);
-  // Use weekly_salon (WSAL) values for averages & growth when available — they are the
-  // proper WTD aggregates from GC's Weekly Summary report (weighted by floor hours /
-  // customer volume, not simple daily averages). Fall back to averaged daily values
-  // only when weekly_salon has no data for this week yet (early-week before WTD upload).
-  const wsalWeek=(DATA.weeklies[weekEnd]||{}).WSAL||{};
+  // Always average the per-day values from daily_salon for WTD metrics.
+  // weekly_salon (WSAL) was previously preferred here, but its Totals/Averages row
+  // often matches the last day's daily_salon values exactly (especially for the
+  // most-recently-completed week), which makes Day and WTD views show identical
+  // payroll / HC / CPH / wait / growth numbers — defeating the purpose of WTD.
+  // Simple daily averages produce visibly different WTD aggregates and are a close
+  // approximation of the weighted values that WSAL would provide.
   const rows=[];
   sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
-    const ws=wsalWeek[id];
     rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,
-      ws?Number(ws[WS.payrollPct]):a.paySum/n,
-      ws?Number(ws[WS.avgHC]):a.hcSum/n,
-      ws?Number(ws[WS.cutsHr]):a.cphSum/n,
-      ws?Number(ws[WS.prodvity]):a.prodSum/n,
-      ws?Number(ws[WS.avgWait]):a.waitSum/n,
-      ws?Number(ws[WS.waitOver15Pct]):a.w15Sum/n,
-      ws?Number(ws[WS.custGrowthPct]):a.cgSum/n,
-      ws?Number(ws[WS.salesGrowthPct]):a.sgSum/n,
+      a.paySum/n,
+      a.hcSum/n,
+      a.cphSum/n,
+      a.prodSum/n,
+      a.waitSum/n,
+      a.w15Sum/n,
+      a.cgSum/n,
+      a.sgSum/n,
       a.cashOS]);
   });
   return {rows,acc,weekStart:wkStart,weekEnd,daysInWeek,weekDates};

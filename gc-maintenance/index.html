@@ -1449,8 +1449,9 @@ async function savePmVisit(){
 async function showPmHistory(salonId){
   const visits=PM_VISITS.filter(v=>v.salon_id===salonId);
   document.getElementById("pm-history-title").textContent="History — "+salonName(salonId);
+  window.__pmHistorySalon=salonId;
   document.getElementById("pm-history-table").innerHTML= visits.length? `<table><thead><tr><th>Visit Date</th><th>Technician</th><th>Notes</th><th></th></tr></thead><tbody>`+
-    visits.map(v=>`<tr><td>${fmtDate(v.visit_date)}</td><td>${esc(v.technician_name||"—")}</td><td>${esc(v.notes||"—")}</td><td><a href="#" onclick="showPmVisitDetail(${v.id});return false;">View checklist</a></td></tr>`).join("")+`</tbody></table>`
+    visits.map(v=>`<tr id="pm-row-${v.id}"><td>${fmtDate(v.visit_date)}</td><td>${esc(v.technician_name||"—")}</td><td>${esc(v.notes||"—")}</td><td style="white-space:nowrap"><a href="#" onclick="showPmVisitDetail(${v.id});return false;">View</a> · <a href="#" onclick="editPmVisitRow(${v.id});return false;">Edit</a> · <a href="#" style="color:var(--danger,#c0392b)" onclick="deletePmVisit(${v.id});return false;">Delete</a></td></tr>`).join("")+`</tbody></table>`
     : `<div class="empty-note">No checklist visits recorded for this salon yet.</div>`;
   document.getElementById("pm-visit-detail").innerHTML="";
   document.getElementById("pm-history-wrap").style.display="block";
@@ -1480,6 +1481,54 @@ async function showPmVisitDetail(visitId){
         ${picsHtml}
       </div>`;}).join("")
     ).join("")+`</div>`;
+}
+
+// ===== PM Visit edit / delete =====
+async function deletePmVisit(visitId){
+  if(!confirm("Delete this checklist visit and all its items? This cannot be undone."))return;
+  try{
+    // Delete photos first (get item IDs for this visit)
+    const items=await sGet("gc_maint_pm_items?select=id&visit_id=eq."+visitId);
+    const itemIds=items.map(i=>i.id);
+    if(itemIds.length){
+      try{
+        const photos=await sGet("gc_maint_photos?select=id,storage_path&pm_item_id=in.("+itemIds.join(",")+")");
+        for(const p of photos){
+          try{await sDeleteFile("maintenance-photos",p.storage_path);}catch(e){}
+          try{await sDelete("gc_maint_photos",p.id);}catch(e){}
+        }
+      }catch(e){}
+      // Delete items
+      for(const id of itemIds){try{await sDelete("gc_maint_pm_items",id);}catch(e){}}
+    }
+    // Delete the visit itself
+    await sDelete("gc_maint_pm_visits",visitId);
+    await loadPmVisits(); renderPmGrid(); renderOverview();
+    if(window.__pmHistorySalon) showPmHistory(window.__pmHistorySalon);
+    else closePmHistory();
+  }catch(e){alert("Delete failed: "+e.message);}
+}
+function editPmVisitRow(visitId){
+  const v=PM_VISITS.find(x=>x.id===visitId);if(!v)return;
+  const row=document.getElementById("pm-row-"+visitId);if(!row)return;
+  row.innerHTML=`<td><input type="date" id="pm-edit-date-${visitId}" value="${v.visit_date}" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px"></td>`+
+    `<td><input type="text" id="pm-edit-tech-${visitId}" value="${esc(v.technician_name||"")}" placeholder="Technician" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;width:120px"></td>`+
+    `<td><input type="text" id="pm-edit-notes-${visitId}" value="${esc(v.notes||"")}" placeholder="Notes" style="padding:4px 6px;border:1px solid var(--border);border-radius:4px;width:100%"></td>`+
+    `<td style="white-space:nowrap"><a href="#" onclick="savePmVisitRow(${visitId});return false;" style="color:var(--success,#27ae60);font-weight:600">Save</a> · <a href="#" onclick="cancelPmVisitRow();return false;">Cancel</a></td>`;
+}
+async function savePmVisitRow(visitId){
+  const visit_date=document.getElementById("pm-edit-date-"+visitId).value;
+  const technician_name=document.getElementById("pm-edit-tech-"+visitId).value.trim()||null;
+  const notes=document.getElementById("pm-edit-notes-"+visitId).value.trim()||null;
+  if(!visit_date){alert("Visit date is required.");return;}
+  try{
+    await sPatch("gc_maint_pm_visits",visitId,{visit_date,technician_name,notes});
+    await loadPmVisits(); renderPmGrid(); renderOverview();
+    if(window.__pmHistorySalon) showPmHistory(window.__pmHistorySalon);
+  }catch(e){alert("Save failed: "+e.message);}
+}
+function cancelPmVisitRow(){
+  if(window.__pmHistorySalon) showPmHistory(window.__pmHistorySalon);
 }
 
 // ===== Contacts tab =====

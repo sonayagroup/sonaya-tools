@@ -799,6 +799,26 @@ button { font-family: inherit; }
 .theme-card-title { font-family: Outfit, sans-serif; font-size: 16px; font-weight: 700; color: var(--ink-0); margin-top: 8px; }
 .theme-card-desc { font-size: 12px; color: var(--ink-2); margin-top: 6px; line-height: 1.6; }
 
+/* ── Brainstorm ── */
+.brainstorm-quickadd { display: flex; gap: 8px; margin-bottom: 20px; }
+.brainstorm-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .brainstorm-board { grid-template-columns: 1fr; } }
+.brainstorm-col { background: var(--surface-0); border: 1px solid var(--surface-border); border-radius: var(--r-lg); padding: 12px; min-height: 120px; }
+.brainstorm-col-head { display: flex; align-items: center; justify-content: space-between; }
+.brainstorm-col-title { font-family: Outfit, sans-serif; font-size: 13px; font-weight: 700; color: var(--ink-0); text-transform: uppercase; letter-spacing: 0.04em; }
+.brainstorm-col-count { font-size: 11px; font-weight: 700; color: var(--ink-3); background: var(--surface-1); border-radius: var(--r-full); padding: 1px 8px; }
+.brainstorm-col-hint { font-size: 11px; color: var(--ink-3); margin: 2px 0 12px; }
+.brainstorm-col-body { display: flex; flex-direction: column; gap: 10px; }
+.brainstorm-col-empty { font-size: 12px; color: var(--ink-3); text-align: center; padding: 16px 0; border: 1px dashed var(--surface-border); border-radius: var(--r-sm); }
+.brainstorm-card { background: var(--surface-1); border: 1px solid var(--surface-border); border-left: 3px solid var(--accent); border-radius: var(--r-md); padding: 12px; transition: all var(--fast); }
+.brainstorm-card:hover { box-shadow: var(--shadow-sm); }
+.brainstorm-card-text { font-size: 13px; font-weight: 600; color: var(--ink-0); line-height: 1.45; }
+.brainstorm-card-notes { font-size: 12px; color: var(--ink-2); margin-top: 6px; line-height: 1.5; }
+.brainstorm-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.brainstorm-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--surface-border); }
+.brainstorm-used-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; max-width: 560px; }
+.brainstorm-used-list .brainstorm-card { opacity: 0.7; border-left-color: var(--ink-3); }
+
 /* ── Connections ── */
 .conn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .conn-card {
@@ -1482,6 +1502,7 @@ button { font-family: inherit; }
       <button class="sb-nav-link active" data-view="briefing"><span class="sb-nav-icon">&#9889;</span><span class="sb-nav-label"> Briefing</span><span class="nav-badge" id="badge-briefing" hidden></span></button>
       <button class="sb-nav-link" data-view="calendar"><span class="sb-nav-icon">&#128197;</span><span class="sb-nav-label"> Calendar</span></button>
       <button class="sb-nav-link" data-view="pipeline"><span class="sb-nav-icon">&#128203;</span><span class="sb-nav-label"> Pipeline</span><span class="nav-badge" id="badge-pipeline" hidden></span></button>
+      <button class="sb-nav-link" data-view="brainstorm"><span class="sb-nav-icon">&#128161;</span><span class="sb-nav-label"> Brainstorm</span><span class="nav-badge" id="badge-brainstorm" hidden></span></button>
     </nav>
 
     <div class="sb-label">Create</div>
@@ -1977,6 +1998,7 @@ const S = {
   analyticsTab: 'overview',
   brands: [], platforms: [], pillars: [], posts: [], metrics: [], members: [],
   strategies: [], shotLists: [], briefs: [], themes: [], hashtags: [], equipment: [], stores: [],
+  brainstormIdeas: [],
   competitors: loadCompetitorsFromStorage(),
   bulkSelected: new Set()
 };
@@ -2110,7 +2132,7 @@ function saveCompetitorsToStorage() {
 // DATA LAYER
 // ══════════════════════════════════════════════
 async function loadAll() {
-  const [b,p,pl,po,m,t,str,sl,br,th,ht,eq,st] = await Promise.all([
+  const [b,p,pl,po,m,t,str,sl,br,th,ht,eq,st,bi] = await Promise.all([
     sb.from('sm_brands').select('*'),
     sb.from('sm_platforms').select('*'),
     sb.from('sm_content_pillars').select('*').order('sort_order', {ascending:true, nullsFirst:false}),
@@ -2123,13 +2145,14 @@ async function loadAll() {
     sb.from('sm_monthly_themes').select('*').order('year', {ascending:true}).order('month', {ascending:true}),
     sb.from('sm_hashtags').select('*').order('category', {ascending:true}),
     sb.from('sm_equipment').select('*').order('tier', {ascending:true}),
-    sb.from('sm_store_locations').select('*').order('store_number', {ascending:true})
+    sb.from('sm_store_locations').select('*').order('store_number', {ascending:true}),
+    sb.from('sm_brainstorm_ideas').select('*').order('created_at', {ascending:false})
   ]);
   S.brands = b.data||[]; S.platforms = p.data||[]; S.pillars = pl.data||[];
   S.posts = po.data||[]; S.metrics = m.data||[]; S.members = t.data||[];
   S.strategies = str.data||[]; S.shotLists = sl.data||[]; S.briefs = br.data||[];
   S.themes = th.data||[]; S.hashtags = ht.data||[]; S.equipment = eq.data||[];
-  S.stores = st.data||[];
+  S.stores = st.data||[]; S.brainstormIdeas = bi.data||[];
 }
 
 function brandById(id) { return S.brands.find(b=>b.id===id); }
@@ -3001,6 +3024,147 @@ function renderThemes() {
     });
   }
   html += `</div>`; document.getElementById('main-view').innerHTML = html;
+}
+
+// ══════════════════════════════════════════════
+// BRAINSTORM — structured idea scratchpad
+// ══════════════════════════════════════════════
+const BRAINSTORM_COLUMNS = [
+  { key: 'new', label: 'New Ideas', hint: 'Freshly captured, unreviewed' },
+  { key: 'maybe', label: 'Maybe / Parking Lot', hint: 'Interesting, not ready yet' },
+  { key: 'ready', label: 'Ready to Produce', hint: 'Green-lit — promote to the pipeline' }
+];
+
+function renderBrainstorm() {
+  const ideas = filterByBrand(S.brainstormIdeas);
+  const active = ideas.filter(i => i.status !== 'used');
+  const used = ideas.filter(i => i.status === 'used');
+  const canQuickAdd = S.brands.length > 0;
+  const defaultBrandId = S.brandFilter !== 'all' ? (S.brands.find(b=>b.slug===S.brandFilter)?.id||'') : (S.brands[0]?.id||'');
+
+  let html = `<div class="v-header"><h1>Brainstorm</h1><p class="v-sub">Quick capture for content ideas — sort them, then promote the good ones straight into your pipeline</p></div><div class="v-body">`;
+
+  html += `<div class="brainstorm-quickadd">`;
+  html += `<select class="form-select" id="bs-quick-brand" style="max-width:190px">${S.brands.map(b=>`<option value="${b.id}" ${b.id===defaultBrandId?'selected':''}>${b.logo_emoji} ${b.name}</option>`).join('')}</select>`;
+  html += `<input type="text" class="form-input" id="bs-quick-text" placeholder="Drop a content idea here and hit Enter…" style="flex:1" ${canQuickAdd?'':'disabled'}>`;
+  html += `<button class="btn btn-primary" onclick="quickAddIdea()" ${canQuickAdd?'':'disabled'}>+ Add Idea</button>`;
+  html += `</div>`;
+
+  if (active.length === 0 && used.length === 0) {
+    html += emptyState('&#128161;', 'No ideas in the brainstorm yet. Drop one in above.');
+  } else {
+    html += `<div class="brainstorm-board">`;
+    BRAINSTORM_COLUMNS.forEach(col => {
+      const items = active.filter(i => i.status === col.key).sort((a,b)=> new Date(b.created_at) - new Date(a.created_at));
+      html += `<div class="brainstorm-col"><div class="brainstorm-col-head"><span class="brainstorm-col-title">${col.label}</span><span class="brainstorm-col-count">${items.length}</span></div><div class="brainstorm-col-hint">${col.hint}</div><div class="brainstorm-col-body">`;
+      if (items.length === 0) { html += `<div class="brainstorm-col-empty">Nothing here yet</div>`; }
+      items.forEach(idea => { html += brainstormCardHtml(idea, col.key); });
+      html += `</div></div>`;
+    });
+    html += `</div>`;
+
+    if (used.length > 0) {
+      html += `<div style="margin-top:22px"><button class="btn btn-ghost btn-sm" onclick="toggleUsedIdeas()" id="bs-used-toggle">&#9660; Show used ideas (${used.length})</button><div id="bs-used-list" class="brainstorm-used-list" hidden>`;
+      used.sort((a,b)=> new Date(b.created_at) - new Date(a.created_at)).forEach(idea => { html += brainstormCardHtml(idea, 'used'); });
+      html += `</div></div>`;
+    }
+  }
+  html += `</div>`; document.getElementById('main-view').innerHTML = html;
+
+  const quickInput = document.getElementById('bs-quick-text');
+  if (quickInput) quickInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); quickAddIdea(); } });
+}
+
+function brainstormCardHtml(idea, colKey) {
+  const br = brandById(idea.brand_id);
+  const pillar = idea.content_pillar_id ? pillarById(idea.content_pillar_id) : null;
+  const addedBy = idea.added_by ? S.members.find(m=>m.id===idea.added_by) : null;
+  let actions = '';
+  if (colKey === 'used') {
+    actions = `<button class="btn btn-ghost btn-sm" onclick="setIdeaStatus('${idea.id}','new')" title="Restore to New">&#8630; Restore</button>`;
+  } else {
+    const nextIdx = BRAINSTORM_COLUMNS.findIndex(c=>c.key===colKey) + 1;
+    if (nextIdx < BRAINSTORM_COLUMNS.length) actions += `<button class="btn btn-ghost btn-sm" onclick="setIdeaStatus('${idea.id}','${BRAINSTORM_COLUMNS[nextIdx].key}')" title="Move to ${BRAINSTORM_COLUMNS[nextIdx].label}">${BRAINSTORM_COLUMNS[nextIdx].label} &#8594;</button>`;
+    actions += `<button class="btn btn-primary btn-sm" onclick="promoteIdeaToPost('${idea.id}')" title="Create a post from this idea">&#10024; Promote</button>`;
+  }
+  return `<div class="brainstorm-card">
+    <div class="brainstorm-card-text">${escHtml(idea.idea)}</div>
+    ${idea.notes ? `<div class="brainstorm-card-notes">${escHtml(idea.notes)}</div>` : ''}
+    <div class="brainstorm-card-meta">${br?`<span class="tag" style="font-size:10px">${br.logo_emoji} ${escHtml(br.name)}</span>`:''}${pillar?`<span class="tag" style="font-size:10px">${escHtml(pillar.name)}</span>`:''}${addedBy?`<span style="font-size:11px;color:var(--ink-3)">${escHtml(addedBy.name)}</span>`:''}<span style="font-size:11px;color:var(--ink-3)">${timeAgo(idea.created_at)}</span></div>
+    <div class="brainstorm-card-actions">${actions}<button class="btn-edit" onclick="openBrainstormModal('${idea.id}')" title="Edit">&#9998;</button><button class="btn-del" onclick="deleteBrainstormIdea('${idea.id}')" title="Delete">&#128465;</button></div>
+  </div>`;
+}
+
+function toggleUsedIdeas() {
+  const list = document.getElementById('bs-used-list'); const btn = document.getElementById('bs-used-toggle');
+  if (!list || !btn) return;
+  list.hidden = !list.hidden;
+  btn.innerHTML = list.hidden ? btn.innerHTML.replace('&#9650;','&#9660;') : btn.innerHTML.replace('&#9660;','&#9650;');
+}
+
+async function quickAddIdea() {
+  const textEl = document.getElementById('bs-quick-text'); const brandEl = document.getElementById('bs-quick-brand');
+  const text = textEl.value.trim(); if (!text) return;
+  const data = { brand_id: brandEl.value, idea: text, status: 'new' };
+  try {
+    await sb.from('sm_brainstorm_ideas').insert(data);
+    logAudit('create','brainstorm_idea','',text);
+    textEl.value = '';
+    await loadAll(); render();
+    showToast('Idea added','success');
+  } catch(e) { showToast('Error: '+e.message,'error'); }
+}
+
+async function setIdeaStatus(id, status) {
+  try { await sb.from('sm_brainstorm_ideas').update({ status, updated_at: new Date().toISOString() }).eq('id', id); await loadAll(); render(); }
+  catch(e) { showToast('Error: '+e.message,'error'); }
+}
+
+function openBrainstormModal(ideaId) {
+  const idea = ideaId ? S.brainstormIdeas.find(i=>i.id===ideaId) : null; const isEdit = !!idea;
+  const panel = document.getElementById('modal-panel'); panel.classList.remove('wide');
+  const brandId = idea?idea.brand_id:(S.brands.find(b=>b.slug===S.brandFilter)?.id||S.brands[0]?.id||'');
+  const pillarsForBrand = S.pillars.filter(p => p.brand_id === brandId);
+  let html = `<div class="modal-header"><span class="modal-title">${isEdit?'Edit':'New'} Brainstorm Idea</span><button class="modal-close" onclick="closeModal()">&#10005;</button></div><div class="modal-body"><form id="brainstorm-form">`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Idea</label><textarea class="form-textarea" name="idea" required placeholder="What's the idea?" autofocus>${escHtml(idea?.idea||'')}</textarea></div></div>`;
+  html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Brand</label><select class="form-select" name="brand_id" id="bs-brand">${S.brands.map(b=>`<option value="${b.id}" ${b.id===brandId?'selected':''}>${b.logo_emoji} ${b.name}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">Content Pillar</label><select class="form-select" name="content_pillar_id" id="bs-pillar"><option value="">— None —</option>${pillarsForBrand.map(p=>`<option value="${p.id}" ${idea&&idea.content_pillar_id===p.id?'selected':''}>${p.name}</option>`).join('')}</select></div></div>`;
+  html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Status</label><select class="form-select" name="status">${BRAINSTORM_COLUMNS.map(c=>`<option value="${c.key}" ${idea&&idea.status===c.key?'selected':(!idea&&c.key==='new'?'selected':'')}>${c.label}</option>`).join('')}<option value="used" ${idea&&idea.status==='used'?'selected':''}>Used</option></select></div><div class="form-group"><label class="form-label">Added By</label><select class="form-select" name="added_by"><option value="">— None —</option>${S.members.filter(m=>!m.brand_id||m.brand_id===brandId).map(m=>`<option value="${m.id}" ${idea&&idea.added_by===m.id?'selected':''}>${m.name}</option>`).join('')}</select></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" name="notes" placeholder="Any extra context, angle, or reference...">${escHtml(idea?.notes||'')}</textarea></div></div>`;
+  html += `</form></div><div class="modal-footer">${isEdit?`<button class="btn btn-danger btn-sm" onclick="deleteBrainstormIdea('${idea.id}')">Delete</button><div style="flex:1"></div>`:''}<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveBrainstormIdea('${idea?.id||''}')">${isEdit?'Update':'Add'} Idea</button></div>`;
+  panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
+  document.getElementById('bs-brand').onchange = function() { const sel = document.getElementById('bs-pillar'); const pils = S.pillars.filter(p => p.brand_id === this.value); sel.innerHTML = `<option value="">— None —</option>` + pils.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); };
+}
+
+async function saveBrainstormIdea(existingId) {
+  const form = document.getElementById('brainstorm-form'); const fd = new FormData(form);
+  const data = { brand_id: fd.get('brand_id'), idea: fd.get('idea'), content_pillar_id: fd.get('content_pillar_id')||null, status: fd.get('status'), added_by: fd.get('added_by')||null, notes: fd.get('notes')||null, updated_at: new Date().toISOString() };
+  if (!data.idea) { showToast('Idea text is required','error'); return; }
+  try {
+    if (existingId) { await sb.from('sm_brainstorm_ideas').update(data).eq('id',existingId); logAudit('edit','brainstorm_idea',existingId,data.idea); }
+    else { await sb.from('sm_brainstorm_ideas').insert(data); logAudit('create','brainstorm_idea','',data.idea); }
+    closeModal(); await loadAll(); render(); showToast(existingId?'Idea updated':'Idea added','success');
+  } catch(e) { showToast('Error: '+e.message,'error'); }
+}
+
+async function deleteBrainstormIdea(id) {
+  if (!confirm('Delete this brainstorm idea?')) return;
+  const idea = S.brainstormIdeas.find(i=>i.id===id);
+  await sb.from('sm_brainstorm_ideas').delete().eq('id',id);
+  logAudit('delete','brainstorm_idea',id,idea?.idea||'');
+  closeModal(); await loadAll(); render(); showToast('Idea deleted','info');
+}
+
+async function promoteIdeaToPost(id) {
+  const idea = S.brainstormIdeas.find(i=>i.id===id); if (!idea) return;
+  await sb.from('sm_brainstorm_ideas').update({ status: 'used', updated_at: new Date().toISOString() }).eq('id', id);
+  logAudit('edit','brainstorm_idea',id,idea.idea+' (promoted to post)');
+  await loadAll();
+  openPostModal(null);
+  const titleEl = document.querySelector('#post-form [name=title]'); if (titleEl) titleEl.value = idea.idea;
+  const brandEl = document.getElementById('post-brand'); if (brandEl && idea.brand_id) { brandEl.value = idea.brand_id; brandEl.dispatchEvent(new Event('change')); }
+  const notesEl = document.querySelector('#post-form [name=notes]'); if (notesEl && idea.notes) notesEl.value = idea.notes;
+  if (idea.content_pillar_id) { setTimeout(() => { const pillarEl = document.getElementById('post-pillar'); if (pillarEl) { pillarEl.value = idea.content_pillar_id; pillarEl.dispatchEvent(new Event('change')); } }, 0); }
+  showToast('Idea moved to your pipeline as a new post — finish it off below','info');
 }
 
 function renderHashtags() {
@@ -4112,6 +4276,7 @@ function render() {
     case 'production': renderProduction(); break;
     case 'team': renderTeam(); break;
     case 'themes': renderThemes(); break;
+    case 'brainstorm': renderBrainstorm(); break;
     case 'hashtags': renderHashtags(); break;
     case 'stores': renderStores(); break;
     case 'inbox': renderInbox(); break;
@@ -4128,6 +4293,7 @@ const CMD_ACTIONS = [
   { icon: '&#9889;', label: 'Go to Briefing', action: () => { S.view='briefing'; render(); } },
   { icon: '&#128197;', label: 'Go to Calendar', action: () => { S.view='calendar'; render(); } },
   { icon: '&#128203;', label: 'Go to Pipeline', action: () => { S.view='pipeline'; render(); } },
+  { icon: '&#128161;', label: 'Go to Brainstorm', action: () => { S.view='brainstorm'; render(); } },
   { icon: '&#128200;', label: 'Go to Analytics', action: () => { S.view='analytics'; render(); } },
   { icon: '&#128065;', label: 'Go to Competitors', action: () => { S.view='competitors'; render(); } },
   { icon: '&#127919;', label: 'Go to Strategy', action: () => { S.view='strategy'; render(); } },

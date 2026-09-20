@@ -1660,7 +1660,7 @@ function renderCosts(){
         <div class="card-header"><h3>Spend by Location</h3></div>
         <div class="card-body padded">
           ${(()=>{
-            const byLoc={};costs.forEach(c=>{const w=woMap[c.work_order_id];if(w)byLoc[w.location_id]=(byLoc[w.location_id]||0)+Number(c.amount||0)});
+            const byLoc={};costs.forEach(c=>{const w=woMap[c.work_order_id];const lid=c.location_id||(w?w.location_id:null);if(lid)byLoc[lid]=(byLoc[lid]||0)+Number(c.amount||0)});
             const entries=Object.entries(byLoc).sort((a,b)=>b[1]-a[1]);
             if(!entries.length)return '<p style="color:var(--text-muted)">No cost data yet</p>';
             const max=entries[0][1];
@@ -1676,8 +1676,8 @@ function renderCosts(){
       <div class="card-header"><h3>All Cost Entries</h3></div>
       <div class="card-body"><div class="table-scroll">
         ${costs.length===0?'<div class="empty"><p>No cost entries yet</p></div>':
-        `<table><thead><tr><th>Date</th><th>Work Order</th><th>Type</th><th>Description</th><th>Vendor</th><th>Invoice#</th><th class="text-right">Amount</th><th></th></tr></thead><tbody>
-        ${costs.map(c=>{const w=woMap[c.work_order_id];return `<tr><td>${formatDate(c.date_incurred)}</td><td>${w?`WO#${w.wo_number} — ${w.title}`:'—'}</td><td>${statusBadge(c.cost_type)}</td><td>${c.description||'—'}</td><td>${vendName(c.vendor_id)}</td><td>${c.invoice_number||'—'}</td><td class="text-right"><strong>${formatCurrency(c.amount)}</strong></td><td><button class="btn-icon btn-sm" onclick="openCostForm('${c.id}')">✏️</button><button class="btn-icon btn-sm" onclick="deleteCost('${c.id}')">🗑️</button></td></tr>`}).join('')}
+        `<table><thead><tr><th>Date</th><th>Source</th><th>Type</th><th>Description</th><th>Vendor</th><th>Location</th><th class="text-right">Amount</th><th></th></tr></thead><tbody>
+        ${costs.map(c=>{const w=woMap[c.work_order_id];const srcLabel=c.work_order_id?`WO#${w?w.wo_number:'?'}`:(c.source==='cc_import'?`💳 ${c.card_last4||''}`:'Manual');const loc=c.location_id?locStore(c.location_id):(w?locStore(w.location_id):'—');const vend=c.vendor_name||vendName(c.vendor_id);return `<tr><td>${formatDate(c.date_incurred)}</td><td>${srcLabel}</td><td>${statusBadge(c.cost_type)}</td><td>${c.description||'—'}</td><td>${vend}</td><td>${loc}</td><td class="text-right"><strong>${formatCurrency(c.amount)}</strong></td><td><button class="btn-icon btn-sm" onclick="openCostForm('${c.id}')">✏️</button><button class="btn-icon btn-sm" onclick="deleteCost('${c.id}')">🗑️</button></td></tr>`}).join('')}
         </tbody></table>`}
       </div></div>
     </div>`;
@@ -1685,10 +1685,16 @@ function renderCosts(){
 window.openCostForm = function(id){
   const c = id?(cache.dt_work_order_costs||[]).find(x=>x.id===id):{};
   const woOpts = (cache.dt_work_orders||[]).map(w=>`<option value="${w.id}" ${w.id===c.work_order_id?'selected':''}>WO#${w.wo_number} — ${w.title}</option>`).join('');
+  const locOpts = (cache.dt_locations||[]).map(l=>`<option value="${l.id}" ${l.id===c.location_id?'selected':''}>#${l.store_number} ${l.name}</option>`).join('');
+  const teamOpts = (cache.dt_team_members||[]).map(t=>`<option value="${t.id}" ${t.id===c.purchased_by?'selected':''}>${t.name}</option>`).join('');
   openModal(`
     <div class="modal-header"><h3>${id?'Edit':'Add'} Cost Entry</h3><button class="btn-icon" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
-      <div class="form-group"><label>Work Order*</label><select id="m-wo"><option value="">Select work order</option>${woOpts}</select></div>
+      <div class="form-group"><label>Work Order (optional)</label><select id="m-wo"><option value="">No work order (standalone cost)</option>${woOpts}</select></div>
+      <div class="form-row">
+        <div class="form-group"><label>Location*</label><select id="m-loc"><option value="">Select location</option>${locOpts}</select></div>
+        <div class="form-group"><label>Purchased By</label><select id="m-purchaser"><option value="">Select team member</option>${teamOpts}</select></div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Cost Type*</label><select id="m-ctype"><option ${(!c.cost_type||c.cost_type==='labor')?'selected':''} value="labor">Labor</option><option ${c.cost_type==='parts'?'selected':''} value="parts">Parts</option><option ${c.cost_type==='vendor_invoice'?'selected':''} value="vendor_invoice">Vendor Invoice</option><option ${c.cost_type==='other'?'selected':''} value="other">Other</option></select></div>
         <div class="form-group"><label>Amount ($)*</label><input type="number" step="0.01" id="m-amount" value="${c.amount||''}"></div>
@@ -1696,15 +1702,19 @@ window.openCostForm = function(id){
       <div class="form-group"><label>Description</label><input id="m-desc" value="${c.description||''}"></div>
       <div class="form-row">
         <div class="form-group"><label>Vendor</label><select id="m-vendor">${vendOptions(c.vendor_id)}</select></div>
-        <div class="form-group"><label>Invoice Number</label><input id="m-inv" value="${c.invoice_number||''}"></div>
+        <div class="form-group"><label>Vendor Name</label><input id="m-vname" value="${c.vendor_name||''}" placeholder="Or type vendor name"></div>
       </div>
-      <div class="form-group"><label>Date Incurred</label><input type="date" id="m-date" value="${c.date_incurred||new Date().toISOString().slice(0,10)}"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Invoice Number</label><input id="m-inv" value="${c.invoice_number||''}"></div>
+        <div class="form-group"><label>Date Incurred</label><input type="date" id="m-date" value="${c.date_incurred||new Date().toISOString().slice(0,10)}"></div>
+      </div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveCost('${id||''}')">Save</button></div>`);
 };
 window.saveCost = async function(id){
-  const row={work_order_id:$('#m-wo').value||null,cost_type:$('#m-ctype').value,amount:parseFloat($('#m-amount').value),description:$('#m-desc').value||null,vendor_id:$('#m-vendor').value||null,invoice_number:$('#m-inv').value||null,date_incurred:$('#m-date').value||new Date().toISOString().slice(0,10)};
-  if(!row.work_order_id||!row.amount){toast('Work Order and Amount are required','error');return;}
+  const row={work_order_id:$('#m-wo').value||null,location_id:$('#m-loc').value||null,purchased_by:$('#m-purchaser').value||null,cost_type:$('#m-ctype').value,amount:parseFloat($('#m-amount').value),description:$('#m-desc').value||null,vendor_id:$('#m-vendor').value||null,vendor_name:$('#m-vname').value||null,invoice_number:$('#m-inv').value||null,date_incurred:$('#m-date').value||new Date().toISOString().slice(0,10)};
+  if(!row.amount){toast('Amount is required','error');return;}
+  if(!row.work_order_id&&!row.location_id){toast('Please select a Work Order or Location','error');return;}
   if(await upsert('dt_work_order_costs',row,id||undefined)){closeModal();await load('dt_work_order_costs','date_incurred',false);render();}
 };
 window.deleteCost = async function(id){if(await remove('dt_work_order_costs',id)){await load('dt_work_order_costs','date_incurred',false);render();}};

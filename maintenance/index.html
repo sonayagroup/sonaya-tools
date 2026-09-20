@@ -1625,62 +1625,137 @@ window.deleteLog = async function(id){if(await remove('dt_maintenance_logs',id))
 function renderCosts(){
   $('#page-title').textContent='Cost Reports';
   $('#topbar-actions').innerHTML='<button class="btn btn-primary" onclick="openCostForm()">+ Add Cost Entry</button>';
-  const costs = cache.dt_work_order_costs||[];
+  const allCosts = cache.dt_work_order_costs||[];
   const wo = cache.dt_work_orders||[];
   const woMap=Object.fromEntries(wo.map(w=>[w.id,w]));
+  const locs=cache.dt_locations||[];
 
-  // summaries
-  const now=new Date();
-  const thisMonth=costs.filter(c=>{const d=new Date(c.date_incurred+'T00:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()});
-  const lastMonth=costs.filter(c=>{const d=new Date(c.date_incurred+'T00:00:00');const lm=new Date(now.getFullYear(),now.getMonth()-1,1);return d.getMonth()===lm.getMonth()&&d.getFullYear()===lm.getFullYear()});
-  const ytd=costs.filter(c=>new Date(c.date_incurred+'T00:00:00').getFullYear()===now.getFullYear());
-  const sum=arr=>arr.reduce((s,c)=>s+Number(c.amount||0),0);
-  const byType={};costs.forEach(c=>{byType[c.cost_type]=(byType[c.cost_type]||0)+Number(c.amount||0)});
+  // Sort state
+  if(!window._costSort) window._costSort={col:'date_incurred',dir:'desc'};
+  const costSort=window._costSort;
 
-  $('#content').innerHTML=`
-    <div class="stats-row">
+  // Preserve filter values across re-renders
+  const prevFrom=document.getElementById('cf-from')?.value||'';
+  const prevTo=document.getElementById('cf-to')?.value||'';
+  const prevLoc=document.getElementById('cf-loc')?.value||'';
+  const prevType=document.getElementById('cf-type')?.value||'';
+
+  // Filter helper
+  function getFiltered(){
+    const fromVal=document.getElementById('cf-from')?.value||'';
+    const toVal=document.getElementById('cf-to')?.value||'';
+    const locVal=document.getElementById('cf-loc')?.value||'';
+    const typeVal=document.getElementById('cf-type')?.value||'';
+    let filtered=allCosts.filter(c=>{
+      if(fromVal&&c.date_incurred<fromVal) return false;
+      if(toVal&&c.date_incurred>toVal) return false;
+      if(locVal){const lid=c.location_id||(woMap[c.work_order_id]?woMap[c.work_order_id].location_id:null);if(lid!==locVal) return false;}
+      if(typeVal&&c.cost_type!==typeVal) return false;
+      return true;
+    });
+    return filtered;
+  }
+
+  // Sort helper
+  function sortCosts(arr){
+    const col=costSort.col;const dir=costSort.dir==='asc'?1:-1;
+    return [...arr].sort((a,b)=>{
+      let va,vb;
+      if(col==='amount'){va=Number(a.amount||0);vb=Number(b.amount||0);return (va-vb)*dir;}
+      if(col==='date_incurred'){va=a.date_incurred||'';vb=b.date_incurred||'';return va<vb?-1*dir:va>vb?1*dir:0;}
+      if(col==='vendor'){va=(a.vendor_name||vendName(a.vendor_id)||'').toLowerCase();vb=(b.vendor_name||vendName(b.vendor_id)||'').toLowerCase();return va<vb?-1*dir:va>vb?1*dir:0;}
+      if(col==='location'){const wA=woMap[a.work_order_id];const wB=woMap[b.work_order_id];va=locStore(a.location_id||(wA?wA.location_id:null));vb=locStore(b.location_id||(wB?wB.location_id:null));return va<vb?-1*dir:va>vb?1*dir:0;}
+      if(col==='cost_type'){va=a.cost_type||'';vb=b.cost_type||'';return va<vb?-1*dir:va>vb?1*dir:0;}
+      if(col==='source'){const sA=a.work_order_id?0:(a.source==='cc_import'?1:2);const sB=b.work_order_id?0:(b.source==='cc_import'?1:2);return (sA-sB)*dir;}
+      va=String(a[col]||'').toLowerCase();vb=String(b[col]||'').toLowerCase();return va<vb?-1*dir:va>vb?1*dir:0;
+    });
+  }
+
+  // Arrow indicator
+  function arrow(col){return costSort.col===col?(costSort.dir==='asc'?' ▲':' ▼'):' ⇅';}
+  function thStyle(){return 'cursor:pointer;user-select:none';}
+
+  // Build summaries & table from filtered data
+  function drawCosts(){
+    const costs=getFiltered();
+    const sum=arr=>arr.reduce((s,c)=>s+Number(c.amount||0),0);
+
+    // Summary tiles - show context-aware labels
+    const fromVal=document.getElementById('cf-from')?.value||'';
+    const toVal=document.getElementById('cf-to')?.value||'';
+    const hasDateFilter=fromVal||toVal;
+    const now=new Date();
+    const thisMonth=costs.filter(c=>{const d=new Date(c.date_incurred+'T00:00:00');return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()});
+    const lastMonth=costs.filter(c=>{const d=new Date(c.date_incurred+'T00:00:00');const lm=new Date(now.getFullYear(),now.getMonth()-1,1);return d.getMonth()===lm.getMonth()&&d.getFullYear()===lm.getFullYear()});
+    const ytd=costs.filter(c=>new Date(c.date_incurred+'T00:00:00').getFullYear()===now.getFullYear());
+
+    document.getElementById('cost-summary').innerHTML=`
       <div class="stat-tile"><span class="label">This Month</span><span class="value">${formatCurrency(sum(thisMonth))}</span><span class="sub">${thisMonth.length} entries</span></div>
       <div class="stat-tile"><span class="label">Last Month</span><span class="value">${formatCurrency(sum(lastMonth))}</span><span class="sub">${lastMonth.length} entries</span></div>
-      <div class="stat-tile"><span class="label">Year to Date</span><span class="value">${formatCurrency(sum(ytd))}</span><span class="sub">${ytd.length} entries</span></div>
-      <div class="stat-tile"><span class="label">All Time</span><span class="value">${formatCurrency(sum(costs))}</span><span class="sub">${costs.length} entries</span></div>
+      <div class="stat-tile"><span class="label">${hasDateFilter?'Filtered Total':'Year to Date'}</span><span class="value">${formatCurrency(hasDateFilter?sum(costs):sum(ytd))}</span><span class="sub">${hasDateFilter?costs.length:ytd.length} entries</span></div>
+      <div class="stat-tile"><span class="label">All Time</span><span class="value">${formatCurrency(sum(allCosts))}</span><span class="sub">${allCosts.length} entries</span></div>`;
+
+    // Spend by Type
+    const byType={};costs.forEach(c=>{byType[c.cost_type]=(byType[c.cost_type]||0)+Number(c.amount||0)});
+    document.getElementById('cost-by-type').innerHTML=Object.keys(byType).length===0?'<p style="color:var(--text-muted)">No cost data</p>':
+      Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([t,v])=>{
+        const pct=sum(costs)?Math.round(v/sum(costs)*100):0;
+        const colors={labor:'var(--blue)',parts:'var(--orange)',vendor_invoice:'var(--aqua)',other:'var(--yellow)'};
+        return `<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px"><span style="font-weight:600">${t.replace(/_/g,' ')}</span><span>${formatCurrency(v)} (${pct}%)</span></div><div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${colors[t]||'var(--blue)'};border-radius:3px"></div></div></div>`;
+      }).join('');
+
+    // Spend by Location
+    const byLoc={};costs.forEach(c=>{const w=woMap[c.work_order_id];const lid=c.location_id||(w?w.location_id:null);if(lid)byLoc[lid]=(byLoc[lid]||0)+Number(c.amount||0)});
+    const locEntries=Object.entries(byLoc).sort((a,b)=>b[1]-a[1]);
+    document.getElementById('cost-by-loc').innerHTML=locEntries.length===0?'<p style="color:var(--text-muted)">No cost data</p>':(()=>{
+      const max=locEntries[0][1];
+      return locEntries.map(([lid,v])=>{
+        const pct=max?Math.round(v/max*100):0;
+        return `<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px"><span style="font-weight:600">${locStore(lid)}</span><span>${formatCurrency(v)}</span></div><div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--aqua);border-radius:3px"></div></div></div>`;
+      }).join('');
+    })();
+
+    // Table
+    const sorted=sortCosts(costs);
+    document.getElementById('cost-table').innerHTML=sorted.length===0?'<div class="empty"><p>No cost entries match the current filters</p></div>':
+      `<table><thead><tr>
+        <th style="${thStyle()}" onclick="window._costSortBy('date_incurred')">Date${arrow('date_incurred')}</th>
+        <th style="${thStyle()}" onclick="window._costSortBy('source')">Source${arrow('source')}</th>
+        <th style="${thStyle()}" onclick="window._costSortBy('cost_type')">Type${arrow('cost_type')}</th>
+        <th>Description</th>
+        <th style="${thStyle()}" onclick="window._costSortBy('vendor')">Vendor${arrow('vendor')}</th>
+        <th style="${thStyle()}" onclick="window._costSortBy('location')">Location${arrow('location')}</th>
+        <th class="text-right" style="${thStyle()}" onclick="window._costSortBy('amount')">Amount${arrow('amount')}</th>
+        <th></th></tr></thead><tbody>
+      ${sorted.map(c=>{const w=woMap[c.work_order_id];const srcLabel=c.work_order_id?`WO#${w?w.wo_number:'?'}`:(c.source==='cc_import'?`💳 ${c.card_last4||''}`:'Manual');const loc=c.location_id?locStore(c.location_id):(w?locStore(w.location_id):'—');const vend=c.vendor_name||vendName(c.vendor_id);return `<tr><td>${formatDate(c.date_incurred)}</td><td>${srcLabel}</td><td>${statusBadge(c.cost_type)}</td><td>${c.description||'—'}</td><td>${vend}</td><td>${loc}</td><td class="text-right"><strong>${formatCurrency(c.amount)}</strong></td><td><button class="btn-icon btn-sm" onclick="openCostForm('${c.id}')">✏️</button><button class="btn-icon btn-sm" onclick="deleteCost('${c.id}')">🗑️</button></td></tr>`}).join('')}
+      </tbody></table>`;
+  }
+
+  $('#content').innerHTML=`
+    <div class="stats-row" id="cost-summary"></div>
+    <div class="filter-row" style="margin-bottom:20px">
+      <label style="font-size:.8rem;font-weight:600;color:var(--text-secondary)">From</label>
+      <input type="date" id="cf-from" value="${prevFrom}" style="width:150px">
+      <label style="font-size:.8rem;font-weight:600;color:var(--text-secondary)">To</label>
+      <input type="date" id="cf-to" value="${prevTo}" style="width:150px">
+      <select id="cf-loc" style="min-width:160px"><option value="">All Locations</option>${locs.map(l=>`<option value="${l.id}" ${l.id===prevLoc?'selected':''}>#${l.store_number} ${l.name}</option>`).join('')}</select>
+      <select id="cf-type" style="min-width:130px"><option value="">All Types</option><option value="parts" ${prevType==='parts'?'selected':''}>Parts</option><option value="labor" ${prevType==='labor'?'selected':''}>Labor</option><option value="vendor_invoice" ${prevType==='vendor_invoice'?'selected':''}>Vendor Invoice</option><option value="other" ${prevType==='other'?'selected':''}>Other</option></select>
+      <button class="btn btn-sm btn-secondary" onclick="document.getElementById('cf-from').value='';document.getElementById('cf-to').value='';document.getElementById('cf-loc').value='';document.getElementById('cf-type').value='';window._costApply()">Clear</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
-      <div class="card">
-        <div class="card-header"><h3>Spend by Type</h3></div>
-        <div class="card-body padded">
-          ${Object.keys(byType).length===0?'<p style="color:var(--text-muted)">No cost data yet</p>':
-          Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([t,v])=>{
-            const pct=sum(costs)?Math.round(v/sum(costs)*100):0;
-            const colors={labor:'var(--blue)',parts:'var(--orange)',vendor_invoice:'var(--aqua)',other:'var(--yellow)'};
-            return `<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px"><span style="font-weight:600">${t.replace(/_/g,' ')}</span><span>${formatCurrency(v)} (${pct}%)</span></div><div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${colors[t]||'var(--blue)'};border-radius:3px"></div></div></div>`;
-          }).join('')}
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header"><h3>Spend by Location</h3></div>
-        <div class="card-body padded">
-          ${(()=>{
-            const byLoc={};costs.forEach(c=>{const w=woMap[c.work_order_id];const lid=c.location_id||(w?w.location_id:null);if(lid)byLoc[lid]=(byLoc[lid]||0)+Number(c.amount||0)});
-            const entries=Object.entries(byLoc).sort((a,b)=>b[1]-a[1]);
-            if(!entries.length)return '<p style="color:var(--text-muted)">No cost data yet</p>';
-            const max=entries[0][1];
-            return entries.map(([lid,v])=>{
-              const pct=max?Math.round(v/max*100):0;
-              return `<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;font-size:.85rem;margin-bottom:4px"><span style="font-weight:600">${locStore(lid)}</span><span>${formatCurrency(v)}</span></div><div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--aqua);border-radius:3px"></div></div></div>`;
-            }).join('');
-          })()}
-        </div>
-      </div>
+      <div class="card"><div class="card-header"><h3>Spend by Type</h3></div><div class="card-body padded" id="cost-by-type"></div></div>
+      <div class="card"><div class="card-header"><h3>Spend by Location</h3></div><div class="card-body padded" id="cost-by-loc"></div></div>
     </div>
     <div class="card">
       <div class="card-header"><h3>All Cost Entries</h3></div>
-      <div class="card-body"><div class="table-scroll">
-        ${costs.length===0?'<div class="empty"><p>No cost entries yet</p></div>':
-        `<table><thead><tr><th>Date</th><th>Source</th><th>Type</th><th>Description</th><th>Vendor</th><th>Location</th><th class="text-right">Amount</th><th></th></tr></thead><tbody>
-        ${costs.map(c=>{const w=woMap[c.work_order_id];const srcLabel=c.work_order_id?`WO#${w?w.wo_number:'?'}`:(c.source==='cc_import'?`💳 ${c.card_last4||''}`:'Manual');const loc=c.location_id?locStore(c.location_id):(w?locStore(w.location_id):'—');const vend=c.vendor_name||vendName(c.vendor_id);return `<tr><td>${formatDate(c.date_incurred)}</td><td>${srcLabel}</td><td>${statusBadge(c.cost_type)}</td><td>${c.description||'—'}</td><td>${vend}</td><td>${loc}</td><td class="text-right"><strong>${formatCurrency(c.amount)}</strong></td><td><button class="btn-icon btn-sm" onclick="openCostForm('${c.id}')">✏️</button><button class="btn-icon btn-sm" onclick="deleteCost('${c.id}')">🗑️</button></td></tr>`}).join('')}
-        </tbody></table>`}
-      </div></div>
+      <div class="card-body"><div class="table-scroll" id="cost-table"></div></div>
     </div>`;
+
+  // Wire up filter events
+  window._costApply=drawCosts;
+  window._costSortBy=function(col){if(costSort.col===col)costSort.dir=costSort.dir==='asc'?'desc':'asc';else{costSort.col=col;costSort.dir=col==='amount'||col==='date_incurred'?'desc':'asc';}drawCosts();};
+  ['cf-from','cf-to','cf-loc','cf-type'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener('change',drawCosts)});
+  drawCosts();
 }
 window.openCostForm = function(id){
   const c = id?(cache.dt_work_order_costs||[]).find(x=>x.id===id):{};

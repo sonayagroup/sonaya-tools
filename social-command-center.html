@@ -2481,7 +2481,11 @@ function renderCalendarWeek() {
 function renderCalendarList() {
   const posts = applyCalPlatformFilter(filteredPosts()); const today = toDateStr(new Date());
   const horizon = new Date(); horizon.setDate(horizon.getDate()+30); const horizonStr = toDateStr(horizon);
-  let upcoming = posts.filter(p => p.scheduled_date && p.scheduled_date >= today && p.scheduled_date <= horizonStr);
+  // Once someone types a search, stop clipping to the next 30 days — a search
+  // is a request to find something specific, wherever on the calendar it lives.
+  let upcoming = S.searchQuery
+    ? posts.filter(p => p.scheduled_date && p.scheduled_date >= today)
+    : posts.filter(p => p.scheduled_date && p.scheduled_date >= today && p.scheduled_date <= horizonStr);
   const { key, dir } = S.listSort;
   upcoming = [...upcoming].sort((a,b) => {
     let av, bv;
@@ -2494,7 +2498,8 @@ function renderCalendarList() {
   });
   const cols = [['scheduled_date','Date'],['scheduled_time','Time'],['title','Title'],['brand','Brand'],['platform','Platform'],['pillar','Pillar'],['status','Status'],['brief','Brief']];
   let html = `<div class="list-table-wrap">`;
-  if (upcoming.length === 0) { html += emptyState('&#128197;', 'No posts scheduled in the next 30 days.'); }
+  if (S.searchQuery) html += `<div style="font-size:12px;color:var(--ink-3);margin-bottom:8px">Searching all upcoming posts for "${escHtml(S.searchQuery)}" — not limited to the next 30 days</div>`;
+  if (upcoming.length === 0) { html += emptyState('&#128197;', S.searchQuery ? `No upcoming posts match "${escHtml(S.searchQuery)}".` : 'No posts scheduled in the next 30 days.'); }
   else {
     html += `<div style="overflow-x:auto"><table class="data-table"><thead>`;
     html += bulkActionsTableHeadHtml(cols);

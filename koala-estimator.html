@@ -3503,8 +3503,19 @@ function getCustomerPrice() {
 }
 
 function getMarginPercent() {
-  const el = document.getElementById('margin');
-  return el ? el.value + '%' : '50%';
+  const selectedIdxs = getSelectedEmailOptions();
+  if (selectedIdxs.length === 0) {
+    // No options selected — fall back to global margin
+    return (parseFloat($('marginInput').value) || 50) + '%';
+  }
+  // Collect margins for each selected option
+  const margins = selectedIdxs.map(i => getOptionMargin(options[i]));
+  const allSame = margins.every(m => m === margins[0]);
+  if (allSame) {
+    return margins[0] + '%';
+  }
+  // Different margins per option — show each
+  return selectedIdxs.map(i => options[i].name + ': ' + getOptionMargin(options[i]) + '%').join(', ');
 }
 
 function refreshEmailPreview() {

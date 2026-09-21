@@ -189,6 +189,7 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
     <div class="tab" data-t="pm">PM Checklist</div>
     <div class="tab" data-t="hvac">HVAC Inspections</div>
     <div class="tab" data-t="contacts">Contacts</div>
+    <div class="tab" data-t="recurring">Recurring</div>
   </div>
 </nav>
 
@@ -292,6 +293,15 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
     </div>
     <div class="hint" style="margin-bottom:14px;color:var(--muted);font-size:12.5px">Manage people who can be assigned to or report work orders. Email notifications are sent to assigned contacts when work orders are created.</div>
     <div class="card"><div class="tbl-scroll" id="contacts-table">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="panel-recurring">
+    <div class="sec-title">
+      <span>Recurring Maintenance</span>
+      <button class="btn" onclick="openRecurringModal()">+ Add Recurring Task</button>
+    </div>
+    <div class="hint" style="margin-bottom:14px;color:var(--muted);font-size:12.5px">Scheduled maintenance tasks that automatically create work orders and send email reminders on a recurring basis.</div>
+    <div class="card"><div class="tbl-scroll" id="recurring-table">Loading…</div></div>
   </section>
 
   <div class="footer">Great Clips Maintenance Dashboard · data via Supabase · Sonaya Group internal tools</div>
@@ -445,6 +455,46 @@ label{font-size:12.5px;font-weight:600;color:var(--muted);display:block;margin-b
   </div>
 </div></div>
 
+<!-- Recurring Task Modal -->
+<div class="modal-bg" id="recurringModalBg"><div class="modal">
+  <div class="modal-head"><h2 id="recurringModalTitle">Add Recurring Task</h2><button class="close-x" onclick="closeModal('recurringModalBg')" aria-label="Close">&times;</button></div>
+  <div class="modal-body">
+  <input type="hidden" id="recId">
+  <div class="field-row">
+    <div class="field"><label>Salon *</label><select id="recSalon"></select></div>
+    <div class="field"><label>Category</label>
+      <select id="recCategory">
+        <option>HVAC</option><option>Plumbing</option><option>Electrical</option>
+        <option>Casework & Furniture</option><option>Chairs</option><option>Flooring</option>
+        <option>Paint, Walls & Ceiling</option><option>Doors</option><option>Washer & Dryer</option><option>Other</option>
+      </select>
+    </div>
+  </div>
+  <div class="field"><label>Title *</label><input type="text" id="recTitle" placeholder="e.g. HVAC Filter Replacement" style="width:100%"></div>
+  <div class="field"><label>Description</label><textarea id="recDesc" placeholder="Details about what needs to be done"></textarea></div>
+  <div class="field-row">
+    <div class="field"><label>Day of Month *</label><input type="number" id="recDay" min="1" max="28" value="1" style="width:80px"></div>
+    <div class="field"><label>Priority</label>
+      <select id="recPriority">
+        <option>Low</option><option selected>Medium</option><option>High</option><option>Urgent</option>
+      </select>
+    </div>
+  </div>
+  <div class="field"><label>Notify Emails</label><input type="text" id="recEmails" placeholder="email1@example.com, email2@example.com" style="width:100%"></div>
+  <div class="hint" style="color:var(--muted);font-size:11.5px;margin-top:2px">Comma-separated email addresses that will receive reminders when the task is due.</div>
+  <div class="field" style="margin-top:10px">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" id="recAutoWo" checked>
+      Auto-create work order when due
+    </label>
+  </div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn secondary" onclick="closeModal('recurringModalBg')">Cancel</button>
+    <button class="btn" onclick="saveRecurring()">Save Recurring Task</button>
+  </div>
+</div></div>
+
 <!-- PM Checklist Modal -->
 <div class="modal-bg" id="pmModalBg"><div class="modal wide">
   <div class="modal-head">
@@ -545,6 +595,7 @@ let EQUIPMENT=[];
 let PM_VISITS=[]; // header rows, each with .items loaded on demand for history detail
 let CONTACTS=[]; // gc_maint_contacts rows
 let HVAC_INSPECTIONS=[]; // gc_maint_hvac_inspections rows
+let RECURRING=[]; // gc_maint_recurring rows
 let woAssignedIds=new Set(); // currently selected contact IDs for multi-select
 
 function esc(s){return (s==null?"":String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -581,6 +632,7 @@ async function loadEquipment(){EQUIPMENT=await sGet("gc_maint_equipment?select=*
 async function loadPmVisits(){PM_VISITS=await sGet("gc_maint_pm_visits?select=*&status=eq.completed&order=visit_date.desc");}
 async function loadContacts(){CONTACTS=await sGet("gc_maint_contacts?select=*&active=eq.true&order=name.asc");}
 async function loadHvacInspections(){HVAC_INSPECTIONS=await sGet("gc_maint_hvac_inspections?select=*&order=visit_date.desc");}
+async function loadRecurring(){RECURRING=await sGet("gc_maint_recurring?select=*&order=created_at.desc");}
 
 // ===== Multi-select helpers =====
 function toggleMsDropdown(id){document.getElementById(id).classList.toggle("open");}
@@ -610,7 +662,7 @@ function fillReportedBySelect(sel_val){
 }
 
 function fillSalonSelects(){
-  document.querySelectorAll("#woSalon,#eqSalon,#pmSalon").forEach(sel=>{sel.innerHTML=salonOptionsHtml();});
+  document.querySelectorAll("#woSalon,#eqSalon,#pmSalon,#recSalon").forEach(sel=>{sel.innerHTML=salonOptionsHtml();});
   const woF=document.getElementById("woFilterSalon"), eqF=document.getElementById("eqFilterSalon"), hvF=document.getElementById("hvacFilterSalon");
   woF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
   eqF.innerHTML='<option value="">All Salons</option>'+salonOptionsHtml();
@@ -1582,6 +1634,92 @@ async function deleteContact(cid){
   catch(e){alert("Delete failed: "+e.message);}
 }
 
+// ===== Recurring Maintenance =====
+function renderRecurring(){
+  const tbl=document.getElementById("recurring-table");
+  if(!RECURRING.length){tbl.innerHTML='<div class="empty-note">No recurring tasks set up yet. Add one to automate maintenance reminders.</div>';return;}
+  tbl.innerHTML=`<table><thead><tr>
+    <th>Salon</th><th>Title</th><th>Category</th><th>Day</th><th>Priority</th><th>Emails</th><th>Auto WO</th><th>Status</th><th>Last Triggered</th><th>Actions</th>
+    </tr></thead><tbody>`+RECURRING.map(r=>{
+      const emails=(r.notify_emails||[]).join(", ");
+      const statusCls=r.active?'badge badge-open':'badge badge-closed';
+      const statusTxt=r.active?'Active':'Paused';
+      const lastTrig=r.last_triggered_at?fmtDate(r.last_triggered_at):'<span style="color:var(--muted)">Never</span>';
+      const toggleLabel=r.active?'Pause':'Activate';
+      return `<tr>
+        <td>${esc(salonName(r.salon_id))}</td>
+        <td><b>${esc(r.title)}</b>${r.description?'<br><span style="color:var(--muted);font-size:11.5px">'+esc(r.description).substring(0,80)+'</span>':''}</td>
+        <td>${esc(r.category)}</td>
+        <td style="text-align:center">${r.day_of_month}</td>
+        <td><span class="badge ${r.priority==='High'||r.priority==='Urgent'?'badge-open':'badge-closed'}">${esc(r.priority)}</span></td>
+        <td style="font-size:11.5px">${emails?esc(emails):'<span style="color:var(--muted)">None</span>'}</td>
+        <td style="text-align:center">${r.auto_create_wo?'✓':'—'}</td>
+        <td><span class="${statusCls}">${statusTxt}</span></td>
+        <td>${lastTrig}</td>
+        <td class="act-links"><a href="#" onclick="editRecurring('${r.id}');return false;">Edit</a><a href="#" onclick="toggleRecurringActive('${r.id}',${r.active});return false;">${toggleLabel}</a><a href="#" class="danger" onclick="deleteRecurring('${r.id}');return false;">Delete</a></td>
+      </tr>`;}).join("")+`</tbody></table>`;
+}
+function openRecurringModal(){
+  document.getElementById("recurringModalTitle").textContent="Add Recurring Task";
+  document.getElementById("recId").value="";
+  document.getElementById("recTitle").value="";
+  document.getElementById("recDesc").value="";
+  document.getElementById("recDay").value="1";
+  document.getElementById("recCategory").value="HVAC";
+  document.getElementById("recPriority").value="Medium";
+  document.getElementById("recEmails").value="";
+  document.getElementById("recAutoWo").checked=true;
+  document.getElementById("recSalon").selectedIndex=0;
+  openModal("recurringModalBg");
+}
+function editRecurring(rid){
+  const r=RECURRING.find(x=>String(x.id)===String(rid));if(!r)return;
+  document.getElementById("recurringModalTitle").textContent="Edit Recurring Task";
+  document.getElementById("recId").value=r.id;
+  document.getElementById("recSalon").value=r.salon_id;
+  document.getElementById("recTitle").value=r.title||"";
+  document.getElementById("recDesc").value=r.description||"";
+  document.getElementById("recDay").value=r.day_of_month||1;
+  document.getElementById("recCategory").value=r.category||"HVAC";
+  document.getElementById("recPriority").value=r.priority||"Medium";
+  document.getElementById("recEmails").value=(r.notify_emails||[]).join(", ");
+  document.getElementById("recAutoWo").checked=r.auto_create_wo!==false;
+  openModal("recurringModalBg");
+}
+async function saveRecurring(){
+  const id=document.getElementById("recId").value;
+  const title=document.getElementById("recTitle").value.trim();
+  const salon_id=document.getElementById("recSalon").value;
+  if(!title){alert("Title is required.");return;}
+  if(!salon_id){alert("Please select a salon.");return;}
+  const emailsRaw=document.getElementById("recEmails").value.trim();
+  const notify_emails=emailsRaw?emailsRaw.split(",").map(e=>e.trim()).filter(Boolean):[];
+  const body={
+    salon_id,
+    title,
+    description:document.getElementById("recDesc").value.trim()||null,
+    category:document.getElementById("recCategory").value,
+    day_of_month:parseInt(document.getElementById("recDay").value)||1,
+    priority:document.getElementById("recPriority").value,
+    notify_emails,
+    auto_create_wo:document.getElementById("recAutoWo").checked
+  };
+  try{
+    if(id){await sPatch("gc_maint_recurring",id,body);} else {await sPost("gc_maint_recurring",body);}
+    closeModal("recurringModalBg");
+    await loadRecurring(); renderRecurring();
+  }catch(e){alert("Save failed: "+e.message);}
+}
+async function deleteRecurring(rid){
+  if(!confirm("Delete this recurring task? This cannot be undone."))return;
+  try{await sDelete("gc_maint_recurring",rid); await loadRecurring(); renderRecurring();}
+  catch(e){alert("Delete failed: "+e.message);}
+}
+async function toggleRecurringActive(rid,currentlyActive){
+  try{await sPatch("gc_maint_recurring",rid,{active:!currentlyActive}); await loadRecurring(); renderRecurring();}
+  catch(e){alert("Update failed: "+e.message);}
+}
+
 // ===== Drag & Drop for work order photos =====
 (function(){
   document.addEventListener("DOMContentLoaded",function(){setupPhotoDrop();});
@@ -1739,9 +1877,9 @@ function showHvacDetail(id){
 // ===== Init =====
 async function init(){
   try{
-    await Promise.all([loadSalons(),loadVendors(),loadWorkOrders(),loadEquipment(),loadPmVisits(),loadContacts(),loadHvacInspections()]);
+    await Promise.all([loadSalons(),loadVendors(),loadWorkOrders(),loadEquipment(),loadPmVisits(),loadContacts(),loadHvacInspections(),loadRecurring()]);
     fillSalonSelects(); fillVendorSelects();
-    renderOverview(); renderWorkOrders(); renderEquipment(); renderVendors(); renderPmGrid(); renderContacts(); renderHvac();
+    renderOverview(); renderWorkOrders(); renderEquipment(); renderVendors(); renderPmGrid(); renderContacts(); renderHvac(); renderRecurring();
     setupPhotoDrop();
     document.getElementById("hdrMeta").textContent="Loaded "+new Date().toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
   }catch(e){

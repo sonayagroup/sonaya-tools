@@ -98,6 +98,23 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
 .chk{display:flex;gap:10px;align-items:flex-start;margin-top:14px;cursor:pointer;font-size:.95rem}
 .chk input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--navy);flex:none}
 .viz{margin:0;border:0;padding:0}
+.seg.four{--cols:4}
+@media (max-width:560px){.seg.four{--cols:2}}
+.reb{border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.reb.ok{border-color:#b9dd84;background:#f6fbef}
+.reb .rn{font-weight:800}
+.reb .rd{font-size:.88rem;color:var(--muted)}
+.reb .ra{font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.reb.ok .ra{color:var(--green-d)}
+.reb.no .ra{color:var(--muted);font-weight:700;font-size:.9rem}
+.sub{font-weight:800;color:var(--navy);margin:22px 0 8px}
+.pay{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.pay .fact b{font-size:1.5rem}
+.compare{margin-top:12px;border-radius:10px;background:var(--bg);padding:10px 14px;font-size:.95rem}
+.compare div{display:flex;justify-content:space-between;padding:3px 0}
+.compare b{font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:10px}
+.strike{text-decoration:line-through;opacity:.7}
+@media (max-width:560px){.pay{grid-template-columns:1fr 1fr 1fr;gap:6px}.pay .fact b{font-size:1.15rem}}
 .live-price{position:sticky;bottom:0;z-index:5;margin:18px -24px -24px;padding:14px 24px;background:var(--navy);color:#fff;border-radius:0 0 var(--radius) var(--radius);display:none;align-items:center;justify-content:space-between;gap:12px}
 .live-price .lp-k{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;opacity:.8;font-weight:700}
 .live-price .lp-v{font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
@@ -209,7 +226,7 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
 
       <div class="price-box" id="priceBox">
         <div id="pbWork">
-          <div class="k">Top off your attic to R-49</div>
+          <div class="k" id="pbK">Top off your attic to R-49</div>
           <div class="price" id="rPrice">$0</div>
           <div class="per" id="rPer"></div>
         </div>
@@ -243,8 +260,52 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
       <p class="fine">This is an estimate based on the information you entered and typical attic conditions. Your final price is confirmed at a free in-home inspection and may change based on attic access, roof pitch, obstructions and existing insulation condition.</p>
     </div>
 
+    <div class="card" id="rebCard">
+      <div class="step"><span class="n">4</span> Rebates &amp; payback</div>
+
+      <div class="field">
+        <span class="lab" style="display:block;font-weight:700;margin-bottom:6px">How do you heat your home?</span>
+        <div class="seg four" role="radiogroup">
+          <input type="radio" name="heat" id="h1" value="gas" checked><label for="h1">Natural gas</label>
+          <input type="radio" name="heat" id="h2" value="elec"><label for="h2">Electric<small>baseboard / furnace</small></label>
+          <input type="radio" name="heat" id="h3" value="hp"><label for="h3">Heat pump</label>
+          <input type="radio" name="heat" id="h4" value="other"><label for="h4">Propane / other</label>
+        </div>
+      </div>
+      <div class="field">
+        <span class="lab" style="display:block;font-weight:700;margin-bottom:6px">How do you cool your home?</span>
+        <div class="seg" style="--cols:3" role="radiogroup">
+          <input type="radio" name="cool" id="k1" value="ac" checked><label for="k1">Refrigerated AC</label>
+          <input type="radio" name="cool" id="k2" value="evap"><label for="k2">Swamp cooler</label>
+          <input type="radio" name="cool" id="k3" value="none"><label for="k3">None</label>
+        </div>
+      </div>
+      <label class="chk" style="margin-top:4px"><input type="checkbox" id="uPnm" checked> <span>PNM is my electric company</span></label>
+      <label class="chk" id="uNmgcWrap"><input type="checkbox" id="uNmgc" checked> <span>New Mexico Gas Company is my gas company</span></label>
+
+      <div class="sub">Rebates you may qualify for</div>
+      <div id="rebList"></div>
+      <label class="chk" id="applyWrap"><input type="checkbox" id="applyReb" checked> <span><b>Apply my rebates to my price</b></span></label>
+      <label class="chk"><input type="checkbox" id="applyEcp"> <span>Also include the NM Energy Conserving Products tax credit <span style="color:var(--muted)">(50% of your cost after rebates, up to $1,000, if you qualify)</span></span></label>
+
+      <div class="sub">Your energy savings</div>
+      <div class="slider-wrap" style="margin-top:0">
+        <label class="lab" for="bill">Average monthly energy bill (gas + electric)</label>
+        <input type="range" id="bill" min="50" max="500" step="5" value="175">
+        <div class="slider-read"><b id="billV">$175</b> per month</div>
+      </div>
+      <div class="pay">
+        <div class="fact"><b id="pSave">$0</b><span id="pSaveMo">per year</span></div>
+        <div class="fact"><b id="pBack">–</b><span>payback</span></div>
+        <div class="fact"><b id="p25">$0</b><span>saved over 25 yrs</span></div>
+      </div>
+      <div class="compare" id="cmp"></div>
+      <p class="fine" id="payFine">Savings estimate: about 45% of a typical New Mexico energy bill goes to heating and cooling. ENERGY STAR estimates sealing and insulating saves an average of 15% of heating and cooling costs; we scale that by how much insulation you have today. Assumes today's energy prices. Your actual savings will vary.</p>
+      <p class="fine" style="margin-top:6px">Rebates are paid by your utility after installation and are subject to program rules and funding. NM Gas Company: must heat with natural gas, work installed by a participating contractor between April 1, 2026 and March 31, 2027, application within 30 days. PNM: requires a PNM Home Energy Checkup before purchase. The NM tax credit is claimed on your state return and requires EMNRD certification. We'll help you confirm eligibility at your inspection.</p>
+    </div>
+
     <form class="card" id="lead" novalidate>
-      <div class="step"><span class="n">4</span> Book your free inspection</div>
+      <div class="step"><span class="n">5</span> Book your free inspection</div>
       <p style="margin:-4px 0 16px;color:var(--muted)">We'll confirm your price on site. No obligation.</p>
       <div class="field"><label class="lab" for="name">Name</label><input type="text" id="name" autocomplete="name" required></div>
       <div class="row2">
@@ -418,17 +479,113 @@ function showQuote(q, inp) {
     $('lpV').textContent = "You're at code";
     $('lpS').textContent = 'No top-off needed';
   } else {
-    $('rPrice').textContent = money(q.price);
-    $('rPer').textContent = `About $${q.perSqft.toFixed(2)} per sq ft · ${q.sqft.toLocaleString()} sq ft attic`;
     $('fNow').textContent = 'R-' + q.currentR;
     $('fAdd').textContent = '+R-' + q.addR;
     $('fIn').textContent = '~' + Math.round(q.addedInches) + '"';
-    $('lpV').textContent = money(q.price);
-    $('lpS').textContent = `R-${q.currentR} → R-49 · ${q.sqft.toLocaleString()} sq ft`;
   }
+  lastQuote = q;
+  $('rebCard').style.display = code ? 'none' : '';
+  if (!code) updateMoney();
   $('dmgNote').style.display = inp.condition === 'damaged' ? 'block' : 'none';
   fit();
 }
+
+
+// ── Rebates & payback ──
+let lastQuote = null;
+const SAVE_PCT = [[0,.25],[7,.21],[11,.19],[19,.15],[26,.11],[30,.09],[38,.05],[44,.03],[49,0]];
+const HC_SHARE = 0.45;
+function savePct(r) {
+  for (let i = 1; i < SAVE_PCT.length; i++) {
+    const [r1,p1] = SAVE_PCT[i-1], [r2,p2] = SAVE_PCT[i];
+    if (r <= r2) return p1 + (p2 - p1) * (r - r1) / (r2 - r1);
+  }
+  return 0;
+}
+const radio = n => document.querySelector(`input[name=${n}]:checked`).value;
+
+function rebateList(q) {
+  const heat = radio('heat'), cool = radio('cool'), pnm = $('uPnm').checked, nmgc = $('uNmgc').checked, P = q.price;
+  const out = [];
+  // New Mexico Gas Company – Building Envelope (Attic/Roof Insulation), program year Apr 2026–Mar 2027
+  let g = { name: 'New Mexico Gas Company', desc: 'Attic insulation rebate · 40% of cost', amt: 0 };
+  if (heat !== 'gas') g.why = 'Requires natural gas heat';
+  else if (!nmgc) g.why = 'Requires a NM Gas Company account';
+  else if (q.currentR <= 11) { g.amt = Math.min(0.40 * P, 800); g.desc = 'Attic insulation · 40% of cost, up to $800 (starting at R-11 or less)'; }
+  else if (q.currentR <= 19) { g.amt = Math.min(0.40 * P, 500); g.desc = 'Attic insulation · 40% of cost, up to $500 (starting at R-12 to R-19)'; }
+  else g.why = 'Only for attics starting at R-19 or less';
+  out.push(g);
+  // PNM – Attic/Roof Insulation Rebate
+  let e = { name: 'PNM', desc: 'Attic/roof insulation rebate', amt: 0 };
+  if (!pnm) e.why = 'Requires a PNM electric account';
+  else if (cool === 'ac') { e.amt = Math.min(0.10 * P, 200); e.desc = 'Refrigerated AC · 10% of cost, up to $200 · requires PNM Home Energy Checkup'; }
+  else if (cool === 'evap' && heat === 'elec') { e.amt = Math.min(0.05 * P, 100); e.desc = 'Swamp cooler + electric heat · 5% of cost, up to $100 · requires PNM Home Energy Checkup'; }
+  else if (cool === 'evap') e.why = 'Swamp-cooler homes need electric resistance heat';
+  else e.why = 'Requires refrigerated AC, or a swamp cooler with electric heat';
+  out.push(e);
+  return out;
+}
+
+function updateMoney() {
+  const q = lastQuote; if (!q || q.atCode) return;
+  const list = rebateList(q);
+  const rebTotal = list.reduce((a, r) => a + r.amt, 0);
+  $('rebList').innerHTML = list.map(r => `<div class="reb ${r.amt ? 'ok' : 'no'}"><div><div class="rn">${r.name}</div><div class="rd">${r.amt ? r.desc : r.why}</div></div><div class="ra">${r.amt ? '−' + money(r.amt) : 'Not eligible'}</div></div>`).join('');
+  $('applyWrap').style.display = rebTotal ? '' : 'none';
+  $('uNmgcWrap').style.display = radio('heat') === 'gas' ? '' : 'none';
+
+  const applied = $('applyReb').checked && rebTotal > 0;
+  const afterReb = q.price - (applied ? rebTotal : 0);
+  const ecpBase = q.price - rebTotal;
+  const ecp = Math.min(0.5 * ecpBase, 1000);
+  const withEcp = $('applyEcp').checked;
+  const net = afterReb - (withEcp ? ecp : 0);
+
+  // Price box + sticky bar
+  if (applied || withEcp) {
+    $('pbK').textContent = withEcp ? 'Your cost after rebates & tax credit' : 'Your price after rebates';
+    $('rPrice').textContent = money(net);
+    const parts = [`<span class="strike">${money(q.price)}</span>`];
+    if (applied) parts.push(`−${money(rebTotal)} rebates`);
+    if (withEcp) parts.push(`−${money(ecp)} tax credit`);
+    $('rPer').innerHTML = parts.join(' · ');
+  } else {
+    $('pbK').textContent = 'Top off your attic to R-49';
+    $('rPrice').textContent = money(q.price);
+    $('rPer').textContent = `About $${q.perSqft.toFixed(2)} per sq ft · ${q.sqft.toLocaleString()} sq ft attic`;
+  }
+  $('lpV').textContent = money(net);
+  $('lpS').textContent = (applied || withEcp ? 'After rebates · ' : '') + `R-${q.currentR} → R-49 · ${q.sqft.toLocaleString()} sq ft`;
+
+  // Savings & payback
+  const bill = +$('bill').value;
+  $('billV').textContent = money(bill);
+  const annual = bill * 12 * HC_SHARE * savePct(q.currentR);
+  const yrs = c => annual > 0 ? c / annual : Infinity;
+  const fmtY = y => !isFinite(y) ? '–' : y < 1 ? '< 1 yr' : (Math.round(y * 10) / 10).toFixed(y < 10 ? 1 : 0) + ' yrs';
+  $('pSave').textContent = money(annual);
+  $('pSaveMo').textContent = `per year (~${money(annual / 12)}/mo)`;
+  $('pBack').textContent = fmtY(yrs(net));
+  $('p25').textContent = money(annual * 25);
+  const rows = [[`At full price (${money(q.price)})`, yrs(q.price)]];
+  if (rebTotal) rows.push([`After utility rebates (${money(q.price - rebTotal)})`, yrs(q.price - rebTotal)]);
+  rows.push([`After rebates + NM tax credit (${money(ecpBase - ecp)})`, yrs(ecpBase - ecp)]);
+  $('cmp').innerHTML = '<div style="font-weight:700;color:var(--navy)"><span>Payback</span><span></span></div>' + rows.map(([l, y]) => `<div><span>${l}</span><b>${fmtY(y)}</b></div>`).join('');
+
+  window._money = { rebTotal, applied, net, annual, payback: yrs(net), bill };
+  fit();
+}
+
+['uPnm','uNmgc','applyReb','applyEcp'].forEach(id => $(id).addEventListener('change', updateMoney));
+document.querySelectorAll('input[name=heat],input[name=cool]').forEach(r => r.addEventListener('change', updateMoney));
+$('bill').addEventListener('input', updateMoney);
+// Utility defaults by area (Las Cruces = El Paso Electric + City of Las Cruces gas; Los Alamos = county utilities)
+$('area').addEventListener('change', () => {
+  const a = $('area').value;
+  $('uPnm').checked = !['lascruces','losalamos'].includes(a);
+  $('uNmgc').checked = !['lascruces','losalamos'].includes(a);
+  updateMoney();
+});
 
 $('lead').addEventListener('submit', async e => {
   e.preventDefault();
@@ -439,7 +596,10 @@ $('lead').addEventListener('submit', async e => {
   if (email && !/^\S+@\S+\.\S+$/.test(email)) return showErr($('leadErr'), 'Please check your email address.');
   $('leadBtn').disabled = true; $('leadBtn').textContent = 'Sending…';
   try {
-    await call({ ...readInput(), action: 'lead', name, phone, email, address: $('addr').value, notes: $('notes').value, website: $('website').value });
+    const m = window._money || {};
+    await call({ ...readInput(), action: 'lead', name, phone, email, address: $('addr').value, notes: $('notes').value, website: $('website').value,
+      heating: radio('heat'), cooling: radio('cool'), pnm: $('uPnm').checked, nmgc: radio('heat') === 'gas' ? $('uNmgc').checked : false,
+      rebatesApplied: !!m.applied, estRebates: m.rebTotal, netPrice: m.net, monthlyBill: m.bill, annualSavings: m.annual, paybackYears: isFinite(m.payback) ? m.payback : null });
     $('lead').style.display = 'none'; $('thanks').style.display = 'block'; fit();
     $('thanks').scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (ex) { showErr($('leadErr'), ex.message); }

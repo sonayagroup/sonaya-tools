@@ -281,26 +281,26 @@ let sliderTouched = false;   // user moved the slider themselves
 let quoted = false;          // an estimate has been shown; changes now re-price live
 
 // ── Attic visual ──
-const R_IN_OLD = 2.7, R_IN_NEW = 2.5, PX_IN = 11.5, FLOOR = 252;
+const R_PER_IN = 49 / 16, PX_IN = 13, FLOOR = 252; // R-49 = 16"
 (function scaffold(){
   let j=''; for (let x=70;x<420;x+=70) j+=`<rect x="${x}" y="${FLOOR-5.5*PX_IN}" width="12" height="${5.5*PX_IN}" fill="#b98a4e" opacity=".45"/>`;
   $('joists').innerHTML=j;
-  let r=`<line x1="44" x2="44" y1="${FLOOR-21*PX_IN}" y2="${FLOOR}" stroke="#9aa8b5" stroke-width="1.5"/>`;
-  for (let i=0;i<=21;i++){ const y=FLOOR-i*PX_IN, big=i%4===0;
+  let r=`<line x1="44" x2="44" y1="${FLOOR-17*PX_IN}" y2="${FLOOR}" stroke="#9aa8b5" stroke-width="1.5"/>`;
+  for (let i=0;i<=17;i++){ const y=FLOOR-i*PX_IN, big=i%4===0;
     r+=`<line x1="${big?32:38}" x2="44" y1="${y}" y2="${y}" stroke="#9aa8b5" stroke-width="${big?1.5:1}"/>`;
     if (big && i) r+=`<text x="28" y="${y+5}" text-anchor="end" font-size="13" fill="#5d6b78">${i}"</text>`; }
   $('ruler').innerHTML=r;
 })();
 
 function drawAttic(curR) {
-  const oldIn = curR / R_IN_OLD, addR = Math.max(0, 49 - curR), newIn = addR / R_IN_NEW;
+  const oldIn = curR / R_PER_IN, addR = Math.max(0, 49 - curR), newIn = addR / R_PER_IN;
   const hOld = oldIn * PX_IN, hNew = newIn * PX_IN, topOld = FLOOR - hOld, topNew = topOld - hNew;
   const set = (id, a) => { const el=$(id); for (const k in a) el.setAttribute(k, a[k]); };
   set('gOld', { y: topOld, height: hOld });
   set('gNew', { y: topNew, height: hNew });
   set('gCode', { y1: topNew, y2: topNew });
-  set('codeTx', { y: topNew >= 50 ? topNew - 8 : topNew + 21 });
-  $('codeTx').textContent = `R-49 code · ~${Math.round(oldIn + newIn)}"`;
+  set('codeTx', { y: topNew - 8 });
+  $('codeTx').textContent = 'R-49 code · 16"';
   $('tOld').textContent = hOld >= 24 ? `You have R-${curR} · ~${Math.round(oldIn)}"` : '';
   set('tOld', { y: topOld + hOld/2 + 6 });
   $('tNew').textContent = hNew >= 24 ? `You need R-${addR} more · ~${Math.round(newIn)}"` : '';

@@ -607,7 +607,7 @@ async function loadData(){
   dSal.forEach(r=>{const d=r.date,sid=String(r.salon_id);datesSet.add(d);
     salons[sid]=r.salon_name;salonAm[sid]=SALON_AM[sid]||"";
     if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};
-    days[d].SAL.push([sid,r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.payroll_pct,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.cust_growth_pct,r.sales_growth_pct,r.cash_over_short]);});
+    days[d].SAL.push([sid,r.salon_name,r.service_sales,r.product_sales,r.total_sales,r.cust,r.payroll_pct,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.cust_growth_pct,r.sales_growth_pct,r.cash_over_short,r.ytd_cust_growth_pct,r.ytd_sales_growth_pct]);});
   dSty.forEach(r=>{const d=r.date,sid=String(r.salon_id);
     if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};if(!days[d].STY[sid])days[d].STY[sid]=[];
     days[d].STY[sid].push([r.stylist_name,r.floor_hrs,r.payroll_pct,r.cph,r.service_sales,r.svc_disc,r.disc_pct,r.std_prod_pct,r.cust,r.avg_hc,r.prodvity,r.avg_min_btwn,r.admin_hrs,r.close_hrs,r.unpaid_breaks_count,r.unpaid_breaks_min]);});
@@ -684,15 +684,29 @@ function computeYTD(){
       w.weeks++;
     });
   });
-  // Build SAL-like rows: use weekly_salon averages when available, daily averages as fallback
+  // Build SAL-like rows: use weekly_salon averages for rate metrics, daily averages as fallback.
+  // For growth %, use the ACTUAL YTD values from daily_salon (populated from GC's GROWTH SUMMARY)
+  // instead of averaging daily growth percentages — the latter gives wrong results because
+  // averaging ~261 daily year-over-year % changes ≠ cumulative YTD comparison.
+  // Find the latest date with YTD growth data per salon.
+  const ytdGrowth={};
+  Object.keys(DATA.days||{}).sort().reverse().forEach(d=>{
+    if(!d.startsWith(prefix))return;
+    (DATA.days[d].SAL||[]).forEach(s=>{
+      const id=String(s[0]);
+      if(!ytdGrowth[id]&&(s[15]!=null||s[16]!=null))ytdGrowth[id]={cg:s[15],sg:s[16]};
+    });
+  });
   const rows=[];
   sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
     const w=wacc[id],wn=w.weeks;
+    const yg=ytdGrowth[id]||{};
     rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,
       wn?w.paySum/wn:a.paySum/n, wn?w.hcSum/wn:a.hcSum/n,
       wn?w.cphSum/wn:a.cphSum/n, wn?w.prodSum/wn:a.prodSum/n,
       wn?w.waitSum/wn:a.waitSum/n, wn?w.w15Sum/wn:a.w15Sum/n,
-      wn?w.cgSum/wn:a.cgSum/n, wn?w.sgSum/wn:a.sgSum/n]);
+      yg.cg!=null?Number(yg.cg):(wn?w.cgSum/wn:a.cgSum/n),
+      yg.sg!=null?Number(yg.sg):(wn?w.sgSum/wn:a.sgSum/n)]);
   });
   return {rows,acc,year:yr};
 }

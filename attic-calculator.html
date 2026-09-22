@@ -95,6 +95,17 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
   .fact b{font-size:1.1rem}
   .incl{grid-template-columns:1fr}
 }
+.req{color:#b3261e}
+.opt{font-weight:400;color:var(--muted);font-size:.9rem}
+.auto-hint{margin-top:18px;padding:12px 14px;border-radius:10px;background:var(--bg);color:var(--muted);text-align:center;font-size:.95rem}
+.auto-hint.ok{display:none}
+.comfort{margin-top:22px;border-radius:12px;background:#f6fbef;border:1.5px solid #cfe7a8;padding:16px}
+.comfort h3{margin:0 0 4px;color:var(--navy);font-size:1.05rem}
+.comfort p{margin:0 0 10px;color:var(--muted);font-size:.93rem}
+.comfort ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.comfort li{padding-left:24px;position:relative}
+.comfort li b{color:var(--text)}
+.comfort li::before{content:"";position:absolute;left:2px;top:.4em;width:12px;height:12px;border-radius:50%;background:var(--green)}
 .chk{display:flex;gap:10px;align-items:flex-start;margin-top:14px;cursor:pointer;font-size:.95rem}
 .chk input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--navy);flex:none}
 .viz{margin:0;border:0;padding:0}
@@ -143,15 +154,15 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
     </div>
 
     <div class="field">
-      <label class="lab" for="sqft" id="sqftLabel">Home square footage</label>
-      <div class="suffix"><input type="number" id="sqft" inputmode="numeric" min="200" max="10000" step="1" placeholder="e.g. 1,800" required><span>sq ft</span></div>
+      <label class="lab" for="sqft"><span id="sqftLabel">Home square footage</span> <span class="req" aria-hidden="true">*</span></label>
+      <div class="suffix"><input type="number" id="sqft" inputmode="numeric" min="200" max="10000" step="1" placeholder="e.g. 1,800" required aria-required="true"><span>sq ft</span></div>
       <div class="hint" id="sqftHint">For a one-story home, your attic is about the same size as your home.</div>
     </div>
 
     <div class="row2">
       <div class="field">
-        <label class="lab" for="year">Year built</label>
-        <input type="number" id="year" inputmode="numeric" min="1850" max="2027" placeholder="e.g. 1988">
+        <label class="lab" for="year">Year built <span class="req" aria-hidden="true">*</span> <span class="opt">(you can estimate)</span></label>
+        <input type="number" id="year" inputmode="numeric" min="1850" max="2027" placeholder="e.g. 1988" required aria-required="true">
       </div>
       <div class="field">
         <label class="lab" for="area">Location</label>
@@ -211,7 +222,7 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
       <label class="chk"><input type="checkbox" id="damaged"> <span>My insulation looks wet, damaged, or disturbed by pests</span></label>
     </div>
 
-    <button class="btn navy" type="submit" id="goBtn" style="margin-top:20px">See my estimate</button>
+    <div class="auto-hint" id="autoHint">Enter your square footage and year built above — your price appears automatically.</div>
     <div class="err" id="err" role="alert"></div>
 
     <div class="live-price" id="livePrice" aria-live="polite">
@@ -300,6 +311,17 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
         <div class="fact"><b id="p25">$0</b><span>saved over 25 yrs</span></div>
       </div>
       <div class="compare" id="cmp"></div>
+      <div class="comfort">
+        <h3>The comfort you'll feel (not counted in payback)</h3>
+        <p>Payback only counts dollars saved on your energy bill. A properly insulated attic also delivers:</p>
+        <ul>
+          <li><b>Cooler summers.</b> New Mexico attics can top 130°F. A full R-49 blanket keeps that heat out of your ceilings and living space.</li>
+          <li><b>More even temperatures.</b> Fewer hot bedrooms, cold rooms and fights over the thermostat.</li>
+          <li><b>Warmer, less drafty winters.</b> Air sealing closes gaps where warm air escapes into the attic.</li>
+          <li><b>Less wear on your HVAC.</b> Your furnace and cooling system don't have to run as much, which can help them last longer.</li>
+          <li><b>A quieter home.</b> Thick insulation softens outside noise like traffic, wind and planes.</li>
+        </ul>
+      </div>
       <p class="fine" id="payFine">Savings estimate: about 45% of a typical New Mexico energy bill goes to heating and cooling. ENERGY STAR estimates sealing and insulating saves an average of 15% of heating and cooling costs; we scale that by how much insulation you have today. Assumes today's energy prices. Your actual savings will vary.</p>
       <p class="fine" style="margin-top:6px">Rebates are paid by your utility after installation and are subject to program rules and funding. NM Gas Company: must heat with natural gas, work installed by a participating contractor between April 1, 2026 and March 31, 2027, application within 30 days. PNM: requires a PNM Home Energy Checkup before purchase. The NM tax credit is claimed on your state return and requires EMNRD certification. We'll help you confirm eligibility at your inspection.</p>
     </div>
@@ -413,7 +435,7 @@ function readInput() {
 }
 function validate(inp) {
   if (!(+inp.atticSqft >= 200 && +inp.atticSqft <= 10000)) return 'Enter your square footage (200–10,000 sq ft).';
-  if (!sliderTouched && !(+inp.yearBuilt >= 1850 && +inp.yearBuilt <= 2027)) return 'Enter the year your home was built, or slide to set your current insulation.';
+  if (!(+inp.yearBuilt >= 1850 && +inp.yearBuilt <= 2027)) return 'Enter the year your home was built (your best guess is fine).';
   return null;
 }
 
@@ -436,36 +458,33 @@ async function getQuote(inp) {
   return quote;
 }
 
+// Auto-generate: price appears as soon as square footage + year built are valid, and updates on every change
 function livePrice() {
-  if (!quoted) return;
   const inp = readInput();
-  if (validate(inp)) return;
-  $('lpS').textContent = 'Updating…';
   clearTimeout(timer);
-  timer = setTimeout(async () => {
-    try { const q = await getQuote(inp); if (q) showQuote(q, inp); }
-    catch (ex) { $('lpS').textContent = ex.message; }
-  }, 300);
-}
-
-$('calc').addEventListener('submit', async e => {
-  e.preventDefault();
+  if (validate(inp)) { $('autoHint').classList.remove('ok'); fit(); return; }
+  $('autoHint').classList.add('ok');
   showErr($('err'), '');
-  const inp = readInput();
-  const v = validate(inp); if (v) return showErr($('err'), v);
-  $('goBtn').disabled = true; $('goBtn').textContent = 'Calculating…';
-  try {
-    const q = await getQuote(inp);
-    if (q) {
-      quoted = true;
-      $('result').style.display = 'block'; $('thanks').style.display = 'none'; $('lead').style.display = '';
-      $('goBtn').style.display = 'none';
+  if (quoted) $('lpS').textContent = 'Updating…';
+  timer = setTimeout(async () => {
+    try {
+      const q = await getQuote(inp);
+      if (!q) return;
+      if (!quoted) {
+        quoted = true;
+        $('result').style.display = 'block'; $('thanks').style.display = 'none'; $('lead').style.display = '';
+      }
       showQuote(q, inp);
-      $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  } catch (ex) { showErr($('err'), ex.message); }
-  finally { $('goBtn').disabled = false; $('goBtn').textContent = 'See my estimate'; }
-});
+    } catch (ex) { showErr($('err'), ex.message); }
+  }, 450);
+}
+// Show a gentle nudge when someone leaves a required field invalid
+['sqft','year'].forEach(id => $(id).addEventListener('blur', () => {
+  const v = validate(readInput());
+  if (v && $(id).value !== '') showErr($('err'), v);
+}));
+
+$('calc').addEventListener('submit', e => { e.preventDefault(); livePrice(); });
 
 function showQuote(q, inp) {
   const code = !!q.atCode;

@@ -55,13 +55,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);bo
 .price-box .k{text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;opacity:.8;font-weight:700}
 .price-box .price{font-size:clamp(2.4rem,9vw,3.2rem);font-weight:800;line-height:1.05;margin:6px 0 4px;font-variant-numeric:tabular-nums}
 .price-box .per{opacity:.85}
-.gauge{margin:22px 0 6px}
-.gauge .labels{display:flex;justify-content:space-between;font-size:.9rem;color:var(--muted);margin-bottom:6px}
-.bar{position:relative;height:22px;border-radius:11px;background:#e8eef3;overflow:hidden}
-.bar .now{position:absolute;inset:0 auto 0 0;background:#c9d4de}
-.bar .add{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,var(--green),var(--green) 8px,#a7d65a 8px,#a7d65a 16px)}
-.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:.9rem;color:var(--muted);margin-top:8px}
-.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .viz{margin:20px 0 4px;border:1.5px solid var(--line);border-radius:12px;padding:16px 16px 14px}
 .viz-head{position:relative;margin-bottom:10px}
 .viz-title{font-weight:800;color:var(--navy)}
@@ -102,6 +95,15 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
   .fact b{font-size:1.1rem}
   .incl{grid-template-columns:1fr}
 }
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:14px;cursor:pointer;font-size:.95rem}
+.chk input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--navy);flex:none}
+.viz{margin:0;border:0;padding:0}
+.live-price{position:sticky;bottom:0;z-index:5;margin:18px -24px -24px;padding:14px 24px;background:var(--navy);color:#fff;border-radius:0 0 var(--radius) var(--radius);display:none;align-items:center;justify-content:space-between;gap:12px}
+.live-price .lp-k{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;opacity:.8;font-weight:700}
+.live-price .lp-v{font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.live-price .lp-s{font-size:.85rem;opacity:.85}
+.live-price a{color:#fff;font-weight:700;white-space:nowrap}
+@media (max-width:560px){.live-price{margin:18px -18px -18px;padding:12px 18px}}
 </style>
 </head>
 <body>
@@ -109,7 +111,7 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
   <header>
     <img src="https://imagedelivery.net/uX8LTtWSHgeVJ6eG75QgxQ/koalainsulation.com/2024/06/Logo.png/w=200,h=140" alt="Koala Insulation">
     <h1>How much insulation does your attic need?</h1>
-    <p class="lede">Answer three quick questions to see your attic's likely R-value, how far it is from today's R-49 code, and an instant price to bring it up to code.</p>
+    <p class="lede">Tell us about your home, see how your attic compares to today's R-49 code, and get an instant price to bring it up to code.</p>
   </header>
 
   <form id="calc" class="card" novalidate>
@@ -152,26 +154,53 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
 
     <div class="step" style="margin-top:8px"><span class="n">2</span> Your attic today</div>
 
-    <div class="field" id="condField">
-      <span class="lab" style="display:block;font-weight:700;margin-bottom:6px">If you've looked in your attic, how does the insulation look?</span>
-      <div class="seg" style="--cols:3" role="radiogroup">
-        <input type="radio" name="cond" id="c1" value="good" checked><label for="c1">Even<small>or not sure</small></label>
-        <input type="radio" name="cond" id="c2" value="settled"><label for="c2">Thin<small>settled, gaps</small></label>
-        <input type="radio" name="cond" id="c3" value="damaged"><label for="c3">Damaged<small>wet, pests, missing</small></label>
+    <div class="viz">
+      <div class="viz-head">
+        <div class="viz-sub" id="vizSub">Enter the year your home was built and we'll estimate what's in your attic. Then slide to match what you see.</div>
       </div>
+      <svg id="atticSvg" viewBox="0 0 420 272" role="img" aria-labelledby="svgDesc">
+        <desc id="svgDesc">Cutaway of an attic floor showing existing insulation depth and the insulation needed to reach R-49.</desc>
+        <defs>
+          <pattern id="oldFluff" width="24" height="14" patternUnits="userSpaceOnUse">
+            <rect width="24" height="14" fill="#dccfb6"/>
+            <path d="M0 10 q6 -7 12 0 t12 0" fill="none" stroke="#c6b695" stroke-width="2"/>
+          </pattern>
+          <pattern id="newFluff" width="24" height="14" patternUnits="userSpaceOnUse">
+            <rect width="24" height="14" fill="#bfe181"/>
+            <path d="M0 10 q6 -7 12 0 t12 0" fill="none" stroke="#9dcc4a" stroke-width="2"/>
+          </pattern>
+        </defs>
+        <rect x="52" y="0" width="368" height="252" fill="#eef3f7" rx="4"/>
+        <text x="236" y="22" text-anchor="middle" font-size="14" fill="#8a99a7" letter-spacing="1.5">ATTIC SPACE</text>
+        <rect id="gNew" x="52" width="368" y="252" height="0" fill="url(#newFluff)"/>
+        <rect id="gOld" x="52" width="368" y="252" height="0" fill="url(#oldFluff)"/>
+        <g id="joists"></g>
+        <line id="gCode" x1="52" x2="420" y1="0" y2="0" stroke="#043968" stroke-width="2.5" stroke-dasharray="9 6"/>
+        <text id="codeTx" x="414" text-anchor="end" font-size="16" font-weight="800" fill="#043968">R-49 code</text>
+        <rect x="52" y="252" width="368" height="11" fill="#9aa8b5"/>
+        <text x="236" y="271" text-anchor="middle" font-size="11" fill="#5d6b78">CEILING DRYWALL</text>
+        <g id="ruler"></g>
+        <text id="tNew" x="236" text-anchor="middle" font-size="18" font-weight="800" fill="#2f4a0c"></text>
+        <text id="tOld" x="236" text-anchor="middle" font-size="18" font-weight="800" fill="#5a4a2a"></text>
+      </svg>
+
+      <div class="slider-wrap">
+        <label class="lab" for="rSlider">How much insulation do you have now? Slide to adjust.</label>
+        <input type="range" id="rSlider" min="0" max="49" step="1" value="19" aria-describedby="sliderRead">
+        <div class="ticks" aria-hidden="true"><span>None</span><span>R-11</span><span>R-19</span><span>R-30</span><span>R-38</span><span>R-49</span></div>
+        <div class="slider-read" id="sliderRead">You have <b id="srR">R-19</b> (about <b id="srIn">7"</b> deep) · you need <b id="srNeed">+R-30</b> more</div>
+      </div>
+
+      <label class="chk"><input type="checkbox" id="damaged"> <span>My insulation looks wet, damaged, or disturbed by pests</span></label>
     </div>
 
-    <div class="field">
-      <button type="button" class="linkbtn" id="depthToggle">I know how deep my insulation is</button>
-      <div id="depthWrap" style="display:none;margin-top:10px">
-        <label class="lab" for="depth">Average depth of existing insulation</label>
-        <div class="suffix"><input type="number" id="depth" inputmode="decimal" min="0" max="30" step="0.5" placeholder="e.g. 5"><span>inches</span></div>
-        <div class="hint">Measure from the top of the ceiling drywall to the top of the insulation in a few spots. We'll use this instead of the year built.</div>
-      </div>
-    </div>
-
-    <button class="btn navy" type="submit" id="goBtn">See my estimate</button>
+    <button class="btn navy" type="submit" id="goBtn" style="margin-top:20px">See my estimate</button>
     <div class="err" id="err" role="alert"></div>
+
+    <div class="live-price" id="livePrice" aria-live="polite">
+      <div><div class="lp-k">Price to reach R-49</div><div class="lp-v" id="lpV">$0</div><div class="lp-s" id="lpS"></div></div>
+      <a href="#resCard" id="lpLink">Details ↓</a>
+    </div>
   </form>
 
   <section id="result" aria-live="polite">
@@ -191,47 +220,8 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
         </div>
       </div>
 
-      <div class="viz">
-        <div class="viz-head">
-          <div><div class="viz-title">Your attic insulation</div><div class="viz-sub" id="vizSub">Estimated from the year your home was built</div></div>
-          <div class="viz-updating" id="vizUpd" aria-hidden="true">Updating price…</div>
-        </div>
-        <svg id="atticSvg" viewBox="0 0 420 272" role="img" aria-labelledby="svgDesc">
-          <desc id="svgDesc">Cutaway of an attic floor showing existing insulation depth and the insulation needed to reach R-49.</desc>
-          <defs>
-            <pattern id="oldFluff" width="24" height="14" patternUnits="userSpaceOnUse">
-              <rect width="24" height="14" fill="#dccfb6"/>
-              <path d="M0 10 q6 -7 12 0 t12 0" fill="none" stroke="#c6b695" stroke-width="2"/>
-            </pattern>
-            <pattern id="newFluff" width="24" height="14" patternUnits="userSpaceOnUse">
-              <rect width="24" height="14" fill="#bfe181"/>
-              <path d="M0 10 q6 -7 12 0 t12 0" fill="none" stroke="#9dcc4a" stroke-width="2"/>
-            </pattern>
-          </defs>
-          <rect x="52" y="0" width="368" height="252" fill="#eef3f7" rx="4"/>
-          <text x="236" y="22" text-anchor="middle" font-size="14" fill="#8a99a7" letter-spacing="1.5">ATTIC SPACE</text>
-          <rect id="gNew" x="52" width="368" y="252" height="0" fill="url(#newFluff)"/>
-          <rect id="gOld" x="52" width="368" y="252" height="0" fill="url(#oldFluff)"/>
-          <g id="joists"></g>
-          <line id="gCode" x1="52" x2="420" y1="0" y2="0" stroke="#043968" stroke-width="2.5" stroke-dasharray="9 6"/>
-          <text id="codeTx" x="414" text-anchor="end" font-size="16" font-weight="800" fill="#043968">R-49 code</text>
-          <rect x="52" y="252" width="368" height="11" fill="#9aa8b5"/>
-          <text x="236" y="271" text-anchor="middle" font-size="11" fill="#5d6b78">CEILING DRYWALL</text>
-          <g id="ruler"></g>
-          <text id="tNew" x="236" text-anchor="middle" font-size="18" font-weight="800" fill="#2f4a0c"></text>
-          <text id="tOld" x="236" text-anchor="middle" font-size="18" font-weight="800" fill="#5a4a2a"></text>
-        </svg>
-
-        <div class="slider-wrap">
-          <label class="lab" for="rSlider">Think your attic has more or less? Slide to adjust.</label>
-          <input type="range" id="rSlider" min="0" max="49" step="1" value="19" aria-describedby="sliderRead">
-          <div class="ticks" aria-hidden="true"><span>None</span><span>R-11</span><span>R-19</span><span>R-30</span><span>R-38</span><span>R-49</span></div>
-          <div class="slider-read" id="sliderRead">Current: <b id="srR">R-19</b> · about <b id="srIn">7"</b> deep</div>
-        </div>
-      </div>
-
       <div class="facts" id="facts">
-        <div class="fact"><b id="fNow">R-19</b><span id="fNowLab">Likely today</span></div>
+        <div class="fact"><b id="fNow">R-19</b><span>You have</span></div>
         <div class="fact"><b id="fAdd">+R-30</b><span>We add</span></div>
         <div class="fact"><b id="fIn">12"</b><span>New depth added</span></div>
       </div>
@@ -282,65 +272,16 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
 const API = 'https://vcukhvjwsuaqxgqzotwb.supabase.co/functions/v1/attic-quote';
 const $ = id => document.getElementById(id);
 const money = n => '$' + Math.round(n).toLocaleString('en-US');
-let lastInput = null;
 
-// Stories toggles the sq ft label
-document.querySelectorAll('input[name=stories]').forEach(r => r.addEventListener('change', () => {
-  const two = $('s2').checked;
-  $('sqftLabel').textContent = two ? 'Upper floor square footage' : 'Home square footage';
-  $('sqftHint').textContent = two
-    ? 'For a two-story home, your attic sits over the upper floor. Enter just the upstairs square footage.'
-    : 'For a one-story home, your attic is about the same size as your home.';
-}));
+// Typical existing attic R-value by year built (matches the pricing service)
+const YEAR_R = [[1959,7],[1979,11],[1992,19],[2003,26],[2011,30],[2023,38],[9999,49]];
+const typicalR = y => YEAR_R.find(([u]) => y <= u)[1];
 
-$('depthToggle').addEventListener('click', () => {
-  const open = $('depthWrap').style.display === 'none';
-  $('depthWrap').style.display = open ? 'block' : 'none';
-  $('depthToggle').textContent = open ? 'Use year built instead' : 'I know how deep my insulation is';
-  $('condField').style.display = open ? 'none' : '';
-  if (!open) $('depth').value = '';
-  fit();
-});
-
-function readInput() {
-  return {
-    atticSqft: $('sqft').value.replace(/,/g, ''),
-    yearBuilt: $('year').value,
-    area: $('area').value,
-    stories: $('s2').checked ? 2 : 1,
-    condition: document.querySelector('input[name=cond]:checked').value,
-    depthInches: $('depthWrap').style.display === 'none' ? '' : $('depth').value,
-  };
-}
-
-function showErr(el, msg) { el.textContent = msg; el.style.display = msg ? 'block' : 'none'; fit(); }
-
-async function call(body) {
-  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || 'Something went wrong. Please try again.');
-  return j;
-}
-
-$('calc').addEventListener('submit', async e => {
-  e.preventDefault();
-  showErr($('err'), '');
-  const inp = readInput(); // fresh estimate ignores prior slider value
-  const sq = +inp.atticSqft;
-  if (!(sq >= 200 && sq <= 10000)) return showErr($('err'), 'Enter your square footage (200–10,000 sq ft).');
-  if (inp.depthInches === '' && !(+inp.yearBuilt >= 1850 && +inp.yearBuilt <= 2027)) return showErr($('err'), 'Enter the year your home was built.');
-  $('goBtn').disabled = true; $('goBtn').textContent = 'Calculating…';
-  try {
-    const { quote } = await call(inp);
-    lastInput = inp;
-    render(quote, inp);
-  } catch (ex) { showErr($('err'), ex.message); }
-  finally { $('goBtn').disabled = false; $('goBtn').textContent = 'Update my estimate'; }
-});
+let sliderTouched = false;   // user moved the slider themselves
+let quoted = false;          // an estimate has been shown; changes now re-price live
 
 // ── Attic visual ──
 const R_IN_OLD = 2.7, R_IN_NEW = 2.5, PX_IN = 11.5, FLOOR = 252;
-const inchesOld = r => r / R_IN_OLD;
 (function scaffold(){
   let j=''; for (let x=70;x<420;x+=70) j+=`<rect x="${x}" y="${FLOOR-5.5*PX_IN}" width="12" height="${5.5*PX_IN}" fill="#b98a4e" opacity=".45"/>`;
   $('joists').innerHTML=j;
@@ -352,11 +293,8 @@ const inchesOld = r => r / R_IN_OLD;
 })();
 
 function drawAttic(curR) {
-  const oldIn = inchesOld(curR);
-  const addR = Math.max(0, 49 - curR);
-  const newIn = addR / R_IN_NEW;
-  const hOld = oldIn * PX_IN, hNew = newIn * PX_IN;
-  const topOld = FLOOR - hOld, topNew = topOld - hNew;
+  const oldIn = curR / R_IN_OLD, addR = Math.max(0, 49 - curR), newIn = addR / R_IN_NEW;
+  const hOld = oldIn * PX_IN, hNew = newIn * PX_IN, topOld = FLOOR - hOld, topNew = topOld - hNew;
   const set = (id, a) => { const el=$(id); for (const k in a) el.setAttribute(k, a[k]); };
   set('gOld', { y: topOld, height: hOld });
   set('gNew', { y: topNew, height: hNew });
@@ -365,58 +303,131 @@ function drawAttic(curR) {
   $('codeTx').textContent = `R-49 code · ~${Math.round(oldIn + newIn)}"`;
   $('tOld').textContent = hOld >= 24 ? `You have R-${curR} · ~${Math.round(oldIn)}"` : '';
   set('tOld', { y: topOld + hOld/2 + 6 });
-  $('tNew').textContent = hNew >= 24 ? `We add R-${addR} · ~${Math.round(newIn)}"` : '';
+  $('tNew').textContent = hNew >= 24 ? `You need R-${addR} more · ~${Math.round(newIn)}"` : '';
   set('tNew', { y: topNew + hNew/2 + 6 });
   const sl = $('rSlider'); sl.value = curR; sl.style.setProperty('--p', (curR/49*100) + '%');
   $('srR').textContent = 'R-' + curR; $('srIn').textContent = Math.round(oldIn) + '"';
+  $('srNeed').textContent = addR >= 5 ? '+R-' + addR : 'nothing';
 }
+drawAttic(19);
 
-let sliderTimer = null, reqSeq = 0;
-$('rSlider').addEventListener('input', e => {
-  const r = +e.target.value;
-  drawAttic(r);
-  $('vizSub').textContent = 'Adjusted by you';
-  $('vizUpd').classList.add('on');
-  clearTimeout(sliderTimer);
-  sliderTimer = setTimeout(async () => {
-    const seq = ++reqSeq;
-    const inp = { ...lastInput, currentR: r };
-    try {
-      const { quote } = await call(inp);
-      if (seq !== reqSeq) return;
-      lastInput = inp;
-      showQuote(quote, inp, false);
-    } catch (_) {} finally { if (seq === reqSeq) $('vizUpd').classList.remove('on'); }
-  }, 300);
+// ── Inputs ──
+document.querySelectorAll('input[name=stories]').forEach(r => r.addEventListener('change', () => {
+  const two = $('s2').checked;
+  $('sqftLabel').textContent = two ? 'Upper floor square footage' : 'Home square footage';
+  $('sqftHint').textContent = two
+    ? 'For a two-story home, your attic sits over the upper floor. Enter just the upstairs square footage.'
+    : 'For a one-story home, your attic is about the same size as your home.';
+  fit();
+}));
+
+// Year built sets the starting point on the slider (until the homeowner adjusts it)
+$('year').addEventListener('input', () => {
+  const y = +$('year').value;
+  if (y >= 1850 && y <= 2027 && !sliderTouched) {
+    drawAttic(typicalR(y));
+    $('vizSub').textContent = `Homes built around ${y} typically have about R-${typicalR(y)} today. Slide to match what you see in your attic.`;
+  }
+  livePrice();
 });
 
-function showQuote(q, inp, redraw) {
-  if (redraw) drawAttic(q.currentR);
+$('rSlider').addEventListener('input', e => {
+  sliderTouched = true;
+  drawAttic(+e.target.value);
+  $('vizSub').textContent = 'Adjusted by you. Slide to match what you see in your attic.';
+  livePrice();
+});
+['sqft','area','damaged'].forEach(id => $(id).addEventListener(id === 'sqft' ? 'input' : 'change', livePrice));
+document.querySelectorAll('input[name=stories]').forEach(r => r.addEventListener('change', livePrice));
+
+function readInput() {
+  return {
+    atticSqft: $('sqft').value.replace(/,/g, ''),
+    yearBuilt: $('year').value,
+    area: $('area').value,
+    stories: $('s2').checked ? 2 : 1,
+    currentR: +$('rSlider').value,
+    condition: $('damaged').checked ? 'damaged' : (sliderTouched ? 'adjusted' : 'good'),
+  };
+}
+function validate(inp) {
+  if (!(+inp.atticSqft >= 200 && +inp.atticSqft <= 10000)) return 'Enter your square footage (200–10,000 sq ft).';
+  if (!sliderTouched && !(+inp.yearBuilt >= 1850 && +inp.yearBuilt <= 2027)) return 'Enter the year your home was built, or slide to set your current insulation.';
+  return null;
+}
+
+function showErr(el, msg) { el.textContent = msg; el.style.display = msg ? 'block' : 'none'; fit(); }
+
+async function call(body) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Something went wrong. Please try again.');
+  return j;
+}
+
+// ── Pricing ──
+let lastInput = null, timer = null, seq = 0;
+async function getQuote(inp) {
+  const my = ++seq;
+  const { quote } = await call(inp);
+  if (my !== seq) return null; // a newer request is in flight
+  lastInput = inp;
+  return quote;
+}
+
+function livePrice() {
+  if (!quoted) return;
+  const inp = readInput();
+  if (validate(inp)) return;
+  $('lpS').textContent = 'Updating…';
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    try { const q = await getQuote(inp); if (q) showQuote(q, inp); }
+    catch (ex) { $('lpS').textContent = ex.message; }
+  }, 300);
+}
+
+$('calc').addEventListener('submit', async e => {
+  e.preventDefault();
+  showErr($('err'), '');
+  const inp = readInput();
+  const v = validate(inp); if (v) return showErr($('err'), v);
+  $('goBtn').disabled = true; $('goBtn').textContent = 'Calculating…';
+  try {
+    const q = await getQuote(inp);
+    if (q) {
+      quoted = true;
+      $('result').style.display = 'block'; $('thanks').style.display = 'none'; $('lead').style.display = '';
+      $('goBtn').style.display = 'none';
+      showQuote(q, inp);
+      $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  } catch (ex) { showErr($('err'), ex.message); }
+  finally { $('goBtn').disabled = false; $('goBtn').textContent = 'See my estimate'; }
+});
+
+function showQuote(q, inp) {
   const code = !!q.atCode;
   $('pbWork').style.display = code ? 'none' : '';
   $('pbCode').style.display = code ? '' : 'none';
   $('workDetails').style.display = code ? 'none' : '';
   $('facts').style.display = code ? 'none' : '';
   $('atCode').style.display = code ? '' : 'none';
-  if (!code) {
+  $('livePrice').style.display = 'flex';
+  if (code) {
+    $('lpV').textContent = "You're at code";
+    $('lpS').textContent = 'No top-off needed';
+  } else {
     $('rPrice').textContent = money(q.price);
     $('rPer').textContent = `About $${q.perSqft.toFixed(2)} per sq ft · ${q.sqft.toLocaleString()} sq ft attic`;
     $('fNow').textContent = 'R-' + q.currentR;
-    $('fNowLab').textContent = q.currentRSource === 'year' ? 'Likely today' : 'Your attic today';
     $('fAdd').textContent = '+R-' + q.addR;
     $('fIn').textContent = '~' + Math.round(q.addedInches) + '"';
+    $('lpV').textContent = money(q.price);
+    $('lpS').textContent = `R-${q.currentR} → R-49 · ${q.sqft.toLocaleString()} sq ft`;
   }
-  $('dmgNote').style.display = inp.condition === 'damaged' && inp.depthInches === '' && inp.currentR == null ? 'block' : 'none';
+  $('dmgNote').style.display = inp.condition === 'damaged' ? 'block' : 'none';
   fit();
-}
-
-function render(q, inp) {
-  $('result').style.display = 'block';
-  $('thanks').style.display = 'none';
-  $('lead').style.display = '';
-  $('vizSub').textContent = q.currentRSource === 'depth' ? 'Based on the depth you entered' : 'Estimated from the year your home was built';
-  showQuote(q, inp, true);
-  $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 $('lead').addEventListener('submit', async e => {
@@ -428,7 +439,7 @@ $('lead').addEventListener('submit', async e => {
   if (email && !/^\S+@\S+\.\S+$/.test(email)) return showErr($('leadErr'), 'Please check your email address.');
   $('leadBtn').disabled = true; $('leadBtn').textContent = 'Sending…';
   try {
-    await call({ ...lastInput, action: 'lead', name, phone, email, address: $('addr').value, notes: $('notes').value, website: $('website').value });
+    await call({ ...readInput(), action: 'lead', name, phone, email, address: $('addr').value, notes: $('notes').value, website: $('website').value });
     $('lead').style.display = 'none'; $('thanks').style.display = 'block'; fit();
     $('thanks').scrollIntoView({ behavior: 'smooth', block: 'center' });
   } catch (ex) { showErr($('leadErr'), ex.message); }

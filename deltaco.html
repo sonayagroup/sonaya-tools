@@ -202,16 +202,17 @@ body {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 14px;
+  font-size: 13px;
+  table-layout: fixed;
 }
 .store-table thead th {
   background: var(--surface-card);
   color: var(--text-secondary);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  font-size: 12px;
-  padding: 12px 10px;
+  letter-spacing: 0.2px;
+  font-size: 11px;
+  padding: 10px 6px;
   text-align: left;
   border-bottom: 2px solid var(--gridline);
   position: sticky;
@@ -219,36 +220,43 @@ body {
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .store-table thead th:hover { color: var(--text-primary); }
-.store-table thead th .sort-arrow { font-size: 10px; margin-left: 3px; opacity: 0.5; }
+.store-table thead th .sort-arrow { font-size: 9px; margin-left: 2px; opacity: 0.5; }
 .store-table thead th.sorted .sort-arrow { opacity: 1; color: var(--brand-red); }
-.store-table thead th:first-child { padding-left: 16px; }
+.store-table thead th:first-child { padding-left: 10px; }
 .store-table tbody td {
-  padding: 11px 10px;
+  padding: 9px 6px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.store-table tbody td:first-child { padding-left: 16px; font-weight: 700; }
+.store-table tbody td:first-child { padding-left: 10px; font-weight: 700; }
 .store-table tbody tr:last-child td { border-bottom: none; }
 .store-table tbody tr:hover td { background: var(--surface-page); }
 .store-table tfoot td {
-  padding: 12px 10px;
+  padding: 10px 6px;
   white-space: nowrap;
   border-top: 2px solid var(--border);
   font-weight: 700;
   background: var(--surface-alt, var(--surface));
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.store-table tfoot td:first-child { padding-left: 16px; }
+.store-table tfoot td:first-child { padding-left: 10px; }
 .store-table .cell-great { color: #0ca30c; }
 .store-table .cell-good { color: var(--status-good); }
 .store-table .cell-ok { color: var(--status-ok); }
 .store-table .cell-warn { color: var(--status-warn); }
 .store-table .cell-critical { color: var(--status-critical); }
 .status-pill {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 10px; border-radius: 10px; font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600;
+  white-space: nowrap;
 }
 .status-pill.great { background: var(--status-good-bg); color: #0ca30c; }
 .status-pill.good { background: var(--status-good-bg); color: var(--status-good); }
@@ -838,13 +846,13 @@ body.snapshot-mode .kpi-summary { gap: 6px; margin-bottom: 10px; padding: 0 8px;
 body.snapshot-mode .kpi-tile { padding: 10px 12px; }
 body.snapshot-mode .kpi-tile .kpi-label { font-size: 10px; margin-bottom: 2px; }
 body.snapshot-mode .kpi-tile .kpi-value { font-size: 20px; }
-body.snapshot-mode .store-table { font-size: 13px; }
-body.snapshot-mode .store-table thead th { font-size: 11px; padding: 8px 7px; }
-body.snapshot-mode .store-table tbody td { padding: 8px 7px; }
-body.snapshot-mode .store-table tfoot td { padding: 8px 7px; }
+body.snapshot-mode .store-table { font-size: 12px; }
+body.snapshot-mode .store-table thead th { font-size: 10px; padding: 7px 5px; }
+body.snapshot-mode .store-table tbody td { padding: 7px 5px; }
+body.snapshot-mode .store-table tfoot td { padding: 7px 5px; }
 body.snapshot-mode .store-table thead th:first-child,
 body.snapshot-mode .store-table tbody td:first-child,
-body.snapshot-mode .store-table tfoot td:first-child { padding-left: 10px; }
+body.snapshot-mode .store-table tfoot td:first-child { padding-left: 8px; }
 .snapshot-exit {
   display: none; position: fixed; top: 12px; right: 12px; z-index: 9999;
   align-items: center; gap: 6px;
@@ -927,6 +935,22 @@ body.snapshot-mode .snapshot-watermark { display: block; }
 
     <div class="store-table-wrap" id="opsTableWrap">
       <table class="store-table" id="opsTable">
+        <colgroup>
+          <col style="width:11%">
+          <col style="width:7%">
+          <col style="width:7%">
+          <col style="width:8%">
+          <col style="width:6.5%">
+          <col style="width:7%">
+          <col style="width:5%">
+          <col style="width:5.5%">
+          <col style="width:6%">
+          <col style="width:7%">
+          <col style="width:7.5%">
+          <col style="width:5.5%">
+          <col style="width:6%">
+          <col style="width:7%">
+        </colgroup>
         <thead id="opsTableHead"></thead>
         <tbody id="opsTableBody"></tbody>
         <tfoot id="opsTableFoot"></tfoot>
@@ -3980,7 +4004,7 @@ const state = {
   opsDate: getLatestRealDate(),
   opsWeek: null,
   opsStoreFilter: 'all',
-  opsSort: { col: 'storeId', dir: 'asc' },
+  opsSort: { col: 'changePct', dir: 'desc' },
   scView: 'weekly',
   scWeek: null,
   scDate: null,
@@ -4381,17 +4405,17 @@ function renderOps() {
   // Table columns
   const cols = [
     { key: 'storeId', label: 'Store' },
-    { key: 'netSales', label: 'Net Sales' },
-    { key: 'changePct', label: 'Change %' },
+    { key: 'netSales', label: 'Sales' },
+    { key: 'changePct', label: 'Chg %' },
     { key: 'trans', label: 'Trans' },
-    { key: 'gca', label: 'Check' },
-    { key: 'laborVar', label: 'Labor Var' },
+    { key: 'gca', label: 'GCA' },
+    { key: 'laborVar', label: 'Labor' },
     { key: 'checklistPct', label: 'Jolt' },
-    { key: 'sos', label: 'Window (s)' },
-    { key: 'voidsPct', label: 'Voids %' },
-    { key: 'refunds', label: 'Refunds $' },
+    { key: 'sos', label: 'Win' },
+    { key: 'voidsPct', label: 'Voids' },
+    { key: 'refunds', label: 'Refunds' },
     { key: 'googleRating', label: 'Google' },
-    { key: 'serviceChecks', label: 'Svc Chk' },
+    { key: 'serviceChecks', label: 'SC' },
     { key: 'compositeScore', label: 'Score' },
     { key: 'status', label: 'Status' },
   ];
@@ -4422,20 +4446,20 @@ function renderOps() {
     const scoreCls = cs.total >= cs.maxScore * 0.85 ? 'score-great' : cs.total >= cs.maxScore * 0.65 ? 'score-good' : cs.total >= cs.maxScore * 0.45 ? 'score-warn' : 'score-critical';
     const scoreTitle = Object.entries(cs.scores).map(([k,v]) => `${k}: ${v.score} (${v.label})`).join(', ');
     return `<tr>
-      <td>${d.storeName} (${d.storeId})</td>
+      <td title="${d.storeName} (${d.storeId})">${d.storeName}</td>
       <td>${d.netSales != null ? fmtDollar(d.netSales) : '--'}</td>
-      <td class="${changeClass}">${d.changePct != null ? (d.changePct >= 0 ? '+' : '') + (+d.changePct).toFixed(2) + '%' : '--'}</td>
-      <td>${d.trans != null ? d.trans : '--'}${transArrow}${d.transChangePct !== undefined && d.transChangePct !== null ? '<span style="font-size:11px;color:' + (d.transChangePct >= 0 ? '#0ca30c' : '#d03b3b') + '"> ' + (d.transChangePct >= 0 ? '+' : '') + d.transChangePct.toFixed(1) + '%</span>' : ''}</td>
+      <td class="${changeClass}">${d.changePct != null ? (d.changePct >= 0 ? '+' : '') + (+d.changePct).toFixed(1) + '%' : '--'}</td>
+      <td>${d.trans != null ? d.trans : '--'}${transArrow}${d.transChangePct !== undefined && d.transChangePct !== null ? '<span style="font-size:10px;color:' + (d.transChangePct >= 0 ? '#0ca30c' : '#d03b3b') + '"> ' + (d.transChangePct >= 0 ? '+' : '') + d.transChangePct.toFixed(1) + '%</span>' : ''}</td>
       <td>${d.gca != null ? '$' + (+d.gca).toFixed(2) : '--'}${gcaDelta}</td>
       <td class="${laborVarClass}" title="${d.laborPct != null ? 'Actual: ' + (+d.laborPct).toFixed(2) + '% | Target: ' + d.laborTarget.toFixed(2) + '%' : 'No data'}">${laborVarStr}</td>
       <td class="${checklistClass}">${d.checklistPct !== null ? Math.round(d.checklistPct) + '%' : '--'}</td>
       <td class="cell-${sosR2.cls}">${d.sos != null ? d.sos : '--'}</td>
       <td class="cell-${voidsR2.cls}">${d.voidsPct != null ? (+d.voidsPct).toFixed(2) + '%' : '--'}</td>
       <td class="${refundClass}">${d.refunds != null ? '$' + d.refunds.toFixed(2) : '--'}</td>
-      <td class="${ratingClass}">${d.googleRating != null ? d.googleRating : '--'} <span style="color:var(--text-muted);font-size:10px">(${d.totalReviews ? d.totalReviews.toLocaleString() : '--'})</span></td>
+      <td class="${ratingClass}">${d.googleRating != null ? d.googleRating : '--'} <span style="color:var(--text-muted);font-size:9px">(${d.totalReviews ? d.totalReviews.toLocaleString() : '--'})</span></td>
       <td>${d.serviceChecks != null ? d.serviceChecks : '--'}</td>
       <td title="${scoreTitle}"><span class="score-badge ${scoreCls}">${cs.total}/${cs.maxScore}</span></td>
-      <td><span class="status-pill ${overallStatus}"><span class="status-dot ${overallStatus}"></span>${overallStatus === 'good' ? 'On Track' : (overallStatus === 'warn' ? 'Watch' : 'Attention')}</span></td>
+      <td><span class="status-pill ${overallStatus}"><span class="status-dot ${overallStatus}"></span>${overallStatus === 'good' ? 'On Track' : (overallStatus === 'warn' ? 'Watch' : '!!!')}</span></td>
     </tr>`;
   }).join('');
 

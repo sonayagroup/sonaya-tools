@@ -268,7 +268,7 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
         <g id="ruler"></g>
 
         <!-- labels -->
-        <g id="lblCode" class="mv" filter="url(#soft)"><rect x="-72" y="-13" width="144" height="26" rx="13" fill="#043968"/><text id="codeTx" x="0" y="5" text-anchor="middle" font-size="13.5" font-weight="800" fill="#fff">R-49 code · 16"</text></g>
+        <g id="lblCode" class="mv" filter="url(#soft)"><rect x="-82" y="-13" width="164" height="26" rx="13" fill="#043968"/><text id="codeTx" x="0" y="5" text-anchor="middle" font-size="13.5" font-weight="800" fill="#fff">R-49 code · 16.75"</text></g>
         <g id="lblNew" class="mv fade" filter="url(#soft)"><rect id="lblNewBg" x="-90" y="-13" width="180" height="26" rx="13" fill="#fff"/><text id="tNew" x="0" y="5" text-anchor="middle" font-size="13.5" font-weight="800" fill="#3f6d0f"></text></g>
         <g id="lblOld" class="mv fade" filter="url(#soft)"><rect id="lblOldBg" x="-80" y="-13" width="160" height="26" rx="13" fill="#fff"/><text id="tOld" x="0" y="5" text-anchor="middle" font-size="13.5" font-weight="800" fill="#6b5222"></text></g>
       </svg>
@@ -365,7 +365,7 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
       <div class="sub">Your energy savings</div>
       <div class="slider-wrap" style="margin-top:0">
         <label class="lab" for="bill">Average monthly energy bill (gas + electric)</label>
-        <input type="range" id="bill" min="50" max="500" step="5" value="175">
+        <input type="range" id="bill" min="50" max="1000" step="5" value="175">
         <div class="slider-read"><b id="billV">$175</b> per month</div>
       </div>
       <label class="chk" style="margin-top:6px"><input type="checkbox" id="esc" checked> <span>Include rising energy prices <span style="color:var(--muted)">(3% per year, below recent U.S. increases)</span></span></label>
@@ -429,7 +429,7 @@ let sliderTouched = false;   // user moved the slider themselves
 let quoted = false;          // an estimate has been shown; changes now re-price live
 
 // ── Attic visual ──
-const R_PER_IN = 49 / 16, PX_IN = 8.5, FLOOR = 296; // R-49 = 16"
+const CODE_IN = 16.75, R_PER_IN = 49 / CODE_IN, PX_IN = 8.5, FLOOR = 296; // R-49 = 16.75"
 (function scaffold(){
   let j=''; for (let x=10;x<480;x+=40) j+=`<rect x="${x}" y="${FLOOR-5.5*PX_IN}" width="7" height="${5.5*PX_IN}" rx="1" fill="url(#gWood)"/>`;
   $('joists').innerHTML=j;
@@ -442,6 +442,7 @@ const R_PER_IN = 49 / 16, PX_IN = 8.5, FLOOR = 296; // R-49 = 16"
   $('ruler').innerHTML=r;
 })();
 
+const fmtIn = v => (Math.round(v * 4) / 4).toString(); // nearest quarter inch
 function drawAttic(curR) {
   const oldIn = curR / R_PER_IN, addR = Math.max(0, 49 - curR), newIn = addR / R_PER_IN;
   const hOld = oldIn * PX_IN, hNew = newIn * PX_IN, topOld = FLOOR - hOld, topNew = topOld - hNew;
@@ -449,12 +450,12 @@ function drawAttic(curR) {
   // fluff tops are drawn ~6px above their origin
   mv('gOldL', 0, curR > 0 ? topOld - 2 : FLOOR + 14);
   mv('gNewL', 0, topNew - 2);
-  mv('gCodeL', 0, FLOOR - 16 * PX_IN);
-  mv('lblCode', 240, FLOOR - 16 * PX_IN - 20);
-  $('tOld').textContent = `You have R-${curR} · ~${Math.round(oldIn)}"`;
+  mv('gCodeL', 0, FLOOR - CODE_IN * PX_IN);
+  mv('lblCode', 240, FLOOR - CODE_IN * PX_IN - 20);
+  $('tOld').textContent = `You have R-${curR} · ~${fmtIn(oldIn)}"`;
   $('lblOld').style.opacity = hOld >= 26 ? 1 : 0;
   mv('lblOld', 240, topOld + hOld / 2 + 2);
-  $('tNew').textContent = `You need +R-${addR} · ~${Math.round(newIn)}"`;
+  $('tNew').textContent = `You need +R-${addR} · ~${fmtIn(newIn)}"`;
   $('lblNew').style.opacity = hNew >= 26 ? 1 : 0;
   mv('lblNew', 240, topNew + hNew / 2 + 2);
   // heat reaching the living space today (visual cue only)
@@ -462,7 +463,7 @@ function drawAttic(curR) {
   $('heatIn').style.opacity = (0.15 + 0.85 * leak).toFixed(2);
   $('heatTx').textContent = 'Heat coming in: ' + (curR < 15 ? 'High' : curR < 30 ? 'Moderate' : curR < 44 ? 'Low' : 'Minimal');
   const sl = $('rSlider'); sl.value = curR; sl.style.setProperty('--p', (curR/49*100) + '%');
-  $('srR').textContent = 'R-' + curR; $('srIn').textContent = Math.round(oldIn) + '"';
+  $('srR').textContent = 'R-' + curR; $('srIn').textContent = fmtIn(oldIn) + '"';
   $('srNeedTx').innerHTML = addR >= 5 ? `you need <b id="srNeed">+R-${addR}</b> more` : '<b>you\'re at or near code</b>';
 }
 drawAttic(19);
@@ -578,7 +579,7 @@ function showQuote(q, inp) {
   } else {
     $('fNow').textContent = 'R-' + q.currentR;
     $('fAdd').textContent = '+R-' + q.addR;
-    $('fIn').textContent = '~' + Math.round(q.addedInches) + '"';
+    $('fIn').textContent = '~' + fmtIn(q.addedInches) + '"';
   }
   lastQuote = q;
   $('rebCard').style.display = code ? 'none' : '';
@@ -687,7 +688,7 @@ function updateMoney() {
 ['uPnm','uNmgc','applyReb','applyEcp','esc'].forEach(id => $(id).addEventListener('change', updateMoney));
 document.querySelectorAll('input[name=heat],input[name=cool]').forEach(r => r.addEventListener('change', updateMoney));
 $('bill').addEventListener('input', updateMoney);
-const paintBill = () => $('bill').style.setProperty('--p', (($('bill').value - 50) / 450 * 100) + '%'); paintBill(); $('bill').addEventListener('input', paintBill);
+const paintBill = () => $('bill').style.setProperty('--p', (($('bill').value - 50) / 950 * 100) + '%'); paintBill(); $('bill').addEventListener('input', paintBill);
 // Utility defaults by area (Las Cruces = El Paso Electric + City of Las Cruces gas; Los Alamos = county utilities)
 $('area').addEventListener('change', () => {
   const a = $('area').value;

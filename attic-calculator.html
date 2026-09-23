@@ -105,6 +105,7 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
 .opt{font-weight:400;color:var(--muted);font-size:.9rem}
 .auto-hint{margin-top:18px;padding:12px 14px;border-radius:10px;background:var(--bg);color:var(--muted);text-align:center;font-size:.95rem}
 .auto-hint.ok{display:none}
+#result.stale{opacity:.45;pointer-events:none;filter:grayscale(.4)}
 .roi{margin-top:12px;border-radius:12px;background:var(--navy);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:14px}
 .roi b{font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums;color:#c6ec8c}
 .roi span{font-size:.95rem;opacity:.92}
@@ -277,7 +278,7 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
         <label class="lab" for="rSlider">How much insulation do you have now? Slide to adjust.</label>
         <input type="range" id="rSlider" min="0" max="49" step="1" value="19" aria-describedby="sliderRead">
         <div class="ticks" aria-hidden="true"><span>None</span><span>R-11</span><span>R-19</span><span>R-30</span><span>R-38</span><span>R-49</span></div>
-        <div class="slider-read" id="sliderRead">You have <b id="srR">R-19</b> (about <b id="srIn">7"</b> deep) · you need <b id="srNeed">+R-30</b> more</div>
+        <div class="slider-read" id="sliderRead">You have <b id="srR">R-19</b> (about <b id="srIn">6"</b> deep) · <span id="srNeedTx">you need <b id="srNeed">+R-30</b> more</span></div>
       </div>
 
       <label class="chk"><input type="checkbox" id="damaged"> <span>My insulation looks wet, damaged, or disturbed by pests</span></label>
@@ -462,7 +463,7 @@ function drawAttic(curR) {
   $('heatTx').textContent = 'Heat coming in: ' + (curR < 15 ? 'High' : curR < 30 ? 'Moderate' : curR < 44 ? 'Low' : 'Minimal');
   const sl = $('rSlider'); sl.value = curR; sl.style.setProperty('--p', (curR/49*100) + '%');
   $('srR').textContent = 'R-' + curR; $('srIn').textContent = Math.round(oldIn) + '"';
-  $('srNeed').textContent = addR >= 5 ? '+R-' + addR : 'little or'; 
+  $('srNeedTx').innerHTML = addR >= 5 ? `you need <b id="srNeed">+R-${addR}</b> more` : '<b>you\'re at or near code</b>';
 }
 drawAttic(19);
 
@@ -534,7 +535,12 @@ async function getQuote(inp) {
 function livePrice() {
   const inp = readInput();
   clearTimeout(timer);
-  if (validate(inp)) { $('autoHint').classList.remove('ok'); fit(); return; }
+  if (validate(inp)) {
+    $('autoHint').classList.remove('ok');
+    if (quoted) { $('result').classList.add('stale'); $('lpV').textContent = '—'; $('lpS').textContent = 'Enter square footage and year built'; }
+    fit(); return;
+  }
+  $('result').classList.remove('stale');
   $('autoHint').classList.add('ok');
   showErr($('err'), '');
   if (quoted) $('lpS').textContent = 'Updating…';
@@ -600,7 +606,9 @@ function rebateList(q) {
   const out = [];
   // New Mexico Gas Company – Building Envelope (Attic/Roof Insulation), program year Apr 2026–Mar 2027
   let g = { name: 'New Mexico Gas Company', desc: 'Attic insulation rebate · 40% of cost', amt: 0 };
-  if (heat !== 'gas') g.why = 'Requires natural gas heat';
+  const today = new Date();
+  if (today > new Date('2027-03-31T23:59:59')) g.why = 'Current program year has ended. Ask us about the new program';
+  else if (heat !== 'gas') g.why = 'Requires natural gas heat';
   else if (!nmgc) g.why = 'Requires a NM Gas Company account';
   else if (q.currentR <= 11) { g.amt = Math.min(0.40 * P, 800); g.desc = 'Attic insulation · 40% of cost, up to $800 (starting at R-11 or less)'; }
   else if (q.currentR <= 19) { g.amt = Math.min(0.40 * P, 500); g.desc = 'Attic insulation · 40% of cost, up to $500 (starting at R-12 to R-19)'; }
@@ -629,12 +637,14 @@ function updateMoney() {
   const afterReb = q.price - (applied ? rebTotal : 0);
   const ecpBase = q.price - rebTotal;
   const ecp = Math.min(0.5 * ecpBase, 1000);
-  const withEcp = $('applyEcp').checked;
+  const ecpOpen = new Date() <= new Date('2027-12-31T23:59:59');
+  $('applyEcp').closest('label').style.display = ecpOpen ? '' : 'none';
+  const withEcp = ecpOpen && $('applyEcp').checked;
   const net = afterReb - (withEcp ? ecp : 0);
 
   // Price box + sticky bar
   if (applied || withEcp) {
-    $('pbK').textContent = withEcp ? 'Your cost after rebates & tax credit' : 'Your price after rebates';
+    $('pbK').textContent = applied && withEcp ? 'Your cost after rebates & tax credit' : withEcp ? 'Your cost after tax credit' : 'Your price after rebates';
     $('rPrice').textContent = money(net);
     const parts = [`<span class="strike">${money(q.price)}</span>`];
     if (applied) parts.push(`−${money(rebTotal)} rebates`);
@@ -646,7 +656,7 @@ function updateMoney() {
     $('rPer').textContent = `About $${q.perSqft.toFixed(2)} per sq ft · ${q.sqft.toLocaleString()} sq ft attic`;
   }
   $('lpV').textContent = money(net);
-  $('lpS').textContent = (applied || withEcp ? 'After rebates · ' : '') + `R-${q.currentR} → R-49 · ${q.sqft.toLocaleString()} sq ft`;
+  $('lpS').textContent = (applied && withEcp ? 'After rebates & credit · ' : applied ? 'After rebates · ' : withEcp ? 'After tax credit · ' : '') + `R-${q.currentR} → R-49 · ${q.sqft.toLocaleString()} sq ft`;
 
   // Savings & payback
   const bill = +$('bill').value;
@@ -661,12 +671,12 @@ function updateMoney() {
   $('pSaveMo').textContent = `saved in year one (~${money(annual / 12)}/mo)`;
   const roi = net > 0 ? annual / net * 100 : 0;
   $('pRoi').textContent = net > 0 ? roi.toFixed(1) + '%' : '—';
-  $('pRoiTx').textContent = net > 0 ? `First-year savings of ${money(annual)} on a ${money(net)} cost. That's like earning ${roi.toFixed(1)}% a year on your money, tax-free, and it grows as energy prices rise.` : 'Your rebates and credits cover the cost.';
+  $('pRoiTx').textContent = net > 0 ? `First-year savings of ${money(annual)} on a ${money(net)} cost. That's like earning ${roi.toFixed(1)}% a year on your money, tax-free${g ? ', and it grows as energy prices rise' : ''}.` : 'Your rebates and credits cover the cost.';
   $('pBack').textContent = fmtY(yrs(net));
   $('p25').textContent = money(life);
   const rows = [[`At full price (${money(q.price)})`, yrs(q.price)]];
   if (rebTotal) rows.push([`After utility rebates (${money(q.price - rebTotal)})`, yrs(q.price - rebTotal)]);
-  rows.push([`After rebates + NM tax credit (${money(ecpBase - ecp)})`, yrs(ecpBase - ecp)]);
+  if (ecpOpen) rows.push([`After rebates + NM tax credit (${money(ecpBase - ecp)})`, yrs(ecpBase - ecp)]);
   $('cmp').innerHTML = '<div style="font-weight:700;color:var(--navy)"><span>Payback</span><span></span></div>' + rows.map(([l, y]) => `<div><span>${l}</span><b>${fmtY(y)}</b></div>`).join('');
 
   window._money = { rebTotal, applied, net, annual, payback: yrs(net), bill };
@@ -677,6 +687,7 @@ function updateMoney() {
 ['uPnm','uNmgc','applyReb','applyEcp','esc'].forEach(id => $(id).addEventListener('change', updateMoney));
 document.querySelectorAll('input[name=heat],input[name=cool]').forEach(r => r.addEventListener('change', updateMoney));
 $('bill').addEventListener('input', updateMoney);
+const paintBill = () => $('bill').style.setProperty('--p', (($('bill').value - 50) / 450 * 100) + '%'); paintBill(); $('bill').addEventListener('input', paintBill);
 // Utility defaults by area (Las Cruces = El Paso Electric + City of Las Cruces gas; Los Alamos = county utilities)
 $('area').addEventListener('change', () => {
   const a = $('area').value;

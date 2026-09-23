@@ -815,24 +815,7 @@ body {
   .crm-form-grid { grid-template-columns: 1fr; }
   .crm-modal { max-width: 100%; }
 }
-/* ===== WhatsApp Snapshot Mode ===== */
-/* ===== Screenshot Button ===== */
-.screenshot-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 16px; border: none; border-radius: 6px;
-  background: var(--brand-red); color: #fff; font-size: 13px; font-weight: 600;
-  cursor: pointer; white-space: nowrap; transition: opacity 0.2s;
-}
-.screenshot-btn:hover { opacity: 0.85; }
-.screenshot-btn:disabled { opacity: 0.5; cursor: wait; }
-.screenshot-btn svg { width: 15px; height: 15px; fill: currentColor; }
-.screenshot-watermark {
-  text-align: center; padding: 6px 0 4px;
-  font-size: 11px; color: #888; letter-spacing: 0.3px;
-  background: #fff;
-}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -881,10 +864,6 @@ body {
           <option value="all">All Stores</option>
         </select>
       </div>
-      <button class="screenshot-btn" id="screenshotBtn" onclick="captureScreenshot()" title="Capture table as image">
-        <svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.65 0-3 1.35-3 3s1.35 3 3 3 3-1.35 3-3-1.35-3-3-3z"/></svg>
-        Screenshot
-      </button>
     </div>
 
     <div class="kpi-summary" id="opsKpiRow"></div>
@@ -895,20 +874,20 @@ body {
     <div class="store-table-wrap" id="opsTableWrap">
       <table class="store-table" id="opsTable">
         <colgroup>
-          <col style="width:11%">
-          <col style="width:7%">
-          <col style="width:7%">
-          <col style="width:8%">
-          <col style="width:6.5%">
-          <col style="width:7%">
-          <col style="width:5%">
-          <col style="width:5.5%">
-          <col style="width:6%">
-          <col style="width:7%">
-          <col style="width:7.5%">
-          <col style="width:5.5%">
-          <col style="width:6%">
-          <col style="width:7%">
+          <col style="width:10%">   <!-- Store -->
+          <col style="width:7%">    <!-- Sales -->
+          <col style="width:6.5%">  <!-- Chg % -->
+          <col style="width:8%">    <!-- Trans -->
+          <col style="width:6.5%">  <!-- GCA -->
+          <col style="width:6.5%">  <!-- Labor -->
+          <col style="width:5%">    <!-- Jolt -->
+          <col style="width:5%">    <!-- Win -->
+          <col style="width:5.5%">  <!-- Voids -->
+          <col style="width:7%">    <!-- Refunds -->
+          <col style="width:7.5%">  <!-- Google -->
+          <col style="width:4.5%">  <!-- SC -->
+          <col style="width:6%">    <!-- Score -->
+          <col style="width:8.5%">  <!-- Status -->
         </colgroup>
         <thead id="opsTableHead"></thead>
         <tbody id="opsTableBody"></tbody>
@@ -7496,46 +7475,6 @@ document.querySelector('[data-tab="catering"]').addEventListener('click', () => 
   if (crmState.data.length === 0) loadCateringCRM();
 });
 
-// ===== Screenshot Capture =====
-async function captureScreenshot() {
-  const btn = document.getElementById('screenshotBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:currentColor"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.65 0-3 1.35-3 3s1.35 3 3 3 3-1.35 3-3-1.35-3-3-3z"/></svg> Capturing…';
-  try {
-    // Build an offscreen container with KPIs + table + watermark
-    const container = document.createElement('div');
-    container.style.cssText = 'position:absolute;left:-9999px;top:0;width:1200px;background:#fff;padding:12px 16px;font-family:inherit;';
-    // Clone KPI row
-    const kpi = document.getElementById('opsKpiRow');
-    if (kpi) { const c = kpi.cloneNode(true); c.style.marginBottom = '12px'; container.appendChild(c); }
-    // Clone table
-    const tw = document.getElementById('opsTableWrap');
-    if (tw) { const c = tw.cloneNode(true); c.style.cssText = 'border:none;box-shadow:none;border-radius:0;margin-bottom:0;overflow:visible;'; container.appendChild(c); }
-    // Watermark
-    const dateEl = document.getElementById('opsDate');
-    const dateStr = dateEl ? dateEl.value : '';
-    const d = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
-    const formatted = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    const wm = document.createElement('div');
-    wm.className = 'screenshot-watermark';
-    wm.textContent = 'Del Taco Group 373 • ' + formatted + ' • tools.sonayagroup.com';
-    container.appendChild(wm);
-    document.body.appendChild(container);
-    const canvas = await html2canvas(container, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
-    document.body.removeChild(container);
-    // Download
-    const link = document.createElement('a');
-    const dateTag = dateStr ? dateStr.replace(/-/g, '') : new Date().toISOString().slice(0,10).replace(/-/g, '');
-    link.download = 'deltaco-373-' + dateTag + '.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  } catch (e) {
-    console.error('Screenshot failed:', e);
-    alert('Screenshot failed — try again.');
-  }
-  btn.disabled = false;
-  btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;fill:currentColor"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.65 0-3 1.35-3 3s1.35 3 3 3 3-1.35 3-3-1.35-3-3-3z"/></svg> Screenshot';
-}
 
 </script>
 </body>

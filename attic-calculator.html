@@ -135,12 +135,32 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
 .compare b{font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:10px}
 .strike{text-decoration:line-through;opacity:.7}
 @media (max-width:560px){.pay{grid-template-columns:1fr 1fr 1fr;gap:6px}.pay .fact b{font-size:1.15rem}}
+html.embed body{background:transparent}
+html.embed .wrap{padding:4px 0 8px}
+html.embed header, html.embed footer{display:none}
+html.embed .live-price{position:static}
+.cta-card{text-align:center;background:var(--navy);color:#fff}
+.cta-card h2{margin:0 0 6px;font-size:1.45rem;line-height:1.2;text-wrap:balance}
+.cta-card p{margin:0 auto 18px;max-width:520px;opacity:.9}
+.cta-card .btn{max-width:420px;margin:0 auto}
+.cta-card .call{display:inline-block;margin-top:14px;color:#fff;font-weight:700;text-decoration:underline}
+.lp-cta{background:var(--green);color:#10240a;border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:800;cursor:pointer;white-space:nowrap}
 .live-price{position:sticky;bottom:0;z-index:5;margin:18px -24px -24px;padding:14px 24px;background:var(--navy);color:#fff;border-radius:0 0 var(--radius) var(--radius);display:none;align-items:center;justify-content:space-between;gap:12px}
 .live-price .lp-k{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;opacity:.8;font-weight:700}
 .live-price .lp-v{font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
 .live-price .lp-s{font-size:.85rem;opacity:.85}
 .live-price a{color:#fff;font-weight:700;white-space:nowrap}
-@media (max-width:560px){.live-price{margin:18px -18px -18px;padding:12px 18px}}
+@media (max-width:560px){html.embed body{background:transparent}
+html.embed .wrap{padding:4px 0 8px}
+html.embed header, html.embed footer{display:none}
+html.embed .live-price{position:static}
+.cta-card{text-align:center;background:var(--navy);color:#fff}
+.cta-card h2{margin:0 0 6px;font-size:1.45rem;line-height:1.2;text-wrap:balance}
+.cta-card p{margin:0 auto 18px;max-width:520px;opacity:.9}
+.cta-card .btn{max-width:420px;margin:0 auto}
+.cta-card .call{display:inline-block;margin-top:14px;color:#fff;font-weight:700;text-decoration:underline}
+.lp-cta{background:var(--green);color:#10240a;border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:800;cursor:pointer;white-space:nowrap}
+.live-price{margin:18px -18px -18px;padding:12px 18px}}
 </style>
 </head>
 <body>
@@ -284,7 +304,7 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
 
     <div class="live-price" id="livePrice" aria-live="polite">
       <div><div class="lp-k">Price to reach R-49</div><div class="lp-v" id="lpV">$0</div><div class="lp-s" id="lpS"></div></div>
-      <a href="#resCard" id="lpLink">Details ↓</a>
+      <button type="button" class="lp-cta" id="lpCta">Free estimate →</button>
     </div>
   </form>
 
@@ -382,8 +402,15 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
           <li><b>A quieter home.</b> Thick insulation softens outside noise like traffic, wind and planes.</li>
         </ul>
       </div>
-      <p class="fine" id="payFine">Savings estimate: about 45% of a typical New Mexico energy bill goes to heating and cooling. ENERGY STAR estimates sealing and insulating saves an average of 15% of heating and cooling costs; we scale that by how much insulation you have today. Assumes today's energy prices. Your actual savings will vary.</p>
+      <p class="fine" id="payFine">Savings estimate: about 45% of a typical New Mexico energy bill goes to heating and cooling. ENERGY STAR estimates sealing and insulating saves an average of 15% of heating and cooling costs; we scale that by how much insulation you have today, so homes starting with little or no insulation save more. Assumes today's energy prices. Your actual savings will vary.</p>
       <p class="fine" style="margin-top:6px">Rebates are paid by your utility after installation and are subject to program rules and funding. NM Gas Company: must heat with natural gas, work installed by a participating contractor between April 1, 2026 and March 31, 2027, application within 30 days. PNM: requires a PNM Home Energy Checkup before purchase. The NM tax credit is claimed on your state return and requires EMNRD certification. We'll help you confirm eligibility at your inspection.</p>
+    </div>
+
+    <div class="card cta-card" id="ctaCard">
+      <h2>Lock in your price with a free inspection</h2>
+      <p>We'll confirm your attic on site, finalize your price, and help you claim every rebate you qualify for. No obligation.</p>
+      <button type="button" class="btn" id="ctaBtn">Get my free estimate</button>
+      <div><a class="call" id="callLink" href="tel:+15052191799" target="_top">Or call (505) 219-1799</a></div>
     </div>
 
 </section>
@@ -557,8 +584,9 @@ function showQuote(q, inp) {
     $('fIn').textContent = '~' + fmtIn(q.addedInches) + '"';
   }
   lastQuote = q;
+  if (typeof track === 'function') track('attic_calc_price_shown', true);
   $('rebCard').style.display = code ? 'none' : '';
-  if (!code) updateMoney();
+  if (!code) updateMoney(); else if (typeof pushSummary === 'function') pushSummary();
   $('dmgNote').style.display = inp.condition === 'damaged' ? 'block' : 'none';
   fit();
 }
@@ -656,7 +684,8 @@ function updateMoney() {
   $('cmp').innerHTML = '<div style="font-weight:700;color:var(--navy)"><span>Payback</span><span></span></div>' + rows.map(([l, y]) => `<div><span>${l}</span><b>${fmtY(y)}</b></div>`).join('');
 
   window._money = { rebTotal, applied, net, annual, payback: yrs(net), bill };
-  $('payFine').textContent = `Savings estimate: about 45% of a typical New Mexico energy bill goes to heating and cooling. ENERGY STAR estimates sealing and insulating saves an average of 15% of heating and cooling costs; we scale that by how much insulation you have today. ${g ? 'Assumes energy prices rise 3% a year (U.S. residential electricity prices rose about 13% from 2022 to 2025, per EIA).' : 'Assumes today\'s energy prices stay flat.'} Lifetime savings shown over 30 years. Your actual savings will vary.`;
+  if (typeof pushSummary === 'function') pushSummary();
+  $('payFine').textContent = `Savings estimate: about 45% of a typical New Mexico energy bill goes to heating and cooling. ENERGY STAR estimates sealing and insulating saves an average of 15% of heating and cooling costs; we scale that by how much insulation you have today, so homes starting with little or no insulation save more. ${g ? 'Assumes energy prices rise 3% a year (U.S. residential electricity prices rose about 13% from 2022 to 2025, per EIA).' : 'Assumes today\'s energy prices stay flat.'} Lifetime savings shown over 30 years. Your actual savings will vary.`;
   fit();
 }
 
@@ -671,6 +700,67 @@ $('area').addEventListener('change', () => {
   $('uNmgc').checked = !['lascruces','losalamos'].includes(a);
   updateMoney();
 });
+
+
+// ── Host-page integration (embedded on koalainsulation.com) ──
+const LANDING_URL = 'https://koalainsulation.com/your-new-mexico-home-deserves-real-comfort-lower-energy-bills-ppc';
+const EMBEDDED = window.parent !== window;
+const params = new URLSearchParams(location.search);
+if (params.get('embed') === '1' || EMBEDDED) document.documentElement.classList.add('embed');
+
+// Only run inside approved sites (soft check; standalone use is always allowed)
+(function allowlist(){
+  if (!EMBEDDED) return;
+  let host = '';
+  try { host = (location.ancestorOrigins && location.ancestorOrigins[0]) || (document.referrer ? new URL(document.referrer).origin : ''); } catch (_) {}
+  if (!host) return;
+  const ok = /^https:\/\/([a-z0-9-]+\.)*(koalainsulation\.com|sonayagroup\.com)$/i.test(host);
+  if (!ok) document.querySelector('.wrap').innerHTML = '<p style="text-align:center;padding:40px 16px">This calculator is available at <a href="' + LANDING_URL + '" target="_top">koalainsulation.com</a>.</p>';
+})();
+
+function toHost(msg) { if (EMBEDDED) { try { parent.postMessage(msg, '*'); } catch (_) {} } }
+const sent = {};
+function track(name, once) { if (once && sent[name]) return; sent[name] = true; toHost({ type: 'koala-attic-calc-event', name }); }
+
+const PHONES = { lascruces: ['(575) 235-3255', '+15752353255'] };
+const DEFAULT_PHONE = ['(505) 219-1799', '+15052191799'];
+function paintPhone() {
+  const [label, tel] = PHONES[$('area').value] || DEFAULT_PHONE;
+  $('callLink').textContent = 'Or call ' + label; $('callLink').href = 'tel:' + tel;
+}
+$('area').addEventListener('change', paintPhone); paintPhone();
+$('callLink').addEventListener('click', () => track('attic_calc_call_click'));
+
+function summaryText() {
+  const q = lastQuote, m = window._money || {};
+  if (!q) return '';
+  const areaName = $('area').options[$('area').selectedIndex].text;
+  const parts = [
+    `Attic calculator: ${q.sqft.toLocaleString()} sq ft attic (${$('s2').checked ? '2-story, upper floor' : '1-story'}), built ${$('year').value}, ${areaName}.`,
+    q.atCode ? `Current ~R-${q.currentR}: at or near code.` : `Current ~R-${q.currentR} → R-49 (add R-${q.addR}).`,
+  ];
+  if (!q.atCode) {
+    parts.push(`Web price $${q.price.toLocaleString()}` + (m.rebTotal ? `; est. rebates $${Math.round(m.rebTotal).toLocaleString()}` : '') + `; shown to customer: $${Math.round(m.net ?? q.price).toLocaleString()}.`);
+    parts.push(`Heat: ${radio('heat')}, cool: ${radio('cool')}, PNM: ${$('uPnm').checked ? 'yes' : 'no'}, NMGC: ${radio('heat') === 'gas' && $('uNmgc').checked ? 'yes' : 'no'}.`);
+    if (m.bill) parts.push(`Bill $${m.bill}/mo; est. savings $${Math.round(m.annual)}/yr; payback ${isFinite(m.payback) ? m.payback.toFixed(1) + ' yrs' : 'n/a'}.`);
+  }
+  if ($('damaged').checked) parts.push('Customer reports damaged/wet/pest-disturbed insulation.');
+  return parts.join(' ');
+}
+function pushSummary() {
+  const q = lastQuote; if (!q) return;
+  toHost({ type: 'koala-attic-calc-summary', summary: summaryText(),
+    data: { sqft: q.sqft, currentR: q.currentR, price: q.price, net: (window._money || {}).net ?? q.price, rebates: (window._money || {}).rebTotal || 0, area: $('area').value, yearBuilt: $('year').value } });
+}
+function goToForm() {
+  track('attic_calc_cta_click');
+  pushSummary();
+  if (EMBEDDED) toHost({ type: 'koala-attic-calc-cta' });
+  else location.href = LANDING_URL + '#free-evaluation';
+}
+$('ctaBtn').addEventListener('click', goToForm);
+$('lpCta').addEventListener('click', goToForm);
+$('rSlider').addEventListener('change', () => track('attic_calc_slider_used', true));
 
 // Tell a parent page (iframe embed) how tall we are
 function fit() { try { parent.postMessage({ type: 'koala-attic-calc-height', height: document.documentElement.scrollHeight }, '*'); } catch (_) {} }

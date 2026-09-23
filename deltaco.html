@@ -202,7 +202,7 @@ body {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: 14px;
   table-layout: fixed;
 }
 .store-table thead th {
@@ -211,8 +211,8 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.2px;
-  font-size: 11px;
-  padding: 10px 6px;
+  font-size: 11.5px;
+  padding: 11px 8px;
   text-align: left;
   border-bottom: 2px solid var(--gridline);
   position: sticky;
@@ -228,7 +228,7 @@ body {
 .store-table thead th.sorted .sort-arrow { opacity: 1; color: var(--brand-red); }
 .store-table thead th:first-child { padding-left: 10px; }
 .store-table tbody td {
-  padding: 9px 6px;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -239,7 +239,7 @@ body {
 .store-table tbody tr:last-child td { border-bottom: none; }
 .store-table tbody tr:hover td { background: var(--surface-page); }
 .store-table tfoot td {
-  padding: 10px 6px;
+  padding: 11px 8px;
   white-space: nowrap;
   border-top: 2px solid var(--border);
   font-weight: 700;
@@ -254,8 +254,8 @@ body {
 .store-table .cell-warn { color: var(--status-warn); }
 .store-table .cell-critical { color: var(--status-critical); }
 .status-pill {
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 10px; font-size: 13px; font-weight: 600;
   white-space: nowrap;
 }
 .status-pill.great { background: var(--status-good-bg); color: #0ca30c; }
@@ -861,10 +861,7 @@ body {
 <!-- TAB 1: DAILY OPERATIONS -->
 <div class="tab-content active" id="tab-ops">
   <div class="container">
-    <div class="connection-banner" id="opsBanner">
-      <span class="banner-icon">&#9888;</span>
-      <span>Sample data shown. Once data sources are connected (PowerBI, Dayforce, Google, ServiceCheck, Jolt), this dashboard will update daily at 10:00 AM.</span>
-    </div>
+    <div class="connection-banner" id="opsBanner" style="display:none"></div>
     <div class="controls">
       <div class="view-toggle" id="opsViewToggle">
         <button class="active" data-view="daily">Daily</button>
@@ -4289,6 +4286,7 @@ function renderOps() {
   const banner = document.getElementById('opsBanner');
   if (allNoData) {
     const latestDate = getLatestRealDate();
+    banner.style.display = '';
     banner.className = 'connection-banner';
     banner.innerHTML = `<span class="banner-icon">&#9888;</span>
       <span>No sales data has been pulled for this date. Latest available data is from ${new Date(latestDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}.</span>`;
@@ -4304,14 +4302,7 @@ function renderOps() {
     if (tableWrap) tableWrap.style.display = '';
     return;
   } else if (hasRealData) {
-    const sourceMap = {powerbi:'PowerBI',dayforce:'Dayforce',servicecheck:'ServiceCheck',qbo:'QBO',gbp:'Google Reviews',jolt:'Jolt'};
-    const connectedSources = Object.entries(dataStore.sources)
-      .filter(([k,v]) => v.connected && ['powerbi','dayforce','servicecheck','qbo','gbp','jolt'].includes(k))
-      .map(([k]) => sourceMap[k] || k);
-    const pendingSources = [];
-    banner.className = 'connection-banner' + (pendingSources.length === 0 ? ' connected' : '');
-    banner.innerHTML = `<span class="banner-icon">${pendingSources.length ? '&#9888;' : '&#10003;'}</span>
-      <span>Live data from ${connectedSources.join(', ')}.${pendingSources.length ? ' Pending: ' + pendingSources.join(', ') + '.' : ' All sources connected.'}</span>`;
+    banner.style.display = 'none';
   }
 
   // Store detail view

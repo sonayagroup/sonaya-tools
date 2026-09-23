@@ -88,11 +88,6 @@ input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px rgba(
 .fine{color:var(--muted);font-size:.85rem;margin-top:14px}
 .atcode{text-align:center;padding:10px 0}
 .atcode h2{color:var(--green-d);margin:0 0 6px}
-.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-#thanks{display:none;text-align:center}
-#thanks h2{color:var(--navy);margin:6px 0}
-.check{width:56px;height:56px;border-radius:50%;background:var(--green);display:grid;place-items:center;margin:0 auto}
-.check::after{content:"";width:22px;height:12px;border-left:4px solid #10240a;border-bottom:4px solid #10240a;transform:rotate(-45deg) translate(2px,-2px)}
 footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
 @media (max-width:560px){
   .card{padding:18px}
@@ -391,27 +386,7 @@ footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:10px}
       <p class="fine" style="margin-top:6px">Rebates are paid by your utility after installation and are subject to program rules and funding. NM Gas Company: must heat with natural gas, work installed by a participating contractor between April 1, 2026 and March 31, 2027, application within 30 days. PNM: requires a PNM Home Energy Checkup before purchase. The NM tax credit is claimed on your state return and requires EMNRD certification. We'll help you confirm eligibility at your inspection.</p>
     </div>
 
-    <form class="card" id="lead" novalidate>
-      <div class="step"><span class="n">5</span> Book your free inspection</div>
-      <p style="margin:-4px 0 16px;color:var(--muted)">We'll confirm your price on site. No obligation.</p>
-      <div class="field"><label class="lab" for="name">Name</label><input type="text" id="name" autocomplete="name" required></div>
-      <div class="row2">
-        <div class="field"><label class="lab" for="phone">Phone</label><input type="tel" id="phone" autocomplete="tel"></div>
-        <div class="field"><label class="lab" for="email">Email</label><input type="email" id="email" autocomplete="email"></div>
-      </div>
-      <div class="field"><label class="lab" for="addr">Home address</label><input type="text" id="addr" autocomplete="street-address"></div>
-      <div class="field"><label class="lab" for="notes">Anything we should know? <span style="font-weight:400;color:var(--muted)">(optional)</span></label><textarea id="notes" rows="3"></textarea></div>
-      <div class="hp" aria-hidden="true"><label for="website">Website</label><input type="text" id="website" tabindex="-1" autocomplete="off"></div>
-      <button class="btn" type="submit" id="leadBtn">Request my free inspection</button>
-      <div class="err" id="leadErr" role="alert"></div>
-    </form>
-
-    <div class="card" id="thanks">
-      <div class="check"></div>
-      <h2>Thanks! We've got your request.</h2>
-      <p style="color:var(--muted);margin:0">Someone from Koala Insulation of New Mexico will reach out shortly to schedule your free attic inspection.</p>
-    </div>
-  </section>
+</section>
 
   <footer>Koala Insulation of New Mexico · Serving all of New Mexico</footer>
 </div>
@@ -551,7 +526,7 @@ function livePrice() {
       if (!q) return;
       if (!quoted) {
         quoted = true;
-        $('result').style.display = 'block'; $('thanks').style.display = 'none'; $('lead').style.display = '';
+        $('result').style.display = 'block';
       }
       showQuote(q, inp);
     } catch (ex) { showErr($('err'), ex.message); }
@@ -695,25 +670,6 @@ $('area').addEventListener('change', () => {
   $('uPnm').checked = !['lascruces','losalamos'].includes(a);
   $('uNmgc').checked = !['lascruces','losalamos'].includes(a);
   updateMoney();
-});
-
-$('lead').addEventListener('submit', async e => {
-  e.preventDefault();
-  showErr($('leadErr'), '');
-  const name = $('name').value.trim(), phone = $('phone').value.trim(), email = $('email').value.trim();
-  if (!name) return showErr($('leadErr'), 'Please enter your name.');
-  if (!phone && !email) return showErr($('leadErr'), 'Please enter a phone number or email so we can reach you.');
-  if (email && !/^\S+@\S+\.\S+$/.test(email)) return showErr($('leadErr'), 'Please check your email address.');
-  $('leadBtn').disabled = true; $('leadBtn').textContent = 'Sending…';
-  try {
-    const m = window._money || {};
-    await call({ ...readInput(), action: 'lead', name, phone, email, address: $('addr').value, notes: $('notes').value, website: $('website').value,
-      heating: radio('heat'), cooling: radio('cool'), pnm: $('uPnm').checked, nmgc: radio('heat') === 'gas' ? $('uNmgc').checked : false,
-      rebatesApplied: !!m.applied, estRebates: m.rebTotal, netPrice: m.net, monthlyBill: m.bill, annualSavings: m.annual, paybackYears: isFinite(m.payback) ? m.payback : null });
-    $('lead').style.display = 'none'; $('thanks').style.display = 'block'; fit();
-    $('thanks').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } catch (ex) { showErr($('leadErr'), ex.message); }
-  finally { $('leadBtn').disabled = false; $('leadBtn').textContent = 'Request my free inspection'; }
 });
 
 // Tell a parent page (iframe embed) how tall we are

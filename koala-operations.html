@@ -230,6 +230,28 @@ body {
 .crm-age-warm { color: var(--status-warn); background: var(--status-warn-bg); }
 .crm-age-stale { color: var(--status-critical); background: var(--status-critical-bg); }
 .crm-due-overdue { color: var(--status-critical); background: var(--status-critical-bg); }
+/* Follow-Ups panel (added 2026-09-24 per Pranav: a visible-at-a-glance, tiered replacement for
+   "buried in email" reminders, built around crm_deals.next_followup_date). cfw-* tiers are shared
+   between the panel and the small per-card badge so a card's color always matches the panel. */
+.crm-followup-panel { background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 16px 18px; margin-bottom: 22px; }
+.crm-followup-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.crm-followup-toolbar-title { font-size: 12px; color: var(--text-muted); }
+.crm-followup-group { margin-bottom: 12px; }
+.crm-followup-group:last-child { margin-bottom: 0; }
+.crm-followup-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: 6px; }
+.crm-followup-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 8px; border-radius: var(--radius-sm); cursor: pointer; }
+.crm-followup-row:hover { background: var(--surface-chart); }
+.crm-followup-name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-followup-meta { font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crm-followup-when { font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 10px; white-space: nowrap; flex: 0 0 auto; }
+.crm-followup-summary { font-size: 12.5px; color: var(--text-secondary); padding: 4px 8px; }
+.crm-followup-summary b { color: var(--text-primary); }
+.crm-followup-empty { font-size: 13px; color: var(--text-muted); padding: 6px 8px; }
+.cfw-overdue { color: var(--status-critical); background: var(--status-critical-bg); }
+.cfw-today   { color: var(--status-warn); background: var(--status-warn-bg); }
+.cfw-soon    { color: var(--status-ok); background: var(--status-ok-bg); }
+.cfw-later   { color: var(--text-muted); background: var(--surface-chart); border: 1px solid var(--border); }
+.cfw-none    { color: var(--text-muted); background: transparent; border: 1px dashed var(--border); }
 .crm-flow-sep { flex: 0 0 auto; width: 40px; align-self: center; display: flex; align-items: center; justify-content: center; height: 90px; margin: 0 4px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; border-left: 1px dashed var(--border); border-right: 1px dashed var(--border); }
 .crm-card-value { font-size: 14.5px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
 .crm-card.crm-dragging { opacity: .35; }
@@ -498,6 +520,17 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       <span>Loading deals…</span>
     </div>
     <div class="kpi-summary" id="crmKpiRow"></div>
+
+    <div class="section-title">Follow-Ups <span class="section-title-sub">— set a "follow up on" date from any deal; tap a row here to open it</span></div>
+    <div class="crm-followup-panel">
+      <div class="crm-followup-toolbar">
+        <select class="control-select" id="crmFollowupRepFilter" onchange="crmHandleFollowupFilterChange()">
+          <option value="">All reps</option>
+        </select>
+        <span class="crm-followup-toolbar-title">Prospecting + Estimating pipeline only</span>
+      </div>
+      <div id="crmFollowupPanel"></div>
+    </div>
 
     <div class="controls" style="margin-bottom:14px;">
       <div class="control-group crm-search-group">
@@ -2197,6 +2230,7 @@ let crmLoaded = false;
 let crmEditingId = null;
 let crmDragId = null;
 let crmSearchQuery = ''; // raw (not lowercased) — drives the CRM board search box
+let crmFollowupRepFilter = ''; // '' = all reps — drives the Follow-Ups panel above the board
 
 function crmEsc(s) {
   if (s == null) return '';
@@ -2369,6 +2403,113 @@ function crmKnownReps() {
   EXCLUDED_REPS.forEach(r => set.delete(r));
   return [...set].sort();
 }
+
+/* ---- Follow-Ups panel (added 2026-09-24 per Pranav: a visible-at-a-glance, tiered alternative to
+   relying on email alone for the commercial estimator's follow-ups). Driven by the optional
+   crm_deals.next_followup_date a rep sets per deal — a deal with no date set still shows up (in
+   its own "No Follow-Up Date Set" group) so nothing silently disappears, it just doesn't get a
+   tier color until someone sets a date. Same tier thresholds are mirrored in koala-sales-tv.html's
+   refreshCRM() and the koala-crm-stage-followup-reminder edge function; keep all three in sync. ---- */
+const CRM_FOLLOWUP_TIER_META = {
+  overdue: { label: 'Overdue', cls: 'cfw-overdue' },
+  today:   { label: 'Due Today', cls: 'cfw-today' },
+  soon:    { label: 'Due This Week', cls: 'cfw-soon' },
+  later:   { label: 'Scheduled', cls: 'cfw-later' },
+  none:    { label: 'No Follow-Up Date Set', cls: 'cfw-none' },
+};
+function crmFollowupTier(nextFollowupDate, todayStr) {
+  if (!nextFollowupDate) return 'none';
+  if (nextFollowupDate < todayStr) return 'overdue';
+  if (nextFollowupDate === todayStr) return 'today';
+  const days = Math.round((new Date(nextFollowupDate + 'T00:00:00') - new Date(todayStr + 'T00:00:00')) / 86400000);
+  return days <= 6 ? 'soon' : 'later';
+}
+function crmFollowupWhenLabel(d, tier, todayStr) {
+  if (tier === 'none') return `${crmDaysStale(d.last_activity_at)}d since last activity`;
+  const dt = new Date(d.next_followup_date + 'T00:00:00');
+  const dateLabel = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (tier === 'overdue') {
+    const days = Math.round((new Date(todayStr + 'T00:00:00') - dt) / 86400000);
+    return `${dateLabel} (${days}d overdue)`;
+  }
+  return tier === 'today' ? 'Today' : dateLabel;
+}
+// Small per-card companion to crmDueBadge() — only rendered when next_followup_date is set, so it
+// never competes visually with the due-date badge (a different concept: due_date is a bid
+// deadline, next_followup_date is "when to call back").
+function crmFollowupBadge(d, todayStr) {
+  if (!d.next_followup_date) return '';
+  const tier = crmFollowupTier(d.next_followup_date, todayStr);
+  const meta = CRM_FOLLOWUP_TIER_META[tier];
+  return `<span class="crm-followup-when ${meta.cls}" title="Next follow-up">\u{1F4C5} ${crmEsc(crmFollowupWhenLabel(d, tier, todayStr))}</span>`;
+}
+function crmHandleFollowupFilterChange() {
+  crmFollowupRepFilter = document.getElementById('crmFollowupRepFilter').value || '';
+  crmRenderFollowupPanel();
+}
+function crmRenderFollowupPanel() {
+  const panelEl = document.getElementById('crmFollowupPanel');
+  const filterEl = document.getElementById('crmFollowupRepFilter');
+  if (!panelEl || !filterEl) return;
+
+  // Keep the rep dropdown's options in sync without clobbering the user's current selection.
+  const reps = crmKnownReps();
+  const currentOptions = [...filterEl.options].map(o => o.value).join('|');
+  const desiredOptions = ['', ...reps].join('|');
+  if (currentOptions !== desiredOptions) {
+    filterEl.innerHTML = `<option value="">All reps</option>` + reps.map(r => `<option value="${crmEsc(r)}">${crmEsc(r)}</option>`).join('');
+    filterEl.value = crmFollowupRepFilter;
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let pool = crmDeals.filter(d => CRM_ACTIVE_STAGES.has(d.stage));
+  if (crmFollowupRepFilter) {
+    const wanted = crmFollowupRepFilter.trim().toLowerCase();
+    pool = pool.filter(d => (d.reps || []).some(r => (r || '').trim().toLowerCase() === wanted));
+  }
+
+  const tiers = { overdue: [], today: [], soon: [], later: [], none: [] };
+  pool.forEach(d => tiers[crmFollowupTier(d.next_followup_date, todayStr)].push(d));
+  tiers.overdue.sort((a, b) => a.next_followup_date.localeCompare(b.next_followup_date));
+  tiers.today.sort((a, b) => a.name.localeCompare(b.name));
+  tiers.soon.sort((a, b) => a.next_followup_date.localeCompare(b.next_followup_date));
+  tiers.later.sort((a, b) => a.next_followup_date.localeCompare(b.next_followup_date));
+  tiers.none.sort((a, b) => crmDaysStale(b.last_activity_at) - crmDaysStale(a.last_activity_at));
+
+  const dealRow = (d, tierKey) => {
+    const repsStr = d.reps && d.reps.length ? d.reps.join(', ') : 'unassigned';
+    return `<div class="crm-followup-row" onclick="openCrmDealModal('${d.id}')">
+      <div style="min-width:0;">
+        <div class="crm-followup-name">${crmEsc(d.name)}</div>
+        <div class="crm-followup-meta">${crmEsc(d.stage)} · ${crmEsc(repsStr)}</div>
+      </div>
+      <span class="crm-followup-when ${CRM_FOLLOWUP_TIER_META[tierKey].cls}">${crmEsc(crmFollowupWhenLabel(d, tierKey, todayStr))}</span>
+    </div>`;
+  };
+
+  let html = '';
+  ['overdue', 'today', 'soon'].forEach(key => {
+    if (!tiers[key].length) return;
+    html += `<div class="crm-followup-group">
+      <div class="crm-followup-group-title">${CRM_FOLLOWUP_TIER_META[key].label} (${tiers[key].length})</div>
+      ${tiers[key].map(d => dealRow(d, key)).join('')}
+    </div>`;
+  });
+
+  // "Scheduled" and "No date set" are summarized rather than listed in full — those aren't
+  // actionable today, and the "no date set" bucket in particular can be large before a stage's
+  // deals have been given follow-up dates for the first time.
+  if (tiers.later.length) {
+    const next3 = tiers.later.slice(0, 3).map(d => `${d.name} (${crmFollowupWhenLabel(d, 'later', todayStr)})`).join(', ');
+    html += `<div class="crm-followup-summary"><b>${tiers.later.length}</b> scheduled later${next3 ? ' — next up: ' + crmEsc(next3) : ''}</div>`;
+  }
+  if (tiers.none.length) {
+    const oldest3 = tiers.none.slice(0, 3).map(d => `${d.name} (${crmDaysStale(d.last_activity_at)}d)`).join(', ');
+    html += `<div class="crm-followup-summary"><b>${tiers.none.length}</b> have no follow-up date set${oldest3 ? ' — oldest untouched: ' + crmEsc(oldest3) : ''}. Open a deal to set one.</div>`;
+  }
+
+  panelEl.innerHTML = html || `<div class="crm-followup-empty">Nothing in the active pipeline${crmFollowupRepFilter ? ' for ' + crmEsc(crmFollowupRepFilter) : ''}.</div>`;
+}
 // Deadline instant for sorting: due_date + due_time when both are set, midnight of due_date when
 // only the date is set, and +Infinity (sinks to the bottom) when there's no due date at all.
 function crmDueInstant(d) {
@@ -2419,6 +2560,7 @@ function renderCrmBoards() {
 function crmCardHtml(d) {
   const due = crmDueBadge(d.due_date, d.due_complete, d.due_time);
   const age = crmAgeBadge(crmDaysStale(d.last_activity_at));
+  const followup = crmFollowupBadge(d, new Date().toISOString().slice(0, 10));
   const valueHtml = d.value != null ? `<div class="crm-card-value">${fmtMoneyCompact(d.value)}</div>` : '';
   const notesIcon = d.notes && d.notes.trim()
     ? `<span class="crm-card-notes-icon" title="${crmEsc(d.notes.trim().slice(0, 200))}">\u{1F4DD}</span>`
@@ -2431,7 +2573,7 @@ function crmCardHtml(d) {
     ${valueHtml}
     <div class="crm-card-meta">
       ${crmAvatarRow(d.reps)}
-      <div class="crm-badge-row">${due}${age}</div>
+      <div class="crm-badge-row">${followup}${due}${age}</div>
     </div>
   </div>`;
 }
@@ -2536,6 +2678,15 @@ function openCrmDealModal(id, presetStage) {
       <div class="crm-form-row"><label>Due Time <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label><input class="crm-form-input" id="crmFDueTime" type="time" value="${deal && deal.due_time ? deal.due_time.slice(0, 5) : ''}"></div>
     </div>
     <div class="crm-form-row"><label class="crm-form-check"><input type="checkbox" id="crmFDueComplete" ${deal && deal.due_complete ? 'checked' : ''}> Due date complete</label></div>
+    <div class="crm-form-row">
+      <label>Follow Up On <span style="font-weight:400;color:var(--text-muted);">(when to reach back out — different from Due Date; drives the Follow-Ups panel above the board and the sales TV alert)</span></label>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input class="crm-form-input" id="crmFFollowup" type="date" style="flex:1;" value="${deal && deal.next_followup_date ? deal.next_followup_date : ''}">
+        <button type="button" class="crm-btn crm-btn-secondary" style="padding:7px 10px;font-size:12px;white-space:nowrap;" onclick="crmSetFollowupQuick(7)">+7d</button>
+        <button type="button" class="crm-btn crm-btn-secondary" style="padding:7px 10px;font-size:12px;white-space:nowrap;" onclick="crmSetFollowupQuick(14)">+14d</button>
+        <button type="button" class="crm-btn crm-btn-secondary" style="padding:7px 10px;font-size:12px;white-space:nowrap;" onclick="document.getElementById('crmFFollowup').value=''">Clear</button>
+      </div>
+    </div>
     <div class="crm-form-row"><label>Notes</label><textarea class="crm-form-textarea" id="crmFNotes" placeholder="Optional">${crmEsc(deal ? deal.notes || '' : '')}</textarea></div>
     <div class="crm-form-error" id="crmFormError" style="display:none;"></div>
     ${isEdit ? `<div class="crm-form-row"><label>Activity</label><div class="crm-activity-panel" id="crmActivityPanel"></div></div>` : ''}
@@ -2552,6 +2703,11 @@ function openCrmDealModal(id, presetStage) {
   document.body.style.overflow = 'hidden';
   if (isEdit) crmRenderActivityPanel(deal.id);
 }
+function crmSetFollowupQuick(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  document.getElementById('crmFFollowup').value = d.toISOString().slice(0, 10);
+}
 async function crmSaveCurrentDeal() {
   const errEl = document.getElementById('crmFormError');
   const name = document.getElementById('crmFName').value.trim();
@@ -2567,6 +2723,7 @@ async function crmSaveCurrentDeal() {
   // date picked first anyway per the UI order) — only persist it alongside a real due_date.
   const dueTime = dueDate ? dueTimeRaw : null;
   const dueComplete = document.getElementById('crmFDueComplete').checked;
+  const nextFollowupDate = document.getElementById('crmFFollowup').value || null;
   const notes = document.getElementById('crmFNotes').value.trim() || null;
   const nowIso = new Date().toISOString();
   const saveBtn = document.querySelector('#crmStageModalFooter .crm-btn-primary');
@@ -2574,7 +2731,7 @@ async function crmSaveCurrentDeal() {
   try {
     if (crmEditingId) {
       const existing = crmDeals.find(d => d.id === crmEditingId);
-      const patch = { name, stage, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, notes, updated_at: nowIso, last_activity_at: nowIso };
+      const patch = { name, stage, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, next_followup_date: nextFollowupDate, notes, updated_at: nowIso, last_activity_at: nowIso };
       if (existing && existing.stage !== stage) {
         const groups = crmDealsByStage();
         const target = groups[stage] || [];
@@ -2593,6 +2750,7 @@ async function crmSaveCurrentDeal() {
         const existingDueTime = existing.due_time ? existing.due_time.slice(0, 5) : null;
         if (existingDueTime !== dueTime) changes.push(`Due time: ${existingDueTime || '—'} → ${dueTime || '—'}`);
         if (!!existing.due_complete !== dueComplete) changes.push(`Due complete: ${dueComplete ? 'yes' : 'no'}`);
+        if ((existing.next_followup_date || null) !== nextFollowupDate) changes.push(`Follow up on: ${existing.next_followup_date || '—'} → ${nextFollowupDate || '—'}`);
         if ((existing.notes || '') !== (notes || '')) changes.push('Notes updated');
         if (changes.length) {
           await crmLogActivity(crmEditingId, existing.stage !== stage ? 'stage_change' : 'edited', changes.join('; '));
@@ -2602,7 +2760,7 @@ async function crmSaveCurrentDeal() {
       const groups = crmDealsByStage();
       const target = groups[stage] || [];
       const position = target.length ? Math.max(...target.map(d => d.position)) + 1 : 0;
-      const created = await crmCreateDeal({ name, stage, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, notes, position, last_activity_at: nowIso });
+      const created = await crmCreateDeal({ name, stage, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, next_followup_date: nextFollowupDate, notes, position, last_activity_at: nowIso });
       await crmLogActivity(created.id, 'created', `Deal created in ${stage}${reps.length ? ' — assigned to ' + reps.join(', ') : ''}`);
     }
     closeCrmStageModal();
@@ -2768,6 +2926,7 @@ async function renderCrmTab() {
   }
 
   renderCrmBoards();
+  crmRenderFollowupPanel();
   crmInitActorPicker();
 
   const counts = {};

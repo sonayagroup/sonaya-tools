@@ -982,7 +982,7 @@
   async function refreshCRM() {
     const todayISO = todayLocalISO();
     const rows = await fetchJSON(
-      restUrl('crm_deals', 'select=name,stage,reps,due_date,due_time,due_complete,last_activity_at&archived=not.is.true&limit=2000'),
+      restUrl('crm_deals', 'select=name,stage,reps,due_date,due_time,due_complete,last_activity_at,next_followup_date&archived=not.is.true&limit=2000'),
       { headers: REST_HEADERS }
     );
 
@@ -1005,8 +1005,20 @@
           const due = new Date(d.due_date + 'T00:00:00');
           const today = new Date(todayISO + 'T00:00:00');
           const diffDays = Math.round((today - due) / 86400000);
-          followups.push({ name: d.name, reps: d.reps || [], diffDays, dueTime: d.due_time });
+          followups.push({ name: d.name, reps: d.reps || [], diffDays, dueTime: d.due_time, kind: 'due' });
         }
+      }
+      // next_followup_date (added 2026-09-24, per Pranav): a rep-set "call back on this date",
+      // separate from due_date (a bid submission deadline). Same due-today-or-overdue filter as
+      // above keeps this tile actionable-now rather than a preview of everything scheduled later —
+      // the fuller scheduled/no-date view lives in the Follow-Ups panel on koala-operations.html.
+      // Mirrors crmFollowupTier() there and the koala-crm-stage-followup-reminder edge function;
+      // keep all three in sync if this logic changes.
+      if (d.next_followup_date && d.next_followup_date <= todayISO) {
+        const fu = new Date(d.next_followup_date + 'T00:00:00');
+        const today = new Date(todayISO + 'T00:00:00');
+        const diffDays = Math.round((today - fu) / 86400000);
+        followups.push({ name: d.name, reps: d.reps || [], diffDays, dueTime: null, kind: 'followup' });
       }
     }
     followups.sort((a, b) => b.diffDays - a.diffDays);
@@ -1023,9 +1035,12 @@
       // needs to be truncated with a "+N more" line anymore.
       list.innerHTML = followups.map(f => {
         const who = (f.reps || []).map(r => r.split(' ').map(w => w[0]).join('')).join(', ');
-        const when = f.diffDays === 0 ? ('Due today' + (f.dueTime ? ' · ' + tvFmtTimeShort(f.dueTime) : '')) : `${f.diffDays}d overdue`;
+        const prefix = f.kind === 'followup' ? 'Follow up: ' : '';
+        const when = f.diffDays === 0
+          ? ((f.kind === 'followup' ? 'Today' : 'Due today') + (f.dueTime ? ' · ' + tvFmtTimeShort(f.dueTime) : ''))
+          : `${f.diffDays}d overdue`;
         const whenClass = f.diffDays === 0 ? 'today' : '';
-        return `<li><span class="followup-name">${escapeHtml(f.name)}${who ? ' — ' + who : ''}</span><span class="followup-when ${whenClass}">${when}</span></li>`;
+        return `<li><span class="followup-name">${prefix}${escapeHtml(f.name)}${who ? ' — ' + who : ''}</span><span class="followup-when ${whenClass}">${when}</span></li>`;
       }).join('');
       // fresh content each refresh — restart the auto-scroll cycle from the top
       list.scrollTop = 0;

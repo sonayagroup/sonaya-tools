@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.09.24C -->
+<!-- v2026.09.24D -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -1216,7 +1216,7 @@ body {
           </table>
         </div>
         <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">
-          Break-even = Fixed Costs &divide; Contribution Margin %. Variable costs include COGS, Ad &amp; Royalty fees, CC fees, 3rd-party delivery. Fixed costs include payroll, occupancy, utilities, maintenance, insurance, interest, plus equal corporate overhead allocation ($4,278/store/mo). Payroll treated as fully fixed (simplification — actual break-even likely lower). Daily uses 30.44 days/month; hourly assumes 16 operating hours/day. Averages are weighted across all uploaded P&amp;L periods; add new months to extend.
+          Break-even = Fixed Costs &divide; Contribution Margin %. Variable costs include COGS, Ad &amp; Royalty fees, CC fees, 3rd-party delivery. Fixed costs include payroll, occupancy, utilities, maintenance, insurance, interest, plus equal corporate overhead allocation ($4,278/store/mo). Payroll treated as fully fixed (simplification — actual break-even likely lower). Daily uses 30.44 days/month; hourly assumes 16 operating hours/day. GCA Break-Even = break-even daily revenue &divide; avg daily transactions; GCA Gap shows how much each ticket is above (+) or below (&minus;) break-even. Averages are weighted across all uploaded P&amp;L periods; add new months to extend.
         </p>
       </div>
     </div>
@@ -5754,6 +5754,19 @@ function computeBreakeven() {
     const beInclDaily = cm > 0 ? ((fixed + corpOH) / daysPerMonth) / cm : Infinity;
     const hourlyRev = dailyRev / hoursPerDay;
     const beInclHourly = cm > 0 ? ((fixed + corpOH) / daysPerMonth / hoursPerDay) / cm : Infinity;
+
+    // GCA break-even: compute avg daily transactions from realSalesDaily
+    const allDates = Object.keys(dataStore.realSalesDaily || {});
+    let transDays = 0, transTotal = 0;
+    for (const dt of allDates) {
+      const dayData = dataStore.realSalesDaily[dt][sid];
+      if (dayData && dayData.trans > 0) { transTotal += dayData.trans; transDays++; }
+    }
+    const avgDailyTrans = transDays > 0 ? transTotal / transDays : 0;
+    const currentGCA = avgDailyTrans > 0 ? dailyRev / avgDailyTrans : 0;
+    const beGCA = avgDailyTrans > 0 ? beInclDaily / avgDailyTrans : 0;
+    const gcaGap = currentGCA - beGCA; // positive = above BE, negative = need higher GCA
+
     stores[sid] = {
       revPerMonth: rev, varCostPct: vp, contribMarginPct: 100 - vp,
       fixedPerMonth: fixed, breakEvenExclCorp: beExcl,
@@ -5762,6 +5775,7 @@ function computeBreakeven() {
       cushionGapWeekly: weeklyRev - beInclWk,
       dailyRev, breakEvenDaily: beInclDaily, cushionGapDaily: dailyRev - beInclDaily,
       hourlyRev, breakEvenHourly: beInclHourly, cushionGapHourly: hourlyRev - beInclHourly,
+      avgDailyTrans, currentGCA, beGCA, gcaGap,
     };
   }
 
@@ -5782,7 +5796,7 @@ function renderBreakeven() {
   }
 
   const storeId = state.finStore || 'all';
-  if (subtitleEl) subtitleEl.textContent = `Break-even at monthly, weekly, daily & hourly intervals (incl. corporate overhead, 16 hrs/day) — ${be.periodLabel}`;
+  if (subtitleEl) subtitleEl.textContent = `Break-even at monthly, weekly, daily & hourly intervals plus GCA target (incl. corporate overhead, 16 hrs/day) — ${be.periodLabel}`;
 
   // Build store list
   const storeEntries = storeId !== 'all'
@@ -5790,7 +5804,7 @@ function renderBreakeven() {
     : Object.entries(be.stores);
 
   if (storeEntries.length === 0) {
-    headEl.innerHTML = ''; bodyEl.innerHTML = '<tr><td colspan="16" style="text-align:center;color:var(--text-muted);">No break-even data for this store.</td></tr>';
+    headEl.innerHTML = ''; bodyEl.innerHTML = '<tr><td colspan="19" style="text-align:center;color:var(--text-muted);">No break-even data for this store.</td></tr>';
     return;
   }
 
@@ -5807,6 +5821,7 @@ function renderBreakeven() {
     <th colspan="3" style="${thGrp}">Weekly<br>Break-Even</th>
     <th colspan="3" style="${thGrp}">Daily<br>Break-Even</th>
     <th colspan="3" style="${thGrp}">Hourly<br>Break-Even</th>
+    <th colspan="3" style="${thGrp}">GCA<br>Break-Even</th>
     <th colspan="3" style="${thGrp}">Cost<br>Structure</th>
   </tr><tr>
     <th style="${thSub}">Avg Rev</th>
@@ -5821,6 +5836,9 @@ function renderBreakeven() {
     <th style="${thSub}">Avg Rev</th>
     <th style="${thSub}">Break-Even</th>
     <th style="${thSub}">Cushion / (Gap)</th>
+    <th style="${thSub}">Curr GCA</th>
+    <th style="${thSub}">BE GCA</th>
+    <th style="${thSub}">GCA Gap</th>
     <th style="${thSub}">Contrib<br>Margin %</th>
     <th style="${thSub}">Var<br>Cost %</th>
     <th style="${thSub}">Fixed<br>Cost/mo</th>
@@ -5841,6 +5859,8 @@ function renderBreakeven() {
     const dyCgText = (s.cushionGapDaily >= 0 ? '+' : '') + fmtDollar(s.cushionGapDaily);
     const hrCgColor = s.cushionGapHourly >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
     const hrCgText = (s.cushionGapHourly >= 0 ? '+' : '') + fmtDollar(s.cushionGapHourly);
+    const gcaColor = s.gcaGap >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
+    const gcaText = s.avgDailyTrans > 0 ? ((s.gcaGap >= 0 ? '+' : '') + fmtDollar(s.gcaGap)) : '—';
     return `<tr>
       <td>${s.name} (${s.id})</td>
       <td style="text-align:right;">${fmtDollar(s.revPerMonth)}</td>
@@ -5855,6 +5875,9 @@ function renderBreakeven() {
       <td style="text-align:right;">${fmtDollar(s.hourlyRev)}</td>
       <td style="text-align:right;">${fmtDollar(s.breakEvenHourly)}</td>
       <td style="text-align:right;${hrCgColor};font-weight:600;">${hrCgText}</td>
+      <td style="text-align:right;">${s.avgDailyTrans > 0 ? fmtDollar(s.currentGCA) : '—'}</td>
+      <td style="text-align:right;">${s.avgDailyTrans > 0 ? fmtDollar(s.beGCA) : '—'}</td>
+      <td style="text-align:right;${gcaColor};font-weight:600;">${gcaText}</td>
       <td style="text-align:right;">${s.contribMarginPct.toFixed(1)}%</td>
       <td style="text-align:right;">${s.varCostPct.toFixed(1)}%</td>
       <td style="text-align:right;">${fmtDollar(s.fixedPerMonth + be.corpOverheadPerStore)}</td>
@@ -5870,6 +5893,11 @@ function renderBreakeven() {
   const totHrRev = sorted.reduce((s, r) => s + r.hourlyRev, 0);
   const totHrBE = sorted.reduce((s, r) => s + r.breakEvenHourly, 0);
   const totHrCG = sorted.reduce((s, r) => s + r.cushionGapHourly, 0);
+  // Portfolio GCA: weighted avg across stores (total daily rev / total daily trans)
+  const totDailyTrans = sorted.reduce((s, r) => s + r.avgDailyTrans, 0);
+  const portGCA = totDailyTrans > 0 ? totDyRev / totDailyTrans : 0;
+  const portBEGCA = totDailyTrans > 0 ? totDyBE / totDailyTrans : 0;
+  const portGCAGap = portGCA - portBEGCA;
 
   bodyEl.innerHTML += `<tr style="background:var(--surface-chart);font-weight:700;">
     <td>Portfolio (${sorted.length} stores)</td>
@@ -5885,6 +5913,9 @@ function renderBreakeven() {
     <td style="text-align:right;">${fmtDollar(totHrRev)}</td>
     <td style="text-align:right;">${fmtDollar(totHrBE)}</td>
     <td style="text-align:right;${totHrCG >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'};font-weight:700;">${(totHrCG >= 0 ? '+' : '') + fmtDollar(totHrCG)}</td>
+    <td style="text-align:right;">${totDailyTrans > 0 ? fmtDollar(portGCA) : '—'}</td>
+    <td style="text-align:right;">${totDailyTrans > 0 ? fmtDollar(portBEGCA) : '—'}</td>
+    <td style="text-align:right;${portGCAGap >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'};font-weight:700;">${totDailyTrans > 0 ? ((portGCAGap >= 0 ? '+' : '') + fmtDollar(portGCAGap)) : '—'}</td>
     <td style="text-align:right;">—</td>
     <td style="text-align:right;">—</td>
     <td style="text-align:right;">${fmtDollar(totFixed)}</td>

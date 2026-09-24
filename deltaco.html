@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.09.24A -->
+<!-- v2026.09.24B -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -1216,7 +1216,7 @@ body {
           </table>
         </div>
         <p style="font-size:11px;color:var(--text-muted);margin-top:8px;">
-          Break-even = Fixed Costs &divide; Contribution Margin %. Variable costs include COGS, Ad &amp; Royalty fees, CC fees, 3rd-party delivery. Fixed costs include payroll, occupancy, utilities, maintenance, insurance, interest, plus equal corporate overhead allocation ($4,278/store/mo). Payroll treated as fully fixed (simplification — actual break-even likely lower). Averages are weighted across all uploaded P&amp;L periods; add new months to extend.
+          Break-even = Fixed Costs &divide; Contribution Margin %. Variable costs include COGS, Ad &amp; Royalty fees, CC fees, 3rd-party delivery. Fixed costs include payroll, occupancy, utilities, maintenance, insurance, interest, plus equal corporate overhead allocation ($4,278/store/mo). Payroll treated as fully fixed (simplification — actual break-even likely lower). Daily uses 30.44 days/month; hourly assumes 16 operating hours/day. Averages are weighted across all uploaded P&amp;L periods; add new months to extend.
         </p>
       </div>
     </div>
@@ -5748,12 +5748,20 @@ function computeBreakeven() {
     const weeklyRev = rev / (52/12);
     const beExclWk = cm > 0 ? (fixed / (52/12)) / cm : Infinity;
     const beInclWk = cm > 0 ? ((fixed + corpOH) / (52/12)) / cm : Infinity;
+    const daysPerMonth = 30.44;
+    const hoursPerDay = 16; // Del Taco typical operating hours
+    const dailyRev = rev / daysPerMonth;
+    const beInclDaily = cm > 0 ? ((fixed + corpOH) / daysPerMonth) / cm : Infinity;
+    const hourlyRev = dailyRev / hoursPerDay;
+    const beInclHourly = cm > 0 ? ((fixed + corpOH) / daysPerMonth / hoursPerDay) / cm : Infinity;
     stores[sid] = {
       revPerMonth: rev, varCostPct: vp, contribMarginPct: 100 - vp,
       fixedPerMonth: fixed, breakEvenExclCorp: beExcl,
       breakEvenInclCorp: beIncl, cushionGap: rev - beIncl,
       weeklyRev: weeklyRev, breakEvenWeekly: beInclWk,
       cushionGapWeekly: weeklyRev - beInclWk,
+      dailyRev, breakEvenDaily: beInclDaily, cushionGapDaily: dailyRev - beInclDaily,
+      hourlyRev, breakEvenHourly: beInclHourly, cushionGapHourly: hourlyRev - beInclHourly,
     };
   }
 
@@ -5774,7 +5782,7 @@ function renderBreakeven() {
   }
 
   const storeId = state.finStore || 'all';
-  if (subtitleEl) subtitleEl.textContent = `Monthly & weekly avg revenue vs break-even (incl. corporate overhead) — ${be.periodLabel}`;
+  if (subtitleEl) subtitleEl.textContent = `Break-even at monthly, weekly, daily & hourly intervals (incl. corporate overhead, 16 hrs/day) — ${be.periodLabel}`;
 
   // Build store list
   const storeEntries = storeId !== 'all'
@@ -5782,7 +5790,7 @@ function renderBreakeven() {
     : Object.entries(be.stores);
 
   if (storeEntries.length === 0) {
-    headEl.innerHTML = ''; bodyEl.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);">No break-even data for this store.</td></tr>';
+    headEl.innerHTML = ''; bodyEl.innerHTML = '<tr><td colspan="16" style="text-align:center;color:var(--text-muted);">No break-even data for this store.</td></tr>';
     return;
   }
 
@@ -5795,6 +5803,8 @@ function renderBreakeven() {
     <th rowspan="2" style="vertical-align:bottom;">Store</th>
     <th colspan="3" style="text-align:center;border-bottom:2px solid var(--border);font-size:13px;letter-spacing:0.3px;text-transform:uppercase;padding-bottom:4px;">Monthly Break-Even</th>
     <th colspan="3" style="text-align:center;border-bottom:2px solid var(--border);font-size:13px;letter-spacing:0.3px;text-transform:uppercase;padding-bottom:4px;">Weekly Break-Even</th>
+    <th colspan="3" style="text-align:center;border-bottom:2px solid var(--border);font-size:13px;letter-spacing:0.3px;text-transform:uppercase;padding-bottom:4px;">Daily Break-Even</th>
+    <th colspan="3" style="text-align:center;border-bottom:2px solid var(--border);font-size:13px;letter-spacing:0.3px;text-transform:uppercase;padding-bottom:4px;">Hourly Break-Even</th>
     <th colspan="3" style="text-align:center;border-bottom:2px solid var(--border);font-size:13px;letter-spacing:0.3px;text-transform:uppercase;padding-bottom:4px;">Cost Structure</th>
   </tr><tr>
     <th style="text-align:right;">Avg Revenue</th>
@@ -5803,6 +5813,12 @@ function renderBreakeven() {
     <th style="text-align:right;">Avg Revenue</th>
     <th style="text-align:right;">Break-Even</th>
     <th style="text-align:right;">Wk. Cushion / (Gap)</th>
+    <th style="text-align:right;">Avg Revenue</th>
+    <th style="text-align:right;">Break-Even</th>
+    <th style="text-align:right;">Daily Cushion / (Gap)</th>
+    <th style="text-align:right;">Avg Revenue</th>
+    <th style="text-align:right;">Break-Even</th>
+    <th style="text-align:right;">Hr. Cushion / (Gap)</th>
     <th style="text-align:right;">Contrib Margin %</th>
     <th style="text-align:right;">Variable Cost %</th>
     <th style="text-align:right;">Fixed Cost/mo</th>
@@ -5819,6 +5835,10 @@ function renderBreakeven() {
     const cgText = (isAbove ? '+' : '') + fmtDollar(s.cushionGap);
     const wkCgColor = s.cushionGapWeekly >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
     const wkCgText = (s.cushionGapWeekly >= 0 ? '+' : '') + fmtDollar(s.cushionGapWeekly);
+    const dyCgColor = s.cushionGapDaily >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
+    const dyCgText = (s.cushionGapDaily >= 0 ? '+' : '') + fmtDollar(s.cushionGapDaily);
+    const hrCgColor = s.cushionGapHourly >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)';
+    const hrCgText = (s.cushionGapHourly >= 0 ? '+' : '') + fmtDollar(s.cushionGapHourly);
     return `<tr>
       <td>${s.name} (${s.id})</td>
       <td style="text-align:right;">${fmtDollar(s.revPerMonth)}</td>
@@ -5827,6 +5847,12 @@ function renderBreakeven() {
       <td style="text-align:right;">${fmtDollar(s.weeklyRev)}</td>
       <td style="text-align:right;">${fmtDollar(s.breakEvenWeekly)}</td>
       <td style="text-align:right;${wkCgColor};font-weight:600;">${wkCgText}</td>
+      <td style="text-align:right;">${fmtDollar(s.dailyRev)}</td>
+      <td style="text-align:right;">${fmtDollar(s.breakEvenDaily)}</td>
+      <td style="text-align:right;${dyCgColor};font-weight:600;">${dyCgText}</td>
+      <td style="text-align:right;">${fmtDollar(s.hourlyRev)}</td>
+      <td style="text-align:right;">${fmtDollar(s.breakEvenHourly)}</td>
+      <td style="text-align:right;${hrCgColor};font-weight:600;">${hrCgText}</td>
       <td style="text-align:right;">${s.contribMarginPct.toFixed(1)}%</td>
       <td style="text-align:right;">${s.varCostPct.toFixed(1)}%</td>
       <td style="text-align:right;">${fmtDollar(s.fixedPerMonth + be.corpOverheadPerStore)}</td>
@@ -5836,6 +5862,12 @@ function renderBreakeven() {
   const totWkRev = sorted.reduce((s, r) => s + r.weeklyRev, 0);
   const totWkBE = sorted.reduce((s, r) => s + r.breakEvenWeekly, 0);
   const totWkCG = sorted.reduce((s, r) => s + r.cushionGapWeekly, 0);
+  const totDyRev = sorted.reduce((s, r) => s + r.dailyRev, 0);
+  const totDyBE = sorted.reduce((s, r) => s + r.breakEvenDaily, 0);
+  const totDyCG = sorted.reduce((s, r) => s + r.cushionGapDaily, 0);
+  const totHrRev = sorted.reduce((s, r) => s + r.hourlyRev, 0);
+  const totHrBE = sorted.reduce((s, r) => s + r.breakEvenHourly, 0);
+  const totHrCG = sorted.reduce((s, r) => s + r.cushionGapHourly, 0);
 
   bodyEl.innerHTML += `<tr style="background:var(--surface-chart);font-weight:700;">
     <td>Portfolio (${sorted.length} stores)</td>
@@ -5845,6 +5877,12 @@ function renderBreakeven() {
     <td style="text-align:right;">${fmtDollar(totWkRev)}</td>
     <td style="text-align:right;">${fmtDollar(totWkBE)}</td>
     <td style="text-align:right;${totWkCG >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'};font-weight:700;">${(totWkCG >= 0 ? '+' : '') + fmtDollar(totWkCG)}</td>
+    <td style="text-align:right;">${fmtDollar(totDyRev)}</td>
+    <td style="text-align:right;">${fmtDollar(totDyBE)}</td>
+    <td style="text-align:right;${totDyCG >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'};font-weight:700;">${(totDyCG >= 0 ? '+' : '') + fmtDollar(totDyCG)}</td>
+    <td style="text-align:right;">${fmtDollar(totHrRev)}</td>
+    <td style="text-align:right;">${fmtDollar(totHrBE)}</td>
+    <td style="text-align:right;${totHrCG >= 0 ? 'color:var(--delta-up-good)' : 'color:var(--delta-down-bad)'};font-weight:700;">${(totHrCG >= 0 ? '+' : '') + fmtDollar(totHrCG)}</td>
     <td style="text-align:right;">—</td>
     <td style="text-align:right;">—</td>
     <td style="text-align:right;">${fmtDollar(totFixed)}</td>

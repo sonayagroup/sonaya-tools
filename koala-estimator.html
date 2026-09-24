@@ -635,6 +635,29 @@ body.customer-mode .customer-total-box { display: block; }
   .btn-add, .btn-remove, .mode-toggle, .tab-add, .tab-close, .header-actions { display: none; }
   .internal-only { display: none !important; }
 }
+
+/* ── Labor Guidelines panel ── */
+.kg { background: #f5f9ee; border: 1px solid #d5e8b5; border-radius: 8px; padding: 10px 12px; margin: 6px 0 10px; font-size: .85rem; }
+.kg-hd { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; color: var(--navy); margin-bottom: 6px; }
+.kg-sub, .kg-muted { color: #6b7785; font-size: .76rem; font-weight: 400; }
+.kg-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
+.kg-row label { display: flex; gap: 5px; align-items: center; font-weight: 600; color: var(--navy); font-size: .8rem; }
+.kg input, .kg select { padding: 3px 5px; border: 1px solid var(--border); border-radius: 4px; font-size: .8rem; font-family: inherit; }
+.kg-adj { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 6px; }
+.kg-cb { display: inline-flex; gap: 4px; align-items: center; font-size: .78rem; cursor: pointer; white-space: nowrap; }
+.kg-lines { width: 100%; border-collapse: collapse; }
+.kg-lines td { padding: 4px 4px; border-top: 1px solid #e0ecd0; vertical-align: middle; }
+.kg-lines td.kg-fields { font-size: .78rem; }
+.kg-hrs { text-align: right; white-space: nowrap; min-width: 90px; }
+.kg-note { font-size: .68rem; color: #6b7785; white-space: normal; }
+.kg-res { margin-top: 8px; }
+.kg-sum { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 6px 8px; background: #fff; border-radius: 6px; border: 1px solid #d5e8b5; }
+.kg-apply { display: flex; gap: 10px; align-items: center; margin: 6px 0 2px; flex-wrap: wrap; }
+.kg-btn { background: var(--navy); color: #fff; border: none; border-radius: 5px; padding: 5px 12px; font-weight: 700; font-size: .8rem; cursor: pointer; font-family: inherit; }
+.kg-ok { color: var(--green-dark); font-weight: 700; font-size: .8rem; } .kg-diff { color: #b26a00; font-weight: 700; font-size: .8rem; }
+.kg-w { font-size: .76rem; padding: 3px 7px; border-radius: 4px; margin-top: 3px; }
+.kg-w.error { background: #fdecea; color: #c62828; } .kg-w.warn { background: #fff4e0; color: #b26a00; } .kg-w.info { background: #e8f1fb; color: #1d5fa8; }
+body.customer-mode .kg { display: none; }
 </style>
 </head>
 <body>
@@ -964,6 +987,370 @@ body.customer-mode .customer-total-box { display: block; }
   </div><!-- .sidebar -->
 </div><!-- .app -->
 
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+// LABOR GUIDELINES (Install Time & Service Guidelines) — per-option calculator
+// Suggests labor from the guidelines and can fill the Labor rows below it.
+// Production rates are shared with the Koala Estimator App (koala_v2_settings).
+// ════════════════════════════════════════════════════════════════════════════
+const KG = (() => {
+  const g = id => document.getElementById(id);
+  const n = v => { const x = parseFloat(v); return isFinite(x) ? x : 0; };
+  const f1 = x => (Math.round(x * 10) / 10).toLocaleString('en-US');
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  let R = {
+    production: 'fast', stdCrew: 2, hoursPerDay: 8,
+    battWall: { heightBreak: 10, low: [2000, 2500], high: [1500, 2000], scaffoldPct: 15 },
+    battCeiling: { heightBreak: 10, low: [1500, 2000], high: [1000, 1500] },
+    netBlow: { heightBreak: 12, low: [4000, 5000], high: [2000, 2500] },
+    openAttic: [[2000, 4], [4000, 6]],
+    tightAttic: { base: 6, baseMaxSqft: 2000, addHrsPer500: 0.5 },
+    atticRemoval: [[1500, 12], [2500, 16], [3500, 24]],
+    crawlBatt: [[1500, 6], [2500, 8], [3500, 10]],
+    crawlRemoval: [[1500, 6], [2500, 8], [3500, 10]],
+    crawlFoundationSpf: [[1500, 4], [2500, 5], [3500, 6]],
+    encapsulation: [[1500, 6], [2500, 8], [3500, 10]],
+    crawlJoistSpf: [[1500, 6], [2500, 8], [3500, 10]],
+    densePackHrsPerInstallerDay: 8,
+    tableRangePct: 15,
+    spf: { heightBreak: 12, setYield: { oc: 16000, cc: 4500 }, hrs: { wood_low: 15, metal_low: 20, wood_high: 18, metal_high: 24, ocWallsShaved: 18, ccShaved: 24 } },
+    crewEfficiency: { 3: 0.89, 4: 0.85, 5: 0.80, 6: 0.78 },
+    adjustments: [
+      { key: 'framing', label: 'Framing complexity / limited access', min: 10, max: 20 },
+      { key: 'obstacles', label: 'Obstacles & site restrictions', min: 10, max: 25 },
+      { key: 'multistory', label: 'Multi-story / varying ceiling heights', min: 10, max: 30 },
+      { key: 'vaulted', label: 'Vaulted / cathedral ceilings', min: 10, max: 25 },
+      { key: 'adverse', label: 'Adverse work conditions', min: 5, max: 15 },
+      { key: 'access', label: 'Access opening smaller than 2′×2′', min: 10, max: 20 },
+    ],
+    ot: { maxOtPerDay: 2, reviewOver: 10, secondDayOver: 12 },
+    travel: { overnightDriveHrs: 2, overnightLaborHrs: 6, perDiem: 40, lodgingPerNight: 140, setupHrs: 0.5 },
+    bonuses: { crawl: 100, contamination: 250, tightAttic: 50 },
+  };
+
+  const METHODS = {
+    open_attic:      { label: 'Attic blow-in — open / walkable', area: 'ceiling' },
+    tight_attic:     { label: 'Attic blow-in — TIGHT attic', area: 'ceiling' },
+    attic_removal:   { label: 'Attic insulation removal', area: 'ceiling' },
+    dense_pack:      { label: 'Dense pack walls/ceiling (full day)', area: 'wall' },
+    net_blow:        { label: 'Net & Blow (netting + blown sf)', area: 'wall' },
+    batt_wall:       { label: 'Batt — walls', area: 'wall' },
+    batt_ceiling:    { label: 'Batt — ceiling', area: 'ceiling' },
+    spf:             { label: 'Spray foam (per set)', area: 'spf' },
+    crawl_batt:      { label: 'Crawlspace batt install', area: 'ceiling' },
+    crawl_removal:   { label: 'Crawlspace insulation removal', area: 'ceiling' },
+    crawl_found_spf: { label: 'Crawlspace foundation wall SPF (CC)', area: 'wall' },
+    encapsulation:   { label: 'Crawlspace encapsulation', area: 'ceiling' },
+    crawl_joist_spf: { label: 'Crawlspace floor-joist SPF', area: 'ceiling' },
+    custom:          { label: 'Other — enter hours', area: 'none' },
+  };
+  const JOB_DEFAULTS = {
+    attic: ['open_attic'], densepack: ['dense_pack'], netblow: ['net_blow'], removal: ['attic_removal'],
+    metal: ['spf'], shed: ['spf'], crawlspace: ['crawl_batt'], mobilehome: ['crawl_batt'], other: ['custom'],
+  };
+
+  function newGuide() { return { crew: 2, driveHrs: '', overnight: 'auto', adj: {}, lines: [], jobType: null }; }
+  function newLine(method, jobType) {
+    return { id: Math.random().toString(36).slice(2, 8), method, sqft: '', height: '', bdft: '', spfType: '', frame: jobType === 'metal' ? 'metal' : 'wood',
+      surface: 'walls', shaving: false, days: 1, clearance: '', contamination: false, entering: 1, manual: '', scaffold: false, auto: true };
+  }
+
+  // ─── context from the V1 form ───
+  function ctxFor(opt) {
+    const c = getOptionJobContext(opt);
+    const p = optPrefixFor(opt);
+    const spf = { cc: 0, oc: 0 };
+    opt.rows.spf.forEach(id => {
+      const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${id}"]`);
+      const qty = n(document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${id}"]`)?.value);
+      if (sel && sel.value !== '') spf[SPF_TYPES[parseInt(sel.value)].name.includes('Open') ? 'oc' : 'cc'] += qty;
+    });
+    return { ...c, spf };
+  }
+  function autoSqft(line, ctx) {
+    const a = METHODS[line.method].area;
+    return a === 'ceiling' ? ctx.ceilingArea : a === 'wall' ? ctx.wallArea : 0;
+  }
+  function spfTypeFor(line, ctx) { return line.spfType || (ctx.spf.oc > ctx.spf.cc ? 'oc' : 'cc'); }
+
+  // ─── engine ───
+  function table(t, sf) {
+    for (const [max, h] of t) if (sf <= max) return { h, beyond: false };
+    const a = t[t.length - 1], b = t[t.length - 2] || [0, 0];
+    return { h: a[1] + (sf - a[0]) * (a[1] - b[1]) / Math.max(1, a[0] - b[0]), beyond: true };
+  }
+  const pick = pair => R.production === 'slow' ? pair[0] : R.production === 'mid' ? (pair[0] + pair[1]) / 2 : pair[1];
+
+  function lineCalc(line, ctx) {
+    const S = R.stdCrew, out = { hrs: 0, lo: 0, hi: 0, note: '', warn: [], bonus: {} };
+    const sf = line.sqft === '' || line.sqft == null ? autoSqft(line, ctx) : n(line.sqft);
+    out.sf = sf;
+    const h = n(line.height) || 8;
+    const rng = v => { out.hrs = out.lo = v; out.hi = v * (1 + R.tableRangePct / 100); };
+    const tbl = (t, label) => { const r = table(t, sf); rng(r.h * S); out.note = `${f1(r.h)} hrs/installer × ${S}`; if (r.beyond) out.warn.push(['warn', `${label}: ${sf.toLocaleString()} sf is beyond the guideline table — extrapolated, review.`]); };
+    switch (line.method) {
+      case 'open_attic': tbl(R.openAttic, 'Open attic'); break;
+      case 'tight_attic': {
+        const per = R.tightAttic.base + Math.ceil(Math.max(0, sf - R.tightAttic.baseMaxSqft) / 500) * R.tightAttic.addHrsPer500;
+        rng(per * S); out.note = `${f1(per)} hrs/installer × ${S}`; out.bonus.tight = Math.max(0, parseInt(line.entering) || 0);
+        out.warn.push(['info', 'Note "Tight Attic" in the proposal/job notes and tell the customer air sealing/baffles may be limited.']);
+        break;
+      }
+      case 'attic_removal':
+        tbl(R.atticRemoval, 'Attic removal');
+        if (line.clearance !== '' && n(line.clearance) < 36) out.warn.push(['error', 'Attic removal needs 36″ clearance throughout — management approval required.']);
+        if (line.contamination) { out.bonus.contam = true; out.warn.push(['warn', 'Contamination: customer remediates first (Koala does not). $250/crew bonus.']); }
+        break;
+      case 'dense_pack': { const d = Math.max(0.5, n(line.days) || 1); rng(d * R.densePackHrsPerInstallerDay * S); out.note = `${d} full day(s) × 8 hrs × ${S}`;
+        out.warn.push(['info', 'Tell the customer: drilling & insulating only — no patching, texture or paint; extra holes may be needed.']); break; }
+      case 'net_blow': case 'batt_wall': case 'batt_ceiling': {
+        const cfg = line.method === 'net_blow' ? R.netBlow : line.method === 'batt_wall' ? R.battWall : R.battCeiling;
+        const area = line.method === 'net_blow' ? sf * 2 : sf;            // netting sf + blown sf (netting ≈ gross wall area)
+        const pair = h > cfg.heightBreak ? cfg.high : cfg.low;
+        const rate = pick(pair);
+        let v = area / rate * 8, lo = area / pair[1] * 8, hi = area / pair[0] * 8;
+        if (line.method === 'batt_wall' && h > cfg.heightBreak && line.scaffold) { const k = 1 + cfg.scaffoldPct / 100; v *= k; lo *= k; hi *= k; }
+        out.hrs = v; out.lo = lo; out.hi = hi;
+        out.note = `${area.toLocaleString()} sf ÷ ${rate.toLocaleString()} sf/installer-day × 8${line.method === 'net_blow' ? ' (netting + blown)' : ''}`;
+        break;
+      }
+      case 'spf': {
+        const type = spfTypeFor(line, ctx);
+        const bd = line.bdft === '' || line.bdft == null ? ctx.spf[type] : n(line.bdft);
+        const sets = bd / R.spf.setYield[type];
+        const H = R.spf.hrs, hi = h > R.spf.heightBreak, metal = line.frame === 'metal';
+        let per;
+        if (type === 'cc' && line.shaving) per = H.ccShaved;
+        else if (type === 'oc' && line.surface === 'walls' && line.shaving) per = H.ocWallsShaved;
+        else per = H[(metal ? 'metal' : 'wood') + (hi ? '_high' : '_low')];
+        rng(sets * per * 2);
+        out.note = `${Math.round(bd).toLocaleString()} bd ft ÷ ${R.spf.setYield[type].toLocaleString()} = ${sets.toFixed(2)} sets × ${per} hrs × 2`;
+        if (!bd) out.warn.push(['info', 'Add spray foam board feet above (or type bd ft here).']);
+        if (metal && line.shaving) out.warn.push(['info', 'Metal buildings are normally not shaved — confirm the customer requires it.']);
+        if (type === 'cc' && line.shaving) out.warn.push(['warn', 'Avoid shaving closed cell unless required.']);
+        out.warn.push(['info', 'If foam stays exposed, recommend DC-315 (or acrylic latex paint where code allows).']);
+        break;
+      }
+      case 'crawl_batt': case 'crawl_removal': case 'encapsulation': case 'crawl_found_spf': case 'crawl_joist_spf': {
+        const t = { crawl_batt: R.crawlBatt, crawl_removal: R.crawlRemoval, encapsulation: R.encapsulation, crawl_found_spf: R.crawlFoundationSpf, crawl_joist_spf: R.crawlJoistSpf }[line.method];
+        tbl(t, 'Crawlspace'); out.bonus.crawl = true;
+        const need = ['crawl_batt', 'crawl_removal'].includes(line.method) ? 24 : 36;
+        if (line.clearance === '') out.warn.push(['info', `Enter crawlspace clearance — minimum ${need}″ for this scope.`]);
+        else if (n(line.clearance) < need) out.warn.push(['error', `Needs ≥ ${need}″ clearance — management approval & willing crew required.`]);
+        if (line.contamination) { out.bonus.contam = true; out.warn.push(['warn', 'Contamination: remediation by others before work. $250/crew bonus.']); }
+        break;
+      }
+      case 'custom': out.hrs = out.lo = out.hi = n(line.manual); out.note = 'hours entered'; break;
+    }
+    return out;
+  }
+
+  function calc(opt) {
+    const G = opt.guide, ctx = ctxFor(opt);
+    const lines = G.lines.map(l => ({ l, r: lineCalc(l, ctx) }));
+    const adj = Object.values(G.adj).reduce((a, v) => a + n(v), 0), k = 1 + adj / 100;
+    const L = lines.reduce((a, x) => a + x.r.hrs, 0) * k, Llo = lines.reduce((a, x) => a + x.r.lo, 0) * k, Lhi = lines.reduce((a, x) => a + x.r.hi, 0) * k;
+    const C = Math.max(1, parseInt(G.crew) || 2), eff = C <= 2 ? 1 : (R.crewEfficiency[C] || 0.78);
+    const H = L / (C * eff);
+    let days = 1, ot = 0;
+    if (H > 8) { const full = Math.floor(H / 8), rem = H - 8 * full; if (rem < 0.01) days = full; else if (rem <= R.ot.maxOtPerDay) { days = full; ot = rem; } else days = full + 1; }
+    const D = n(G.driveHrs);
+    const overnight = G.overnight === 'yes' || (G.overnight !== 'no' && D > R.travel.overnightDriveHrs && H > R.travel.overnightLaborHrs);
+    const nights = overnight ? Math.max(1, days - 1) : 0, trips = overnight ? 1 : days;
+    const crewDay = (overnight ? D : 2 * D) + (days ? H / days : H) + R.travel.setupHrs;
+    const anyC = lines.some(x => x.r.bonus.contam), anyCr = lines.some(x => x.r.bonus.crawl);
+    const tight = Math.max(0, ...lines.map(x => x.r.bonus.tight || 0));
+    const perPerson = anyC ? R.bonuses.contamination : anyCr ? R.bonuses.crawl : 0;
+    const warn = [];
+    if (C < 2) warn.push(['error', 'Guidelines assume at least two experienced installers (a helper/new hire is not a second installer).']);
+    if (C < 2 && lines.some(x => x.l.method === 'spf')) warn.push(['error', 'Spray foam always requires 2 installers.']);
+    if (ot) warn.push(['info', `${f1(H)} on-site hrs → ${days} day(s) + ${f1(ot)} hrs OT (1–2 hrs OT beats a second trip).`]);
+    if (crewDay > R.ot.secondDayOver) warn.push(['error', `Crew day ≈ ${f1(crewDay)} hrs incl. drive — 12+ hrs requires overnight or multi-day.`]);
+    else if (crewDay > R.ot.reviewOver) warn.push(['warn', `Crew day ≈ ${f1(crewDay)} hrs incl. drive — review OT vs. overnight / second day.`]);
+    if (D > R.travel.overnightDriveHrs && H > R.travel.overnightLaborHrs && G.overnight === 'no') warn.push(['warn', 'More than 2 hrs away with 6+ hrs on site — guideline calls for an overnight stay or a review.']);
+    if (ctx.jobType === 'mobilehome') warn.push(['error', 'Mobile home: do NOT service unless management approves — permanent foundation, 36″+ clearance, no rodents, safe access, good condition.']);
+    return { ctx, lines, adj, L, Llo, Lhi, C, eff, H, days, ot, reg: H - ot, D, overnight, nights, trips, crewDay, perPerson, tight, warn };
+  }
+
+  // ─── UI ───
+  function fieldsFor(l, ctx) {
+    const P = `data-kl="${l.id}"`;
+    const inp = (k, ph, w, step) => `<input type="number" ${P} data-k="${k}" value="${esc(l[k])}" placeholder="${esc(ph)}" step="${step || 'any'}" style="width:${w || 64}px" title="${esc(ph)}">`;
+    const cb = (k, label) => `<label class="kg-cb"><input type="checkbox" ${P} data-k="${k}" ${l[k] ? 'checked' : ''}>${label}</label>`;
+    const sel = (k, opts) => `<select ${P} data-k="${k}" data-struct="1">${opts.map(([v, t]) => `<option value="${v}" ${String(l[k]) === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+    const m = l.method, bits = [];
+    if (['batt_wall', 'batt_ceiling', 'net_blow', 'spf'].includes(m)) bits.push(inp('height', 'Height ft (8)', 66));
+    if (m === 'batt_wall') bits.push(cb('scaffold', 'Scaffold/stilts'));
+    if (m === 'dense_pack') bits.push(inp('days', 'Days', 50, '0.5') + ' day(s)');
+    if (m === 'tight_attic') bits.push(inp('entering', 'Installers entering', 50) + ' entering');
+    if (m === 'spf') {
+      bits.push(sel('spfType', [['', 'Foam: auto'], ['oc', 'Open cell'], ['cc', 'Closed cell']]), sel('surface', [['walls', 'Walls'], ['ceiling', 'Ceiling/roof']]), sel('frame', [['wood', 'Wood frame'], ['metal', 'Metal frame']]), cb('shaving', 'Shaved'));
+    }
+    if (['attic_removal', 'crawl_batt', 'crawl_removal', 'encapsulation', 'crawl_found_spf', 'crawl_joist_spf'].includes(m)) bits.push(inp('clearance', 'Clearance in', 70) + '″');
+    if (['attic_removal', 'crawl_batt', 'crawl_removal', 'encapsulation'].includes(m)) bits.push(cb('contamination', 'Rodent/contam.'));
+    if (m === 'custom') bits.push(inp('manual', 'Total labor hrs', 80) + ' labor hrs');
+    return bits.join(' ');
+  }
+
+  function render(opt) {
+    const p = optPrefixFor(opt), el = g(p + 'kg'); if (!el) return;
+    if (!opt.guide) opt.guide = newGuide();
+    const G = opt.guide, ctx = ctxFor(opt);
+    syncJobType(opt, ctx);
+    el.innerHTML = `
+      <div class="kg-hd"><b>📐 Labor Guidelines</b><span class="kg-sub">Install Time &amp; Service Guidelines — suggested labor, then “Apply” fills the crew rows below</span></div>
+      <div class="kg-row">
+        <label>Crew <input type="number" data-kg="crew" value="${esc(G.crew)}" min="1" style="width:48px"></label>
+        <label>Drive one-way (hrs) <input type="number" data-kg="driveHrs" value="${esc(G.driveHrs)}" step="0.25" placeholder="0" style="width:58px"></label>
+        <label>Overnight <select data-kg="overnight">${[['auto', 'Auto'], ['yes', 'Yes'], ['no', 'No']].map(([v, t]) => `<option value="${v}" ${G.overnight === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+      </div>
+      <div class="kg-adj">${R.adjustments.map(a => { const on = G.adj[a.key] != null && G.adj[a.key] !== ''; return `<label class="kg-cb"><input type="checkbox" data-adj="${a.key}" ${on ? 'checked' : ''}>${esc(a.label)}${on ? ` <input type="number" data-adjv="${a.key}" value="${esc(G.adj[a.key])}" style="width:44px">%` : ` <span class="kg-muted">${a.min}–${a.max}%</span>`}</label>`; }).join('')}</div>
+      <table class="kg-lines"><tbody>
+        ${G.lines.map(l => { const a = METHODS[l.method].area; const autoV = a === 'spf' ? '' : autoSqft(l, ctx);
+          return `<tr data-line="${l.id}">
+          <td><select data-kl="${l.id}" data-k="method" data-struct="1">${Object.entries(METHODS).map(([k, m]) => `<option value="${k}" ${l.method === k ? 'selected' : ''}>${m.label}</option>`).join('')}</select></td>
+          <td>${a === 'spf' ? `<input type="number" data-kl="${l.id}" data-k="bdft" value="${esc(l.bdft)}" placeholder="bd ft: from foam rows" style="width:120px">` : a === 'none' ? '' : `<input type="number" data-kl="${l.id}" data-k="sqft" value="${esc(l.sqft)}" placeholder="${autoV ? autoV.toLocaleString() + ' (job ' + a + ')' : 'sq ft'}" style="width:120px">`}</td>
+          <td class="kg-fields">${fieldsFor(l, ctx)}</td>
+          <td class="kg-hrs" id="kgh-${l.id}"></td>
+          <td><button class="btn-remove" data-kgdel="${l.id}" title="Remove">&#10005;</button></td></tr>`; }).join('')}
+      </tbody></table>
+      <button class="btn-add" data-kgadd="1" style="margin-top:4px">+ Add labor scope</button>
+      <div class="kg-res" id="${p}kg-res"></div>`;
+    refresh(opt);
+  }
+
+  function syncJobType(opt, ctx) {
+    const G = opt.guide, jt = ctx.jobType || '';
+    if (G.jobType === jt) return false;
+    const untouched = G.lines.every(l => l.auto);
+    G.jobType = jt;
+    if (untouched) { G.lines = (JOB_DEFAULTS[jt] || []).map(m => newLine(m, jt)); return true; }
+    return false;
+  }
+
+  function laborRowsState(opt) {
+    const p = optPrefixFor(opt); let hrs = 0, ot = 0, n2 = 0;
+    opt.rows.labor.forEach(id => {
+      const lab = document.querySelector(`.${CSS.escape(p)}lb-label[data-id="${id}"]`)?.value || '';
+      if (/mobiliz/i.test(lab)) return;
+      n2++; hrs += n(document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${id}"]`)?.value); ot += n(document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${id}"]`)?.value);
+    });
+    return { hrs, ot, n: n2 };
+  }
+
+  function refresh(opt) {
+    if (!opt || !opt.guide) return;
+    const p = optPrefixFor(opt), res = g(p + 'kg-res'); if (!res) return;
+    const ctx = ctxFor(opt);
+    if (syncJobType(opt, ctx)) return render(opt);
+    const c = calc(opt);
+    c.lines.forEach(({ l, r }) => { const td = g('kgh-' + l.id); if (td) td.innerHTML = `<b>${f1(r.hrs * (1 + c.adj / 100))}</b> hrs<div class="kg-note">${esc(r.note)}</div>`; });
+    const w = [...c.warn, ...c.lines.flatMap(x => x.r.warn)];
+    const cur = laborRowsState(opt), guideTotal = (c.reg + c.ot) * c.C, curTotal = cur.hrs + cur.ot;
+    const match = c.L > 0 && Math.abs(curTotal - guideTotal) < 0.51;
+    const bonusTxt = c.perPerson || c.tight ? ` · Bonus: ${c.perPerson ? '$' + c.perPerson + '/installer' : ''}${c.perPerson && c.tight ? ' + ' : ''}${c.tight ? '$' + R.bonuses.tightAttic + ' × ' + c.tight + ' in attic' : ''}` : '';
+    const rangeLo = c.Llo / (c.C * c.eff), rangeHi = c.Lhi / (c.C * c.eff);
+    res.innerHTML = c.L ? `
+      <div class="kg-sum">
+        <span><b>${f1(c.L)}</b> labor hrs${c.adj ? ` (incl. +${c.adj}%)` : ''}</span>
+        <span><b>${f1(c.H)}</b> hrs/installer × ${c.C}${c.eff < 1 ? ` (${Math.round(c.eff * 100)}% eff.)` : ''}</span>
+        <span><b>${c.days}</b> day${c.days > 1 ? 's' : ''}${c.ot ? ` + <b>${f1(c.ot)}</b> OT` : ''}${c.D ? ` · crew day ≈ ${f1(c.crewDay)} h` : ''}${c.overnight ? ` · <b>${c.nights}</b> night${c.nights > 1 ? 's' : ''}` : ''}${bonusTxt}</span>
+        <span class="kg-muted">Customer range: ${rangeHi <= 8 ? `${f1(Math.max(1, Math.floor(rangeLo * 2) / 2))}–${f1(Math.ceil(rangeHi * 2) / 2)} hrs` : `${Math.max(1, Math.ceil(rangeLo / 8 - 0.25))}–${Math.max(1, Math.ceil(rangeHi / 8 - 0.25))} days`} on site</span>
+      </div>
+      <div class="kg-apply">
+        <button type="button" class="kg-btn" data-kgapply="1">Apply to Labor ↓</button>
+        <span class="${match ? 'kg-ok' : 'kg-diff'}">${match ? '✓ Labor rows match the guideline' : `Labor rows: ${f1(curTotal)} hrs entered vs. ${f1(guideTotal)} guideline`}</span>
+      </div>
+      ${w.map(([lv, m]) => `<div class="kg-w ${lv}">${lv === 'error' ? '⛔' : lv === 'warn' ? '⚠' : 'ℹ'} ${esc(m)}</div>`).join('')}`
+      : `<div class="kg-muted" style="padding:6px 0">Pick a job type / add a labor scope and enter areas to get guideline hours.</div>${w.map(([lv, m]) => `<div class="kg-w ${lv}">${esc(m)}</div>`).join('')}`;
+  }
+
+  // Fill the Labor table rows from the guideline
+  function apply(opt) {
+    const c = calc(opt), p = optPrefixFor(opt);
+    if (!c.L) return;
+    if (options[activeOptionIdx] !== opt) switchToOption(options.indexOf(opt));
+    const q = (cls, id) => document.querySelector(`.${CSS.escape(p)}${cls}[data-id="${id}"]`);
+    let crewIds = opt.rows.labor.filter(id => !/mobiliz/i.test(q('lb-label', id)?.value || ''));
+    while (crewIds.length < c.C) {
+      addLabor();                                   // appends with correct default rates for its position
+      const id = opt.rows.labor[opt.rows.labor.length - 1];
+      q('lb-label', id).value = 'Installer ' + (crewIds.length + 1);
+      crewIds.push(id);
+    }
+    crewIds.slice(c.C).forEach(id => { const tr = g(p + 'lb-' + id); if (tr) tr.remove(); opt.rows.labor = opt.rows.labor.filter(x => x !== id); });
+    crewIds = crewIds.slice(0, c.C);
+    const round = x => Math.round(x * 4) / 4;
+    crewIds.forEach((id, i) => {
+      q('lb-hrs', id).value = round(c.reg);
+      q('lb-ot', id).value = round(c.ot);
+      q('lb-bonus', id).value = c.perPerson + (i < c.tight ? R.bonuses.tightAttic : 0);
+    });
+    // Drive time → Mobilization row (all installers, every trip)
+    if (c.D) {
+      let mob = opt.rows.labor.find(id => /mobiliz/i.test(q('lb-label', id)?.value || ''));
+      if (!mob) { addMobilization(); mob = opt.rows.labor[opt.rows.labor.length - 1]; }
+      q('lb-hrs', mob).value = round(2 * c.D * c.trips * c.C);
+    }
+    const td = g(p + 'tripDays'); if (td) td.value = c.trips;
+    // Overnight costs as supplies lines
+    if (c.overnight) {
+      [['Lodging (hotel)', c.nights * c.C, R.travel.lodgingPerNight], ['Per Diem', c.nights * c.C, R.travel.perDiem]].forEach(([name, qty, price]) => {
+        let m = opt.rows.misc.find(x => (document.querySelector(`.${CSS.escape(p)}ms-name[data-id="${x.id}"]`)?.value || '') === name);
+        if (!m) { addMisc(name, qty); m = opt.rows.misc[opt.rows.misc.length - 1]; }
+        const qi = document.querySelector(`.${CSS.escape(p)}ms-qty[data-id="${m.id}"]`), pi = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${m.id}"]`);
+        if (qi) qi.value = qty; if (pi && !n(pi.value)) pi.value = price;
+      });
+    }
+    recalc();
+    if (typeof showToast === 'function') showToast(`Labor set: ${c.C} installers × ${round(c.reg)} hrs${c.ot ? ' + ' + round(c.ot) + ' OT' : ''}, ${c.trips} trip day(s)`, 'success');
+  }
+
+  // ─── events (delegated) ───
+  function optFromEl(el) { const cont = el.closest('.option-container'); return cont ? options.find(o => 'opt-' + o.id === cont.id) : null; }
+  function onEvt(ev) {
+    const el = ev.target; if (!el.closest || !el.closest('.kg')) return;
+    const opt = optFromEl(el); if (!opt) return;
+    const G = opt.guide;
+    const val = el.type === 'checkbox' ? el.checked : el.value;
+    if (el.dataset.kg) { G[el.dataset.kg] = val; if (el.tagName === 'SELECT' || ev.type === 'input') refresh(opt); }
+    else if (el.dataset.adj) { const a = R.adjustments.find(x => x.key === el.dataset.adj); if (el.checked) G.adj[a.key] = a.min; else delete G.adj[a.key]; render(opt); }
+    else if (el.dataset.adjv) { G.adj[el.dataset.adjv] = val; refresh(opt); }
+    else if (el.dataset.kl) {
+      const l = G.lines.find(x => x.id === el.dataset.kl); if (!l) return;
+      l[el.dataset.k] = val; l.auto = false;
+      if (el.dataset.struct && ev.type === 'change') render(opt); else refresh(opt);
+    } else return;
+    if (typeof scheduleAutoSave === 'function') scheduleAutoSave();
+  }
+  document.addEventListener('input', onEvt);
+  document.addEventListener('change', ev => { if (ev.target.tagName === 'SELECT' || ev.target.type === 'checkbox') onEvt(ev); });
+  document.addEventListener('click', ev => {
+    const el = ev.target; if (!el.closest || !el.closest('.kg')) return;
+    const opt = optFromEl(el); if (!opt) return;
+    if (el.dataset.kgadd) { opt.guide.lines.push({ ...newLine('open_attic', opt.guide.jobType), auto: false }); opt.guide.lines.forEach(l => l.auto = false); render(opt); scheduleAutoSave(); }
+    else if (el.dataset.kgdel) { opt.guide.lines = opt.guide.lines.filter(l => l.id !== el.dataset.kgdel); opt.guide.lines.forEach(l => l.auto = false); render(opt); scheduleAutoSave(); }
+    else if (el.dataset.kgapply) apply(opt);
+  });
+
+  // Shared franchise settings from the Koala Estimator App (optional)
+  async function loadRules() {
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/koala_v2_settings?franchise_id=eq.abq&select=settings`, { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } });
+      if (!r.ok) return;
+      const [row] = await r.json();
+      const s = row && row.settings; if (!s) return;
+      const merge = (a, b) => { for (const k of Object.keys(b)) { if (b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && a[k] && typeof a[k] === 'object') merge(a[k], b[k]); else if (k in a) a[k] = b[k]; } };
+      merge(R, s);
+      options.forEach(o => render(o));
+    } catch (e) { console.warn('[Guidelines] using built-in rates', e.message); }
+  }
+
+  return { newGuide, render, refresh, apply, loadRules, calc, lineCalc, rules: () => R };
+})();
+
+</script>
 <script>
 // ─── PRICING DATA ───────────────────────────────────────────────────────────
 
@@ -1383,6 +1770,8 @@ function createOption(name) {
   const opt = { id, name: name || ('Option ' + options.length + 1), rows: { blowIn: [], batt: [], spf: [], labor: [], misc: [] } };
   options.push(opt);
   buildOptionContainer(opt);
+  opt.guide = KG.newGuide();
+  KG.render(opt);
   renderTabs();
   switchToOption(options.length - 1);
   return opt;
@@ -1539,6 +1928,7 @@ function duplicateOption() {
 
   // Create new option
   const newOpt = createOption(srcOpt.name + ' (Copy)');
+  if (srcOpt.guide) { newOpt.guide = JSON.parse(JSON.stringify(srcOpt.guide)); newOpt.guide.lines.forEach(l => l.id = Math.random().toString(36).slice(2, 8)); KG.render(newOpt); }
   const p = optPrefixFor(newOpt);
 
   // Apply margin override
@@ -1858,6 +2248,7 @@ function buildOptionContainer(opt) {
     <!-- Labor -->
     <div class="card internal-only">
       <h2><span class="icon">&#128119;</span> Labor</h2>
+      <div class="kg" id="${p}kg"></div>
       <table class="line-items">
         <thead><tr><th style="width:120px"></th><th>Hours</th><th>Rate</th><th>OT Hrs</th><th>OT Rate</th><th>Bonus</th><th class="num">Cost</th><th></th></tr></thead>
         <tbody id="${p}laborBody"></tbody>
@@ -2829,6 +3220,7 @@ function recalc() {
   updateBlowInCalc();
   updateBattSuggestions();
   updateSpfCalc();
+  KG.refresh(opt);
 
   // Trigger auto-save on any recalc
   scheduleAutoSave();
@@ -2980,6 +3372,7 @@ function serializeForm() {
         genHours: $(p + 'genHours')?.value || '0',
         fuelRate: $(p + 'fuelRate')?.value || '4.00'
       },
+      guide: opt.guide || null,
       blowIn: [],
       batt: [],
       spf: [],
@@ -3086,6 +3479,7 @@ function deserializeForm(data) {
   (data.options || []).forEach((optData, idx) => {
     const opt = createOption(optData.name || ('Option ' + (idx + 1)));
     const p = optPrefixFor(opt);
+    if (optData.guide) { opt.guide = optData.guide; }
 
     // Margin override
     if (optData.marginOverride != null) {
@@ -3218,6 +3612,7 @@ function deserializeForm(data) {
       const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${lastMisc.id}"]`);
       if (priceInput && row.price) priceInput.value = row.price;
     });
+    KG.render(opt);
   });
 
   switchToOption(0);
@@ -3966,6 +4361,7 @@ recalc();
 // Load live pricing and GM settings from Supabase (updates in background)
 loadPricingFromSupabase();
 loadAppSettings();
+KG.loadRules();
 
 // Check for estimate ID in URL — re-enables auto-save when done
 loadEstimateFromUrl().then(() => {

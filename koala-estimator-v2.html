@@ -138,6 +138,18 @@ table.mats input.ovr { background: var(--amber-light); border-color: #f0c070; }
 .settings-sec { margin-bottom: 18px; }
 .settings-sec h4 { color: var(--navy); margin-bottom: 8px; font-size: .95rem; }
 .tbl-edit td { padding: 3px 6px; } .settings-sec input[type=number] { width: 72px !important; } .tbl-edit input { width: 72px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 5px; }
+.sc-sum { font-size: .76rem; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.sc-sum .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 4px; vertical-align: middle; }
+.sc-sum .dot.error { background: var(--red); } .sc-sum .dot.warn { background: #f0a020; }
+.toast.undo { display: flex; align-items: center; }
+.mob-bar { display: none; }
+body.est-view .mob-bar:not(:empty) { }
+@media (max-width: 1100px) {
+  body.est-view .mob-bar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; background: var(--navy); color: #fff; padding: 8px 14px; gap: 14px; align-items: center; box-shadow: 0 -3px 10px rgba(0,0,0,.2); }
+  body.est-view .mob-bar .btn { margin-left: auto; }
+  body.est-view .toast { bottom: 76px; }
+  .mb-k { font-size: .62rem; text-transform: uppercase; color: #b9cadb; letter-spacing: .04em; } .mb-v { font-size: 1.15rem; font-weight: 800; color: var(--green); } .mb-s { font-size: .85rem; font-weight: 700; }
+}
 .empty { text-align: center; color: var(--muted); padding: 28px; }
 /* Proposal */
 #proposal { font-family: 'Alegreya Sans', sans-serif; color: #1d2733; }
@@ -176,6 +188,7 @@ table.mats input.ovr { background: var(--amber-light); border-color: #f0c070; }
   </div>
 </header>
 <main id="app"><div class="empty">Loading…</div></main>
+<div id="mobBar" class="mob-bar"></div>
 <div id="modalRoot"></div>
 <script>
 // ════════════════════════════════════════════════════════════════════════════
@@ -240,6 +253,8 @@ const DEFAULT_RULES = {
   margin: 50,
   royalty: 5,
   wastePct: 0,
+  priceRoundTo: 0,           // round customer price UP to nearest $X (0 = off)
+  minJobPrice: 0,            // minimum customer price per option (0 = off)
   estimators: ['Frank Emanuel', 'Gabriel Espinosa', 'Jacob Martin', 'Joel Alvarado', 'Mark Aragon', 'Mike Jones'],
   franchiseName: 'Koala Insulation of Albuquerque & Santa Fe',
   franchisePhone: '',
@@ -443,6 +458,8 @@ function tableLookup(table, sf) {
   return { hrs: last[1] + (sf - last[0]) * slope, beyond: true };
 }
 
+function crewOf(est) { return Math.max(1, parseInt(est && est.crew) || 2); }
+
 function crewEfficiency(crew, rules) {
   if (crew <= 2) return 1;
   return rules.crewEfficiency[crew] || rules.crewEfficiency[Math.max(...Object.keys(rules.crewEfficiency).map(Number))] || 0.8;
@@ -532,12 +549,12 @@ function computeScope(scope, est, rules) {
     const t = rules.tightAttic;
     const per = t.base + Math.ceil(Math.max(0, sf - t.baseMaxSqft) / 500) * t.addHrsPer500;
     base = per * S; [lo, hi] = tableRange(base);
-    out.note = `${per} hrs/installer × ${S} (6 hrs to 2,000 sf + 30 min per extra 500 sf)`;
+    out.note = `${per} hrs/installer × ${S} (${t.base} hrs to ${t.baseMaxSqft.toLocaleString()} sf + ${t.addHrsPer500 * 60} min per extra 500 sf)`;
     out.bonusFlags.tightAttic = Math.max(0, parseInt(scope.enteringInstallers ?? 1) || 0);
   } else if (m === 'dense_pack') {
     const days = Math.max(0.5, num(scope.days) || 1);
     base = days * rules.densePackHrsPerInstallerDay * S; [lo, hi] = tableRange(base);
-    out.note = `${days} full day(s) × 8 hrs × ${S} installers (guideline: default to a full day)`;
+    out.note = `${days} full day(s) × ${rules.densePackHrsPerInstallerDay} hrs × ${S} installers (guideline: default to a full day)`;
   } else if (m === 'spf' || m === 'crawl_found_spf' || m === 'crawl_joist_spf') {
     const type = m === 'crawl_found_spf' ? 'cc' : (scope.spfType || 'cc');
     const th = spfThickness({ ...scope, spfType: type }, rules);
@@ -569,7 +586,7 @@ function computeScope(scope, est, rules) {
   } else if (m === 'foam_pack') {
     const per = Math.max(rules.foamPack.minHours, sf / rules.foamPack.sqftPerInstallerHour);
     base = per * S; [lo, hi] = tableRange(base);
-    out.note = `${sf.toLocaleString()} sf floor area ÷ 1,500 sf/hr = ${r2(per)} hrs/installer × ${S} (1 hr min)`;
+    out.note = `${sf.toLocaleString()} sf floor area ÷ ${rules.foamPack.sqftPerInstallerHour.toLocaleString()} sf/hr = ${r2(per)} hrs/installer × ${S} (${rules.foamPack.minHours} hr min)`;
     if (est.projectType === 'retrofit') W('info', 'Foam-pack labor applies to new construction/remodel. Retrofit attic air sealing is already inside attic labor.');
   } else if (m === 'attic_removal') {
     tbl(rules.atticRemoval, 'Attic removal');
@@ -692,7 +709,7 @@ function computeOption(opt, est, rules) {
   const Lhi = scopes.reduce((a, x) => a + x.r.hi, 0);
   const sqft = scopes.reduce((a, x) => a + (x.scope.method === 'foam_pack' ? 0 : x.r.sqft), 0);
   const warnings = [];
-  scopes.forEach(x => x.r.warnings.forEach(w => warnings.push({ ...w, scope: x.scope.location || METHODS[x.scope.method]?.label })));
+  scopes.forEach(x => x.r.warnings.forEach(w => warnings.push({ ...w, scope: (x.scope.location === 'Other' ? x.scope.locLabel : x.scope.location) || METHODS[x.scope.method]?.label })));
 
   // Materials
   const scopeMats = mergeMaterials(scopes.flatMap(x => x.r.materials));
@@ -701,7 +718,7 @@ function computeOption(opt, est, rules) {
   const miscCost = misc.reduce((a, m) => a + m.cost, 0);
 
   // Crew & schedule
-  const C = Math.max(1, parseInt(est.crew) || 2);
+  const C = crewOf(est);
   const eff = crewEfficiency(C, rules);
   const H = L / (C * eff);                          // on-site hours per installer
   let days, ot;
@@ -748,7 +765,10 @@ function computeOption(opt, est, rules) {
   const div = 1 - margin / 100 - royalty / 100;
   const listPrice = div > 0 ? cost / div : 0;
   const disc = num(est.discountPct);
-  const price = listPrice * (1 - disc / 100);
+  let price = listPrice * (1 - disc / 100);
+  let minApplied = false;
+  if (price > 0 && num(rules.minJobPrice) > 0 && price < num(rules.minJobPrice)) { price = num(rules.minJobPrice); minApplied = true; }
+  if (price > 0 && num(rules.priceRoundTo) > 0) price = Math.ceil(price / num(rules.priceRoundTo)) * num(rules.priceRoundTo);
   const royaltyAmt = price * royalty / 100;
   const gp = price - cost - royaltyAmt;
   const effMargin = price ? gp / price * 100 : 0;
@@ -763,12 +783,14 @@ function computeOption(opt, est, rules) {
   if (D > rules.travel.overnightDriveHrs && H > rules.travel.overnightLaborHrs && est.overnight === 'no') warnings.push({ level: 'warn', msg: `Job is > ${rules.travel.overnightDriveHrs} hrs away with > ${rules.travel.overnightLaborHrs} hrs on-site labor — guideline says include an overnight stay or get it reviewed.` });
   if (overnight) warnings.push({ level: 'info', msg: `Overnight: ${nights} night(s) — lodging ${rooms} room(s) + per diem $${rules.travel.perDiem}/installer/night included.` });
   if (div <= 0) warnings.push({ level: 'error', msg: 'Margin + royalty ≥ 100% — price cannot be calculated.' });
+  if (minApplied) warnings.push({ level: 'info', msg: `Minimum job price of $${num(rules.minJobPrice).toLocaleString()} applied.` });
+  if (scopes.length && !L) warnings.push({ level: 'warn', msg: 'No labor hours calculated yet — enter square footage for each scope.' });
   if (effMargin < margin - 0.5 && disc) warnings.push({ level: 'warn', msg: `Builder discount lowers effective margin to ${r1(effMargin)}%.` });
 
   return {
     scopes, sqft, L, Llo, Lhi, H, Hlo: Llo / (C * eff), Hhi: Lhi / (C * eff), C, eff, days, ot, reg, overnight, nights, trips, rooms, crewDay,
     driveHrsPerInstaller, scopeMats, misc, matCost, miscCost, laborWages, driveWages, bonuses, payrollTax, laborTotal,
-    perDiem, lodging, trip, generator, travelTotal, cost, margin, royalty, listPrice, disc, price, royaltyAmt, gp, effMargin, warnings,
+    perDiem, lodging, trip, generator, travelTotal, cost, margin, royalty, listPrice, disc, price, royaltyAmt, gp, effMargin, warnings, minApplied,
   };
 }
 
@@ -882,6 +904,7 @@ document.querySelectorAll('nav [data-nav]').forEach(b => b.onclick = () => go(b.
 function render() {
   document.querySelectorAll('nav [data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === S.view || (S.view === 'estimate' && b.dataset.nav === 'home')));
   $('hdrFranchise').textContent = RULES.franchiseName || 'Koala Insulation';
+  document.body.classList.toggle('est-view', S.view === 'estimate');
   if (S.view === 'home') renderHome();
   else if (S.view === 'estimate') renderEstimate();
   else if (S.view === 'builders') renderBuilders();
@@ -954,7 +977,7 @@ function chk(label, path, value, r) {
 
 function renderEstimate() {
   const e = S.est, pt = PROJECT_TYPES[e.projectType];
-  const builderOpts = [['', `— Select ${pt.clientLabel.toLowerCase()} —`], ...S.builders.filter(b => b.is_active !== false).map(b => [b.id, b.name + (b.client_type && b.client_type !== pt.clientLabel ? ` (${b.client_type})` : '')])];
+  const builderOpts = [['', `— Select ${pt.clientLabel.toLowerCase()} —`], ...S.builders.filter(b => b.is_active !== false || b.id === e.builderId).map(b => [b.id, b.name + (b.client_type && b.client_type !== pt.clientLabel ? ` (${b.client_type})` : '')])];
   $('app').innerHTML = `
   <div class="est-layout">
     <div>
@@ -963,6 +986,7 @@ function renderEstimate() {
           <span class="sub">${e.id ? 'Saved estimate' : 'New estimate — not saved yet'}</span>
           <span style="margin-left:auto" class="row">
             <select data-b="est.status" data-t="str" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-weight:700">${['Draft', 'Sent', 'Won', 'Lost'].map(s => `<option ${e.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+            ${e.id ? `<button class="btn sm ghost" title="Duplicate this estimate" onclick="duplicateEstimate('${e.id}')">⧉</button><button class="btn sm ghost danger" title="Delete estimate" onclick="confirmDeleteEstimate()">🗑</button>` : ''}
           </span>
         </h2>
         <div class="grid">
@@ -1020,6 +1044,7 @@ function renderEstimate() {
           <div class="field" style="width:150px"><label>Margin override %</label><input type="number" data-b="opt.marginOverride" data-t="str" value="${esc(curOpt().marginOverride)}" placeholder="${esc(e.margin)} (default)"></div>
           ${e.options.length > 1 ? `<button class="btn sm danger" style="margin-top:16px" onclick="removeOption()">Remove option</button>` : ''}
         </div>
+        ${curOpt().scopes.length > 2 ? `<div class="row small" style="justify-content:flex-end;margin:-6px 0 6px"><button class="btn sm ghost" onclick="setAllCollapsed(true)">Collapse all</button><button class="btn sm ghost" onclick="setAllCollapsed(false)">Expand all</button></div>` : ''}
         <div id="scopes">${curOpt().scopes.map((s, i) => scopeCard(s, i)).join('')}</div>
         <div style="margin-top:6px"><div class="small muted" style="margin-bottom:4px;font-weight:700">+ Add job scope:</div>
           <div class="quick-add">${pt.locations.map(l => `<button onclick="addScope('${esc(l)}')">${esc(l)}</button>`).join('')}</div>
@@ -1120,8 +1145,11 @@ function scopeCard(s, i) {
   return `<div class="scope" id="sc-${s.id}">
     <div class="scope-hd">
       <span class="num">${i + 1}</span>
+      <button class="btn sm ghost" title="${s.collapsed ? 'Expand' : 'Collapse'}" onclick="toggleScope('${s.id}')" style="padding:2px 6px">${s.collapsed ? '▸' : '▾'}</button>
       <select data-b="scope.${s.id}.location" data-t="str" data-r="loc">${locs.map(l => `<option ${s.location === l ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
+      ${s.location === 'Other' ? `<input class="loc-other" data-b="scope.${s.id}.locLabel" data-t="str" value="${esc(s.locLabel || '')}" placeholder="Area name">` : ''}
       <select data-b="scope.${s.id}.method" data-t="str" data-r="scope">${Object.entries(groups).map(([g, arr]) => `<optgroup label="${g}">${arr.map(([k, l]) => `<option value="${k}" ${s.method === k ? 'selected' : ''}>${l}</option>`).join('')}</optgroup>`).join('')}</select>
+      <span class="sc-sum" id="scs-${s.id}"></span>
       <span class="acts">
         <button class="btn sm ghost" title="Move up" onclick="moveScope('${s.id}',-1)">↑</button>
         <button class="btn sm ghost" title="Move down" onclick="moveScope('${s.id}',1)">↓</button>
@@ -1129,7 +1157,7 @@ function scopeCard(s, i) {
         <button class="btn sm ghost danger" title="Remove" onclick="removeScope('${s.id}')">✕</button>
       </span>
     </div>
-    <div class="scope-bd">
+    <div class="scope-bd" ${s.collapsed ? 'style="display:none"' : ''}>
       <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">${scopeFields(s)}</div>
       <div class="scope-res" id="res-${s.id}"></div>
       <div class="comment"><textarea data-b="scope.${s.id}.comment" data-t="str" placeholder="Comments for this scope (e.g. 'Plan shows R-21 but builder wants R-23 on west wall', 'Garage fire-rated ceiling')">${esc(s.comment)}</textarea></div>
@@ -1141,9 +1169,9 @@ function renderScopeResult(s, r) {
   const el = $('res-' + s.id); if (!el) return;
   const hint = $('sqh-' + s.id);
   if (hint) hint.textContent = String(s.sqftRaw || '').match(/[+\-*x×/]/) ? '= ' + fmtN(num(s.sqft)) + ' sf' : 'Math OK: 1200+340+12x14';
-  const onsite = r.hrs / S.est.crew;
+  const onsite = r.hrs / crewOf(S.est);
   el.innerHTML = `
-    <div class="labor-big"><b>${fmtN(r.hrs, 1)}</b> labor hrs <span>≈ ${fmtN(onsite, 1)} hrs on site w/ ${S.est.crew}${r.adjPct ? ` · incl. +${r.adjPct}% adj.` : ''}${r.overridden ? ' · <b style="color:var(--amber)">override</b>' : ''}</span></div>
+    <div class="labor-big"><b>${fmtN(r.hrs, 1)}</b> labor hrs <span>≈ ${fmtN(onsite, 1)} hrs on site w/ ${crewOf(S.est)}${r.adjPct ? ` · incl. +${r.adjPct}% adj.` : ''}${r.overridden ? ' · <b style="color:var(--amber)">override</b>' : ''}</span></div>
     <div class="calc-note">${esc(r.note)}${r.overridden ? ` (guideline ${fmtN(r.guideHrs, 1)} h)` : ''}</div>
     ${r.materials.length ? `<table class="mats">${r.materials.map(m => `<tr>
       <td>${esc(m.name)}${m.note ? `<div class="muted" style="font-size:.7rem">${esc(m.note)}</div>` : ''}</td>
@@ -1160,6 +1188,11 @@ function refreshCalc() {
   const c = res[S.activeOpt] || res[0];
   const act = document.activeElement;
   c.scopes.forEach(x => {
+    const chipEl = $('scs-' + x.scope.id);
+    if (chipEl) {
+      const lv = x.r.warnings.some(w => w.level === 'error') ? 'error' : x.r.warnings.some(w => w.level === 'warn') ? 'warn' : '';
+      chipEl.innerHTML = `${x.r.sqft ? fmtN(x.r.sqft) + ' sf · ' : ''}${fmtN(x.r.hrs, 1)} h · ${money0(x.r.materials.reduce((a, m) => a + m.cost, 0))}${lv ? ` <span class="dot ${lv}"></span>` : ''}`;
+    }
     const el = $('res-' + x.scope.id);
     if (el && act && el.contains(act)) {
       el.querySelectorAll('tr').forEach((tr, i) => { const m = x.r.materials[i]; if (m) tr.lastElementChild.textContent = money0(m.cost); });
@@ -1202,6 +1235,12 @@ function refreshCalc() {
     <div class="warn-count">${cnt('error') ? `<span class="pill Lost">⛔ ${cnt('error')}</span>` : ''}${cnt('warn') ? `<span class="pill" style="background:var(--amber-light);color:var(--amber)">⚠ ${cnt('warn')}</span>` : ''}${cnt('info') ? `<span class="pill Sent">ℹ ${cnt('info')}</span>` : ''}${!cnt('error') && !cnt('warn') ? '<span class="pill Won">✓ No blocking issues</span>' : ''}</div>
     ${allW.map(w => `<div class="w ${w.level}"><span class="ic">${w.level === 'error' ? '⛔' : w.level === 'warn' ? '⚠' : 'ℹ'}</span><span>${esc(w.msg)}</span></div>`).join('')}
     `);
+  const mb = $('mobBar');
+  if (mb) mb.innerHTML = `<div><div class="mb-k">${esc(curOpt().name)}</div><div class="mb-v">${money0(c.price)}</div></div>
+    <div><div class="mb-k">Labor</div><div class="mb-s">${fmtN(c.L, 1)} h · ${c.days}d${c.ot ? ' +OT' : ''}</div></div>
+    <div><div class="mb-k">Margin</div><div class="mb-s">${fmtN(c.effMargin, 1)}%</div></div>
+    ${cnt('error') ? `<span class="pill Lost">⛔ ${cnt('error')}</span>` : ''}
+    <button class="btn primary sm" onclick="saveEstimate()">Save</button>`;
   const sc = $('sumC'); if (sc) sc.innerHTML = e.crmDealId ? '<div class="small muted" style="margin-top:6px">✓ Linked to a CRM deal</div>' : '';
   renderSaveStatus();
 }
@@ -1291,14 +1330,34 @@ function addOption(dup) {
 }
 function removeOption() {
   if (S.est.options.length < 2) return;
-  S.est.options.splice(S.activeOpt, 1); S.activeOpt = 0; markDirty(); renderEstimate();
+  const i = S.activeOpt; const [gone] = S.est.options.splice(i, 1); S.activeOpt = 0; markDirty(); renderEstimate();
+  undoToast(`Removed option “${gone.name}”`, () => { S.est.options.splice(i, 0, gone); S.activeOpt = i; markDirty(); renderEstimate(); });
 }
 function addScope(loc) {
   const sc = newScope({ location: loc });
   curOpt().scopes.push(sc); markDirty(); renderEstimate();
   setTimeout(() => { const el = $('sc-' + sc.id); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); const i = el.querySelector('[data-b$=".sqftRaw"]'); if (i) i.focus(); } }, 50);
 }
-function removeScope(id) { const o = curOpt(); o.scopes = o.scopes.filter(s => s.id !== id); markDirty(); renderEstimate(); }
+function removeScope(id) {
+  const o = curOpt(); const i = o.scopes.findIndex(s => s.id === id); if (i < 0) return;
+  const [gone] = o.scopes.splice(i, 1); markDirty(); renderEstimate();
+  undoToast(`Removed “${gone.location === 'Other' ? gone.locLabel || 'Other' : gone.location}”`, () => { o.scopes.splice(i, 0, gone); markDirty(); renderEstimate(); });
+}
+function toggleScope(id) { const s = findScope(id); s.collapsed = !s.collapsed; rerenderScope(s); }
+function setAllCollapsed(v) { curOpt().scopes.forEach(s => s.collapsed = v); renderEstimate(); }
+function undoToast(msg, undo) {
+  document.querySelectorAll('.toast.undo').forEach(t => t.remove());
+  const t = document.createElement('div'); t.className = 'toast undo';
+  t.innerHTML = `<span>${esc(msg)}</span> <button class="btn sm" style="margin-left:10px">Undo</button>`;
+  t.querySelector('button').onclick = () => { t.remove(); undo(); };
+  document.body.appendChild(t); setTimeout(() => t.remove(), 7000);
+}
+function confirmModal(title, body, okLabel, onOk, danger) {
+  modal(`<div class="modal-hd"><h3>${esc(title)}</h3></div><div class="modal-bd">${body}</div>
+    <div class="modal-ft"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}" id="cmOk">${esc(okLabel)}</button></div>`);
+  $('cmOk').onclick = () => { closeModal(); onOk(); };
+}
+function hasEnteredAreas() { return S.est.options.some(o => o.scopes.some(s => num(s.sqft))); }
 function dupScope(id) { const o = curOpt(); const i = o.scopes.findIndex(s => s.id === id); const c = clone(o.scopes[i]); c.id = uid(); o.scopes.splice(i + 1, 0, c); markDirty(); renderEstimate(); }
 function moveScope(id, d) { const o = curOpt(); const i = o.scopes.findIndex(s => s.id === id); const j = i + d; if (j < 0 || j >= o.scopes.length) return; [o.scopes[i], o.scopes[j]] = [o.scopes[j], o.scopes[i]]; markDirty(); renderEstimate(); }
 function addMisc() { curOpt().misc.push({ name: '', qty: 1, price: '' }); markDirty(); renderEstimate(); }
@@ -1352,19 +1411,26 @@ function applyScopesFrom(options, keepAreas) {
   S.est.options = clone(options).map(o => { o.id = uid(); o.scopes.forEach(s => { s.id = uid(); if (!keepAreas) { s.sqft = ''; s.sqftRaw = ''; s.nettingSqft = ''; } }); return o; });
   S.activeOpt = 0; markDirty(); renderEstimate();
 }
-function applyHistory(id) {
+function applyHistory(id, confirmed) {
   const h = (S.builderHist || []).find(x => x.id === id);
   if (!h || !h.data || !h.data.options) return toast('That estimate has no scopes to copy', 'error');
+  if (!confirmed && hasEnteredAreas()) return confirmModal('Replace current scopes?', `This replaces every option and scope on this estimate with the ones from <b>${esc(h.project_name || h.estimate_date)}</b>.`, 'Replace scopes', () => applyHistory(id, true), true);
   applyScopesFrom(h.data.options, true);
   ['crew', 'adjust', 'driveHrs', 'tripTier', 'tripMiles', 'overnight', 'hoseFt'].forEach(k => { if (h.data[k] !== undefined) S.est[k] = clone(h.data[k]); });
   renderEstimate();
   toast('Scopes, areas & conditions copied from ' + (h.project_name || 'previous estimate') + ' — verify quantities', 'ok');
 }
-function applyTemplate(i) {
+function applyTemplate(i, confirmed) {
   const t = curBuilder().preferences.templates[i];
+  if (!confirmed && hasEnteredAreas()) return confirmModal('Load plan template?', `This replaces the current scopes with plan <b>${esc(t.name)}</b>.`, 'Load template', () => applyTemplate(i, true), true);
   applyScopesFrom(t.options, true);
   toast('Loaded plan template "' + t.name + '"', 'ok');
 }
+
+document.addEventListener('keydown', ev => {
+  if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 's' && S.view === 'estimate') { ev.preventDefault(); saveEstimate(); }
+  if (ev.key === 'Escape' && $('modalRoot').innerHTML) closeModal();
+});
 // ════════════════════════════════════════════════════════════════════════════
 // PERSISTENCE, BUILDERS, SETTINGS, CRM, PROPOSAL
 // ════════════════════════════════════════════════════════════════════════════
@@ -1381,12 +1447,15 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } ca
 
 // ─── SAVE STATUS / AUTOSAVE ──────────────────────────────────────────────────
 let _autoT = null, _saving = false;
+let _ver = 0, _pendingSave = false;
+// New estimates auto-save once they are identifiable and have at least one area entered
+const worthSaving = e => (e.projectName || e.clientName || e.builderId) && e.options.some(o => o.scopes.some(s => num(s.sqft)));
 function markDirty() {
-  S.dirty = true;
+  S.dirty = true; _ver++;
   if (S.est) lsSet('koalaV2Draft', { est: S.est, at: Date.now() });
   renderSaveStatus();
   clearTimeout(_autoT);
-  if (S.est && S.est.id) _autoT = setTimeout(() => saveEstimate(true), 2500);
+  if (S.est && (S.est.id || worthSaving(S.est))) _autoT = setTimeout(() => saveEstimate(true), 2500);
 }
 function renderSaveStatus() {
   const el = $('saveStatus'); if (!el) return;
@@ -1412,29 +1481,49 @@ function summaryCols(est) {
 function curBuilderFor(est) { return S.builders.find(b => b.id === est.builderId) || null; }
 
 async function saveEstimate(silent) {
-  if (!S.est || _saving) return;
+  if (!S.est) return;
+  if (_saving) { _pendingSave = true; return; }
   clearTimeout(_autoT);
+  const est = S.est, v = _ver;
   _saving = true; S.saveError = false; renderSaveStatus();
   try {
-    const row = summaryCols(S.est);
-    if (S.est.id) { await api('PATCH', 'koala_v2_estimates?id=eq.' + S.est.id, row); }
+    const row = summaryCols(est);
+    if (est.id) { await api('PATCH', 'koala_v2_estimates?id=eq.' + est.id, row); }
     else {
       const [r] = await api('POST', 'koala_v2_estimates', row);
-      S.est.id = r.id;
-      await api('PATCH', 'koala_v2_estimates?id=eq.' + r.id, { data: S.est });
-      history.replaceState(null, '', '?id=' + r.id);
+      est.id = r.id;
+      await api('PATCH', 'koala_v2_estimates?id=eq.' + r.id, { data: est });
+      if (S.est === est) history.replaceState(null, '', '?id=' + r.id);
       if (S.view === 'estimate' && !document.activeElement?.dataset?.b) setTimeout(renderEstimate, 0);
     }
-    S.dirty = false; S.lastSaved = Date.now();
-    const i = S.recent.findIndex(x => x.id === S.est.id);
-    const lite = { id: S.est.id, ...row }; delete lite.data;
+    if (S.est !== est) return;               // user opened another estimate meanwhile
+    S.dirty = _ver !== v; S.lastSaved = Date.now();
+    if (!S.dirty) lsSet('koalaV2Draft', null);
+    const i = S.recent.findIndex(x => x.id === est.id);
+    const lite = { ...row, id: est.id }; delete lite.data;
     if (i >= 0) S.recent[i] = lite; else S.recent.unshift(lite);
     if (S.est.builderId && S.builderHist) { const j = S.builderHist.findIndex(x => x.id === S.est.id); const h = { ...lite, data: S.est }; if (j >= 0) S.builderHist[j] = h; else S.builderHist.unshift(h); }
     if (!silent) toast('Estimate saved', 'ok');
   } catch (err) {
     S.saveError = true; console.error(err);
     toast('Save failed: ' + err.message, 'error');
-  } finally { _saving = false; renderSaveStatus(); }
+  } finally {
+    _saving = false; renderSaveStatus();
+    if (_pendingSave || (S.dirty && S.est && S.est.id && !S.saveError)) { _pendingSave = false; clearTimeout(_autoT); _autoT = setTimeout(() => saveEstimate(true), 800); }
+  }
+}
+
+function confirmDeleteEstimate() {
+  confirmModal('Delete this estimate?', `<b>${esc(S.est.projectName || '(untitled)')}</b> will be permanently deleted. This cannot be undone.${S.est.crmDealId ? '<br><br>The linked CRM deal is not affected.' : ''}`, 'Delete estimate', deleteEstimate, true);
+}
+async function deleteEstimate() {
+  const id = S.est.id;
+  try {
+    await api('DELETE', 'koala_v2_estimates?id=eq.' + id);
+    S.recent = S.recent.filter(r => r.id !== id);
+    S.est = null; S.dirty = false; clearTimeout(_autoT); lsSet('koalaV2Draft', null);
+    go('home'); toast('Estimate deleted', 'ok');
+  } catch (e) { toast('Delete failed: ' + e.message, 'error'); }
 }
 
 async function openEstimate(id) {
@@ -1449,11 +1538,14 @@ async function openEstimate(id) {
   } catch (e) { toast('Could not open: ' + e.message, 'error'); }
 }
 async function duplicateEstimate(id) {
-  const [r] = await api('GET', 'koala_v2_estimates?id=eq.' + id + '&select=data,project_type');
+  if (S.view === 'estimate' && S.dirty && S.est?.id) await saveEstimate(true);
+  let r;
+  try { [r] = await api('GET', 'koala_v2_estimates?id=eq.' + id + '&select=data,project_type'); } catch (e) { return toast('Could not copy: ' + e.message, 'error'); }
+  if (!r) return toast('Estimate not found', 'error');
   const est = Object.assign(newEstimate(r.project_type), clone(r.data || {}));
   est.id = null; est.status = 'Draft'; est.date = today(); est.crmDealId = null; est.projectName = (est.projectName || '') + ' (copy)';
   est.options.forEach(o => { o.id = uid(); o.scopes.forEach(s => s.id = uid()); });
-  S.est = est; S.activeOpt = 0; S.dirty = true; S.view = 'estimate'; render();
+  S.est = est; S.activeOpt = 0; S.view = 'estimate'; history.replaceState(null, '', location.pathname); render(); markDirty();
   if (est.builderId) { S.builderHist = await loadBuilderHistory(est.builderId); renderBuilderPanel(); }
   toast('Copy created — save to keep it', 'ok');
 }
@@ -1653,6 +1745,8 @@ function renderSettings() {
         <tr><td>Foam packs minimum hrs</td><td>${n('foamPack.minHours', R.foamPack.minHours, '0.5')}</td></tr>
         <tr><td>Removal: sq ft per bag</td><td>${n('removalBagSqft', R.removalBagSqft)}</td></tr>
         <tr><td>Table methods: customer range +%</td><td>${n('tableRangePct', R.tableRangePct)}</td></tr>
+        <tr><td>Round price up to nearest $ (0 = off)</td><td>${n('priceRoundTo', R.priceRoundTo || 0)}</td></tr>
+        <tr><td>Minimum job price $ (0 = off)</td><td>${n('minJobPrice', R.minJobPrice || 0)}</td></tr>
         <tr><td>Batt waste factor %</td><td>${n('wastePct', R.wastePct)}</td></tr>
       </table></div>
     </div>
@@ -1802,7 +1896,7 @@ function estimateSummaryText(e, res) {
   if (e.address) lines.push('Address: ' + e.address);
   res.forEach((r, i) => {
     lines.push(`${e.options[i].name}: ${money0(r.price)} · ${fmtN(r.sqft)} sf · ${fmtN(r.L, 1)} labor hrs (${r.days} day${r.days > 1 ? 's' : ''}) · margin ${fmtN(r.effMargin, 1)}%`);
-    r.scopes.forEach(x => lines.push(`   • ${x.scope.location}: ${METHODS[x.scope.method].label}${x.scope.rValue ? ' R-' + x.scope.rValue : ''}, ${fmtN(x.r.sqft)} sf`));
+    r.scopes.forEach(x => lines.push(`   • ${scopeName(x.scope)}: ${METHODS[x.scope.method].label}${x.scope.rValue ? ' R-' + x.scope.rValue : ''}, ${fmtN(x.r.sqft)} sf`));
   });
   if (e.id) lines.push('Estimate: ' + location.origin + location.pathname + '?id=' + e.id);
   return lines.join('\n');
@@ -1856,6 +1950,7 @@ const METHOD_PLAIN = {
   crawl_found_spf: 'Closed-cell spray foam on crawlspace foundation walls', encapsulation: 'Crawlspace encapsulation (liner & sealing)', crawl_joist_spf: 'Spray foam on crawlspace floor joists',
   coating: 'Intumescent (ignition barrier) coating', custom: '',
 };
+function scopeName(s) { return s.location === 'Other' ? (s.locLabel || 'Other') : (s.location || METHODS[s.method].label); }
 function scopeDescription(s, r) {
   let d = METHOD_PLAIN[s.method] || '';
   if (s.method === 'spf' || s.method === 'crawl_joist_spf') d = `${(s.spfType === 'oc' ? 'Open-cell' : 'Closed-cell')} ${d.toLowerCase()}`;
@@ -1886,7 +1981,7 @@ function openProposal() {
       <td><b>Project:</b> ${esc(e.projectName || '')}<br>${esc(e.address || '')}<br><b>Date:</b> ${esc(e.date)}${e.estimator ? '<br><b>Estimator:</b> ' + esc(e.estimator) : ''}</td></tr></table>
     ${res.map((r, i) => `<h2>${res.length > 1 ? esc(e.options[i].name) : 'Scope of work'}</h2>
       <table><thead><tr><th>Area</th><th>Insulation</th><th>R-value</th><th style="text-align:right">Sq ft</th></tr></thead><tbody>
-      ${r.scopes.map(x => `<tr><td><b>${esc(x.scope.location)}</b>${x.scope.comment ? `<div style="font-size:.8rem;color:#5d6b7a">${esc(x.scope.comment)}</div>` : ''}</td>
+      ${r.scopes.map(x => `<tr><td><b>${esc(scopeName(x.scope))}</b>${x.scope.comment ? `<div style="font-size:.8rem;color:#5d6b7a">${esc(x.scope.comment)}</div>` : ''}</td>
         <td>${esc(scopeDescription(x.scope, x.r) || x.scope.comment || '')}</td><td>${x.scope.rValue && !['foam_pack', 'attic_removal', 'crawl_removal', 'encapsulation', 'coating'].includes(x.scope.method) ? 'R-' + esc(x.scope.rValue) : '—'}</td>
         <td style="text-align:right">${fmtN(x.r.sqft)}</td></tr>`).join('')}
       ${r.misc.length ? r.misc.map(m => `<tr><td colspan="3">${esc(m.name)}</td><td style="text-align:right">${fmtN(m.qty)}</td></tr>`).join('') : ''}
@@ -1913,6 +2008,7 @@ window.addEventListener('beforeunload', ev => { if (S.view === 'estimate' && S.d
   const id = new URLSearchParams(location.search).get('id');
   const newType = new URLSearchParams(location.search).get('new');
   if (id) return openEstimate(id);
+  if (newType === 'retrofit') { location.href = 'koala-estimator.html'; return; }
   if (newType && PROJECT_TYPES[newType]) return startEstimate(newType);
   const draft = lsGet('koalaV2Draft');
   render();

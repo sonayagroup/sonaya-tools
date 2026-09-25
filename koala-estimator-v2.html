@@ -150,6 +150,10 @@ body.est-view .mob-bar:not(:empty) { }
   body.est-view .toast { bottom: 76px; }
   .mb-k { font-size: .62rem; text-transform: uppercase; color: #b9cadb; letter-spacing: .04em; } .mb-v { font-size: 1.15rem; font-weight: 800; color: var(--green); } .mb-s { font-size: .85rem; font-weight: 700; }
 }
+.est-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.est-tabs button { border: 1px solid var(--border); background: #fff; color: var(--muted); padding: 8px 16px; border-radius: 8px; font-weight: 800; font-size: .9rem; }
+.est-tabs button.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.act-tbl input { width: 100%; min-width: 70px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 5px; font-size: .86rem; }
 .empty { text-align: center; color: var(--muted); padding: 28px; }
 /* Proposal */
 #proposal { font-family: 'Alegreya Sans', sans-serif; color: #1d2733; }
@@ -167,7 +171,7 @@ body.est-view .mob-bar:not(:empty) { }
 }
 @media (max-width: 1100px) { .est-layout { grid-template-columns: minmax(0, 1fr); } .sidebar { position: static; max-height: none; } }
 @media (max-width: 760px) {
-  main { padding: 12px 12px 80px; } header { padding: 8px 12px; } nav { margin-left: 0; order: 3; width: 100%; } .hdr-right { font-size: .75rem; }
+  main { padding: 12px 12px 80px; } header { padding: 8px 12px; } nav { margin-left: 0; order: 3; width: 100%; overflow-x: auto; flex-wrap: nowrap; } nav button, nav .nav-link { white-space: nowrap; flex-shrink: 0; } .hdr-right { font-size: .75rem; }
   .scope-bd { grid-template-columns: 1fr; } .field.span2 { grid-column: auto; } .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
 </style>
@@ -179,6 +183,7 @@ body.est-view .mob-bar:not(:empty) { }
   <nav>
     <button data-nav="home">Estimates</button>
     <button data-nav="builders">Builders &amp; Clients</button>
+    <button data-nav="jobcost">Job Costing</button>
     <button data-nav="settings">Labor &amp; Settings</button>
     <a class="nav-link" href="koala-pricing.html">💰 Pricing</a>
   </nav>
@@ -248,7 +253,10 @@ const DEFAULT_RULES = {
   travel: { overnightDriveHrs: 2, overnightLaborHrs: 6, perDiem: 40, lodgingPerNight: 140, setupHrs: 0.5 },
   bonuses: { crawl: 100, contamination: 250, tightAttic: 50, crawlSpf: 100 },
   rates: { lead: 28, installer: 25, leadOt: 42, installerOt: 37.5, mobilization: 25, payrollTaxPct: 10, generatorFuel: 4.3 },
-  trip: { t50: 175, t75: 250, t100: 325, perMile: 2.5, minManual: 100 },   // policy: $2.50/mi round trip 101+; below $100 needs management approval
+  trip: { t50: 175, t75: 250, t100: 325, perMile: 2.5, basis: { t50: 50, t75: 75, t100: 100 } },   // policy: $2.50/mi round trip 101+
+  // Trip Charge Data tab: fleet cost build-up → Total Cost Floor per mileage bracket (trip charge may never go below it)
+  fleet: { trucks: 6, milesPerTruck: 15000, ytdFuel: 28453.73, ytdInsurance: 31032.47, monthsYtd: 8, maintenance: 9973.38,
+           vehicleValue: 55000, vehicleLifeMiles: 250000, avgSpeed: 45, milesAreRoundTrip: true },
   tripLabels: { t50: '1–50 mi (ABQ Metro, Los Lunas)', t75: '51–75 mi (Santa Fe, Belen)', t100: '76–100 mi (Española, Los Alamos)' },
   margin: 45,
   marginByType: { res_nc: 45, commercial: 30 },          // spreadsheet defaults: residential 45% GP, commercial 30% GP
@@ -264,6 +272,17 @@ const DEFAULT_RULES = {
   additionalMarkup: { bonusesPct: 15, travelPct: 5 },
   // Air-sealing supplies (GM, 2026-09): caulk & sill gasket by linear ft; foam cans by sq ft
   airSeal: { caulkLfPerTube: 50, sillLfPerRoll: 50, staplesBoxPerSillRoll: 0.25, foamSfPerCan: { nc: 350, retrofit: 1000, retrofitBare: 500 } },
+  // Actuals / job costing (Actuals + Data tabs)
+  employees: [
+    { name: 'Ricardo', role: 'Field Supervisor', rate: 25 }, { name: 'Gabriel', role: 'Helper', rate: 17 },
+    { name: 'Alicia', role: 'Installer', rate: 18 }, { name: 'Isidro', role: 'Installer', rate: 20 },
+    { name: 'Javier', role: 'Installer', rate: 28 }, { name: 'Jesus', role: 'Installer', rate: 21 },
+    { name: 'Jorge Gonzales', role: 'Installer', rate: 25 }, { name: 'Mark Jr.', role: 'Installer', rate: 21 },
+    { name: 'Miguel', role: 'Installer', rate: 23 }, { name: 'Reyes', role: 'Installer', rate: 21 },
+  ],
+  crewLeads: ['Jorge', 'Ricardo', 'Javier', 'No Crew Lead'],
+  crewLeadBonus: { minMarginBeatPct: 5, sharePct: 5 },   // bonus = 5% of total savings when actual margin beats quoted by ≥ 5 pts and there was no callback
+  spfGallon: { cc: { bdFtPerGal: 48, price: 25.53 }, oc: { bdFtPerGal: 180, price: 20.80 }, gallonsPerSuppliesSet: 192 },
   n95PerInstallerDay: 1,
   royalty: 5,
   wastePct: 0,
@@ -404,7 +423,7 @@ const METHODS = {
   net_blow:       { label: 'Net & Blow — Walls/Ceiling', group: 'Blow-In', fields: ['sqft', 'nettingSqft', 'height', 'depth', 'spacing', 'blowProduct'] },
   dense_pack:     { label: 'Dense Pack — Walls/Ceiling', group: 'Blow-In', fields: ['sqft', 'depth', 'spacing', 'days'] },
   spf:            { label: 'Spray Foam — Walls/Ceiling', group: 'Spray Foam', fields: ['sqft', 'height', 'spfType', 'rValue', 'surface', 'frame', 'shaving', 'exposed'] },
-  foam_pack:      { label: 'Foam Packs — foam, caulk & sill gasket', group: 'Air Sealing', fields: ['sqft', 'sillLf', 'caulkLf'] },
+  foam_pack:      { label: 'Foam Packs — foam, caulk & sill gasket', group: 'Air Sealing', fields: ['sqft', 'plateLf'] },
   attic_removal:  { label: 'Attic Insulation Removal', group: 'Removal', fields: ['sqft', 'clearance', 'contamination'] },
   crawl_batt:     { label: 'Crawlspace — Batt Install', group: 'Crawlspace', fields: ['sqft', 'rValue', 'spacing', 'clearance', 'contamination'] },
   crawl_removal:  { label: 'Crawlspace — Insulation Removal', group: 'Crawlspace', fields: ['sqft', 'clearance', 'contamination'] },
@@ -452,6 +471,16 @@ const MOBILE_HOME_CHECKS = [
 ];
 
 const CRM_STAGES = ['Plans Received', 'Takeoff In Process', 'Estimate Completed', 'Estimate Won', 'Estimate Lost'];
+
+// Actual (true) purchase prices used on the Actuals tab
+const ACTUAL_PRICES = {
+  'Cellulose': 10.94, 'Fiberglass ProPink L77': 33, 'Baffles': 0.90, 'Caulking': 4.50, 'Duct Tape': 2.91, 'Dumpster': 363.59,
+  'Foam Sealant': 5.75, 'FSK Tape (Foil Tape)': 13.49, 'Insulation Netting (cellulose)': 162.50, 'Insulation Netting (fiberglass)': 107.50,
+  'N95 Mask': 1.44, 'Poly Sheeting': 19.90, 'Recessed Light Cover': 8.80, 'Removal Bags': 11.13, 'Scotch Blue Tape': 4.44,
+  'Seam Tape': 11.03, 'Sill Plate Gasket': 3.65, 'Staples': 5.50, 'Trash Bags (1 Box)': 27.96, 'Vapor Barrier 14 Mil': 286.09,
+  'WMP-10 (Black)': 248.87, 'WMP-10 (White)': 248.87, 'SPF Supplies/PPE': 255.43, 'DC-315 Intumescent Coating': 1.31,
+};
+const ACTUAL_UNITS = { 'Insulation Netting (cellulose)': 'roll', 'Insulation Netting (fiberglass)': 'roll', 'Vapor Barrier 14 Mil': 'roll' };
 // ════════════════════════════════════════════════════════════════════════════
 // LABOR + MATERIAL + PRICING ENGINE  (pure functions — no DOM access)
 // ════════════════════════════════════════════════════════════════════════════
@@ -625,13 +654,13 @@ function computeScope(scope, est, rules) {
     const A = rules.airSeal, retro = est.projectType === 'commercial' && est.construction === 'retrofit';
     const perCan = retro ? (est.bareRetrofit ? A.foamSfPerCan.retrofitBare : A.foamSfPerCan.retrofit) : A.foamSfPerCan.nc;
     if (sf) out.materials.push(supplyLine('Foam Sealant', Math.ceil(sf / perCan), `1 can per ${perCan.toLocaleString()} sf (fire block + window/door)`));
-    const caulk = num(scope.caulkLf), sill = num(scope.sillLf);
-    if (caulk) out.materials.push(supplyLine('Caulking', Math.ceil(caulk / A.caulkLfPerTube), `1 tube per ${A.caulkLfPerTube} LF`));
-    if (sill) {
-      const rolls = Math.ceil(sill / A.sillLfPerRoll);
-      out.materials.push(supplyLine('Sill Plate Gasket', rolls, `50 LF per roll`), supplyLine('Staples', r2(rolls * A.staplesBoxPerSillRoll), `¼ box per gasket roll`));
+    if (!retro) {                                   // new construction / remodel: caulk + sill gasket always included, sized from one linear-feet number
+      const lf = scope.plateLf !== '' && scope.plateLf != null ? num(scope.plateLf) : Math.max(num(scope.sillLf), num(scope.caulkLf));
+      const rolls = Math.ceil(lf / A.sillLfPerRoll);
+      out.materials.push(supplyLine('Caulking', Math.ceil(lf / A.caulkLfPerTube), `1 tube per ${A.caulkLfPerTube} LF`),
+        supplyLine('Sill Plate Gasket', rolls, `1 roll per ${A.sillLfPerRoll} LF`), supplyLine('Staples', r2(rolls * A.staplesBoxPerSillRoll), `¼ box per gasket roll`));
+      if (!lf) W('warn', 'Enter linear feet to size caulking and sill plate gasket.');
     }
-    if (!retro && (!caulk || !sill)) W('info', `Enter ${[!sill && 'sill plate', !caulk && 'caulking'].filter(Boolean).join(' & ')} linear feet to include ${!sill ? 'gasket rolls' : ''}${!sill && !caulk ? ' and ' : ''}${!caulk ? 'caulk tubes' : ''}.`);
   } else if (m === 'attic_removal') {
     tbl(rules.atticRemoval, 'Attic removal');
     out.materials.push(supplyLine('Removal Bags', Math.ceil(sf / rules.removalBagSqft), `1 per ${rules.removalBagSqft} sf`), supplyLine('Dumpster', 1, '', true));
@@ -738,12 +767,34 @@ function mergeMaterials(list) {
   return [...map.values()];
 }
 
+// ─── Trip charge + Total Cost Floor (Trip Charge Data tab) ───
+function fleetCostPerMile(rules) {
+  const f = rules.fleet, miles = Math.max(1, num(f.trucks) * num(f.milesPerTruck)), mo = Math.max(1, num(f.monthsYtd));
+  const fuel = num(f.ytdFuel) / mo * 12 / miles, ins = num(f.ytdInsurance) / mo * 12 / miles;
+  const maint = num(f.maintenance) / miles, dep = num(f.vehicleValue) / Math.max(1, num(f.vehicleLifeMiles));
+  return { fuel, ins, maint, dep, total: fuel + ins + maint + dep };
+}
+// bracket: 't50' | 't75' | 't100' | 'custom' (per mile). Returns the direct cost to dispatch the crew + trucks.
+function tripFloor(bracket, est, rules, crewOverride) {
+  const f = rules.fleet, crew = crewOverride || crewOf(est), vehicles = Math.max(1, parseInt(est.vehicles) || 1);
+  const cpm = fleetCostPerMile(rules).total, rate = rules.rates.installer;
+  const miles = bracket === 'custom' ? num(est.tripMiles) : num((rules.trip.basis || {})[bracket] || 50);
+  const travelHrs = miles / Math.max(1, num(f.avgSpeed)) * (f.milesAreRoundTrip ? 1 : 2);
+  const travelLabor = travelHrs * crew * rate, vehicleCost = miles * cpm * vehicles;
+  return { bracket, miles, travelHrs, travelLabor, vehicleCost, floor: travelLabor + vehicleCost, cpm, crew, vehicles };
+}
+function tripBracket(est) { const t = est.tripTier || 't50'; return t === 'manual' ? (est.tripBracket || 't50') : t; }
+// Trip charge per visit: standard bracket rate (× trucks) or the estimator's adjusted amount — never below the cost floor.
 function tripPerVisit(est, rules) {
   const t = est.tripTier || 't50';
-  if (t === 'none') return 0;
-  if (t === 'custom') return num(est.tripMiles) * rules.trip.perMile;
-  if (t === 'manual') return num(est.tripManual);
-  return rules.trip[t] || 0;
+  if (t === 'none') return { amount: 0, floor: 0, standard: 0, info: null };
+  const br = tripBracket(est), vehicles = Math.max(1, parseInt(est.vehicles) || 1);
+  const fl = tripFloor(br, est, rules);
+  const standard = (br === 'custom' ? num(est.tripMiles) * rules.trip.perMile : num(rules.trip[br])) * vehicles;
+  const adj = t === 'manual' ? num(est.tripManual) : (est.tripAdjust !== '' && est.tripAdjust != null ? num(est.tripAdjust) : null);
+  const chosen = adj != null ? adj : standard;
+  const amount = Math.max(chosen, fl.floor);
+  return { amount, floor: fl.floor, standard, chosen, adjusted: adj != null, raised: chosen < fl.floor - 0.005, fl };
 }
 
 function computeOption(opt, est, rules) {
@@ -806,7 +857,8 @@ function computeOption(opt, est, rules) {
 
   // Trip charge + generator/equipment fuel ($/hr of total job time when gas equipment is used)
   const vehicles = Math.max(1, parseInt(est.vehicles) || 1);
-  const trip = tripPerVisit(est, rules) * trips * vehicles;
+  const tripInfo = tripPerVisit(est, rules);
+  const trip = tripInfo.amount * trips;
   const gasJob = scopes.some(x => GAS_EQUIPMENT.includes(x.scope.method) && x.r.sqft);
   const genHours = est.genHours === '' || est.genHours == null ? (gasJob ? r1(H) : 0) : num(est.genHours);
   const generator = genHours * R.generatorFuel;
@@ -838,7 +890,7 @@ function computeOption(opt, est, rules) {
   else if (crewDay > rules.ot.reviewOver) warnings.push({ level: 'warn', msg: `Total crew day ≈ ${r1(crewDay)} hrs — review overtime vs. overnight/second day.` });
   if (D > rules.travel.overnightDriveHrs && H > rules.travel.overnightLaborHrs && est.overnight === 'no') warnings.push({ level: 'warn', msg: `Job is > ${rules.travel.overnightDriveHrs} hrs away with > ${rules.travel.overnightLaborHrs} hrs on-site labor — guideline says include an overnight stay or get it reviewed.` });
   if (overnight) warnings.push({ level: 'info', msg: `Overnight: ${nights} night(s) — lodging ${rooms} room(s) + per diem $${rules.travel.perDiem}/installer/night added after pricing (+${AM.travelPct}%).` });
-  if (est.tripTier === 'manual' && num(est.tripManual) < (rules.trip.minManual || 100)) warnings.push({ level: 'warn', msg: `Trip charge below $${rules.trip.minManual || 100} requires management approval (policy: $100 only for jobs within ~10–15 miles of the warehouse).` });
+  if (tripInfo.raised) warnings.push({ level: 'warn', msg: `Trip charge ${tripInfo.adjusted ? 'adjusted to' : 'of'} $${r2(tripInfo.chosen).toLocaleString()} is below the Total Cost Floor ($${r2(tripInfo.floor).toLocaleString()} for ${tripInfo.fl.crew} workers, ${tripInfo.fl.vehicles} truck${tripInfo.fl.vehicles > 1 ? 's' : ''}) — raised to the floor. Going lower requires management approval.` });
   if (pr.div <= 0) warnings.push({ level: 'error', msg: 'Margin + royalty ≥ 100% — price cannot be calculated.' });
   if (pr.minApplied) warnings.push({ level: 'info', msg: `Minimum job price of $${num(rules.minJobPrice).toLocaleString()} applied.` });
   if (scopes.length && !L) warnings.push({ level: 'warn', msg: 'No labor hours calculated yet — enter square footage for each scope.' });
@@ -847,7 +899,7 @@ function computeOption(opt, est, rules) {
   return {
     scopes, sqft, L, Llo, Lhi, H, Hlo: Llo / (C * eff), Hhi: Lhi / (C * eff), C, eff, days, ot, reg, overnight, nights, trips, rooms, crewDay, installerDays,
     driveHrsPerInstaller, scopeMats, autoMats, misc, matCost, miscCost, laborWages, mobHrs, mobWages, driveWages, bonuses, payrollTax, laborTotal,
-    perDiem, lodging, additional, vehicles, trip, genHours, generator, cost, margin, royalty, spfSets, ...pr, warnings,
+    perDiem, lodging, additional, vehicles, tripInfo, trip, genHours, generator, cost, margin, royalty, spfSets, ...pr, warnings,
   };
 }
 
@@ -884,6 +936,65 @@ function computeFinal(est, rules, results) {
   return { ...j, ...pr, margin: blended, names: inc.map(o => o.name), count: inc.length };
 }
 
+// ─── ACTUALS / JOB COSTING (Actuals + Data tabs) ─────────────────────────────
+// Labor comes from Paychex daily hours (travel included), so the crew-travel labor that is built into
+// the trip charge is taken back OUT of the trip cost to avoid counting travel time twice.
+function quotedBasis(est, rules) {
+  const res = est.options.map(o => computeOption(o, est, rules));
+  return (est.options.length > 1 ? computeFinal(est, rules, res) : null) || res[0];
+}
+function computeActuals(est, rules) {
+  const A = est.actuals || {}, q = quotedBasis(est, rules);
+  const tax = rules.rates.payrollTaxPct / 100;
+  const labor = (A.labor || []).filter(l => l.employee || num(l.hrs) || num(l.ot));
+  const wages = labor.reduce((a, l) => a + num(l.hrs) * num(l.rate) + num(l.ot) * num(l.rate) * 1.5, 0);
+  const actHours = labor.reduce((a, l) => a + num(l.hrs) + num(l.ot), 0);
+  const actLabor = wages * (1 + tax);
+  const mats = (A.materials || []).filter(m => m.name);
+  const actMatOnly = mats.reduce((a, m) => a + num(m.qty) * num(m.price), 0);
+  const br = tripBracket(est);
+  const travel = (est.tripTier || 't50') === 'none' ? { travelLabor: 0 } : tripFloor(br, est, rules);
+  const travelOut = travel.travelLabor * q.trips;
+  const actTrip = Math.max(0, q.trip - travelOut) + q.generator;
+  const actMaterial = actMatOnly + actTrip;
+  const actCost = actLabor + actMaterial;
+  const rbf = q.revBeforeFees;
+  const estLabor = q.laborTotal, estMaterial = q.matCost + q.miscCost + q.trip + q.generator;
+  const quoted = q.margin;                                           // Combined (Final) Gross Profit %
+  const actual = rbf ? (rbf - actCost) / rbf * 100 : 0;              // Actual margin on Revenue Before Fees (estimator comp basis)
+  const beat = actual - quoted;
+  const marginDiff = beat >= rules.crewLeadBonus.minMarginBeatPct ? beat : 0;
+  const laborDiff = estLabor - actLabor, matDiff = estMaterial - actMaterial, overShort = laborDiff + matDiff;
+  const callback = A.callback === 'Yes';
+  const bonus = marginDiff && !callback && A.crewLead && A.crewLead !== 'No Crew Lead' ? Math.max(0, overShort * rules.crewLeadBonus.sharePct / 100) : 0;
+  const hasData = labor.length > 0 || mats.length > 0;
+  return { q, rbf, estLabor, estMaterial, estHours: q.L, actLabor, wages, actHours, actMatOnly, actTrip, travelOut, actMaterial, actCost,
+    income: rbf - actCost, quoted, actual, marginDiff, laborDiff, matDiff, overShort, callback, bonus, hasData };
+}
+// Prefill actual materials from the estimate at TRUE cost (what we actually pay)
+function actualMaterialsFromEstimate(est, rules) {
+  const q = quotedBasis(est, rules);
+  const out = [];
+  const all = [...q.scopeMats, ...q.autoMats, ...q.misc];
+  const galFor = (type, bd) => Math.ceil(bd / rules.spfGallon[type].bdFtPerGal);
+  let gallons = 0;
+  all.forEach(m => {
+    if (m.kind === 'spf') {
+      const type = /open/i.test(m.name) ? 'oc' : 'cc', g = galFor(type, m.qty); gallons += g;
+      out.push({ name: `SPF ${type === 'oc' ? 'Open' : 'Closed'} Cell (gallons)`, qty: g, price: rules.spfGallon[type].price, unit: 'gal' });
+      return;
+    }
+    if (m.name === 'SPF Supplies/PPE') return;                       // recalculated from gallons below
+    let price = ACTUAL_PRICES[m.name], qty = m.qty, unit = m.unit;
+    if (m.kind === 'batt') price = r2(m.price / (priceBook(est) === 'commercial' ? 1 : (num(rules.materialPricing.battMarkup) || 1)));
+    if (m.kind === 'blow') price = num((rules.materialPricing.blow.commercial || {})[/cellulose/i.test(m.name) ? 'cellulose' : 'l77']) || m.price;
+    if (ACTUAL_UNITS[m.name] === 'roll' && m.unit === 'sq ft') { qty = Math.ceil(m.qty / (/Vapor/.test(m.name) ? 1200 : 3500)); unit = 'roll'; }
+    out.push({ name: m.name, qty, price: price != null ? price : m.price, unit });
+  });
+  if (gallons) out.push({ name: 'SPF Supplies/PPE', qty: r2(gallons / rules.spfGallon.gallonsPerSuppliesSet), price: ACTUAL_PRICES['SPF Supplies/PPE'], unit: 'set' });
+  return out;
+}
+
 function estimateWarnings(est, rules) {
   const w = [];
   const pt = PROJECT_TYPES[est.projectType];
@@ -907,7 +1018,7 @@ function estimateWarnings(est, rules) {
   return w;
 }
 
-if (typeof module !== 'undefined') module.exports = { computeScope, computeOption, computeFinal, estimateWarnings, tableLookup, pickRate };
+if (typeof module !== 'undefined') module.exports = { computeScope, computeOption, computeFinal, computeActuals, tripFloor, tripPerVisit, estimateWarnings, tableLookup, pickRate };
 // ════════════════════════════════════════════════════════════════════════════
 // STATE & UI
 // ════════════════════════════════════════════════════════════════════════════
@@ -999,6 +1110,7 @@ function render() {
   else if (S.view === 'estimate') renderEstimate();
   else if (S.view === 'builders') renderBuilders();
   else if (S.view === 'settings') renderSettings();
+  else if (S.view === 'jobcost') renderJobCosting();
   renderSaveStatus();
 }
 
@@ -1044,7 +1156,7 @@ function renderHome() {
 }
 
 function startEstimate(type) {
-  S.est = newEstimate(type); S.activeOpt = 0; S.dirty = false; S.builderHist = null;
+  S.est = newEstimate(type); S.activeOpt = 0; S.dirty = false; S.builderHist = null; S.estTab = 'estimate';
   S.view = 'estimate'; render(); window.scrollTo(0, 0);
 }
 
@@ -1066,9 +1178,11 @@ function chk(label, path, value, r) {
 }
 
 function renderEstimate() {
+  if (S.estTab === 'actuals') return renderActuals();
   const e = S.est, pt = PROJECT_TYPES[e.projectType];
   const builderOpts = [['', `— Select ${pt.clientLabel.toLowerCase()} —`], ...S.builders.filter(b => b.is_active !== false || b.id === e.builderId).map(b => [b.id, b.name + (b.client_type && b.client_type !== pt.clientLabel ? ` (${b.client_type})` : '')])];
   $('app').innerHTML = `
+  ${estTabsHtml()}
   <div class="est-layout">
     <div>
       <div class="card">
@@ -1099,9 +1213,10 @@ function renderEstimate() {
         <div class="grid">
           ${fld('Crew size (installers)', 'est.crew', e.crew, { type: 'number', hint: 'Experienced installers only (min 2)' })}
           ${fld('Drive time one-way (hrs)', 'est.driveHrs', e.driveHrs, { type: 'number', step: '0.25' })}
-          ${fld('Trip charge', 'est.tripTier', e.tripTier, { r: 'all', options: [['t50', `${RULES.tripLabels.t50} — $${RULES.trip.t50}`], ['t75', `${RULES.tripLabels.t75} — $${RULES.trip.t75}`], ['t100', `${RULES.tripLabels.t100} — $${RULES.trip.t100}`], ['custom', `101+ mi — $${RULES.trip.perMile}/mi`], ['manual', 'Manual amount'], ['none', 'No trip charge']] })}
-          ${e.tripTier === 'custom' ? fld('Miles', 'est.tripMiles', e.tripMiles, { type: 'number' }) : ''}
+          ${fld('Trip charge (mileage bracket)', 'est.tripTier', e.tripTier, { r: 'all', options: [['t50', `${RULES.tripLabels.t50} — $${RULES.trip.t50}`], ['t75', `${RULES.tripLabels.t75} — $${RULES.trip.t75}`], ['t100', `${RULES.tripLabels.t100} — $${RULES.trip.t100}`], ['custom', `101+ mi — $${RULES.trip.perMile}/mi round trip`], ...(e.tripTier === 'manual' ? [['manual', 'Manual amount (old estimate)']] : []), ['none', 'No trip charge']] })}
+          ${e.tripTier === 'custom' ? fld('Round-trip miles', 'est.tripMiles', e.tripMiles, { type: 'number' }) : ''}
           ${e.tripTier === 'manual' ? fld('Trip $ per visit', 'est.tripManual', e.tripManual, { type: 'number' }) : ''}
+          ${e.tripTier !== 'none' && e.tripTier !== 'manual' ? fld('Adjusted trip $ / visit', 'est.tripAdjust', e.tripAdjust ?? '', { type: 'number', ph: 'Standard', hint: '<span id="tripHint"></span>' }) : ''}
           ${fld('Schedule days', 'est.planDays', e.planDays, { type: 'number', ph: 'Auto', hint: 'Blank = auto (OT vs. extra day)' })}
           ${fld('Overnight stay', 'est.overnight', e.overnight, { r: 'all', options: [['auto', 'Auto (guideline)'], ['yes', 'Yes'], ['no', 'No']] })}
           ${fld('Lodging $/room/night', 'est.lodgingRate', e.lodgingRate, { type: 'number' })}
@@ -1220,8 +1335,7 @@ function scopeFields(s) {
     if (k === 'clearance') add(fld('Clearance (in)', P + 'clearance', s.clearance, { type: 'number' }));
     if (k === 'enteringInstallers') add(fld('Installers entering attic', P + 'enteringInstallers', s.enteringInstallers, { type: 'number', hint: '$' + RULES.bonuses.tightAttic + ' bonus each' }));
     if (k === 'manualHours') add(fld('Labor hours (total)', P + 'manualHours', s.manualHours, { type: 'number' }));
-    if (k === 'sillLf') add(fld('Sill plate LF', P + 'sillLf', s.sillLf, { type: 'number', hint: '50 LF per gasket roll' }));
-    if (k === 'caulkLf') add(fld('Caulking LF', P + 'caulkLf', s.caulkLf, { type: 'number', hint: '50 LF per tube' }));
+    if (k === 'plateLf' && !(S.est.projectType === 'commercial' && S.est.construction === 'retrofit')) add(fld('Linear ft', P + 'plateLf', s.plateLf ?? (Math.max(num(s.sillLf), num(s.caulkLf)) || ''), { type: 'number', hint: 'Caulk & sill gasket: 1 per 50 LF' }));
   });
   const checks = [];
   if (f.includes('shaving')) { const def = s.shaving ?? (s.spfType === 'oc' && s.surface === 'walls'); checks.push(chk('Shave flush', P + 'shaving', def)); }
@@ -1308,6 +1422,8 @@ function refreshCalc() {
       <td><input data-autoq="${esc(m.name)}" value="${m.qty}" class="${m.overridden ? 'ovr' : ''}" title="${m.overridden ? 'Auto: ' + m.autoQty + ' — clear to reset' : 'Auto-calculated — type to override'}" style="width:100%;padding:5px;border:1px solid var(--border);border-radius:5px"></td>
       <td>${money(m.price)}</td><td style="text-align:right">${money(m.cost)}</td><td></td></tr>`).join(''));
   const fin = e.options.length > 1 ? computeFinal(e, rules, res) : null;
+  const th = $('tripHint'), ti = c.tripInfo;
+  if (th && ti && ti.fl) th.innerHTML = `Standard ${money0(ti.standard)} · <b>cost floor ${money(ti.floor)}</b> (${ti.fl.crew} workers, ${ti.fl.vehicles} truck${ti.fl.vehicles > 1 ? 's' : ''}) · recommended min ${money0(Math.ceil(ti.floor / 5) * 5)}${ti.raised ? ' · <b style="color:var(--red)">raised to floor</b>' : ''}`;
   setHTML('sumA', `
     <h2>${esc(curOpt().name)} summary</h2>
     <div class="stat-grid">
@@ -1390,6 +1506,7 @@ function onBind(ev) {
   if (!el.dataset.b || !S.est) return;
   const path = el.dataset.b;
   setPath(path, readInput(el));
+  if (path.startsWith('est.actuals.')) { if (onActualsBind(el, path)) { markDirty(); return; } markDirty(); return refreshActuals(); }
   if (path.endsWith('.sqftRaw')) { const sc = findScope(path.split('.')[1]); sc.sqft = evalArea(sc.sqftRaw); }
   markDirty();
   const r = el.dataset.r;
@@ -1589,9 +1706,18 @@ function summaryCols(est) {
     customer_address: est.address || null, customer_phone: est.phone || null, customer_email: est.email || null,
     estimator_name: est.estimator || null, estimate_date: est.date || null,
     total_cost: r2(best.cost || 0), customer_price: r2(best.price || 0), margin_percent: best.margin ?? null, royalty_percent: best.royalty ?? null,
-    labor_hours: r2(best.L || 0), crew_days: best.days || null, crm_deal_id: est.crmDealId || null,
+    labor_hours: r2(best.L || 0), crew_days: best.days || null, crm_deal_id: est.crmDealId || null, revenue_before_fees: r2(best.revBeforeFees || 0),
+    ...actualsCols(est, rules),
     data: est, updated_at: new Date().toISOString(),
   };
+}
+function actualsCols(est, rules) {
+  const empty = { finished_date: null, crew_lead: null, callback: null, quoted_margin: null, actual_margin: null, actual_cost: null, crew_lead_bonus: null };
+  if (!est.actuals) return empty;
+  const a = computeActuals(est, rules);
+  if (!a.hasData) return { ...empty, finished_date: est.actuals.finishedDate || null, crew_lead: est.actuals.crewLead || null };
+  return { finished_date: est.actuals.finishedDate || null, crew_lead: est.actuals.crewLead || null, callback: est.actuals.callback === 'Yes',
+    quoted_margin: r2(a.quoted), actual_margin: r2(a.actual), actual_cost: r2(a.actCost), crew_lead_bonus: r2(a.bonus) };
 }
 function curBuilderFor(est) { return S.builders.find(b => b.id === est.builderId) || null; }
 
@@ -1641,12 +1767,12 @@ async function deleteEstimate() {
   } catch (e) { toast('Delete failed: ' + e.message, 'error'); }
 }
 
-async function openEstimate(id) {
+async function openEstimate(id, tab) {
   try {
     const [r] = await api('GET', 'koala_v2_estimates?id=eq.' + id + '&select=*');
     if (!r) return toast('Estimate not found', 'error');
     const est = Object.assign(newEstimate(r.project_type), r.data || {});
-    est.id = r.id; S.est = est; S.activeOpt = 0; S.dirty = false; S.builderHist = null;
+    est.id = r.id; S.est = est; S.activeOpt = 0; S.dirty = false; S.builderHist = null; S.estTab = tab || 'estimate';
     history.replaceState(null, '', '?id=' + r.id);
     S.view = 'estimate'; render(); window.scrollTo(0, 0);
     if (est.builderId) { S.builderHist = await loadBuilderHistory(est.builderId); renderBuilderPanel(); }
@@ -1660,13 +1786,13 @@ async function duplicateEstimate(id) {
   const est = Object.assign(newEstimate(r.project_type), clone(r.data || {}));
   est.id = null; est.status = 'Draft'; est.date = today(); est.crmDealId = null; est.projectName = (est.projectName || '') + ' (copy)';
   est.options.forEach(o => { o.id = uid(); o.scopes.forEach(s => s.id = uid()); });
-  S.est = est; S.activeOpt = 0; S.view = 'estimate'; history.replaceState(null, '', location.pathname); render(); markDirty();
+  S.est = est; S.activeOpt = 0; S.estTab = 'estimate'; delete est.actuals; S.view = 'estimate'; history.replaceState(null, '', location.pathname); render(); markDirty();
   if (est.builderId) { S.builderHist = await loadBuilderHistory(est.builderId); renderBuilderPanel(); }
   toast('Copy created — save to keep it', 'ok');
 }
 
 async function loadRecent() {
-  try { S.recent = await api('GET', `koala_v2_estimates?franchise_id=eq.${FRANCHISE_ID}&select=id,project_type,status,project_name,customer_name,builder_id,estimator_name,estimate_date,customer_price,updated_at&order=updated_at.desc&limit=300`); }
+  try { S.recent = await api('GET', `koala_v2_estimates?franchise_id=eq.${FRANCHISE_ID}&select=id,project_type,status,project_name,customer_name,builder_id,estimator_name,estimate_date,customer_price,updated_at,finished_date,crew_lead,callback,quoted_margin,actual_margin,actual_cost,crew_lead_bonus,revenue_before_fees&order=updated_at.desc&limit=300`); }
   catch (e) { console.warn(e); S.recent = []; }
 }
 async function loadBuilders() {
@@ -1888,6 +2014,29 @@ function renderSettings() {
       </table><div class="small" style="color:var(--amber)">Set yields match the Sales Estimate Spreadsheet (SPF Supplies/PPE: CC ÷ 4,800, OC ÷ 18,000).</div></div>
     </div>
     <div>
+      <div class="settings-sec"><h4>Trip charge cost floor <span class="muted small">(Trip Charge Data)</span></h4><table class="tbl-edit">
+        <tr><td>Fleet size (trucks)</td><td>${n('fleet.trucks', R.fleet.trucks)}</td></tr>
+        <tr><td>Annual miles per truck</td><td>${n('fleet.milesPerTruck', R.fleet.milesPerTruck)}</td></tr>
+        <tr><td>YTD fuel cost $ (fleet)</td><td>${n('fleet.ytdFuel', R.fleet.ytdFuel, '0.01')}</td></tr>
+        <tr><td>YTD insurance $ (gen. liability)</td><td>${n('fleet.ytdInsurance', R.fleet.ytdInsurance, '0.01')}</td></tr>
+        <tr><td>Months of YTD data</td><td>${n('fleet.monthsYtd', R.fleet.monthsYtd)}</td></tr>
+        <tr><td>Annual maintenance budget $</td><td>${n('fleet.maintenance', R.fleet.maintenance, '0.01')}</td></tr>
+        <tr><td>Vehicle value $ · life (miles)</td><td>${n('fleet.vehicleValue', R.fleet.vehicleValue)} ${n('fleet.vehicleLifeMiles', R.fleet.vehicleLifeMiles)}</td></tr>
+        <tr><td>Avg travel speed (mph)</td><td>${n('fleet.avgSpeed', R.fleet.avgSpeed)}</td></tr>
+      </table>
+      ${(() => { const c = fleetCostPerMile(R); const est0 = { crew: 2, vehicles: 1, tripMiles: 1 };
+        return `<div class="small" style="margin-top:6px">Blended vehicle cost <b>$${c.total.toFixed(3)}/mile</b> (fuel ${c.fuel.toFixed(3)} + insurance ${c.ins.toFixed(3)} + maintenance ${c.maint.toFixed(3)} + depreciation ${c.dep.toFixed(3)})</div>
+        <table class="list" style="font-size:.8rem;margin-top:6px"><thead><tr><th>Bracket</th><th style="text-align:right">Floor (2 workers, 1 truck)</th><th style="text-align:right">Current rate</th><th style="text-align:right">Margin</th></tr></thead><tbody>
+        ${['t50', 't75', 't100'].map(b => { const f = tripFloor(b, est0, R); return `<tr><td>${esc(R.tripLabels[b])}</td><td style="text-align:right">${money(f.floor)}</td><td style="text-align:right">${money0(R.trip[b])}</td><td style="text-align:right;color:${R.trip[b] >= f.floor ? 'var(--green-dark)' : 'var(--red)'}">${money0(R.trip[b] - f.floor)}</td></tr>`; }).join('')}
+        <tr><td>101+ mi (per mile)</td><td style="text-align:right">${money(tripFloor('custom', est0, R).floor)}</td><td style="text-align:right">${money(R.trip.perMile)}</td><td style="text-align:right">${money(R.trip.perMile - tripFloor('custom', est0, R).floor)}</td></tr>
+        </tbody></table><div class="small muted">Estimators can adjust a trip charge on the estimate, but never below the floor for that job's crew size and trucks.</div>`; })()}</div>
+      <div class="settings-sec"><h4>Actuals / job costing</h4>
+        <div class="field"><label>Employees (one per line: Name | Role | $/hr)</label><textarea data-set="employees" data-emp="1" rows="6">${esc((R.employees || []).map(x => `${x.name} | ${x.role} | ${x.rate}`).join('\n'))}</textarea></div>
+        <div class="field" style="margin-top:6px"><label>Crew leads (comma separated)</label><input data-set="crewLeads" data-list="1" value="${esc((R.crewLeads || []).join(', '))}"></div>
+        <table class="tbl-edit" style="margin-top:6px"><tr><td>Bonus when actual margin beats quoted by ≥ pts</td><td>${n('crewLeadBonus.minMarginBeatPct', R.crewLeadBonus.minMarginBeatPct)}</td></tr>
+        <tr><td>Bonus = % of total savings</td><td>${n('crewLeadBonus.sharePct', R.crewLeadBonus.sharePct)}</td></tr>
+        <tr><td>SPF actual $/gal — CC · OC</td><td>${n('spfGallon.cc.price', R.spfGallon.cc.price, '0.01')} ${n('spfGallon.oc.price', R.spfGallon.oc.price, '0.01')}</td></tr>
+        <tr><td>Bd ft per gallon — CC · OC</td><td>${n('spfGallon.cc.bdFtPerGal', R.spfGallon.cc.bdFtPerGal)} ${n('spfGallon.oc.bdFtPerGal', R.spfGallon.oc.bdFtPerGal)}</td></tr></table></div>
       <div class="settings-sec"><h4>Pricing &amp; price books <span class="muted small">(Sales Estimate Spreadsheet)</span></h4><table class="tbl-edit">
         <tr><td>Default GP % — Residential NC · Commercial</td><td>${n('marginByType.res_nc', R.marginByType.res_nc)} ${n('marginByType.commercial', R.marginByType.commercial)}</td></tr>
         <tr><td>Residential batt markup (× true cost)</td><td>${n('materialPricing.battMarkup', R.materialPricing.battMarkup, '0.01')}</td></tr>
@@ -1898,7 +2047,6 @@ function renderSettings() {
         <tr><td>Markup on crew bonuses % · per diem &amp; lodging %</td><td>${n('additionalMarkup.bonusesPct', R.additionalMarkup.bonusesPct)} ${n('additionalMarkup.travelPct', R.additionalMarkup.travelPct)}</td></tr>
         <tr><td>Mobilization hrs per installer per day (commercial)</td><td>${n('mobilization.hrsPerInstallerPerDay', R.mobilization.hrsPerInstallerPerDay, '0.25')}</td></tr>
         <tr><td>Equipment fuel $/hr of job time</td><td>${n('rates.generatorFuel', R.rates.generatorFuel, '0.05')}</td></tr>
-        <tr><td>Manual trip charge minimum $ (below = approval)</td><td>${n('trip.minManual', R.trip.minManual || 100)}</td></tr>
       </table></div>
       <div class="settings-sec"><h4>Air-sealing supplies (new construction)</h4><table class="tbl-edit">
         <tr><td>Caulking: LF per tube</td><td>${n('airSeal.caulkLfPerTube', R.airSeal.caulkLfPerTube)}</td></tr>
@@ -1941,7 +2089,7 @@ let _loadedRates = {}, _storedSettings = {};
 function snapshotRates() { ['rates', 'trip', 'margin', 'royalty'].forEach(k => _loadedRates[k] = JSON.stringify(RULES[k])); }
 async function saveSettings() {
   document.querySelectorAll('[data-set]').forEach(el => {
-    let v = el.dataset.list ? el.value.split(',').map(x => x.trim()).filter(Boolean) : el.dataset.str ? el.value : num(el.value);
+    let v = el.dataset.emp ? el.value.split('\n').map(l => l.split('|').map(x => x.trim())).filter(p => p[0]).map(p => ({ name: p[0], role: p[1] || 'Installer', rate: num(p[2]) })) : el.dataset.list ? el.value.split(',').map(x => x.trim()).filter(Boolean) : el.dataset.str ? el.value : num(el.value);
     setDeep(RULES, el.dataset.set, v);
   });
   const over = diffObj(DEFAULT_RULES, RULES) || {};
@@ -2162,6 +2310,180 @@ window.addEventListener('beforeunload', ev => { if (S.view === 'estimate' && S.d
     $('xDraft').onclick = () => { lsSet('koalaV2Draft', null); bar.remove(); };
   }
 })();
+// ════════════════════════════════════════════════════════════════════════════
+// ACTUALS (job costing) + JOB COSTING REPORT  — mirrors the Actuals & Data tabs
+// ════════════════════════════════════════════════════════════════════════════
+
+function estTabsHtml() {
+  const e = S.est, a = e.actuals && (e.actuals.labor || []).length;
+  return `<div class="est-tabs">
+    <button class="${S.estTab !== 'actuals' ? 'active' : ''}" onclick="setEstTab('estimate')">📐 Estimate</button>
+    <button class="${S.estTab === 'actuals' ? 'active' : ''}" onclick="setEstTab('actuals')">📊 Actuals / job costing${a ? ' ✓' : ''}</button>
+  </div>`;
+}
+function setEstTab(t) {
+  if (t === 'actuals' && !S.est.id) return toast('Save the estimate first, then enter actuals once the job is finished.', 'error');
+  S.estTab = t; renderEstimate(); window.scrollTo(0, 0);
+}
+function ensureActuals() {
+  const e = S.est;
+  if (!e.actuals) e.actuals = { finishedDate: '', crewLead: '', callback: 'No', jobDescription: '', smMatches: false, invoiced: false, labor: [], materials: [], reason: '', productVariance: '', brandUsed: '', notes: '' };
+  return e.actuals;
+}
+
+const VARIANCE_REASONS = ['Less labor and material used', 'More labor and material used', 'Less labor but more material used', 'More labor but less material used'];
+
+function renderActuals() {
+  const e = S.est, A = ensureActuals(), rules = effRules(e);
+  const emp = RULES.employees || [];
+  $('app').innerHTML = `
+  ${estTabsHtml()}
+  <div class="est-layout">
+    <div>
+      <div class="card">
+        <h2>Job completion <span class="sub">${esc(e.projectName || '(untitled)')} · ${esc(PROJECT_TYPES[e.projectType].label)}${e.estimator ? ' · estimator ' + esc(e.estimator) : ''}</span></h2>
+        <div class="grid">
+          ${fld('Date finished', 'est.actuals.finishedDate', A.finishedDate, { type: 'date' })}
+          ${fld('Crew lead', 'est.actuals.crewLead', A.crewLead, { options: [['', 'Select…'], ...(RULES.crewLeads || []).map(x => [x, x])] })}
+          ${fld('Call back', 'est.actuals.callback', A.callback || 'No', { options: ['No', 'Yes'] })}
+          ${fld('Job description', 'est.actuals.jobDescription', A.jobDescription, { cls: 'span2' })}
+        </div>
+        <div class="row" style="margin-top:8px;gap:18px">${chk('SM amount matches the proposal', 'est.actuals.smMatches', A.smMatches)}${chk('Customer was invoiced', 'est.actuals.invoiced', A.invoiced)}</div>
+      </div>
+
+      <div class="card">
+        <h2>Labor — Paychex hours <span class="sub">each employee's total clocked hours on this job (travel included). OT = 1.5×, payroll tax ${RULES.rates.payrollTaxPct}%</span></h2>
+        <datalist id="empList">${emp.map(x => `<option value="${esc(x.name)}">${esc(x.role)} · $${x.rate}</option>`).join('')}</datalist>
+        <div style="overflow-x:auto"><table class="list act-tbl"><thead><tr><th>Date</th><th>Employee</th><th>$/hr</th><th>Hours</th><th>OT hrs</th><th style="text-align:right">Cost</th><th></th></tr></thead><tbody>
+          ${(A.labor || []).map((l, i) => `<tr>
+            <td><input type="date" data-b="est.actuals.labor.${i}.date" data-t="str" value="${esc(l.date || '')}"></td>
+            <td><input list="empList" data-b="est.actuals.labor.${i}.employee" data-t="str" data-r="act-emp" value="${esc(l.employee || '')}" placeholder="Employee"></td>
+            <td><input type="number" step="0.5" data-b="est.actuals.labor.${i}.rate" data-t="num" value="${esc(l.rate)}"></td>
+            <td><input type="number" step="0.25" data-b="est.actuals.labor.${i}.hrs" data-t="num" value="${esc(l.hrs)}"></td>
+            <td><input type="number" step="0.25" data-b="est.actuals.labor.${i}.ot" data-t="num" value="${esc(l.ot)}"></td>
+            <td style="text-align:right" id="al-${i}"></td>
+            <td><button class="btn sm ghost danger" onclick="actRemove('labor',${i})">✕</button></td></tr>`).join('')}
+        </tbody></table></div>
+        <div class="row" style="margin-top:8px"><button class="btn sm" onclick="actAddLabor()">+ Add employee / day</button>
+          <span class="small muted">Tip: add one row per employee per day, or one row per employee with their total hours.</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Materials &amp; supplies used <span class="sub">actual quantities at true cost</span></h2>
+        <datalist id="actMatList">${[...new Set([...Object.keys(ACTUAL_PRICES), ...BATTS.map(b => b.name), 'SPF Closed Cell (gallons)', 'SPF Open Cell (gallons)'])].map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+        <div style="overflow-x:auto"><table class="list act-tbl"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>$ each</th><th style="text-align:right">Cost</th><th></th></tr></thead><tbody>
+          ${(A.materials || []).map((m, i) => `<tr>
+            <td><input list="actMatList" data-b="est.actuals.materials.${i}.name" data-t="str" data-r="act-mat" value="${esc(m.name)}" style="min-width:200px"></td>
+            <td><input type="number" step="any" data-b="est.actuals.materials.${i}.qty" data-t="num" value="${esc(m.qty)}"></td>
+            <td class="small muted">${esc(m.unit || '')}</td>
+            <td><input type="number" step="0.01" data-b="est.actuals.materials.${i}.price" data-t="num" value="${esc(m.price)}"></td>
+            <td style="text-align:right" id="am-${i}"></td>
+            <td><button class="btn sm ghost danger" onclick="actRemove('materials',${i})">✕</button></td></tr>`).join('')}
+        </tbody></table></div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn sm primary" onclick="actPrefill()">${(A.materials || []).length ? '↺ Re-fill from estimate' : '⤓ Fill from estimate (true cost)'}</button>
+          <button class="btn sm" onclick="actAddMat()">+ Add item</button>
+          <span class="small muted">Then change quantities to what was actually used (include waste).</span></div>
+        <div class="w info" style="margin-top:10px"><span class="ic">ℹ</span><span id="actTripNote"></span></div>
+      </div>
+
+      <div class="card">
+        <h2>Variance notes</h2>
+        <div class="grid">
+          ${fld('Reason for variance', 'est.actuals.reason', A.reason, { options: [['', 'Select…'], ...VARIANCE_REASONS.map(x => [x, x])] })}
+          ${fld('Product variance', 'est.actuals.productVariance', A.productVariance)}
+          ${fld('Product brand used', 'est.actuals.brandUsed', A.brandUsed)}
+          ${fld('Notes for additional labor', 'est.actuals.notes', A.notes, { type: 'textarea', cls: 'full', rows: 2 })}
+        </div>
+      </div>
+    </div>
+    <aside class="sidebar"><div class="card" id="actSummary"></div>
+      <div class="sb-actions" style="grid-template-columns:1fr"><button class="btn primary" onclick="saveEstimate()">💾 Save actuals</button></div>
+    </aside>
+  </div>`;
+  refreshActuals();
+}
+
+function refreshActuals() {
+  const e = S.est, A = ensureActuals(), rules = effRules(e);
+  const r = computeActuals(e, rules);
+  (A.labor || []).forEach((l, i) => { const el = $('al-' + i); if (el) el.textContent = money((num(l.hrs) * num(l.rate) + num(l.ot) * num(l.rate) * 1.5)); });
+  (A.materials || []).forEach((m, i) => { const el = $('am-' + i); if (el) el.textContent = money(num(m.qty) * num(m.price)); });
+  const tn = $('actTripNote');
+  if (tn) tn.innerHTML = `Trip &amp; fuel cost: ${money(r.q.trip + r.q.generator)} estimated − ${money(r.travelOut)} crew travel labor (already inside the Paychex hours) = <b>${money(r.actTrip)}</b>`;
+  const row = (k, est, act, invert) => { const d = est - act; return `<tr><td>${k}</td><td style="text-align:right">${money0(est)}</td><td style="text-align:right">${money0(act)}</td><td style="text-align:right;color:${d >= 0 ? 'var(--green-dark)' : 'var(--red)'}">${d >= 0 ? '+' : '−'}${money0(Math.abs(d))}</td></tr>`; };
+  const beatTxt = `${r.actual >= r.quoted ? '+' : ''}${fmtN(r.actual - r.quoted, 1)} pts`;
+  const bonusWhy = !r.hasData ? 'Enter Paychex hours and materials to calculate.'
+    : r.callback ? 'No bonus — there was a call back.'
+    : !A.crewLead || A.crewLead === 'No Crew Lead' ? 'No crew lead selected.'
+    : !r.marginDiff ? `Actual margin must beat the quoted margin by ${RULES.crewLeadBonus.minMarginBeatPct}+ points (now ${beatTxt}).`
+    : `${RULES.crewLeadBonus.sharePct}% of ${money0(r.overShort)} total savings.`;
+  $('actSummary').innerHTML = `
+    <h2>Estimate vs. actual</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">Quoted margin</div><div class="v">${fmtN(r.quoted, 1)}%</div><div class="s">GP on the estimate</div></div>
+      <div class="stat"><div class="k">Actual margin</div><div class="v" style="color:${r.actual >= r.quoted ? 'var(--green-dark)' : 'var(--red)'}">${r.hasData ? fmtN(r.actual, 1) + '%' : '—'}</div><div class="s">on revenue before fees · ${beatTxt}</div></div>
+      <div class="stat"><div class="k">Labor hours</div><div class="v">${fmtN(r.actHours, 1)}</div><div class="s">estimated ${fmtN(r.estHours, 1)}</div></div>
+      <div class="stat"><div class="k">Income on job</div><div class="v">${money0(r.income)}</div><div class="s">RBF ${money0(r.rbf)}</div></div>
+    </div>
+    <table class="list" style="font-size:.82rem"><thead><tr><th></th><th style="text-align:right">Est.</th><th style="text-align:right">Actual</th><th style="text-align:right">Over/short</th></tr></thead><tbody>
+      ${row('Labor', r.estLabor, r.actLabor)}${row('Material + trip', r.estMaterial, r.actMaterial)}
+      <tr style="font-weight:800"><td>Total</td><td style="text-align:right">${money0(r.estLabor + r.estMaterial)}</td><td style="text-align:right">${money0(r.actCost)}</td><td style="text-align:right;color:${r.overShort >= 0 ? 'var(--green-dark)' : 'var(--red)'}">${r.overShort >= 0 ? '+' : '−'}${money0(Math.abs(r.overShort))}</td></tr>
+    </tbody></table>
+    <div class="price-box" style="background:${r.bonus ? '#0a5a2e' : 'var(--navy)'}">
+      <div class="lbl">Crew lead bonus${A.crewLead && A.crewLead !== 'No Crew Lead' ? ' — ' + esc(A.crewLead) : ''}</div>
+      <div class="big" style="color:${r.bonus ? '#fff' : 'var(--green)'}">${money(r.bonus)}</div>
+      <div class="gp"><span>${esc(bonusWhy)}</span></div>
+    </div>
+    <div class="small muted">Quoted margin = the estimate's Gross Profit %. Actual margin = (Revenue Before Fees − actual cost) ÷ Revenue Before Fees, the estimator-comp basis.</div>`;
+  renderSaveStatus();
+}
+
+function actAddLabor() { const A = ensureActuals(); const last = A.labor[A.labor.length - 1]; A.labor.push({ date: last ? last.date : (A.finishedDate || today()), employee: '', rate: '', hrs: '', ot: '' }); markDirty(); renderActuals(); }
+function actAddMat() { ensureActuals().materials.push({ name: '', qty: '', price: '', unit: '' }); markDirty(); renderActuals(); }
+function actRemove(k, i) { ensureActuals()[k].splice(i, 1); markDirty(); renderActuals(); }
+function actPrefill(confirmed) {
+  const A = ensureActuals();
+  if (!confirmed && A.materials.length) return confirmModal('Re-fill materials from the estimate?', 'This replaces the materials list with the estimated quantities at true cost.', 'Re-fill', () => actPrefill(true), true);
+  A.materials = actualMaterialsFromEstimate(S.est, effRules(S.est)); markDirty(); renderActuals();
+}
+function onActualsBind(el, path) {
+  const m = path.match(/^est\.actuals\.labor\.(\d+)\.employee$/);
+  if (m && el.dataset.r === 'act-emp') { const emp = (RULES.employees || []).find(x => x.name.toLowerCase() === String(el.value).toLowerCase()); if (emp) { S.est.actuals.labor[+m[1]].rate = emp.rate; renderActuals(); return true; } }
+  const mm = path.match(/^est\.actuals\.materials\.(\d+)\.name$/);
+  if (mm && el.dataset.r === 'act-mat') {
+    const row = S.est.actuals.materials[+mm[1]], name = el.value;
+    const b = BATTS.find(x => x.name === name), g = /^SPF (Open|Closed) Cell \(gallons\)$/.exec(name);
+    const price = ACTUAL_PRICES[name] ?? (b ? r2(b.price / (num(RULES.materialPricing.battMarkup) || 1)) : g ? RULES.spfGallon[g[1] === 'Open' ? 'oc' : 'cc'].price : null);
+    if (price != null && !num(row.price)) { row.price = price; row.unit = ACTUAL_UNITS[name] || (g ? 'gal' : b ? 'bag' : 'each'); renderActuals(); return true; }
+  }
+  return false;
+}
+
+// ─── JOB COSTING REPORT (Data tab) ────────────────────────────────────────────
+function renderJobCosting() {
+  const rows = S.recent.filter(r => r.actual_margin != null);
+  const leads = {};
+  rows.forEach(r => { if (r.crew_lead && num(r.crew_lead_bonus)) leads[r.crew_lead] = (leads[r.crew_lead] || 0) + num(r.crew_lead_bonus); });
+  const avg = k => rows.length ? rows.reduce((a, r) => a + num(r[k]), 0) / rows.length : 0;
+  $('app').innerHTML = `<div class="card">
+    <h2>Job costing <span class="sub">finished jobs with actuals entered — quoted vs. actual margin and crew lead bonuses</span></h2>
+    <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:14px">
+      <div class="stat"><div class="k">Jobs costed</div><div class="v">${rows.length}</div></div>
+      <div class="stat"><div class="k">Avg quoted margin</div><div class="v">${fmtN(avg('quoted_margin'), 1)}%</div></div>
+      <div class="stat"><div class="k">Avg actual margin</div><div class="v">${fmtN(avg('actual_margin'), 1)}%</div></div>
+      <div class="stat"><div class="k">Crew lead bonuses</div><div class="v">${money0(rows.reduce((a, r) => a + num(r.crew_lead_bonus), 0))}</div><div class="s">${Object.entries(leads).map(([k, v]) => esc(k) + ' ' + money0(v)).join(' · ') || '—'}</div></div>
+    </div>
+    ${rows.length ? `<div style="overflow-x:auto"><table class="list"><thead><tr><th>Finished</th><th>Project</th><th>Type</th><th>Estimator</th><th>Crew lead</th><th>Call back</th><th style="text-align:right">Revenue (RBF)</th><th style="text-align:right">Quoted</th><th style="text-align:right">Actual</th><th style="text-align:right">Diff</th><th style="text-align:right">Bonus</th></tr></thead><tbody>
+      ${rows.sort((a, b) => String(b.finished_date || '').localeCompare(String(a.finished_date || ''))).map(r => { const d = num(r.actual_margin) - num(r.quoted_margin); return `<tr class="click" onclick="openEstimate('${r.id}', 'actuals')">
+        <td class="small">${esc(r.finished_date || '')}</td><td><b>${esc(r.project_name || '(untitled)')}</b></td><td class="small">${esc(PROJECT_TYPES[r.project_type]?.short || '')}</td>
+        <td class="small">${esc(r.estimator_name || '')}</td><td class="small">${esc(r.crew_lead || '')}</td><td>${r.callback ? '<span class="pill Lost">Yes</span>' : 'No'}</td>
+        <td style="text-align:right">${money0(r.revenue_before_fees || 0)}</td><td style="text-align:right">${fmtN(r.quoted_margin, 1)}%</td>
+        <td style="text-align:right;font-weight:700;color:${d >= 0 ? 'var(--green-dark)' : 'var(--red)'}">${fmtN(r.actual_margin, 1)}%</td>
+        <td style="text-align:right">${d >= 0 ? '+' : ''}${fmtN(d, 1)}</td><td style="text-align:right">${num(r.crew_lead_bonus) ? money0(r.crew_lead_bonus) : '—'}</td></tr>`; }).join('')}
+    </tbody></table></div>` : '<div class="empty">No jobs costed yet. Open a finished estimate → “Actuals / job costing”, enter Paychex hours and materials used, and save.</div>'}
+  </div>`;
+}
 
 </script>
 </body>

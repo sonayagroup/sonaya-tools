@@ -850,6 +850,7 @@ body.customer-mode .kg { display: none; }
             <option value="other">Other</option>
           </select>
           <input type="text" id="jobTypeOther" placeholder="Enter job type..." style="display:none;margin-top:4px;font-size:.85rem" oninput="scheduleAutoSave()">
+          <label style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:.8rem;font-weight:600;text-transform:none;letter-spacing:0;cursor:pointer"><input type="checkbox" id="noExistingInsul" onchange="recalc()" style="width:auto"> No existing insulation (foam: 2 cans per 1,000 sf)</label>
         </div>
         <div class="field">
           <label>Target R-Value</label>
@@ -1555,7 +1556,7 @@ const JOB_AUTO_SUPPLIES = {
   attic:     [{ name: 'Foam Sealant', qty: 2 }, { name: 'Poly Sheeting', qty: 1 }, { name: 'Baffles', qty: 20 }],
   densepack: [{ name: 'Insulweb (cellulose)', qty: 1 }],
   netblow:   [{ name: 'Insulweb (cellulose)', qty: 1 }],
-  removal:   [{ name: 'Dumpster', qty: 1 }, { name: 'Removal Bags', qty: 10 }, { name: 'N95 Mask', qty: 4 }],
+  removal:   [{ name: 'Dumpster', qty: 1 }, { name: 'Removal Bags', qty: 10 }, { name: 'N95 Mask', qty: 4 }, { name: 'Foam Sealant', qty: 2 }],
   metal:     [],
   shed:        [],
   mobilehome:  [],
@@ -3200,7 +3201,34 @@ function calcOption(opt) {
   return { totalBlowIn, totalBatt, totalSpf, totalMaterials, totalLabor, payrollTax, totalLaborWithTax, totalMisc, tripCharge, totalJobCost };
 }
 
+// Foam cans (GM rule, retrofit): 1 can per 1,000 sf; 2 per 1,000 sf on removal jobs or when there is no existing
+// insulation. Always round UP to a whole can. Only the auto-added row is sized; once someone types a quantity it is left alone.
+function updateAutoFoam() {
+  options.forEach(o => {
+    const p = optPrefixFor(o), ctx = getOptionJobContext(o);
+    if (!['attic', 'removal'].includes(ctx.jobType)) return;
+    const area = ctx.ceilingArea || ctx.wallArea;
+    if (!area) return;
+    const perK = (ctx.jobType === 'removal' || $('noExistingInsul')?.checked) ? 2 : 1;
+    const cans = Math.max(1, Math.ceil(area / 1000 * perK - 1e-9));
+    o.rows.misc.forEach(m => {
+      const tr = document.getElementById(p + 'ms-' + m.id);
+      if (!tr || tr.dataset.auto !== '1' || tr.dataset.userEdited) return;
+      const name = tr.querySelector(`.${CSS.escape(p)}ms-name`)?.value || '';
+      if (name !== 'Foam Sealant') return;
+      const q = tr.querySelector(`.${CSS.escape(p)}ms-qty`);
+      if (q && String(q.value) !== String(cans)) q.value = cans;
+      q.title = `${cans} can${cans > 1 ? 's' : ''} = ${area.toLocaleString()} sf ÷ 1,000 × ${perK}, rounded up`;
+    });
+  });
+}
+document.addEventListener('input', ev => {
+  const el = ev.target;
+  if (ev.isTrusted && el.className && /ms-qty\b/.test(el.className)) { const tr = el.closest('tr'); if (tr && tr.dataset.auto === '1') tr.dataset.userEdited = '1'; }
+}, true);
+
 function recalc() {
+  updateAutoFoam();
   const opt = getOpt();
   const c = calcOption(opt);
   const margin = getOptionMargin(opt);
@@ -3381,6 +3409,7 @@ function serializeForm() {
     custEmail: $('custEmail').value,
     jobType: $('jobType').value,
     jobTypeOther: $('jobTypeOther')?.value || '',
+    noExistingInsul: !!$('noExistingInsul')?.checked,
     targetR: $('targetR').value,
     framingDepth: $('framingDepth').value,
     studSpacing: $('studSpacing').value,
@@ -3466,7 +3495,8 @@ function serializeForm() {
       const price = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${m.id}"]`);
       optData.misc.push({
         itemName: nameInput?.value || '', qty: qty?.value || '1',
-        price: price?.value || '0', auto: m.auto || false
+        price: price?.value || '0', auto: m.auto || false,
+        edited: !!document.getElementById(p + 'ms-' + m.id)?.dataset.userEdited
       });
     });
 
@@ -3500,6 +3530,7 @@ function deserializeForm(data) {
     $('jobTypeOther').value = data.jobTypeOther || '';
     $('jobTypeOther').style.display = data.jobType === 'other' ? '' : 'none';
   }
+  if ($('noExistingInsul')) $('noExistingInsul').checked = !!data.noExistingInsul;
   $('targetR').value = data.targetR || '';
   $('framingDepth').value = data.framingDepth || '';
   $('studSpacing').value = data.studSpacing || '';
@@ -3656,6 +3687,7 @@ function deserializeForm(data) {
       }
       addMisc(itemName || undefined, parseInt(row.qty) || 1, row.auto);
       const lastMisc = opt.rows.misc[opt.rows.misc.length - 1];
+      if (row.edited || (row.auto && itemName === 'Foam Sealant' && row.edited === undefined)) { const tr = document.getElementById(p + 'ms-' + lastMisc.id); if (tr) tr.dataset.userEdited = '1'; }   // older saves: keep their foam count
       const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${lastMisc.id}"]`);
       if (priceInput && row.price) priceInput.value = row.price;
     });

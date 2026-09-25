@@ -126,7 +126,7 @@ table.mats input.ovr { background: var(--amber-light); border-color: #f0c070; }
 .modal-bg { position: fixed; inset: 0; background: rgba(2,20,40,.55); z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
 .modal { background: #fff; border-radius: 12px; width: 100%; max-width: 640px; box-shadow: 0 20px 50px rgba(0,0,0,.3); }
 .modal.wide { max-width: 900px; }
-.modal-hd { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.modal-hd { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .modal-hd h3 { color: var(--navy); font-size: 1.1rem; flex: 1; }
 .modal-bd { padding: 16px 18px; }
 .modal-ft { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
@@ -162,6 +162,7 @@ body.est-view .mob-bar:not(:empty) { }
 #proposal table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-bottom: 6px; }
 #proposal th { background: var(--navy); color: #fff; text-align: left; padding: 6px 8px; font-size: .78rem; }
 #proposal td { padding: 6px 8px; border-bottom: 1px solid #e3e8ee; vertical-align: top; }
+#proposal tr.p-sub td { font-weight: 700; color: var(--navy); border-bottom: 2px solid #c9d3dd; }
 #proposal .opt-price { text-align: right; font-size: 1.15rem; font-weight: 800; color: var(--navy); margin: 4px 0 12px; }
 #proposal .terms { font-size: .8rem; color: #4a5866; } #proposal .terms li { margin: 3px 0 3px 18px; }
 @media print {
@@ -2371,7 +2372,27 @@ function proposalDisclaimers(est, results) {
   out.push('Proposal valid for 30 days.');
   return out;
 }
+// Itemized pricing: split the option's customer price across its lines in proportion to each line's
+// direct cost (own materials + its share of labor by hours; misc lines = their cost). Shared costs
+// (trip, fuel, N95/SPF supplies, travel) ride along proportionally, so lines always sum to the total.
+function lineWeights(r) {
+  const w = r.scopes.map(x => (x.r.materials || []).reduce((a, m) => a + (m.cost || 0), 0) + (r.L ? r.laborTotal * (x.r.hrs || 0) / r.L : 0));
+  return w.concat(r.misc.map(m => m.cost || 0));
+}
+function allocate(total, weights) {
+  const sum = weights.reduce((a, v) => a + Math.max(0, v), 0);
+  return weights.map(v => sum > 0 ? total * Math.max(0, v) / sum : total / (weights.length || 1));
+}
+function roundToTotal(raw, total) {       // cents, remainder on the biggest line so the column adds up exactly
+  const out = raw.map(v => Math.round(v * 100) / 100);
+  if (!out.length) return out;
+  const diff = Math.round((total - out.reduce((a, v) => a + v, 0)) * 100) / 100;
+  if (diff) { const k = out.indexOf(Math.max(...out)); out[k] = Math.round((out[k] + diff) * 100) / 100; }
+  return out;
+}
 let _propMode = null;
+let _propItemized = lsGet('koalaV2PropItemized'); if (_propItemized === null) _propItemized = true;
+function setPropItemized(v) { _propItemized = !!v; lsSet('koalaV2PropItemized', _propItemized); openProposal(); }
 function openProposal(mode) {
   const e = S.est, rules = effRules(e), allRes = e.options.map(o => computeOption(o, e, rules)), b = curBuilder(), pt = PROJECT_TYPES[e.projectType];
   const fin = e.options.length > 1 ? computeFinal(e, rules, allRes) : null;
@@ -2380,17 +2401,28 @@ function openProposal(mode) {
   const idx = e.options.map((o, i) => i).filter(i => !useFinal || (e.options[i].includeInFinal ?? i === 0));
   const res = idx.map(i => allRes[i]);
   const client = b ? b.name : e.clientName;
+  // line prices per shown option (Final: each option's lines scaled so everything sums to the project total)
+  const itemized = _propItemized;
+  const rawLines = res.map(r => allocate(r.price, lineWeights(r)));
+  const scale = useFinal ? (res.reduce((a, r) => a + r.price, 0) ? fin.price / res.reduce((a, r) => a + r.price, 0) : 0) : 1;
+  let lines;
+  if (useFinal) {
+    const flat = roundToTotal(rawLines.flat().map(v => v * scale), fin.price); let p = 0;
+    lines = rawLines.map(a => a.map(() => flat[p++]));
+  } else lines = rawLines.map((a, k) => roundToTotal(a, res[k].price));
+  const priceTd = v => itemized ? `<td style="text-align:right;white-space:nowrap">${money(v)}</td>` : '';
   const html = `<div id="proposal">
     <div class="p-hd"><div><h1>Insulation Proposal</h1><div>${esc(RULES.franchiseName)}${RULES.franchisePhone ? ' · ' + esc(RULES.franchisePhone) : ''}</div></div>
       <img src="https://imagedelivery.net/uX8LTtWSHgeVJ6eG75QgxQ/koalainsulation.com/2024/06/Logo.png/w=200,h=140" style="height:56px" onerror="this.remove()"></div>
     <table><tr><td style="width:50%"><b>${esc(pt.clientLabel)}:</b> ${esc(client || '')}${e.contactName ? '<br>Attn: ' + esc(e.contactName) : ''}${e.phone ? '<br>' + esc(e.phone) : ''}${e.email ? '<br>' + esc(e.email) : ''}</td>
       <td><b>Project:</b> ${esc(e.projectName || '')}<br>${esc(e.address || '')}<br><b>Date:</b> ${esc(e.date)}${e.estimator ? '<br><b>Estimator:</b> ' + esc(e.estimator) : ''}</td></tr></table>
     ${res.map((r, k) => { const i = idx[k]; return `<h2>${res.length > 1 ? esc(e.options[i].name) : 'Scope of work'}</h2>
-      <table><thead><tr><th>Area</th><th>Insulation</th><th>R-value</th><th style="text-align:right">Sq ft</th></tr></thead><tbody>
-      ${r.scopes.map(x => `<tr><td><b>${esc(scopeName(x.scope))}</b>${x.scope.comment ? `<div style="font-size:.8rem;color:#5d6b7a">${esc(x.scope.comment)}</div>` : ''}</td>
+      <table><thead><tr><th>Area</th><th>Insulation</th><th>R-value</th><th style="text-align:right">Sq ft</th>${itemized ? '<th style="text-align:right">Price</th>' : ''}</tr></thead><tbody>
+      ${r.scopes.map((x, j) => `<tr><td><b>${esc(scopeName(x.scope))}</b>${x.scope.comment ? `<div style="font-size:.8rem;color:#5d6b7a">${esc(x.scope.comment)}</div>` : ''}</td>
         <td>${esc(scopeDescription(x.scope, x.r) || x.scope.comment || '')}</td><td>${x.scope.rValue && !['foam_pack', 'attic_removal', 'crawl_removal', 'encapsulation', 'coating'].includes(x.scope.method) ? 'R-' + esc(x.scope.rValue) : '—'}</td>
-        <td style="text-align:right">${fmtN(x.r.sqft)}</td></tr>`).join('')}
-      ${r.misc.length ? r.misc.map(m => `<tr><td colspan="3">${esc(m.name)}</td><td style="text-align:right">${fmtN(m.qty)}</td></tr>`).join('') : ''}
+        <td style="text-align:right">${fmtN(x.r.sqft)}</td>${priceTd(lines[k][j])}</tr>`).join('')}
+      ${r.misc.length ? r.misc.map((m, j) => `<tr><td colspan="3">${esc(m.name)}</td><td style="text-align:right">${fmtN(m.qty)}</td>${priceTd(lines[k][r.scopes.length + j])}</tr>`).join('') : ''}
+      ${itemized && useFinal && res.length > 1 ? `<tr class="p-sub"><td colspan="4" style="text-align:right">${esc(e.options[i].name)} subtotal</td><td style="text-align:right;white-space:nowrap">${money(lines[k].reduce((a, v) => a + v, 0))}</td></tr>` : ''}
       </tbody></table>
       ${useFinal ? '' : `<div class="small">Estimated time on site: <b>${esc(customerRange(r))}</b></div>
       <div class="opt-price">${res.length > 1 ? esc(e.options[i].name) + ' total: ' : 'Total: '}${money(r.price)}</div>`}`; }).join('')}
@@ -2399,7 +2431,7 @@ function openProposal(mode) {
     <h2>Terms</h2><ul class="terms">${e.paymentTerms ? `<li>Payment terms: ${esc(e.paymentTerms)}</li>` : ''}${proposalDisclaimers(e, res).map(t => `<li>${esc(t)}</li>`).join('')}</ul>
     <div style="margin-top:28px;display:flex;gap:40px;font-size:.85rem"><div style="flex:1;border-top:1px solid #333;padding-top:4px">Accepted by / date</div><div style="flex:1;border-top:1px solid #333;padding-top:4px">${esc(RULES.franchiseName)}</div></div>
   </div>`;
-  modal(`<div class="modal-hd"><h3>Proposal preview</h3>${fin ? `<select onchange="openProposal(this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px"><option value="final" ${useFinal ? 'selected' : ''}>Final (Combined) — ${fin.count} option${fin.count > 1 ? 's' : ''}</option><option value="options" ${!useFinal ? 'selected' : ''}>All options as alternatives</option></select>` : ''}<button class="btn" onclick="copyProposalText()">Copy as text</button><button class="btn primary" onclick="window.print()">🖨 Print / PDF</button><button class="btn ghost" onclick="closeModal()">✕</button></div>
+  modal(`<div class="modal-hd"><h3>Proposal preview</h3>${fin ? `<select onchange="openProposal(this.value)" style="padding:6px;border:1px solid var(--border);border-radius:6px"><option value="final" ${useFinal ? 'selected' : ''}>Final (Combined) — ${fin.count} option${fin.count > 1 ? 's' : ''}</option><option value="options" ${!useFinal ? 'selected' : ''}>All options as alternatives</option></select>` : ''}<label class="p-toggle" style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;white-space:nowrap"><input type="checkbox" id="propItemized" ${itemized ? 'checked' : ''} onchange="setPropItemized(this.checked)"> Itemized pricing</label><button class="btn" onclick="copyProposalText()">Copy as text</button><button class="btn primary" onclick="window.print()">🖨 Print / PDF</button><button class="btn ghost" onclick="closeModal()">✕</button></div>
     <div class="modal-bd">${html}</div>`, true);
 }
 function copyProposalText() {

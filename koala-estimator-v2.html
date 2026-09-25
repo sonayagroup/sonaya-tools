@@ -884,7 +884,10 @@ function computeOption(opt, est, rules) {
   const tightEntering = Math.max(0, ...scopes.map(x => x.r.bonusFlags.tightAttic || 0));
   const bonusPer = anyContam ? rules.bonuses.contamination : anyCrawl ? rules.bonuses.crawl : 0;
   const bonuses = bonusPer * C + tightEntering * rules.bonuses.tightAttic;
-  const perDiem = nights * C * rules.travel.perDiem;
+  // Daily per diem: $/installer/day for every day of an overnight trip (travel days incl. → nights + 1 unless set)
+  const perDiemRate = blank(est.perDiemRate) ? num(rules.travel.perDiem) : num(est.perDiemRate);
+  const perDiemDays = overnight ? (blank(est.perDiemDays) ? nights + 1 : num(est.perDiemDays)) : 0;
+  const perDiem = perDiemDays * C * perDiemRate;
   const rooms = parseInt(est.rooms) || C;
   const lodging = nights * rooms * num(est.lodgingRate || rules.travel.lodgingPerNight);
   const AM = rules.additionalMarkup || { bonusesPct: 15, travelPct: 5 };
@@ -903,7 +906,7 @@ function computeOption(opt, est, rules) {
   if (crewDay > rules.ot.secondDayOver) warnings.push({ level: 'error', msg: `Total crew day ≈ ${r1(crewDay)} hrs (drive + labor + setup). 12+ hrs → overnight stay or multi-day scheduling is required.` });
   else if (crewDay > rules.ot.reviewOver) warnings.push({ level: 'warn', msg: `Total crew day ≈ ${r1(crewDay)} hrs — review overtime vs. overnight/second day.` });
   if (D > rules.travel.overnightDriveHrs && H > rules.travel.overnightLaborHrs && est.overnight === 'no') warnings.push({ level: 'warn', msg: `Job is > ${rules.travel.overnightDriveHrs} hrs away with > ${rules.travel.overnightLaborHrs} hrs on-site labor — guideline says include an overnight stay or get it reviewed.` });
-  if (overnight) warnings.push({ level: 'info', msg: `Overnight: ${nights} night(s) — lodging ${rooms} room(s) + per diem $${rules.travel.perDiem}/installer/night added after pricing (+${AM.travelPct}%).` });
+  if (overnight) warnings.push({ level: 'info', msg: `Overnight: ${nights} night(s) — lodging ${rooms} room(s) + per diem $${perDiemRate}/installer/day × ${perDiemDays} day(s) added after pricing (+${AM.travelPct}%).` });
   if (tripInfo.raised) warnings.push({ level: 'warn', msg: `Trip charge ${tripInfo.adjusted ? 'adjusted to' : 'of'} $${r2(tripInfo.chosen).toLocaleString()} is below the Total Cost Floor ($${r2(tripInfo.floor).toLocaleString()} for ${tripInfo.fl.crew} workers, ${tripInfo.fl.vehicles} truck${tripInfo.fl.vehicles > 1 ? 's' : ''}) — raised to the floor. Going lower requires management approval.` });
   if (tripInfo.custom && !num(est.tripMiles)) warnings.push({ level: 'warn', msg: '101+ mi trip: enter the round-trip miles — the trip charge is $0 until you do.' });
   if (blank(est.margin) && blank(opt.marginOverride)) warnings.push({ level: 'warn', msg: `Margin % is blank — using the default ${r1(margin)}%.`, pricing: true });
@@ -914,7 +917,7 @@ function computeOption(opt, est, rules) {
   return {
     scopes, sqft, L, Llo, Lhi, H, Hlo: Llo / (C * eff), Hhi: Lhi / (C * eff), C, eff, days, ot, reg, overnight, nights, trips, rooms, crewDay, installerDays,
     driveHrsPerInstaller, scopeMats, autoMats, misc, matCost, miscCost, laborWages, mobHrs, mobWages, driveWages, bonuses, payrollTax, laborTotal,
-    perDiem, lodging, additional, vehicles, tripInfo, trip, genHours, generator, cost, margin, royalty, spfSets, ...pr, warnings,
+    perDiem, perDiemRate, perDiemDays, lodging, additional, vehicles, tripInfo, trip, genHours, generator, cost, margin, royalty, spfSets, ...pr, warnings,
   };
 }
 
@@ -1267,6 +1270,8 @@ function renderEstimate() {
           ${fld('Overnight stay', 'est.overnight', e.overnight, { r: 'all', options: [['auto', 'Auto (guideline)'], ['yes', 'Yes'], ['no', 'No']] })}
           ${fld('Lodging $/room/night', 'est.lodgingRate', e.lodgingRate, { type: 'number' })}
           ${fld('Rooms', 'est.rooms', e.rooms, { type: 'number', ph: '= crew' })}
+          ${fld('Per diem $/installer/day', 'est.perDiemRate', e.perDiemRate ?? '', { type: 'number', ph: String(RULES.travel.perDiem), hint: 'Meals — separate from lodging. Blank = default' })}
+          ${fld('Per diem days', 'est.perDiemDays', e.perDiemDays ?? '', { type: 'number', ph: 'Auto', hint: 'Blank = nights + 1 (overnight jobs only)' })}
           ${fld('Hose run from trailer (ft)', 'est.hoseFt', e.hoseFt, { type: 'number', hint: `Blow-in ~${RULES.blowInHoseFt} ft · SPF ~${RULES.spf.hoseFt} ft` })}
           ${fld('Vehicles per visit', 'est.vehicles', e.vehicles ?? 1, { type: 'number', hint: 'Each extra truck adds a trip charge' })}
           ${fld('Generator / equipment hrs', 'est.genHours', e.genHours, { type: 'number', ph: 'Auto = job time', hint: `$${RULES.rates.generatorFuel}/hr when gas equipment is used` })}
@@ -1505,6 +1510,7 @@ function refreshCalc() {
       <div class="gp"><span>Revenue before fees ${money0(c.revBeforeFees)}</span><span>${fmtN(c.effMargin, 1)}% eff.</span></div>
       <div class="gp"><span>Gross profit ${money0(c.gp)} · royalty ${money0(c.royaltyAmt)}</span><span>${c.sqft ? `$${(c.base / c.sqft).toFixed(2)}/sf` : ''}</span></div>
       ${c.additional ? `<div class="gp" style="border-top:1px solid rgba(255,255,255,.2);padding-top:5px"><span>Incl. bonuses / per diem / lodging</span><span>+${money0(c.additional)}</span></div>` : ''}
+      ${c.perDiem || c.lodging ? `<div class="gp" style="opacity:.85;font-size:.8em"><span>${c.perDiem ? `Per diem ${fmtN(c.perDiemDays)} day${c.perDiemDays === 1 ? '' : 's'} × ${c.C} × $${fmtN(c.perDiemRate)} = ${money0(c.perDiem)}` : ''}${c.perDiem && c.lodging ? ' · ' : ''}${c.lodging ? `Lodging ${c.nights} night${c.nights === 1 ? '' : 's'} = ${money0(c.lodging)}` : ''}</span><span>before ${(RULES.additionalMarkup || {}).travelPct ?? 5}% markup</span></div>` : ''}
     </div>
     ${e.options.length > 1 && !includedOptions(e).length ? `<div class="w warn"><span class="ic">⚠</span><span>No option is marked “Include in Final”, so there is no Final (Combined) price. Tick Include on at least one option.</span></div>` : ''}
     ${fin && fin.invalid ? fin.warnings.filter(w => w.level === 'error').map(w => `<div class="w error"><span class="ic">⛔</span><span>${esc(w.msg)}</span></div>`).join('') : ''}
@@ -2169,7 +2175,7 @@ function renderSettings() {
         <tr><td>Max OT hrs/day before adding a day</td><td>${n('ot.maxOtPerDay', R.ot.maxOtPerDay, '0.5')}</td></tr>
         <tr><td>Overnight if drive one-way &gt; hrs</td><td>${n('travel.overnightDriveHrs', R.travel.overnightDriveHrs, '0.5')}</td></tr>
         <tr><td>… and on-site labor &gt; hrs</td><td>${n('travel.overnightLaborHrs', R.travel.overnightLaborHrs, '0.5')}</td></tr>
-        <tr><td>Per diem $/installer/night</td><td>${n('travel.perDiem', R.travel.perDiem)}</td></tr>
+        <tr><td>Default per diem $/installer/day</td><td>${n('travel.perDiem', R.travel.perDiem)}</td></tr>
         <tr><td>Default lodging $/room/night</td><td>${n('travel.lodgingPerNight', R.travel.lodgingPerNight)}</td></tr>
         <tr><td>Setup/load hrs per day</td><td>${n('travel.setupHrs', R.travel.setupHrs, '0.25')}</td></tr>
         <tr><td>Crawlspace bonus $/crew member</td><td>${n('bonuses.crawl', R.bonuses.crawl)}</td></tr>

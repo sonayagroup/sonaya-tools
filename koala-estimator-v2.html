@@ -108,6 +108,11 @@ table.mats input.ovr { background: var(--amber-light); border-color: #f0c070; }
 .price-box .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #b9cadb; }
 .price-box .big { font-size: 2rem; font-weight: 800; color: var(--green); line-height: 1.1; }
 .price-box .gp { display: flex; justify-content: space-between; font-size: .82rem; margin-top: 6px; color: #dbe6f1; }
+.price-box .ao { border-top: 1px solid rgba(255,255,255,.2); margin-top: 8px; padding-top: 6px; font-size: .82rem; color: #dbe6f1; }
+.price-box .ao-hd { display: flex; justify-content: space-between; font-weight: 700; color: #fff; margin-bottom: 2px; }
+.price-box .ao-row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0 3px 8px; }
+.price-box .ao-row small { display: block; font-size: .72rem; color: #9fb4c9; }
+.price-box .ao-row b { font-weight: 600; white-space: nowrap; }
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .stat { background: #f4f7fa; border-radius: 8px; padding: 8px 10px; }
 .stat .k { font-size: .68rem; text-transform: uppercase; color: var(--muted); font-weight: 700; letter-spacing: .03em; }
@@ -883,7 +888,9 @@ function computeOption(opt, est, rules) {
   const anyCrawl = scopes.some(x => x.r.bonusFlags.crawl);
   const tightEntering = Math.max(0, ...scopes.map(x => x.r.bonusFlags.tightAttic || 0));
   const bonusPer = anyContam ? rules.bonuses.contamination : anyCrawl ? rules.bonuses.crawl : 0;
-  const bonuses = bonusPer * C + tightEntering * rules.bonuses.tightAttic;
+  const crewBonus = bonusPer * C, tightBonus = tightEntering * rules.bonuses.tightAttic;
+  const bonusKind = anyContam ? 'Contamination' : anyCrawl ? 'Crawlspace' : '';
+  const bonuses = crewBonus + tightBonus;
   // Daily per diem: $/installer/day for every day of an overnight trip (travel days incl. → nights + 1 unless set)
   const perDiemRate = blank(est.perDiemRate) ? num(rules.travel.perDiem) : num(est.perDiemRate);
   const perDiemDays = overnight ? (blank(est.perDiemDays) ? nights + 1 : num(est.perDiemDays)) : 0;
@@ -917,7 +924,7 @@ function computeOption(opt, est, rules) {
   return {
     scopes, sqft, L, Llo, Lhi, H, Hlo: Llo / (C * eff), Hhi: Lhi / (C * eff), C, eff, days, ot, reg, overnight, nights, trips, rooms, crewDay, installerDays,
     driveHrsPerInstaller, scopeMats, autoMats, misc, matCost, miscCost, laborWages, mobHrs, mobWages, driveWages, bonuses, payrollTax, laborTotal,
-    perDiem, perDiemRate, perDiemDays, lodging, additional, vehicles, tripInfo, trip, genHours, generator, cost, margin, royalty, spfSets, ...pr, warnings,
+    perDiem, perDiemRate, perDiemDays, lodging, lodgingRate: num(est.lodgingRate || rules.travel.lodgingPerNight), crewBonus, tightBonus, bonusPer, bonusKind, tightEntering, travelPct: AM.travelPct, bonusesPct: AM.bonusesPct, additional, vehicles, tripInfo, trip, genHours, generator, cost, margin, royalty, spfSets, ...pr, warnings,
   };
 }
 
@@ -1207,6 +1214,18 @@ function startEstimate(type) {
   flushAutosave(); clearUndo();
   S.est = newEstimate(type); S.activeOpt = 0; S.dirty = false; S.builderHist = null; S.estTab = 'estimate';
   S.view = 'estimate'; render(); window.scrollTo(0, 0);
+}
+
+// Pass-through add-ons (added after pricing, small markup) — itemized in the price box
+function addOnsBox(c) {
+  const row = (label, math, base, pct) => base ? `<div class="ao-row"><div><span>${label}</span><small>${math} = ${money0(base)} + ${fmtN(pct)}%</small></div><b>${money(base * (1 + pct / 100))}</b></div>` : '';
+  const pl = (n, w) => `${fmtN(n)} ${w}${n === 1 ? '' : 's'}`;
+  return `<div class="ao"><div class="ao-hd"><span>Add-ons (after pricing)</span><b>+${money(c.additional)}</b></div>
+    ${row(`${c.bonusKind} crew bonus`, `${pl(c.C, 'installer')} × $${fmtN(c.bonusPer)}`, c.crewBonus, c.bonusesPct)}
+    ${row('Tight attic bonus', `${pl(c.tightEntering, 'installer')} entering × $${fmtN(c.tightEntering ? c.tightBonus / c.tightEntering : 0)}`, c.tightBonus, c.bonusesPct)}
+    ${row('Per diem', `${pl(c.perDiemDays, 'day')} × ${pl(c.C, 'installer')} × $${fmtN(c.perDiemRate)}`, c.perDiem, c.travelPct)}
+    ${row('Lodging', `${pl(c.nights, 'night')} × ${pl(c.rooms, 'room')} × $${fmtN(c.lodgingRate)}`, c.lodging, c.travelPct)}
+  </div>`;
 }
 
 // ─── ESTIMATE VIEW ───────────────────────────────────────────────────────────
@@ -1509,8 +1528,7 @@ function refreshCalc() {
       <div class="big">${money(c.price)}</div>
       <div class="gp"><span>Revenue before fees ${money0(c.revBeforeFees)}</span><span>${fmtN(c.effMargin, 1)}% eff.</span></div>
       <div class="gp"><span>Gross profit ${money0(c.gp)} · royalty ${money0(c.royaltyAmt)}</span><span>${c.sqft ? `$${(c.base / c.sqft).toFixed(2)}/sf` : ''}</span></div>
-      ${c.additional ? `<div class="gp" style="border-top:1px solid rgba(255,255,255,.2);padding-top:5px"><span>Incl. bonuses / per diem / lodging</span><span>+${money0(c.additional)}</span></div>` : ''}
-      ${c.perDiem || c.lodging ? `<div class="gp" style="opacity:.85;font-size:.8em"><span>${c.perDiem ? `Per diem ${fmtN(c.perDiemDays)} day${c.perDiemDays === 1 ? '' : 's'} × ${c.C} × $${fmtN(c.perDiemRate)} = ${money0(c.perDiem)}` : ''}${c.perDiem && c.lodging ? ' · ' : ''}${c.lodging ? `Lodging ${c.nights} night${c.nights === 1 ? '' : 's'} = ${money0(c.lodging)}` : ''}</span><span>before ${(RULES.additionalMarkup || {}).travelPct ?? 5}% markup</span></div>` : ''}
+      ${c.additional ? addOnsBox(c) : ''}
     </div>
     ${e.options.length > 1 && !includedOptions(e).length ? `<div class="w warn"><span class="ic">⚠</span><span>No option is marked “Include in Final”, so there is no Final (Combined) price. Tick Include on at least one option.</span></div>` : ''}
     ${fin && fin.invalid ? fin.warnings.filter(w => w.level === 'error').map(w => `<div class="w error"><span class="ic">⛔</span><span>${esc(w.msg)}</span></div>`).join('') : ''}

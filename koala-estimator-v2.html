@@ -165,9 +165,12 @@ body.est-view .mob-bar:not(:empty) { }
 #proposal .opt-price { text-align: right; font-size: 1.15rem; font-weight: 800; color: var(--navy); margin: 4px 0 12px; }
 #proposal .terms { font-size: .8rem; color: #4a5866; } #proposal .terms li { margin: 3px 0 3px 18px; }
 @media print {
-  body * { visibility: hidden; } #proposal, #proposal * { visibility: visible; }
-  #proposal { position: absolute; left: 0; top: 0; width: 100%; padding: 0 10px; }
-  .modal-bg { position: static; background: none; padding: 0; } .modal { box-shadow: none; }
+  header, #app, #mobBar, .toast, .modal-hd { display: none !important; }
+  body { background: #fff; }
+  #proposal { position: static; width: 100%; padding: 0 10px; }
+  .modal-bg { position: static; background: none; padding: 0; display: block; overflow: visible; }
+  .modal, .modal.wide { box-shadow: none; max-width: none; width: 100%; max-height: none; overflow: visible; margin: 0; }
+  .modal-bd { max-height: none; overflow: visible; padding: 0; }
 }
 @media (max-width: 1100px) { .est-layout { grid-template-columns: minmax(0, 1fr); } .sidebar { position: static; max-height: none; } }
 @media (max-width: 760px) {
@@ -488,6 +491,11 @@ const ACTUAL_UNITS = { 'Insulation Netting (cellulose)': 'roll', 'Insulation Net
 const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
 const r2 = n => Math.round(n * 100) / 100;
 const r1 = n => Math.round(n * 10) / 10;
+const blank = v => v === '' || v == null || (typeof v === 'number' && isNaN(v));
+// Margin / royalty with sane fallbacks: a cleared field means "use the default", never 0%
+const defMargin = (est, rules) => num((rules.marginByType || {})[est && est.projectType] ?? rules.margin);
+const estMargin = (est, rules) => blank(est.margin) ? defMargin(est, rules) : num(est.margin);
+const estRoyalty = (est, rules) => blank(est.royalty) ? num(rules.royalty) : num(est.royalty);
 
 function pickRate(pair, mode) {            // pair = [slow, fast] sq ft per installer-day
   if (mode === 'slow') return pair[0];
@@ -714,7 +722,11 @@ function computeScope(scope, est, rules) {
     let cov = null, note = '';
     if (m === 'open_attic' || m === 'tight_attic') {
       const R = num(scope.rValue);
-      if (R) { const n = nearestHigherR(COVERAGE[pk].attic, R); cov = n.cov; note = `R-${n.rUsed}: ${cov} sf/bag${n.rUsed !== R ? ' (nearest ≥ R-' + R + ')' : ''}`; }
+      if (R) {
+        const n = nearestHigherR(COVERAGE[pk].attic, R); cov = n.cov;
+        if (n.rUsed < R) { cov = cov * n.rUsed / R; W('warn', `R-${R} is above the ${prod.name} coverage chart (max R-${n.rUsed}) — bags scaled from R-${n.rUsed}; verify with the manufacturer chart.`); }
+        note = `R-${n.rUsed}: ${r1(cov)} sf/bag${n.rUsed !== R ? (n.rUsed > R ? ' (nearest ≥ R-' + R + ')' : ' scaled to R-' + R) : ''}`;
+      }
       else W('info', 'Enter target R-value to calculate bags.');
     } else {
       const d = scope.depth || '2x4', sp = scope.spacing || '16';
@@ -794,7 +806,7 @@ function tripPerVisit(est, rules) {
   const adj = t === 'manual' ? num(est.tripManual) : (est.tripAdjust !== '' && est.tripAdjust != null ? num(est.tripAdjust) : null);
   const chosen = adj != null ? adj : standard;
   const amount = Math.max(chosen, fl.floor);
-  return { amount, floor: fl.floor, standard, chosen, adjusted: adj != null, raised: chosen < fl.floor - 0.005, fl };
+  return { amount, floor: fl.floor, standard, chosen, adjusted: adj != null, raised: chosen < fl.floor - 0.005, fl, custom: br === 'custom' };
 }
 
 function computeOption(opt, est, rules) {
@@ -877,8 +889,8 @@ function computeOption(opt, est, rules) {
   const additional = bonuses * (1 + AM.bonusesPct / 100) + (perDiem + lodging) * (1 + AM.travelPct / 100);
 
   // Pricing: Revenue Before Fees = cost/(1−GP); Revenue After Fees = cost/(1−GP−royalty)
-  const margin = opt.marginOverride !== '' && opt.marginOverride != null ? num(opt.marginOverride) : num(est.margin ?? rules.margin);
-  const royalty = num(est.royalty ?? rules.royalty);
+  const margin = !blank(opt.marginOverride) ? num(opt.marginOverride) : estMargin(est, rules);
+  const royalty = estRoyalty(est, rules);
   const pr = priceFromCost(cost, margin, royalty, est, rules, additional);
 
   // Schedule warnings (guideline rules)
@@ -891,10 +903,11 @@ function computeOption(opt, est, rules) {
   if (D > rules.travel.overnightDriveHrs && H > rules.travel.overnightLaborHrs && est.overnight === 'no') warnings.push({ level: 'warn', msg: `Job is > ${rules.travel.overnightDriveHrs} hrs away with > ${rules.travel.overnightLaborHrs} hrs on-site labor — guideline says include an overnight stay or get it reviewed.` });
   if (overnight) warnings.push({ level: 'info', msg: `Overnight: ${nights} night(s) — lodging ${rooms} room(s) + per diem $${rules.travel.perDiem}/installer/night added after pricing (+${AM.travelPct}%).` });
   if (tripInfo.raised) warnings.push({ level: 'warn', msg: `Trip charge ${tripInfo.adjusted ? 'adjusted to' : 'of'} $${r2(tripInfo.chosen).toLocaleString()} is below the Total Cost Floor ($${r2(tripInfo.floor).toLocaleString()} for ${tripInfo.fl.crew} workers, ${tripInfo.fl.vehicles} truck${tripInfo.fl.vehicles > 1 ? 's' : ''}) — raised to the floor. Going lower requires management approval.` });
-  if (pr.div <= 0) warnings.push({ level: 'error', msg: 'Margin + royalty ≥ 100% — price cannot be calculated.' });
-  if (pr.minApplied) warnings.push({ level: 'info', msg: `Minimum job price of $${num(rules.minJobPrice).toLocaleString()} applied.` });
+  if (tripInfo.custom && !num(est.tripMiles)) warnings.push({ level: 'warn', msg: '101+ mi trip: enter the round-trip miles — the trip charge is $0 until you do.' });
+  if (blank(est.margin) && blank(opt.marginOverride)) warnings.push({ level: 'warn', msg: `Margin % is blank — using the default ${r1(margin)}%.`, pricing: true });
+  if (blank(est.royalty)) warnings.push({ level: 'warn', msg: `Royalty % is blank — using the default ${r1(royalty)}%.`, pricing: true });
+  warnings.push(...pricingWarnings(pr, margin, rules));
   if (scopes.length && !L) warnings.push({ level: 'warn', msg: 'No labor hours calculated yet — enter square footage for each scope.' });
-  if (pr.effMargin < margin - 0.5 && pr.disc) warnings.push({ level: 'warn', msg: `Builder discount lowers effective margin to ${r1(pr.effMargin)}%.` });
 
   return {
     scopes, sqft, L, Llo, Lhi, H, Hlo: Llo / (C * eff), Hhi: Lhi / (C * eff), C, eff, days, ot, reg, overnight, nights, trips, rooms, crewDay, installerDays,
@@ -903,6 +916,13 @@ function computeOption(opt, est, rules) {
   };
 }
 
+function pricingWarnings(pr, margin, rules) {
+  const w = [];
+  if (pr.div <= 0) w.push({ level: 'error', msg: 'Margin + royalty ≥ 100% — price cannot be calculated.', pricing: true });
+  if (pr.minApplied) w.push({ level: 'info', msg: `Minimum job price of $${num(rules.minJobPrice).toLocaleString()} applied.`, pricing: true });
+  if (pr.effMargin < margin - 0.5 && pr.disc) w.push({ level: 'warn', msg: `Builder discount lowers effective margin to ${r1(pr.effMargin)}%.`, pricing: true });
+  return w;
+}
 // cost → prices (shared by options and the combined Final)
 function priceFromCost(cost, margin, royalty, est, rules, additional) {
   const div = 1 - margin / 100 - royalty / 100;
@@ -929,17 +949,22 @@ function computeFinal(est, rules, results) {
   const merged = { id: 'final', name: 'Final (Combined)', marginOverride: '', scopes: inc.flatMap(o => o.scopes), misc: inc.flatMap(o => o.misc || []), autoQty: inc.length === 1 ? (inc[0].autoQty || {}) : {} };   // combined recomputes N95/SPF supplies from totals
   const j = computeOption(merged, est, rules);
   const sumCost = incRes.reduce((a, x) => a + x.r.cost, 0) || 1;
-  const royalty = num(est.royalty ?? rules.royalty);
-  const revenue = incRes.reduce((a, x) => { const d = 1 - x.r.margin / 100 - royalty / 100; return a + (d > 0 ? j.cost * (x.r.cost / sumCost) / d : 0); }, 0);
+  const royalty = estRoyalty(est, rules);
+  const bad = incRes.filter(x => 1 - x.r.margin / 100 - royalty / 100 <= 0);
+  const revenue = bad.length ? 0 : incRes.reduce((a, x) => a + j.cost * (x.r.cost / sumCost) / (1 - x.r.margin / 100 - royalty / 100), 0);
   const blended = revenue ? (1 - royalty / 100 - j.cost / revenue) * 100 : 0;
-  const pr = priceFromCost(j.cost, blended, royalty, est, rules, j.additional);
-  return { ...j, ...pr, margin: blended, names: inc.map(o => o.name), count: inc.length };
+  const pr = priceFromCost(j.cost, bad.length ? 100 : blended, royalty, est, rules, j.additional);
+  // pricing warnings must come from the Final's own (blended) pricing, not the merged option's default margin
+  const warnings = j.warnings.filter(w => !w.pricing).concat(pricingWarnings(pr, blended, rules));
+  if (bad.length) warnings.unshift({ level: 'error', msg: `Final (Combined) can't be priced: ${bad.map(x => x.o.name).join(', ')} has margin + royalty ≥ 100%.` });
+  return { ...j, ...pr, margin: bad.length ? 0 : blended, warnings, invalid: !!bad.length, names: inc.map(o => o.name), count: inc.length };
 }
 
 // ─── ACTUALS / JOB COSTING (Actuals + Data tabs) ─────────────────────────────
 // Labor comes from Paychex daily hours (travel included), so the crew-travel labor that is built into
 // the trip charge is taken back OUT of the trip cost to avoid counting travel time twice.
 function quotedBasis(est, rules) {
+  if (!est.options || !est.options.length) est.options = [{ id: 'o1', name: 'Option 1', scopes: [], misc: [], autoQty: {} }];
   const res = est.options.map(o => computeOption(o, est, rules));
   return (est.options.length > 1 ? computeFinal(est, rules, res) : null) || res[0];
 }
@@ -962,13 +987,14 @@ function computeActuals(est, rules) {
   const estLabor = q.laborTotal, estMaterial = q.matCost + q.miscCost + q.trip + q.generator;
   const quoted = q.margin;                                           // Combined (Final) Gross Profit %
   const actual = rbf ? (rbf - actCost) / rbf * 100 : 0;              // Actual margin on Revenue Before Fees (estimator comp basis)
-  const beat = actual - quoted;
+  const beat = Math.round((actual - quoted) * 100) / 100;           // avoid 4.9999 vs 5 rounding misses
   const marginDiff = beat >= rules.crewLeadBonus.minMarginBeatPct ? beat : 0;
   const laborDiff = estLabor - actLabor, matDiff = estMaterial - actMaterial, overShort = laborDiff + matDiff;
   const callback = A.callback === 'Yes';
-  const bonus = marginDiff && !callback && A.crewLead && A.crewLead !== 'No Crew Lead' ? Math.max(0, overShort * rules.crewLeadBonus.sharePct / 100) : 0;
-  const hasData = labor.length > 0 || mats.length > 0;
-  return { q, rbf, estLabor, estMaterial, estHours: q.L, actLabor, wages, actHours, actMatOnly, actTrip, travelOut, actMaterial, actCost,
+  const hasData = actHours > 0;                                      // Paychex hours entered (a material pre-fill alone is not actuals)
+  const complete = hasData && !!A.finishedDate;                      // counted in Job Costing only when finished + hours entered
+  const bonus = complete && marginDiff && A.callback === 'No' && A.crewLead && A.crewLead !== 'No Crew Lead' ? Math.max(0, overShort * rules.crewLeadBonus.sharePct / 100) : 0;
+  return { q, rbf, estLabor, estMaterial, estHours: q.C * q.H, complete, actLabor, wages, actHours, actMatOnly, actTrip, travelOut, actMaterial, actCost,
     income: rbf - actCost, quoted, actual, marginDiff, laborDiff, matDiff, overShort, callback, bonus, hasData };
 }
 // Prefill actual materials from the estimate at TRUE cost (what we actually pay)
@@ -987,7 +1013,7 @@ function actualMaterialsFromEstimate(est, rules) {
     if (m.name === 'SPF Supplies/PPE') return;                       // recalculated from gallons below
     let price = ACTUAL_PRICES[m.name], qty = m.qty, unit = m.unit;
     if (m.kind === 'batt') price = r2(m.price / (priceBook(est) === 'commercial' ? 1 : (num(rules.materialPricing.battMarkup) || 1)));
-    if (m.kind === 'blow') price = num((rules.materialPricing.blow.commercial || {})[/cellulose/i.test(m.name) ? 'cellulose' : 'l77']) || m.price;
+    if (m.kind === 'blow') { const bk = (BLOW_IN.find(b => b.name === m.name) || {}).key; const tc = bk && (rules.materialPricing.blow.commercial || {})[bk]; price = tc != null ? num(tc) : m.price; }
     if (ACTUAL_UNITS[m.name] === 'roll' && m.unit === 'sq ft') { qty = Math.ceil(m.qty / (/Vapor/.test(m.name) ? 1200 : 3500)); unit = 'roll'; }
     out.push({ name: m.name, qty, price: price != null ? price : m.price, unit });
   });
@@ -1092,9 +1118,25 @@ function newEstimate(type) {
   };
 }
 
+// Older / partial saves may lack arrays the UI expects — normalize before use
+function normalizeEst(est) {
+  if (!Array.isArray(est.options) || !est.options.length) est.options = [newOption('Option 1', [])];
+  est.options.forEach((o, i) => {
+    o.id = o.id || uid(); o.name = o.name || 'Option ' + (i + 1);
+    if (!Array.isArray(o.scopes)) o.scopes = [];
+    if (!Array.isArray(o.misc)) o.misc = [];
+    if (!o.autoQty || typeof o.autoQty !== 'object') o.autoQty = {};
+    o.scopes.forEach(sc => { sc.id = sc.id || uid(); if (!sc.matQty) sc.matQty = {}; if (!sc.matPrice) sc.matPrice = {}; if (!METHODS[sc.method]) sc.method = 'custom'; });
+  });
+  if (!est.adjust || typeof est.adjust !== 'object') est.adjust = {};
+  if (!est.checklist) est.checklist = {};
+  return est;
+}
+
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 function go(view) {
-  if (S.view === 'estimate' && view !== 'estimate' && S.dirty && S.est && S.est.id) saveEstimate(true);
+  if (S.view === 'estimate' && view !== 'estimate') { if (S.dirty && S.est && S.est.id) saveEstimate(true); else flushAutosave(); }
+  clearUndo();
   S.view = view;
   if (view !== 'estimate') { history.replaceState(null, '', location.pathname); }
   render();
@@ -1156,6 +1198,7 @@ function renderHome() {
 }
 
 function startEstimate(type) {
+  flushAutosave(); clearUndo();
   S.est = newEstimate(type); S.activeOpt = 0; S.dirty = false; S.builderHist = null; S.estTab = 'estimate';
   S.view = 'estimate'; render(); window.scrollTo(0, 0);
 }
@@ -1187,10 +1230,10 @@ function renderEstimate() {
     <div>
       <div class="card">
         <h2><span class="type-badge">${pt.icon} ${pt.label}</span>
-          <span class="sub">${e.id ? 'Saved estimate' : 'New estimate — not saved yet'}</span>
+          <span class="sub" id="estHdrSub">${e.id ? 'Saved estimate' : 'New estimate — not saved yet'}</span>
           <span style="margin-left:auto" class="row">
             <select data-b="est.status" data-t="str" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-weight:700">${['Draft', 'Sent', 'Won', 'Lost'].map(s => `<option ${e.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
-            ${e.id ? `<button class="btn sm ghost" title="Duplicate this estimate" onclick="duplicateEstimate('${e.id}')">⧉</button><button class="btn sm ghost danger" title="Delete estimate" onclick="confirmDeleteEstimate()">🗑</button>` : ''}
+            <span id="estHdrActs" class="row">${estHdrActs(e)}</span>
           </span>
         </h2>
         <div class="grid">
@@ -1200,7 +1243,7 @@ function renderEstimate() {
           ${fld('Phone', 'est.phone', e.phone, { type: 'tel' })}
           ${fld('Email', 'est.email', e.email, { type: 'email' })}
           ${fld('Job address', 'est.address', e.address, { cls: 'span2' })}
-          ${fld('Estimator', 'est.estimator', e.estimator, { options: [['', 'Select…'], ...RULES.estimators.map(x => [x, x])] })}
+          ${fld('Estimator', 'est.estimator', e.estimator, { options: [['', 'Select…'], ...[...RULES.estimators, ...(e.estimator && !RULES.estimators.includes(e.estimator) ? [e.estimator] : [])].map(x => [x, x])] })}
           ${fld('Estimate date', 'est.date', e.date, { type: 'date' })}
           ${e.projectType === 'commercial' ? fld('Bid due', 'est.bidDue', e.bidDue, { type: 'date' }) : ''}
           ${pt.usesBuilder ? fld('Payment terms', 'est.paymentTerms', e.paymentTerms, { ph: 'e.g. Net 30' }) : ''}
@@ -1215,7 +1258,7 @@ function renderEstimate() {
           ${fld('Drive time one-way (hrs)', 'est.driveHrs', e.driveHrs, { type: 'number', step: '0.25' })}
           ${fld('Trip charge (mileage bracket)', 'est.tripTier', e.tripTier, { r: 'all', options: [['t50', `${RULES.tripLabels.t50} — $${RULES.trip.t50}`], ['t75', `${RULES.tripLabels.t75} — $${RULES.trip.t75}`], ['t100', `${RULES.tripLabels.t100} — $${RULES.trip.t100}`], ['custom', `101+ mi — $${RULES.trip.perMile}/mi round trip`], ...(e.tripTier === 'manual' ? [['manual', 'Manual amount (old estimate)']] : []), ['none', 'No trip charge']] })}
           ${e.tripTier === 'custom' ? fld('Round-trip miles', 'est.tripMiles', e.tripMiles, { type: 'number' }) : ''}
-          ${e.tripTier === 'manual' ? fld('Trip $ per visit', 'est.tripManual', e.tripManual, { type: 'number' }) : ''}
+          ${e.tripTier === 'manual' ? fld('Trip $ per visit', 'est.tripManual', e.tripManual, { type: 'number', hint: '<span id="tripHint"></span>' }) : ''}
           ${e.tripTier !== 'none' && e.tripTier !== 'manual' ? fld('Adjusted trip $ / visit', 'est.tripAdjust', e.tripAdjust ?? '', { type: 'number', ph: 'Standard', hint: '<span id="tripHint"></span>' }) : ''}
           ${fld('Schedule days', 'est.planDays', e.planDays, { type: 'number', ph: 'Auto', hint: 'Blank = auto (OT vs. extra day)' })}
           ${fld('Overnight stay', 'est.overnight', e.overnight, { r: 'all', options: [['auto', 'Auto (guideline)'], ['yes', 'Yes'], ['no', 'No']] })}
@@ -1250,7 +1293,7 @@ function renderEstimate() {
         <div class="row" style="margin-bottom:12px">
           <div class="field" style="width:200px"><label>Option name</label><input data-b="opt.name" data-t="str" data-r="tabs" value="${esc(curOpt().name)}"></div>
           ${e.options.length > 1 ? `<label class="chk" style="margin-top:16px" title="Only options marked Include are added into the Final (Combined) price"><input type="checkbox" ${(curOpt().includeInFinal ?? S.activeOpt === 0) ? 'checked' : ''} onchange="setInclude(this.checked)"> Include in Final</label>` : ''}
-          <div class="field" style="width:150px"><label>GP % for this option</label><input type="number" data-b="opt.marginOverride" data-t="str" value="${esc(curOpt().marginOverride)}" placeholder="${esc(e.margin)} (default)"></div>
+          <div class="field" style="width:150px"><label>GP % for this option</label><input type="number" data-b="opt.marginOverride" data-t="str" value="${esc(curOpt().marginOverride)}" placeholder="${esc(blank(e.margin) ? defMargin(e, RULES) : e.margin)} (default)"></div>
           ${e.options.length > 1 ? `<button class="btn sm danger" style="margin-top:16px" onclick="removeOption()">Remove option</button>` : ''}
         </div>
         ${curOpt().scopes.length > 2 ? `<div class="row small" style="justify-content:flex-end;margin:-6px 0 6px"><button class="btn sm ghost" onclick="setAllCollapsed(true)">Collapse all</button><button class="btn sm ghost" onclick="setAllCollapsed(false)">Expand all</button></div>` : ''}
@@ -1308,6 +1351,15 @@ function renderEstimate() {
   </div>`;
   renderBuilderPanel();
   refreshCalc();
+}
+
+function estHdrActs(e) { return e.id ? `<button class="btn sm ghost" title="Duplicate this estimate" onclick="duplicateEstimate('${e.id}')">⧉</button><button class="btn sm ghost danger" title="Delete estimate" onclick="confirmDeleteEstimate()">🗑</button>` : ''; }
+// After the first save of a new estimate: update the header in place instead of re-rendering the page (keeps focus)
+function updateEstHeader() {
+  const e = S.est; if (!e || S.view !== 'estimate') return;
+  const sub = $('estHdrSub'); if (sub) sub.textContent = e.id ? 'Saved estimate' : 'New estimate — not saved yet';
+  const acts = $('estHdrActs'); if (acts) acts.innerHTML = estHdrActs(e);
+  const tpl = document.querySelector('[onclick="openSaveTemplate()"]'); if (tpl) tpl.disabled = !e.builderId;
 }
 
 function scopeFields(s) {
@@ -1451,6 +1503,8 @@ function refreshCalc() {
       <div class="gp"><span>Gross profit ${money0(c.gp)} · royalty ${money0(c.royaltyAmt)}</span><span>${c.sqft ? `$${(c.base / c.sqft).toFixed(2)}/sf` : ''}</span></div>
       ${c.additional ? `<div class="gp" style="border-top:1px solid rgba(255,255,255,.2);padding-top:5px"><span>Incl. bonuses / per diem / lodging</span><span>+${money0(c.additional)}</span></div>` : ''}
     </div>
+    ${e.options.length > 1 && !includedOptions(e).length ? `<div class="w warn"><span class="ic">⚠</span><span>No option is marked “Include in Final”, so there is no Final (Combined) price. Tick Include on at least one option.</span></div>` : ''}
+    ${fin && fin.invalid ? fin.warnings.filter(w => w.level === 'error').map(w => `<div class="w error"><span class="ic">⛔</span><span>${esc(w.msg)}</span></div>`).join('') : ''}
     ${fin ? `<div class="price-box" style="background:#0a5a2e">
       <div class="lbl">Final (Combined) — ${fin.count} of ${e.options.length} option${e.options.length > 1 ? 's' : ''} included</div>
       <div class="big" style="color:#fff">${money(fin.price)}</div>
@@ -1505,8 +1559,10 @@ function onBind(ev) {
   if (el.dataset.mat) return onMatEdit(el, ev);
   if (!el.dataset.b || !S.est) return;
   const path = el.dataset.b;
+  const prevBuilder = path === 'est.builderId' ? S.est.builderId : null;
   setPath(path, readInput(el));
-  if (path.startsWith('est.actuals.')) { if (onActualsBind(el, path)) { markDirty(); return; } markDirty(); return refreshActuals(); }
+  if (path.startsWith('est.actuals.')) { markDirty(); if (ev.type === 'change' && onActualsBind(el, path)) return; if (/\.rate$/.test(path) && ev.type === 'input') { const i = +path.split('.')[3]; if (S.est.actuals.labor[i]) S.est.actuals.labor[i].rateAuto = false; } return refreshActuals(); }
+  if (el.dataset.r === 'tabs' && ev.type === 'input') { const t = document.querySelector('.opt-tab.active'); if (t) { const dot = t.querySelector('span'); t.textContent = el.value; if (dot) t.prepend(dot, ' '); } }
   if (path.endsWith('.sqftRaw')) { const sc = findScope(path.split('.')[1]); sc.sqft = evalArea(sc.sqftRaw); }
   markDirty();
   const r = el.dataset.r;
@@ -1515,14 +1571,43 @@ function onBind(ev) {
   if (ev.type === 'change' && !r && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio' && el.type !== 'date'))) return;
   const structural = ev.type === 'change' || el.type === 'checkbox' || el.tagName === 'SELECT';
   if (r && structural) {
-    if (r === 'all') { if (path === 'est.builderId') onBuilderSelected(); renderEstimate(); return; }
-    if (r === 'tabs') { renderEstimate(); return; }
-    if (r === 'misc') { const i = parseInt(path.split('.')[1]); const it = SUPPLIES.find(x => x.name === el.value); if (it && !num(curOpt().misc[i].price)) { curOpt().misc[i].price = it.price; renderEstimate(); return; } }
-    if (r === 'loc') { const sc = findScope(path.split('.')[1]); const d = LOCATION_DEFAULTS[sc.location]; if (d && !sc.sqft) Object.assign(sc, d); rerenderScope(sc); return; }
-    if (r === 'scope') { const sc = findScope(path.split('.')[1]); if (path.endsWith('.method')) { sc.laborOverride = ''; sc.matQty = {}; sc.matPrice = {}; } if (path.endsWith('.spfType') || path.endsWith('.surface')) delete sc.shaving; rerenderScope(sc); return; }
+    // Re-render AFTER the browser has moved focus (click / Tab), then put focus back on the same field
+    if (r === 'all') { if (path === 'est.builderId') onBuilderSelected(prevBuilder); keepFocus(renderEstimate); return; }
+    if (r === 'tabs') { refreshCalc(); return; }                // tab label already updated live while typing
+    if (r === 'misc') { const i = parseInt(path.split('.')[1]); const it = SUPPLIES.find(x => x.name === el.value); if (it && !num(curOpt().misc[i].price)) { curOpt().misc[i].price = it.price; keepFocus(renderEstimate); return; } }
+    if (r === 'loc') { const sc = findScope(path.split('.')[1]); const d = LOCATION_DEFAULTS[sc.location]; if (d && !sc.sqft) Object.assign(sc, d); keepFocus(() => rerenderScope(sc)); return; }
+    if (r === 'scope') { const sc = findScope(path.split('.')[1]); if (path.endsWith('.method')) { sc.laborOverride = ''; sc.matQty = {}; sc.matPrice = {}; } if (path.endsWith('.spfType') || path.endsWith('.surface')) delete sc.shaving; keepFocus(() => rerenderScope(sc)); return; }
   }
   if (path === 'est.status') onStatusChange();
   refreshCalc();
+}
+function focusSel(a) {
+  if (!a || a === document.body || !a.dataset) return null;
+  const q = v => (window.CSS && CSS.escape) ? CSS.escape(v) : String(v).replace(/"/g, '\\"');
+  if (a.dataset.b) return `[data-b="${q(a.dataset.b)}"]`;
+  if (a.dataset.mat) return `[data-mat="${q(a.dataset.mat)}"][data-matname="${q(a.dataset.matname)}"][data-field="${q(a.dataset.field)}"]`;
+  if (a.dataset.autoq !== undefined) return `[data-autoq="${q(a.dataset.autoq)}"]`;
+  if (a.id) return '#' + q(a.id);
+  return null;
+}
+function keepFocus(fn) {
+  const est = S.est, view = S.view, tab = S.estTab;
+  setTimeout(() => {
+    if (S.est !== est || S.view !== view || S.estTab !== tab) return;   // user navigated away meanwhile — don't paint over the new view
+    const a = document.activeElement, sel = focusSel(a), oldVal = a && a.value;
+    let s0 = null, s1 = null; try { s0 = a.selectionStart; s1 = a.selectionEnd; } catch { }
+    fn();
+    if (!sel) return;
+    const n = document.querySelector(sel);
+    if (!n || n === document.activeElement) return;
+    n.focus({ preventScroll: true });
+    try {
+      if (n.tagName !== 'INPUT' && n.tagName !== 'TEXTAREA') return;
+      if (n.value !== oldVal) { n.select(); return; }                      // value was auto-filled → typing replaces it
+      if (s0 != null) { n.setSelectionRange(s0, s1); return; }             // text: put the caret back where it was
+      const t = n.type; n.type = 'text'; n.setSelectionRange(n.value.length, n.value.length); n.type = t;   // number: caret at end
+    } catch { }
+  }, 0);
 }
 function onMatEdit(el) {
   const sc = findScope(el.dataset.mat); if (!sc) return;
@@ -1577,11 +1662,13 @@ function removeScope(id) {
 }
 function toggleScope(id) { const s = findScope(id); s.collapsed = !s.collapsed; rerenderScope(s); }
 function setAllCollapsed(v) { curOpt().scopes.forEach(s => s.collapsed = v); renderEstimate(); }
+function clearUndo() { document.querySelectorAll('.toast.undo').forEach(t => t.remove()); }
 function undoToast(msg, undo) {
-  document.querySelectorAll('.toast.undo').forEach(t => t.remove());
+  clearUndo();
+  const est = S.est;
   const t = document.createElement('div'); t.className = 'toast undo';
   t.innerHTML = `<span>${esc(msg)}</span> <button class="btn sm" style="margin-left:10px">Undo</button>`;
-  t.querySelector('button').onclick = () => { t.remove(); undo(); };
+  t.querySelector('button').onclick = () => { t.remove(); if (S.est !== est || S.view !== 'estimate') return toast('Undo is no longer available — that estimate is closed.', 'error'); undo(); };
   document.body.appendChild(t); setTimeout(() => t.remove(), 7000);
 }
 function confirmModal(title, body, okLabel, onOk, danger) {
@@ -1597,8 +1684,14 @@ function removeMisc(i) { curOpt().misc.splice(i, 1); markDirty(); renderEstimate
 
 // ─── BUILDER PANEL (history & templates) ─────────────────────────────────────
 function curBuilder() { return S.builders.find(b => b.id === S.est?.builderId) || null; }
-async function onBuilderSelected() {
+async function onBuilderSelected(prevId) {
   const b = curBuilder(); S.builderHist = null;
+  // Undo the previous builder's defaults if the estimator hadn't changed them
+  const pb = prevId ? S.builders.find(x => x.id === prevId) : null;
+  if (pb) {
+    if (num(pb.volume_discount_pct) && num(S.est.discountPct) === num(pb.volume_discount_pct)) S.est.discountPct = 0;
+    if (pb.default_margin != null && pb.default_margin !== '' && num(S.est.margin) === num(pb.default_margin)) S.est.margin = defMargin(S.est, RULES);
+  }
   if (!b) { S.est.clientName = ''; return; }
   S.est.clientName = b.name;
   if (!S.est.contactName && b.contact_name) S.est.contactName = b.contact_name;
@@ -1640,7 +1733,7 @@ function renderBuilderPanel() {
   </div>`;
 }
 function applyScopesFrom(options, keepAreas) {
-  S.est.options = clone(options).map(o => { o.id = uid(); o.scopes.forEach(s => { s.id = uid(); if (!keepAreas) { s.sqft = ''; s.sqftRaw = ''; s.nettingSqft = ''; } }); return o; });
+  S.est.options = normalizeEst({ options: clone(options) }).options.map(o => { o.id = uid(); o.scopes.forEach(s => { s.id = uid(); if (!keepAreas) { s.sqft = ''; s.sqftRaw = ''; s.nettingSqft = ''; } }); return o; });
   S.activeOpt = 0; markDirty(); renderEstimate();
 }
 function applyHistory(id, confirmed) {
@@ -1678,16 +1771,22 @@ const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch {
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } };
 
 // ─── SAVE STATUS / AUTOSAVE ──────────────────────────────────────────────────
-let _autoT = null, _saving = false;
-let _ver = 0, _pendingSave = false;
+let _autoT = null, _autoEst = null, _saving = false;
+let _ver = 0, _pendingEst = null;
 // New estimates auto-save once they are identifiable and have at least one area entered
 const worthSaving = e => (e.projectName || e.clientName || e.builderId) && e.options.some(o => o.scopes.some(s => num(s.sqft)));
 function markDirty() {
   S.dirty = true; _ver++;
   if (S.est) lsSet('koalaV2Draft', { est: S.est, at: Date.now() });
   renderSaveStatus();
+  clearTimeout(_autoT); _autoEst = null;
+  if (S.est && (S.est.id || worthSaving(S.est))) { const est = _autoEst = S.est; _autoT = setTimeout(() => { _autoEst = null; saveEstimate(true, est); }, 2500); }
+}
+// Save a pending autosave NOW (before switching estimates) so it can't fire later against a different estimate
+function flushAutosave() {
   clearTimeout(_autoT);
-  if (S.est && (S.est.id || worthSaving(S.est))) _autoT = setTimeout(() => saveEstimate(true), 2500);
+  const est = _autoEst; _autoEst = null;
+  if (est) saveEstimate(true, est);
 }
 function renderSaveStatus() {
   const el = $('saveStatus'); if (!el) return;
@@ -1715,17 +1814,18 @@ function actualsCols(est, rules) {
   const empty = { finished_date: null, crew_lead: null, callback: null, quoted_margin: null, actual_margin: null, actual_cost: null, crew_lead_bonus: null };
   if (!est.actuals) return empty;
   const a = computeActuals(est, rules);
-  if (!a.hasData) return { ...empty, finished_date: est.actuals.finishedDate || null, crew_lead: est.actuals.crewLead || null };
+  if (!a.complete) return { ...empty, finished_date: est.actuals.finishedDate || null, crew_lead: est.actuals.crewLead || null };   // only finished jobs with Paychex hours count in Job Costing
   return { finished_date: est.actuals.finishedDate || null, crew_lead: est.actuals.crewLead || null, callback: est.actuals.callback === 'Yes',
     quoted_margin: r2(a.quoted), actual_margin: r2(a.actual), actual_cost: r2(a.actCost), crew_lead_bonus: r2(a.bonus) };
 }
 function curBuilderFor(est) { return S.builders.find(b => b.id === est.builderId) || null; }
 
-async function saveEstimate(silent) {
-  if (!S.est) return;
-  if (_saving) { _pendingSave = true; return; }
-  clearTimeout(_autoT);
-  const est = S.est, v = _ver;
+async function saveEstimate(silent, target) {
+  const est = target || S.est;
+  if (!est) return;
+  if (_saving) { _pendingEst = est; return; }
+  if (est === S.est) { clearTimeout(_autoT); _autoEst = null; }
+  const v = _ver;
   _saving = true; S.saveError = false; renderSaveStatus();
   try {
     const row = summaryCols(est);
@@ -1734,15 +1834,14 @@ async function saveEstimate(silent) {
       const [r] = await api('POST', 'koala_v2_estimates', row);
       est.id = r.id;
       await api('PATCH', 'koala_v2_estimates?id=eq.' + r.id, { data: est });
-      if (S.est === est) history.replaceState(null, '', '?id=' + r.id);
-      if (S.view === 'estimate' && !document.activeElement?.dataset?.b) setTimeout(renderEstimate, 0);
+      if (S.est === est) { history.replaceState(null, '', '?id=' + r.id); updateEstHeader(); }
     }
-    if (S.est !== est) return;               // user opened another estimate meanwhile
-    S.dirty = _ver !== v; S.lastSaved = Date.now();
-    if (!S.dirty) lsSet('koalaV2Draft', null);
     const i = S.recent.findIndex(x => x.id === est.id);
     const lite = { ...row, id: est.id }; delete lite.data;
     if (i >= 0) S.recent[i] = lite; else S.recent.unshift(lite);
+    if (S.est !== est) return;               // user opened another estimate meanwhile
+    S.dirty = _ver !== v; S.lastSaved = Date.now();
+    if (!S.dirty) lsSet('koalaV2Draft', null);
     if (S.est.builderId && S.builderHist) { const j = S.builderHist.findIndex(x => x.id === S.est.id); const h = { ...lite, data: S.est }; if (j >= 0) S.builderHist[j] = h; else S.builderHist.unshift(h); }
     if (!silent) toast('Estimate saved', 'ok');
   } catch (err) {
@@ -1750,7 +1849,9 @@ async function saveEstimate(silent) {
     toast('Save failed: ' + err.message, 'error');
   } finally {
     _saving = false; renderSaveStatus();
-    if (_pendingSave || (S.dirty && S.est && S.est.id && !S.saveError)) { _pendingSave = false; clearTimeout(_autoT); _autoT = setTimeout(() => saveEstimate(true), 800); }
+    const pend = _pendingEst; _pendingEst = null;
+    if (pend && pend !== S.est) saveEstimate(true, pend);
+    else if (pend || (S.dirty && S.est && S.est.id && !S.saveError)) { clearTimeout(_autoT); const e2 = _autoEst = S.est; _autoT = setTimeout(() => { _autoEst = null; saveEstimate(true, e2); }, 800); }
   }
 }
 
@@ -1771,7 +1872,8 @@ async function openEstimate(id, tab) {
   try {
     const [r] = await api('GET', 'koala_v2_estimates?id=eq.' + id + '&select=*');
     if (!r) return toast('Estimate not found', 'error');
-    const est = Object.assign(newEstimate(r.project_type), r.data || {});
+    flushAutosave(); clearUndo();
+    const est = normalizeEst(Object.assign(newEstimate(r.project_type), r.data || {}));
     est.id = r.id; S.est = est; S.activeOpt = 0; S.dirty = false; S.builderHist = null; S.estTab = tab || 'estimate';
     history.replaceState(null, '', '?id=' + r.id);
     S.view = 'estimate'; render(); window.scrollTo(0, 0);
@@ -1783,12 +1885,14 @@ async function duplicateEstimate(id) {
   let r;
   try { [r] = await api('GET', 'koala_v2_estimates?id=eq.' + id + '&select=data,project_type'); } catch (e) { return toast('Could not copy: ' + e.message, 'error'); }
   if (!r) return toast('Estimate not found', 'error');
-  const est = Object.assign(newEstimate(r.project_type), clone(r.data || {}));
+  flushAutosave(); clearUndo();
+  const est = normalizeEst(Object.assign(newEstimate(r.project_type), clone(r.data || {})));
   est.id = null; est.status = 'Draft'; est.date = today(); est.crmDealId = null; est.projectName = (est.projectName || '') + ' (copy)';
   est.options.forEach(o => { o.id = uid(); o.scopes.forEach(s => s.id = uid()); });
-  S.est = est; S.activeOpt = 0; S.estTab = 'estimate'; delete est.actuals; S.view = 'estimate'; history.replaceState(null, '', location.pathname); render(); markDirty();
+  S.est = est; S.activeOpt = 0; S.estTab = 'estimate'; delete est.actuals; S.view = 'estimate'; history.replaceState(null, '', location.pathname);
+  S.dirty = true; lsSet('koalaV2Draft', { est, at: Date.now() }); render();    // not auto-saved until you edit it or click Save
   if (est.builderId) { S.builderHist = await loadBuilderHistory(est.builderId); renderBuilderPanel(); }
-  toast('Copy created — save to keep it', 'ok');
+  toast('Copy created — it saves once you make a change or click Save', 'ok');
 }
 
 async function loadRecent() {
@@ -2089,21 +2193,32 @@ let _loadedRates = {}, _storedSettings = {};
 function snapshotRates() { ['rates', 'trip', 'margin', 'royalty'].forEach(k => _loadedRates[k] = JSON.stringify(RULES[k])); }
 async function saveSettings() {
   document.querySelectorAll('[data-set]').forEach(el => {
+    if (!el.dataset.emp && !el.dataset.list && !el.dataset.str && String(el.value).trim() === '') return;   // cleared number = keep the current value (never save 0)
     let v = el.dataset.emp ? el.value.split('\n').map(l => l.split('|').map(x => x.trim())).filter(p => p[0]).map(p => ({ name: p[0], role: p[1] || 'Installer', rate: num(p[2]) })) : el.dataset.list ? el.value.split(',').map(x => x.trim()).filter(Boolean) : el.dataset.str ? el.value : num(el.value);
     setDeep(RULES, el.dataset.set, v);
   });
   const over = diffObj(DEFAULT_RULES, RULES) || {};
   // Pay rates / trip / margin normally come from the GM settings (app_settings);
   // only pin them here if they were edited on this screen.
-  ['rates', 'trip', 'margin', 'royalty'].forEach(k => { if (JSON.stringify(RULES[k]) === _loadedRates[k]) { if (_storedSettings[k] !== undefined) over[k] = _storedSettings[k]; else delete over[k]; } else over[k] = RULES[k]; });
+  // Pin only the individual fields that changed (e.g. editing fuel $/hr must not freeze every pay rate).
+  ['rates', 'trip', 'margin', 'royalty'].forEach(k => {
+    const loaded = JSON.parse(_loadedRates[k] ?? 'null'), cur = RULES[k], stored = _storedSettings[k];
+    if (cur && typeof cur === 'object') {
+      const pin = { ...(stored && typeof stored === 'object' ? stored : {}) };
+      Object.keys(cur).forEach(f => { if (JSON.stringify(cur[f]) !== JSON.stringify((loaded || {})[f])) pin[f] = cur[f]; });
+      if (Object.keys(pin).length) over[k] = pin; else delete over[k];
+    } else if (JSON.stringify(cur) !== _loadedRates[k]) over[k] = cur;
+    else if (stored !== undefined) over[k] = stored; else delete over[k];
+  });
   const R = RULES;
   try {
     await api('POST', 'koala_v2_settings?on_conflict=franchise_id', { franchise_id: FRANCHISE_ID, franchise_name: R.franchiseName, settings: over, updated_at: new Date().toISOString() }, { Prefer: 'resolution=merge-duplicates,return=representation' });
+    _storedSettings = over; snapshotRates();
     toast('Settings saved', 'ok'); render();
   } catch (e) { toast('Could not save: ' + e.message, 'error'); }
 }
 async function resetSettings() {
-  modal(`<div class="modal-hd"><h3>Reset to guideline defaults?</h3></div><div class="modal-bd">All production rates, tables, bonuses and travel rules return to the Install Time &amp; Service Guidelines values. Pay rates reload from the GM settings.</div>
+  modal(`<div class="modal-hd"><h3>Reset to guideline defaults?</h3></div><div class="modal-bd">This clears <b>every</b> saved setting for this franchise: production rates &amp; tables, bonuses, travel rules, the estimator list, employees &amp; pay rates for Actuals, crew leads, fleet / trip-floor numbers, price books, air-sealing rules and any trip $/mile or fuel overrides. Pay rates, trip tiers, margin and royalty reload from the GM settings.<br><br><b>This cannot be undone.</b></div>
     <div class="modal-ft"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn danger" onclick="doResetSettings()">Reset</button></div>`);
 }
 async function doResetSettings() {
@@ -2126,7 +2241,7 @@ async function openCrmModal() {
   await refreshSession();
   const e = S.est, rules = effRules(e);
   const res = e.options.map(o => computeOption(o, e, rules));
-  CRM.sel = e.crmDealId || null; CRM.mode = e.crmDealId ? 'link' : 'new';
+  CRM.sel = e.crmDealId || null; CRM.mode = e.crmDealId ? 'link' : 'new'; CRM.q = undefined;
   try { CRM.deals = await api('GET', 'crm_deals?archived=eq.false&select=id,name,stage,value,reps,position&order=updated_at.desc&limit=400'); } catch { CRM.deals = []; }
   const b = curBuilder();
   const defName = [b?.name, e.projectName].filter(Boolean).join(' — ') || e.clientName || 'Estimate';
@@ -2306,7 +2421,7 @@ window.addEventListener('beforeunload', ev => { if (S.view === 'estimate' && S.d
     const bar = document.createElement('div'); bar.className = 'card'; bar.style.cssText = 'background:var(--amber-light);border-color:#f0c070';
     bar.innerHTML = `<div class="row"><span>📝 You have an unsaved ${esc(PROJECT_TYPES[draft.est.projectType]?.label || '')} estimate from ${new Date(draft.at).toLocaleString()}${draft.est.projectName ? ' (' + esc(draft.est.projectName) + ')' : ''}.</span><button class="btn sm primary" id="rDraft">Restore it</button><button class="btn sm ghost" id="xDraft">Dismiss</button></div>`;
     $('app').prepend(bar);
-    $('rDraft').onclick = () => { S.est = Object.assign(newEstimate(draft.est.projectType), draft.est); S.activeOpt = 0; S.dirty = true; S.view = 'estimate'; render(); if (S.est.builderId) loadBuilderHistory(S.est.builderId).then(h => { S.builderHist = h; renderBuilderPanel(); }); };
+    $('rDraft').onclick = () => { S.est = normalizeEst(Object.assign(newEstimate(draft.est.projectType), draft.est)); S.activeOpt = 0; S.dirty = true; S.view = 'estimate'; render(); if (S.est.builderId) loadBuilderHistory(S.est.builderId).then(h => { S.builderHist = h; renderBuilderPanel(); }); };
     $('xDraft').onclick = () => { lsSet('koalaV2Draft', null); bar.remove(); };
   }
 })();
@@ -2345,7 +2460,7 @@ function renderActuals() {
         <div class="grid">
           ${fld('Date finished', 'est.actuals.finishedDate', A.finishedDate, { type: 'date' })}
           ${fld('Crew lead', 'est.actuals.crewLead', A.crewLead, { options: [['', 'Select…'], ...(RULES.crewLeads || []).map(x => [x, x])] })}
-          ${fld('Call back', 'est.actuals.callback', A.callback || 'No', { options: ['No', 'Yes'] })}
+          ${fld('Call back', 'est.actuals.callback', A.callback || '', { options: [['', 'Select…'], 'No', 'Yes'] })}
           ${fld('Job description', 'est.actuals.jobDescription', A.jobDescription, { cls: 'span2' })}
         </div>
         <div class="row" style="margin-top:8px;gap:18px">${chk('SM amount matches the proposal', 'est.actuals.smMatches', A.smMatches)}${chk('Customer was invoiced', 'est.actuals.invoiced', A.invoiced)}</div>
@@ -2413,8 +2528,10 @@ function refreshActuals() {
   if (tn) tn.innerHTML = `Trip &amp; fuel cost: ${money(r.q.trip + r.q.generator)} estimated − ${money(r.travelOut)} crew travel labor (already inside the Paychex hours) = <b>${money(r.actTrip)}</b>`;
   const row = (k, est, act, invert) => { const d = est - act; return `<tr><td>${k}</td><td style="text-align:right">${money0(est)}</td><td style="text-align:right">${money0(act)}</td><td style="text-align:right;color:${d >= 0 ? 'var(--green-dark)' : 'var(--red)'}">${d >= 0 ? '+' : '−'}${money0(Math.abs(d))}</td></tr>`; };
   const beatTxt = `${r.actual >= r.quoted ? '+' : ''}${fmtN(r.actual - r.quoted, 1)} pts`;
-  const bonusWhy = !r.hasData ? 'Enter Paychex hours and materials to calculate.'
+  const bonusWhy = !r.hasData ? 'Enter Paychex hours (and materials used) to calculate.'
+    : !A.finishedDate ? 'Enter the date the job was finished — the job is not counted until then.'
     : r.callback ? 'No bonus — there was a call back.'
+    : A.callback !== 'No' ? 'Select Call back = No / Yes.'
     : !A.crewLead || A.crewLead === 'No Crew Lead' ? 'No crew lead selected.'
     : !r.marginDiff ? `Actual margin must beat the quoted margin by ${RULES.crewLeadBonus.minMarginBeatPct}+ points (now ${beatTxt}).`
     : `${RULES.crewLeadBonus.sharePct}% of ${money0(r.overShort)} total savings.`;
@@ -2449,13 +2566,16 @@ function actPrefill(confirmed) {
 }
 function onActualsBind(el, path) {
   const m = path.match(/^est\.actuals\.labor\.(\d+)\.employee$/);
-  if (m && el.dataset.r === 'act-emp') { const emp = (RULES.employees || []).find(x => x.name.toLowerCase() === String(el.value).toLowerCase()); if (emp) { S.est.actuals.labor[+m[1]].rate = emp.rate; renderActuals(); return true; } }
+  if (m && el.dataset.r === 'act-emp') {
+    const emp = (RULES.employees || []).find(x => x.name.toLowerCase() === String(el.value).trim().toLowerCase()), row = S.est.actuals.labor[+m[1]];
+    if (emp && (!num(row.rate) || row.rateAuto)) { row.rate = emp.rate; row.rateAuto = true; keepFocus(renderActuals); return true; }   // never overwrite a rate the user typed
+  }
   const mm = path.match(/^est\.actuals\.materials\.(\d+)\.name$/);
   if (mm && el.dataset.r === 'act-mat') {
     const row = S.est.actuals.materials[+mm[1]], name = el.value;
     const b = BATTS.find(x => x.name === name), g = /^SPF (Open|Closed) Cell \(gallons\)$/.exec(name);
     const price = ACTUAL_PRICES[name] ?? (b ? r2(b.price / (num(RULES.materialPricing.battMarkup) || 1)) : g ? RULES.spfGallon[g[1] === 'Open' ? 'oc' : 'cc'].price : null);
-    if (price != null && !num(row.price)) { row.price = price; row.unit = ACTUAL_UNITS[name] || (g ? 'gal' : b ? 'bag' : 'each'); renderActuals(); return true; }
+    if (price != null && !num(row.price)) { row.price = price; row.unit = ACTUAL_UNITS[name] || (g ? 'gal' : b ? 'bag' : 'each'); keepFocus(renderActuals); return true; }
   }
   return false;
 }

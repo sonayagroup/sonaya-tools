@@ -188,6 +188,7 @@ body.est-view .mob-bar:not(:empty) { }
     <button data-nav="builders">Builders &amp; Clients</button>
     <button data-nav="jobcost">Job Costing</button>
     <button data-nav="settings">Labor &amp; Settings</button>
+    <button data-nav="commissions">🔒 Commissions</button>
     <a class="nav-link" href="koala-pricing.html">💰 Pricing</a>
   </nav>
   <div class="hdr-right">
@@ -1153,6 +1154,7 @@ function render() {
   else if (S.view === 'builders') renderBuilders();
   else if (S.view === 'settings') renderSettings();
   else if (S.view === 'jobcost') renderJobCosting();
+  else if (S.view === 'commissions') renderCommissions();
   renderSaveStatus();
 }
 
@@ -2603,6 +2605,481 @@ function renderJobCosting() {
         <td style="text-align:right">${d >= 0 ? '+' : ''}${fmtN(d, 1)}</td><td style="text-align:right">${num(r.crew_lead_bonus) ? money0(r.crew_lead_bonus) : '—'}</td></tr>`; }).join('')}
     </tbody></table></div>` : '<div class="empty">No jobs costed yet. Open a finished estimate → “Actuals / job costing”, enter Paychex hours and materials used, and save.</div>'}
   </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SALES COMMISSIONS (GM only) — mirrors the monthly "Job Margin Performance Tracking" workbook
+//   • Every job: actual margin = (Revenue Before Fees − actual labor − actual material) ÷ RBF
+//   • Commission: group jobs by estimator(s) × project type for the pay month; the tier is set by the
+//     AVERAGE actual margin of the group; commission = tier % × total RBF of the group.
+//     Shared jobs ("Mark & Frank") form their own group and the commission is split evenly.
+//   • Crew lead efficiency bonus: 5% of total over/short when actual beats quoted by ≥ 5 pts and no call back.
+// Data lives in koala_commission_jobs — only reachable through password-checked RPCs (koala_comm_*).
+// ════════════════════════════════════════════════════════════════════════════
+
+const COMM_TYPES = ['Residential (Retrofit)', 'Residential (New Construction/Remodel)', 'Commercial (Retrofit)', 'Commercial (New Construction/Remodel)'];
+const COMM_DEFAULT_PLAN = {
+  // min = average actual margin % at which the rate starts (tiers checked highest first)
+  tiers: {
+    'Residential (Retrofit)': [{ min: 40, rate: 1 }, { min: 50, rate: 2 }],
+    'Residential (New Construction/Remodel)': [{ min: 20, rate: 1 }, { min: 30, rate: 2 }, { min: 40, rate: 3 }],
+    'Commercial (Retrofit)': [{ min: 20, rate: 1 }, { min: 30, rate: 2 }, { min: 40, rate: 3 }],
+    'Commercial (New Construction/Remodel)': [{ min: 20, rate: 1 }, { min: 30, rate: 2 }, { min: 40, rate: 3 }],
+  },
+  overrides: { Brian: { 'Residential (Retrofit)': [{ min: 50, rate: 3 }] } },   // Brian's separate plan (3% at 50%+ in April & June; 0% at 8% in July)
+  crewLead: { minBeatPts: 5, sharePct: 5, pairEachFull: true },
+  people: [],                       // extra estimator names for the picker
+};
+const C = { pw: null, plan: null, jobs: [], month: null, busy: false, v2: null };
+const rpc = async (fn, args) => {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + fn, { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_fr: FRANCHISE_ID, p_pw: C.pw, ...args }) });
+  const t = await res.text();
+  if (!res.ok) { let m = t; try { m = JSON.parse(t).message || t; } catch { } if (/Wrong password/i.test(m)) commLock(true); throw new Error(m); }
+  return t ? JSON.parse(t) : null;
+};
+const ymNow = () => new Date().toISOString().slice(0, 7);
+const ymLabel = ym => { const [y, m] = ym.split('-'); return new Date(+y, +m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' }); };
+const ssGet = k => { try { return sessionStorage.getItem(k); } catch { return null; } };
+const ssSet = (k, v) => { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch { } };
+const pct1 = v => (v == null || !isFinite(v)) ? '—' : fmtN(v, 1) + '%';
+
+// ─── MATH ────────────────────────────────────────────────────────────────────
+function commJobCalc(j, plan) {
+  const rbf = num(j.rbf), aL = num(j.actual_labor), aM = num(j.actual_material), eL = num(j.est_labor), eM = num(j.est_material);
+  const complete = rbf > 0 && j.actual_labor != null && j.actual_labor !== '' && j.actual_material != null && j.actual_material !== '';
+  const actual = complete ? (rbf - aL - aM) / rbf * 100 : null;
+  const quoted = j.quoted_margin == null || j.quoted_margin === '' ? null : num(j.quoted_margin);
+  const beat = actual != null && quoted != null ? Math.round((actual - quoted) * 100) / 100 : null;
+  const laborDiff = eL - aL, matDiff = eM - aM, overShort = laborDiff + matDiff;
+  const cl = plan.crewLead || COMM_DEFAULT_PLAN.crewLead;
+  const bonus = beat != null && beat >= num(cl.minBeatPts) && !j.callback ? Math.max(0, overShort * num(cl.sharePct) / 100) : 0;
+  return { rbf, actual, quoted, beat, marginDiff: beat != null && beat >= num(cl.minBeatPts) ? beat : 0, laborDiff, matDiff, overShort, bonus, complete };
+}
+function commRate(plan, person, type, avg) {
+  const t = ((plan.overrides || {})[person] || {})[type] || (plan.tiers || {})[type] || [];
+  let rate = 0;
+  t.slice().sort((a, b) => num(a.min) - num(b.min)).forEach(x => { if (avg >= num(x.min) - 1e-9) rate = num(x.rate); });
+  return rate;
+}
+const groupName = ests => (ests || []).filter(Boolean).join(' & ') || '(no estimator)';
+function commReport(jobs, plan) {
+  const groups = new Map(), warn = [], payouts = {}, leads = {};
+  jobs.forEach(j => {
+    const c = commJobCalc(j, plan);
+    if (!c.complete) { warn.push(`${j.customer || '(no name)'}: missing Revenue Before Fees or actual labor/material — not counted.`); return; }
+    if (!j.project_type) warn.push(`${j.customer}: no project type — not counted.`);
+    if (!(j.estimators || []).length) warn.push(`${j.customer}: no sales estimator — commission not assigned.`);
+    if (!j.project_type) return;
+    const key = groupName(j.estimators) + '|' + j.project_type;
+    if (!groups.has(key)) groups.set(key, { people: (j.estimators || []).filter(Boolean), type: j.project_type, jobs: [], sumA: 0, sumQ: 0, nQ: 0, rbf: 0 });
+    const g = groups.get(key); g.jobs.push(j); g.sumA += c.actual; if (c.quoted != null) { g.sumQ += c.quoted; g.nQ++; } g.rbf += c.rbf;
+    // crew lead bonus
+    if (c.bonus && j.crew_lead && !/^no crew lead$/i.test(j.crew_lead)) {
+      const names = j.crew_lead.split(/\s*&\s*/).filter(Boolean);
+      const each = plan.crewLead?.pairEachFull === false ? c.bonus / names.length : c.bonus;
+      names.forEach(n => { leads[n] = leads[n] || { total: 0, jobs: 0 }; leads[n].total += each; leads[n].jobs++; });
+    }
+  });
+  const rows = [...groups.values()].map(g => {
+    g.avgActual = g.sumA / g.jobs.length; g.avgQuoted = g.nQ ? g.sumQ / g.nQ : null;
+    const n = Math.max(1, g.people.length);
+    g.shares = (g.people.length ? g.people : ['(no estimator)']).map(p => { const rate = commRate(plan, p, g.type, g.avgActual); return { person: p, rate, amount: g.rbf * rate / 100 / n }; });
+    g.rate = g.shares[0].rate; g.commission = g.shares.reduce((a, s) => a + s.amount, 0);
+    g.shares.forEach(s => { if (!g.people.length) return; const p = payouts[s.person] = payouts[s.person] || { total: 0, rbf: 0, jobs: 0, lines: [] }; p.total += s.amount; p.rbf += g.rbf / n; p.jobs += g.jobs.length; p.lines.push({ g, s }); });
+    return g;
+  }).sort((a, b) => groupName(a.people).localeCompare(groupName(b.people)) || a.type.localeCompare(b.type));
+  return { rows, payouts, leads, warn };
+}
+
+// ─── LOCK ────────────────────────────────────────────────────────────────────
+function commLock(wrong) {
+  C.pw = null; C.plan = null; C.jobs = []; ssSet('koalaCommPw', null);
+  if (S.view === 'commissions') renderCommissions(wrong ? 'Password no longer valid — enter it again.' : '');
+}
+async function commUnlock(pw, quiet) {
+  C.pw = pw;
+  try {
+    const plan = await rpc('koala_comm_unlock', {});
+    C.plan = deepMerge(clone(COMM_DEFAULT_PLAN), plan || {});
+    ssSet('koalaCommPw', pw);
+    C.month = C.month || ymNow();
+    await commLoad();
+    return true;
+  } catch (e) { C.pw = null; ssSet('koalaCommPw', null); if (!quiet) renderCommissions(e.message); return false; }
+}
+async function commLoad() {
+  C.jobs = await rpc('koala_comm_list', { p_from: null, p_to: null }) || [];
+  if (S.view === 'commissions') renderCommissions();
+}
+
+// ─── VIEW ────────────────────────────────────────────────────────────────────
+async function renderCommissions(msg) {
+  if (!C.pw && ssGet('koalaCommPw') && msg === undefined) { $('app').innerHTML = '<div class="empty">Unlocking…</div>'; if (await commUnlock(ssGet('koalaCommPw'), true)) return; }
+  if (!C.pw) {
+    $('app').innerHTML = `<div class="card" style="max-width:420px;margin:40px auto;text-align:center">
+      <div style="font-size:2.2rem">🔒</div><h2 style="justify-content:center">Sales commissions</h2>
+      <p class="small muted" style="margin-bottom:12px">GM only. Enter the commissions password.</p>
+      <form id="commForm" class="row" style="justify-content:center;flex-wrap:nowrap"><input id="commPw" type="password" autocomplete="current-password" placeholder="Password" style="flex:1;padding:9px 10px;border:1px solid var(--border);border-radius:6px">
+      <button class="btn primary" type="submit">Unlock</button></form>
+      ${msg ? `<div class="w error" style="margin-top:12px;text-align:left"><span class="ic">⛔</span><span>${esc(msg)}</span></div>` : ''}</div>`;
+    $('commForm').onsubmit = async ev => { ev.preventDefault(); const b = ev.target.querySelector('button'); b.disabled = true; b.textContent = 'Checking…'; if (await commUnlock($('commPw').value)) toast('Commissions unlocked', 'ok'); };
+    setTimeout(() => $('commPw')?.focus(), 30);
+    return;
+  }
+  const plan = C.plan, months = [...new Set([ymNow(), C.month, ...C.jobs.map(j => j.pay_month).filter(Boolean)])].sort().reverse();
+  const jobs = C.jobs.filter(j => j.pay_month === C.month);
+  const rep = commReport(jobs, plan);
+  const tot = Object.values(rep.payouts).reduce((a, p) => a + p.total, 0), leadTot = Object.values(rep.leads).reduce((a, p) => a + p.total, 0);
+  const calc = jobs.map(j => commJobCalc(j, plan)), done = calc.filter(c => c.complete);
+  const avg = k => done.length ? done.reduce((a, c) => a + (c[k] || 0), 0) / done.length : null;
+  $('app').innerHTML = `
+  <div class="card">
+    <h2>🔒 Sales commissions <span class="sub">post-job actual margin · GM only</span>
+      <span style="margin-left:auto" class="row">
+        <select id="commMonth" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-weight:700">${months.map(m => `<option value="${m}" ${m === C.month ? 'selected' : ''}>${ymLabel(m)}</option>`).join('')}<option value="__other">Other month…</option></select>
+        <button class="btn sm ghost" onclick="commLock()">Lock</button>
+      </span></h2>
+    <div class="row" style="gap:8px">
+      <button class="btn primary sm" onclick="commEdit()">+ Add job</button>
+      <button class="btn sm" onclick="commV2Import()">⤓ Import finished V2 jobs</button>
+      <button class="btn sm" onclick="commXlsxImport()">⤓ Import tracker (.xlsx)</button>
+      <button class="btn sm" onclick="commExport()">⤒ Export CSV</button>
+      <button class="btn sm ghost" onclick="commPlanModal()">⚙ Commission plan</button>
+    </div>
+    <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:14px 0 0">
+      <div class="stat"><div class="k">Jobs</div><div class="v">${jobs.length}</div><div class="s">${jobs.length - done.length ? (jobs.length - done.length) + ' missing actuals' : 'all costed'}</div></div>
+      <div class="stat"><div class="k">Revenue before fees</div><div class="v">${money0(done.reduce((a, c) => a + c.rbf, 0))}</div></div>
+      <div class="stat"><div class="k">Avg quoted → actual</div><div class="v">${pct1(avg('quoted'))} → ${pct1(avg('actual'))}</div></div>
+      <div class="stat"><div class="k">Sales commissions</div><div class="v">${money(tot)}</div></div>
+      <div class="stat"><div class="k">Crew lead bonuses</div><div class="v">${money(leadTot)}</div></div>
+    </div>
+  </div>
+  ${rep.warn.length ? `<div class="card" style="padding:10px 14px">${rep.warn.slice(0, 12).map(w => `<div class="w warn"><span class="ic">⚠</span><span>${esc(w)}</span></div>`).join('')}${rep.warn.length > 12 ? `<div class="small muted">…and ${rep.warn.length - 12} more</div>` : ''}</div>` : ''}
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start">
+    <div class="card"><h2>Commission payouts <span class="sub">${ymLabel(C.month)}</span></h2>
+      ${Object.keys(rep.payouts).length ? `<table class="list"><thead><tr><th>Estimator</th><th style="text-align:right">Jobs</th><th style="text-align:right">RBF credited</th><th style="text-align:right">Commission</th></tr></thead><tbody>
+        ${Object.entries(rep.payouts).sort((a, b) => b[1].total - a[1].total).map(([p, v]) => `<tr><td><b>${esc(p)}</b></td><td style="text-align:right">${fmtN(v.jobs)}</td><td style="text-align:right">${money0(v.rbf)}</td><td style="text-align:right;font-weight:800">${money(v.total)}</td></tr>`).join('')}
+        <tr style="font-weight:800"><td>Total</td><td></td><td></td><td style="text-align:right">${money(tot)}</td></tr></tbody></table>` : '<div class="empty small">No costed jobs this month.</div>'}
+    </div>
+    <div class="card"><h2>Crew lead efficiency bonus <span class="sub">before job bonuses (removals, crawlspaces…)</span></h2>
+      ${Object.keys(rep.leads).length ? `<table class="list"><thead><tr><th>Crew lead</th><th style="text-align:right">Jobs</th><th style="text-align:right">Bonus</th></tr></thead><tbody>
+        ${Object.entries(rep.leads).sort((a, b) => b[1].total - a[1].total).map(([p, v]) => `<tr><td><b>${esc(p)}</b></td><td style="text-align:right">${v.jobs}</td><td style="text-align:right;font-weight:800">${money(v.total)}</td></tr>`).join('')}</tbody></table>
+        <div class="small muted" style="margin-top:6px">${plan.crewLead.sharePct}% of total over/short when actual margin beats quoted by ≥ ${plan.crewLead.minBeatPts} pts and no call back.${plan.crewLead.pairEachFull !== false ? ' Paired crew leads (e.g. “Jorge &amp; Ricardo”) each receive the full job bonus, as in the tracker.' : ' Paired crew leads split the job bonus.'}</div>` : '<div class="empty small">No crew lead bonuses this month.</div>'}
+    </div>
+  </div>
+  <div class="card"><h2>How it was calculated <span class="sub">average actual margin per estimator × project type sets the rate; rate × revenue before fees</span></h2>
+    <div style="overflow-x:auto"><table class="list"><thead><tr><th>Estimator(s)</th><th>Project type</th><th style="text-align:right">Jobs</th><th style="text-align:right">Avg quoted</th><th style="text-align:right">Avg actual</th><th style="text-align:right">RBF</th><th style="text-align:right">Rate</th><th style="text-align:right">Commission</th><th>Split</th></tr></thead><tbody>
+      ${rep.rows.map(g => `<tr><td><b>${esc(groupName(g.people))}</b></td><td class="small">${esc(g.type)}</td><td style="text-align:right">${g.jobs.length}</td><td style="text-align:right">${pct1(g.avgQuoted)}</td>
+        <td style="text-align:right;font-weight:700;color:${g.avgQuoted == null || g.avgActual >= g.avgQuoted ? 'var(--green-dark)' : 'var(--red)'}">${pct1(g.avgActual)}</td><td style="text-align:right">${money(g.rbf)}</td>
+        <td style="text-align:right">${[...new Set(g.shares.map(s => s.rate))].map(r => r + '%').join(' / ')}</td><td style="text-align:right;font-weight:800">${money(g.commission)}</td>
+        <td class="small">${g.people.length > 1 ? g.shares.map(s => esc(s.person) + ' ' + money(s.amount)).join('<br>') : g.people.length ? '' : '<span style="color:var(--red)">unassigned</span>'}</td></tr>`).join('') || '<tr><td colspan="9" class="empty small">—</td></tr>'}
+    </tbody></table></div>
+    <div class="small muted" style="margin-top:6px">Rates: ${COMM_TYPES.map(t => `<b>${esc(t)}</b> ${(plan.tiers[t] || []).map(x => `≥${x.min}% → ${x.rate}%`).join(', ') || '—'}`).join(' · ')}${Object.keys(plan.overrides || {}).length ? ' · Individual plans: ' + Object.keys(plan.overrides).map(esc).join(', ') : ''}</div>
+  </div>
+  <div class="card"><h2>Jobs — ${ymLabel(C.month)} <span class="sub">click a job to edit its actual hours &amp; materials</span></h2>
+    <div style="overflow-x:auto"><table class="list" style="font-size:.82rem"><thead><tr><th>Finished</th><th>Customer / project</th><th>Type</th><th>Estimator</th><th>Crew lead</th><th>CB</th><th style="text-align:right">RBF</th><th style="text-align:right">Quoted</th><th style="text-align:right">Actual</th><th style="text-align:right">Labor est/act</th><th style="text-align:right">Material est/act</th><th style="text-align:right">Over/short</th><th style="text-align:right">CL bonus</th><th>Src</th></tr></thead><tbody>
+      ${jobs.map((j, i) => { const c = calc[i]; return `<tr class="click" onclick="commEdit('${j.id}')">
+        <td class="small">${esc(j.finished_date || '')}</td><td><b>${esc(j.customer || '(no name)')}</b><div class="muted" style="font-size:.72rem">${esc(j.job_description || '')}</div></td>
+        <td class="small">${esc((j.project_type || '—').replace(' (New Construction/Remodel)', ' NC/Rem.').replace(' (Retrofit)', ' Retro.'))}</td><td class="small">${esc(groupName(j.estimators))}</td><td class="small">${esc(j.crew_lead || '')}</td>
+        <td>${j.callback ? '<span class="pill Lost">Yes</span>' : ''}</td><td style="text-align:right">${money0(c.rbf)}</td><td style="text-align:right">${pct1(c.quoted)}</td>
+        <td style="text-align:right;font-weight:700;color:${!c.complete ? 'var(--amber)' : c.quoted == null || c.actual >= c.quoted ? 'var(--green-dark)' : 'var(--red)'}">${c.complete ? pct1(c.actual) : 'missing'}</td>
+        <td style="text-align:right">${money0(num(j.est_labor))} / ${j.actual_labor == null ? '—' : money0(num(j.actual_labor))}</td><td style="text-align:right">${money0(num(j.est_material))} / ${j.actual_material == null ? '—' : money0(num(j.actual_material))}</td>
+        <td style="text-align:right;color:${c.overShort >= 0 ? 'var(--green-dark)' : 'var(--red)'}">${c.complete ? (c.overShort >= 0 ? '+' : '−') + money0(Math.abs(c.overShort)) : ''}</td><td style="text-align:right">${c.bonus ? money(c.bonus) : ''}</td>
+        <td><span class="pill">${esc(j.source || 'manual')}</span></td></tr>`; }).join('') || '<tr><td colspan="14" class="empty small">No jobs for this month yet — add one, import finished V2 jobs, or import a tracker workbook.</td></tr>'}
+    </tbody></table></div>
+  </div>`;
+  $('commMonth').onchange = e => { let v = e.target.value; if (v === '__other') { v = prompt('Month (YYYY-MM)', C.month) || C.month; if (!/^\d{4}-\d{2}$/.test(v)) v = C.month; } C.month = v; renderCommissions(); };
+}
+
+// ─── JOB EDITOR (the input for actual hours & materials) ─────────────────────
+let _cj = null;
+function commKnownPeople() { return [...new Set([...(C.plan.people || []), ...C.jobs.flatMap(j => j.estimators || []), ...RULES.estimators])].filter(Boolean).sort(); }
+function commEdit(id) {
+  const j = id ? clone(C.jobs.find(x => x.id === id)) : { finished_date: '', pay_month: C.month, customer: '', job_description: '', project_type: 'Residential (Retrofit)', quoted_margin: '', rbf: '', est_labor: '', est_material: '', est_hours: '', actual_labor: '', actual_material: '', actual_hours: '', callback: false, crew_lead: '', estimators: [], source: 'manual', detail: {} };
+  j.detail = j.detail || {}; j.detail.labor = j.detail.labor || []; j.detail.materials = j.detail.materials || [];
+  if (!('itemized' in j.detail)) j.detail.itemized = !id || !!(j.detail.labor.length || j.detail.materials.length);
+  if (id) j._pmAuto = false;                                    // keep the pay month of an existing job unless changed on purpose
+  _cj = j; commEditRender();
+}
+function commEditRender() {
+  const j = _cj, d = j.detail, people = commKnownPeople(), emp = RULES.employees || [];
+  const f = (label, k, type, extra = '') => `<div class="field ${extra}"><label>${label}</label><input data-cj="${k}" type="${type || 'text'}" value="${esc(j[k] ?? '')}" ${type === 'number' ? 'step="any" inputmode="decimal"' : ''}></div>`;
+  const it = commItemTotals(j);
+  modal(`<div class="modal-hd"><h3>${j.id ? 'Edit job' : 'Add job'} <span class="pill">${esc(j.source || 'manual')}</span></h3><button class="btn ghost" onclick="closeModal()">✕</button></div>
+  <div class="modal-bd" id="cjBody">
+    <div class="grid">
+      ${f('Customer / project', 'customer', 'text', 'span2')}${f('Date finished', 'finished_date', 'date')}
+      <div class="field"><label>Pay month</label><input data-cj="pay_month" type="month" value="${esc(j.pay_month || '')}"></div>
+      ${f('Job description', 'job_description', 'text', 'span2')}
+      <div class="field span2"><label>Project type</label><select data-cj="project_type">${COMM_TYPES.map(t => `<option ${j.project_type === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>
+      <div class="field span2"><label>Sales estimator(s) — shared jobs split evenly</label><input data-cj="estimators" list="commPeople" value="${esc((j.estimators || []).join(' & '))}" placeholder="e.g. Mike  or  Mark & Frank"><datalist id="commPeople">${people.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
+      <div class="field"><label>Crew lead</label><input data-cj="crew_lead" list="commLeads" value="${esc(j.crew_lead || '')}"><datalist id="commLeads">${(RULES.crewLeads || []).map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
+      <div class="field"><label>Call back</label><select data-cj="callback"><option value="false" ${!j.callback ? 'selected' : ''}>No</option><option value="true" ${j.callback ? 'selected' : ''}>Yes</option></select></div>
+    </div>
+    ${j.source === 'manual' || !j.id ? `<div class="row small" style="margin:10px 0 0;gap:6px"><span class="muted">Prefill the estimate side from:</span><button class="btn sm ghost" onclick="commPickEstimate('v1')">In-Home Estimator (V1)</button><button class="btn sm ghost" onclick="commPickEstimate('v2')">Estimator App (V2)</button></div><div id="cjPick"></div>` : ''}
+    <h4 style="margin:14px 0 6px;color:var(--navy)">Estimate (from the Sales Estimate Spreadsheet / estimator)</h4>
+    <div class="grid">${f('Revenue before fees $', 'rbf', 'number')}${f('Quoted margin %', 'quoted_margin', 'number')}${f('Est. labor $', 'est_labor', 'number')}${f('Est. material $ (incl. trip)', 'est_material', 'number')}${f('Est. labor hours', 'est_hours', 'number')}</div>
+    <h4 style="margin:14px 0 6px;color:var(--navy)">Actuals — Paychex hours &amp; materials used
+      <label class="chk" style="display:inline-flex;margin-left:10px;font-size:.8rem"><input type="checkbox" id="cjItem" ${d.itemized ? 'checked' : ''}> itemize</label></h4>
+    ${d.itemized ? `
+      <datalist id="cjEmp">${emp.map(x => `<option value="${esc(x.name)}">${esc(x.role)} · $${x.rate}</option>`).join('')}</datalist>
+      <table class="list act-tbl" style="font-size:.82rem"><thead><tr><th>Employee</th><th>$/hr</th><th>Hours</th><th>OT hrs</th><th style="text-align:right">Cost</th><th></th></tr></thead><tbody>
+        ${d.labor.map((l, i) => `<tr><td><input list="cjEmp" data-cjl="${i}.employee" value="${esc(l.employee || '')}"></td><td><input type="number" step="0.5" data-cjl="${i}.rate" value="${esc(l.rate ?? '')}"></td><td><input type="number" step="0.25" data-cjl="${i}.hrs" value="${esc(l.hrs ?? '')}"></td><td><input type="number" step="0.25" data-cjl="${i}.ot" value="${esc(l.ot ?? '')}"></td><td style="text-align:right" id="cjlc-${i}">${money(num(l.hrs) * num(l.rate) + num(l.ot) * num(l.rate) * 1.5)}</td><td><button class="btn sm ghost danger" onclick="commRow('labor',${i})">✕</button></td></tr>`).join('')}
+      </tbody></table><button class="btn sm" style="margin:6px 0 10px" onclick="commRow('labor')">+ Employee</button>
+      <datalist id="cjMat">${[...new Set([...Object.keys(ACTUAL_PRICES), ...BATTS.map(b => b.name), 'SPF Closed Cell (gallons)', 'SPF Open Cell (gallons)', 'Trip charge / fuel'])].map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      <table class="list act-tbl" style="font-size:.82rem"><thead><tr><th>Material / supply / trip</th><th>Qty</th><th>$ each (true cost)</th><th style="text-align:right">Cost</th><th></th></tr></thead><tbody>
+        ${d.materials.map((m, i) => `<tr><td><input list="cjMat" data-cjm="${i}.name" value="${esc(m.name || '')}" style="min-width:180px"></td><td><input type="number" step="any" data-cjm="${i}.qty" value="${esc(m.qty ?? '')}"></td><td><input type="number" step="0.01" data-cjm="${i}.price" value="${esc(m.price ?? '')}"></td><td style="text-align:right" id="cjmc-${i}">${money(num(m.qty) * num(m.price))}</td><td><button class="btn sm ghost danger" onclick="commRow('materials',${i})">✕</button></td></tr>`).join('')}
+      </tbody></table><button class="btn sm" style="margin-top:6px" onclick="commRow('materials')">+ Item</button>
+      <div class="w info" style="margin-top:8px"><span class="ic">ℹ</span><span id="cjTot">${commTotTxt(it)}</span></div>`
+    : `<div class="grid">${f('Actual labor $ (incl. payroll tax)', 'actual_labor', 'number')}${f('Actual material $ (incl. trip)', 'actual_material', 'number')}${f('Actual labor hours', 'actual_hours', 'number')}</div>`}
+    <div class="grid" style="margin-top:10px">${f('Reason for variance', 'reason', 'text', 'span2')}${f('Product variance', 'product_variance')}${f('Product brand used', 'brand_used')}${f('Notes', 'notes', 'text', 'full')}</div>
+    <div id="cjCalc" style="margin-top:10px"></div>
+  </div>
+  <div class="modal-ft">${j.id ? `<button class="btn danger" style="margin-right:auto" onclick="commDelete('${j.id}')">Delete</button>` : ''}<button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="commSave()">Save job</button></div>`, true);
+  const body = $('cjBody');
+  body.addEventListener('input', commEditInput); body.addEventListener('change', commEditInput);
+  $('cjItem').onchange = e => { d.itemized = e.target.checked; if (d.itemized && !d.labor.length && !d.materials.length) { d.labor.push({ employee: '', rate: '', hrs: '', ot: '' }); } commEditRender(); };
+  commEditCalc();
+}
+const commTotTxt = it => `Actual labor = wages × ${1 + RULES.rates.payrollTaxPct / 100} (payroll tax) = <b>${money(it.labor)}</b> · ${fmtN(it.hours, 2)} hrs. Actual material (incl. trip/fuel) = <b>${money(it.material)}</b>.`;
+function commItemTotals(j) {
+  const d = j.detail, tax = 1 + RULES.rates.payrollTaxPct / 100;
+  const labor = d.labor.reduce((a, l) => a + num(l.hrs) * num(l.rate) + num(l.ot) * num(l.rate) * 1.5, 0) * tax;
+  const hours = d.labor.reduce((a, l) => a + num(l.hrs) + num(l.ot), 0);
+  const material = d.materials.reduce((a, m) => a + num(m.qty) * num(m.price), 0);
+  return { labor: r2(labor), hours: r2(hours), material: r2(material) };
+}
+function commEditInput(ev) {
+  const el = ev.target, j = _cj, d = j.detail;
+  if (el.dataset.cj) {
+    const k = el.dataset.cj;
+    j[k] = k === 'callback' ? el.value === 'true' : k === 'estimators' ? el.value.split(/\s*&\s*|\s*,\s*/).map(s => s.trim()).filter(Boolean) : el.value;
+    if (k === 'finished_date' && el.value && (!j.pay_month || j._pmAuto !== false)) { j.pay_month = el.value.slice(0, 7); const pm = document.querySelector('[data-cj="pay_month"]'); if (pm) pm.value = j.pay_month; }
+    if (k === 'pay_month') j._pmAuto = false;
+  } else if (el.dataset.cjl || el.dataset.cjm) {
+    const [i, k] = (el.dataset.cjl || el.dataset.cjm).split('.'), row = (el.dataset.cjl ? d.labor : d.materials)[+i];
+    row[k] = el.value;
+    if (ev.type === 'change' && el.dataset.cjl && k === 'employee') { const e = (RULES.employees || []).find(x => x.name.toLowerCase() === el.value.trim().toLowerCase()); if (e && !num(row.rate)) { row.rate = e.rate; return commKeep(); } }
+    if (ev.type === 'change' && el.dataset.cjm && k === 'name' && !num(row.price)) { const b = BATTS.find(x => x.name === el.value), g = /^SPF (Open|Closed) Cell/.exec(el.value); const p = ACTUAL_PRICES[el.value] ?? (b ? r2(b.price / (num(RULES.materialPricing.battMarkup) || 1)) : g ? RULES.spfGallon[g[1] === 'Open' ? 'oc' : 'cc'].price : null); if (p != null) { row.price = p; return commKeep(); } }
+    // update this row's cost + totals in place (a full re-render here would swallow the next click)
+    const cell = $((el.dataset.cjl ? 'cjlc-' : 'cjmc-') + i);
+    if (cell) cell.textContent = money(el.dataset.cjl ? num(row.hrs) * num(row.rate) + num(row.ot) * num(row.rate) * 1.5 : num(row.qty) * num(row.price));
+    const tt = $('cjTot'); if (tt) tt.innerHTML = commTotTxt(commItemTotals(j));
+  }
+  commEditCalc();
+}
+// re-render the job modal after the browser moves focus, then restore it (same idea as keepFocus)
+function commKeep() {
+  setTimeout(() => {
+    const a = document.activeElement, k = a && a.dataset ? (a.dataset.cj ? `[data-cj="${a.dataset.cj}"]` : a.dataset.cjl ? `[data-cjl="${a.dataset.cjl}"]` : a.dataset.cjm ? `[data-cjm="${a.dataset.cjm}"]` : null) : null;
+    const st = $('cjBody')?.scrollTop; if (!$('cjBody')) return;
+    commEditRender(); if ($('cjBody') && st != null) $('cjBody').scrollTop = st;
+    const n = k && document.querySelector(k); if (n) { n.focus({ preventScroll: true }); try { n.select(); } catch { } }
+  }, 0);
+}
+function commRow(kind, i) { const d = _cj.detail; if (i == null) d[kind].push(kind === 'labor' ? { employee: '', rate: '', hrs: '', ot: '' } : { name: '', qty: '', price: '' }); else d[kind].splice(i, 1); commEditRender(); }
+function commApplyItemized(j) {
+  if (!j.detail || !j.detail.itemized) return; const t = commItemTotals(j);
+  j.actual_labor = t.hours > 0 ? t.labor : null; j.actual_hours = t.hours > 0 ? t.hours : null;          // nothing entered yet = not costed (never a 100% margin)
+  j.actual_material = j.detail.materials.some(m => m.name && m.qty !== '' && m.qty != null) ? t.material : null;
+}
+function commEditCalc() {
+  const j = clone(_cj); commApplyItemized(j);
+  const c = commJobCalc(j, C.plan), el = $('cjCalc'); if (!el) return;
+  el.innerHTML = c.complete ? `<div class="price-box" style="background:${c.bonus ? '#0a5a2e' : 'var(--navy)'}"><div class="gp"><span>Actual margin <b>${pct1(c.actual)}</b> vs quoted ${pct1(c.quoted)} (${c.beat >= 0 ? '+' : ''}${fmtN(c.beat, 1)} pts)</span><span>Over/short ${c.overShort >= 0 ? '+' : '−'}${money0(Math.abs(c.overShort))}</span></div>
+    <div class="gp"><span>Crew lead bonus ${money(c.bonus)}${j.callback ? ' — none (call back)' : ''}</span><span>Labor ${c.laborDiff >= 0 ? '+' : '−'}${money0(Math.abs(c.laborDiff))} · Material ${c.matDiff >= 0 ? '+' : '−'}${money0(Math.abs(c.matDiff))}</span></div></div>`
+    : '<div class="small muted">Enter revenue before fees and the actual labor &amp; material to see the actual margin.</div>';
+}
+async function commSave() {
+  const j = clone(_cj); commApplyItemized(j); delete j._pmAuto;
+  if (!j.customer) return toast('Enter the customer / project', 'error');
+  if (!j.pay_month) j.pay_month = (j.finished_date || '').slice(0, 7) || C.month;
+  ['created_at', 'updated_at', 'franchise_id'].forEach(k => delete j[k]);
+  try {
+    const saved = await rpc('koala_comm_upsert', { p_job: j });
+    const i = C.jobs.findIndex(x => x.id === saved.id); if (i >= 0) C.jobs[i] = saved; else C.jobs.push(saved);
+    C.month = saved.pay_month || C.month; closeModal(); renderCommissions(); toast('Job saved', 'ok');
+  } catch (e) { toast('Save failed: ' + e.message, 'error'); }
+}
+function commDelete(id) {
+  confirmModal('Delete this job?', 'It is removed from the commission report. This cannot be undone.', 'Delete job', async () => {
+    try { await rpc('koala_comm_delete', { p_id: id }); C.jobs = C.jobs.filter(j => j.id !== id); renderCommissions(); toast('Job deleted', 'ok'); } catch (e) { toast('Delete failed: ' + e.message, 'error'); }
+  }, true);
+}
+
+// Prefill the estimate side from a V1 (In-Home) or V2 estimate
+async function commPickEstimate(kind) {
+  const el = $('cjPick'); el.innerHTML = '<div class="small muted">Loading…</div>';
+  try {
+    const rows = kind === 'v1' ? await api('GET', 'koala_estimates?select=id,customer_name,estimator_name,estimate_date,status,total_cost,customer_price,margin_percent&order=updated_at.desc&limit=200')
+      : await api('GET', `koala_v2_estimates?franchise_id=eq.${FRANCHISE_ID}&select=id,project_name,customer_name,estimator_name,estimate_date,status,revenue_before_fees,margin_percent,project_type&order=updated_at.desc&limit=200`);
+    el.innerHTML = `<input id="cjPickQ" placeholder="Search…" style="width:100%;padding:6px 9px;border:1px solid var(--border);border-radius:6px;margin-top:6px"><div class="deal-list" id="cjPickL"></div>`;
+    const draw = () => { const q = $('cjPickQ').value.toLowerCase(); $('cjPickL').innerHTML = rows.filter(r => !q || JSON.stringify(r).toLowerCase().includes(q)).slice(0, 40).map(r => `<div class="deal-item" data-id="${r.id}"><span>${esc(r.project_name || r.customer_name || '(untitled)')} <span class="muted small">${esc(r.estimator_name || '')} · ${esc(r.estimate_date || '')}</span></span><span class="pill">${esc(r.status || '')}</span></div>`).join('') || '<div class="empty small">No matches</div>'; };
+    $('cjPickQ').oninput = draw; draw();
+    $('cjPickL').onclick = async ev => {
+      const it = ev.target.closest('[data-id]'); if (!it) return; const r = rows.find(x => x.id === it.dataset.id), j = _cj;
+      if (kind === 'v1') {
+        const m = num(r.margin_percent);
+        Object.assign(j, { customer: j.customer || r.customer_name, estimators: j.estimators.length ? j.estimators : [commCanonName(r.estimator_name)], quoted_margin: m, rbf: m < 100 ? r2(num(r.total_cost) / (1 - m / 100)) : '', source_id: 'v1:' + r.id });
+        toast('Filled revenue before fees & quoted margin from the V1 estimate — enter est. labor and material from its breakdown.', 'ok');
+      } else await commFromV2(r.id, j);
+      commEditRender();
+    };
+  } catch (e) { el.innerHTML = `<div class="w error"><span class="ic">⛔</span><span>${esc(e.message)}</span></div>`; }
+}
+function commCanonName(n) {
+  n = String(n || '').trim(); if (!n) return '';
+  const known = new Set([...(C.plan.people || []), ...C.jobs.flatMap(j => j.estimators || [])]);
+  if (known.has(n)) return n;
+  const first = n.split(/\s+/)[0];
+  return known.has(first) ? first : n;
+}
+function v2TypeToComm(e) { return e.projectType === 'commercial' ? (e.construction === 'retrofit' ? 'Commercial (Retrofit)' : 'Commercial (New Construction/Remodel)') : e.projectType === 'retrofit' ? 'Residential (Retrofit)' : 'Residential (New Construction/Remodel)'; }
+async function commFromV2(id, into) {
+  const [row] = await api('GET', 'koala_v2_estimates?id=eq.' + id + '&select=id,project_type,data');
+  const e = normalizeEst(Object.assign(newEstimate(row.project_type), row.data || {})); e.id = row.id;
+  const rules = effRules(e), a = computeActuals(e, rules), A = e.actuals || {};
+  const j = into || { detail: {} };
+  Object.assign(j, {
+    customer: e.projectName || e.clientName || j.customer, job_description: (A.jobDescription || j.job_description || ''), project_type: v2TypeToComm(e),
+    estimators: [commCanonName(e.estimator)].filter(Boolean), finished_date: A.finishedDate || j.finished_date || '', crew_lead: A.crewLead || j.crew_lead || '',
+    callback: A.callback === 'Yes', quoted_margin: r2(a.quoted), rbf: r2(a.rbf), est_labor: r2(a.estLabor), est_material: r2(a.estMaterial), est_hours: r2(a.estHours),
+    reason: A.reason || j.reason || '', product_variance: A.productVariance || '', brand_used: A.brandUsed || '', source: 'v2', source_id: e.id,
+  });
+  j.detail = j.detail || {};
+  if (a.hasData) {
+    // actual materials include the trip & fuel cost less crew travel labor (Paychex hours already include travel)
+    j.detail = { itemized: true, labor: (A.labor || []).filter(l => l.employee || num(l.hrs) || num(l.ot)).map(l => ({ employee: l.employee, rate: l.rate, hrs: l.hrs, ot: l.ot })),
+      materials: [...(A.materials || []).filter(m => m.name).map(m => ({ name: m.name, qty: m.qty, price: m.price })), { name: 'Trip charge / fuel (net of crew travel labor)', qty: 1, price: r2(a.actTrip) }] };
+  }
+  j.pay_month = j.pay_month || (j.finished_date || '').slice(0, 7);
+  return j;
+}
+async function commV2Import() {
+  let rows;
+  try { rows = await api('GET', `koala_v2_estimates?franchise_id=eq.${FRANCHISE_ID}&finished_date=not.is.null&select=id,project_name,customer_name,estimator_name,finished_date,actual_margin,quoted_margin,revenue_before_fees&order=finished_date.desc&limit=300`); } catch (e) { return toast(e.message, 'error'); }
+  const have = new Set(C.jobs.filter(j => j.source === 'v2').map(j => j.source_id));
+  modal(`<div class="modal-hd"><h3>Import finished V2 jobs</h3><button class="btn ghost" onclick="closeModal()">✕</button></div>
+    <div class="modal-bd"><p class="small muted" style="margin-bottom:8px">Jobs with a finished date on their Actuals tab. Importing copies the estimate, Paychex hours and materials used into the commission tracker (re-importing refreshes it).</p>
+    ${rows.length ? `<table class="list" style="font-size:.84rem"><thead><tr><th></th><th>Finished</th><th>Project</th><th>Estimator</th><th style="text-align:right">Quoted</th><th style="text-align:right">Actual</th><th></th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td><input type="checkbox" class="v2imp" value="${r.id}" ${have.has(r.id) || r.actual_margin == null ? '' : 'checked'}></td><td class="small">${esc(r.finished_date)}</td><td>${esc(r.project_name || r.customer_name || '')}</td><td class="small">${esc(r.estimator_name || '')}</td>
+        <td style="text-align:right">${pct1(r.quoted_margin)}</td><td style="text-align:right">${r.actual_margin == null ? '<span class="muted">no hours</span>' : pct1(r.actual_margin)}</td><td>${have.has(r.id) ? '<span class="pill Won">imported</span>' : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No V2 estimates have a finished date yet.</div>'}</div>
+    <div class="modal-ft"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="v2impGo" ${rows.length ? '' : 'disabled'}>Import selected</button></div>`, true);
+  const go = $('v2impGo'); if (go) go.onclick = async () => {
+    const ids = [...document.querySelectorAll('.v2imp:checked')].map(x => x.value); if (!ids.length) return toast('Select at least one job', 'error');
+    go.disabled = true; go.textContent = 'Importing…';
+    try {
+      const jobs = []; for (const id of ids) { const ex = C.jobs.find(j => j.source === 'v2' && j.source_id === id); jobs.push(await commFromV2(id, ex ? clone(ex) : null)); }
+      jobs.forEach(j => { commApplyItemized(j); ['created_at', 'updated_at', 'franchise_id'].forEach(k => delete j[k]); });
+      await rpc('koala_comm_upsert_many', { p_jobs: jobs }); const pm = jobs.map(j => j.pay_month).filter(Boolean).sort().pop(); if (pm) C.month = pm; await commLoad(); closeModal(); toast(`Imported ${jobs.length} job${jobs.length > 1 ? 's' : ''}`, 'ok');
+    } catch (e) { toast('Import failed: ' + e.message, 'error'); go.disabled = false; go.textContent = 'Import selected'; }
+  };
+}
+
+// ─── IMPORT the monthly "Job Margin Performance Tracking" workbook ───────────
+function commLoadXlsxLib() { return window.XLSX ? Promise.resolve() : new Promise((ok, bad) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = ok; s.onerror = () => bad(new Error('Could not load the Excel reader')); document.head.appendChild(s); }); }
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+function commNormType(t) {
+  t = String(t || '').trim().replace(/Residental/i, 'Residential').replace(/Retrofitl|Retrofits/i, 'Retrofit'); if (!t) return '';
+  const res = /^res/i.test(t) ? 'Residential' : 'Commercial';
+  return /retrofit/i.test(t) ? `${res} (Retrofit)` : `${res} (New Construction/Remodel)`;
+}
+function commSplitNames(s) { return String(s || '').split(/\s*&\s*/).map(x => x.trim()).filter(Boolean).map(x => ({ gaberial: 'Gabriel', 'chris w': 'Chris Williams', 'chris j': 'Chris Jones' })[x.toLowerCase()] || x); }
+function commParseWorkbook(wb, fileName) {
+  const out = [];
+  wb.SheetNames.forEach(sn => {
+    if (/pivot|note|call ?backs?/i.test(sn)) return;
+    const ws = wb.Sheets[sn], rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+    const hi = rows.findIndex(r => r && r.some(c => /revenue before fees/i.test(String(c || ''))));
+    if (hi < 0) return;
+    const H = rows[hi].map(c => String(c || '').toLowerCase()), col = re => H.findIndex(h => re.test(h));
+    const ix = { d: col(/date|fin(i)?s/), cust: col(/customer/), desc: col(/job desc/), type: col(/project type/), q: col(/quoted/), cb: col(/call back/), lead: col(/crew lead$/), est: col(/estimator/), rbf: col(/revenue before fees/), el: col(/^est labor/), al: col(/^actual labor$/), em: col(/^est material/), am: col(/^actual material/), reason: col(/reason/), pv: col(/product variance/), brand: col(/brand/), eh: col(/hours estimated/), ah: col(/actual labor hours/) };
+    const yr = (/(20\d\d)/.exec(fileName) || [])[1] || String(new Date().getFullYear());
+    const mi = MONTHS.findIndex(m => sn.toLowerCase().includes(m)) >= 0 ? MONTHS.findIndex(m => sn.toLowerCase().includes(m)) : MONTHS.findIndex(m => fileName.toLowerCase().includes(m));
+    let pm = mi >= 0 ? `${yr}-${String(mi + 1).padStart(2, '0')}` : null;
+    const toDate = v => typeof v === 'number' ? new Date(Math.round((v - 25569) * 864e5)).toISOString().slice(0, 10) : v instanceof Date ? v.toISOString().slice(0, 10) : (v && /^\d{4}-\d\d-\d\d/.test(v) ? String(v).slice(0, 10) : '');
+    const n = v => typeof v === 'number' ? v : (v === null || v === '' || isNaN(parseFloat(v)) ? null : parseFloat(v));
+    rows.slice(hi + 1).forEach((r, k) => {
+      const rbf = n(r[ix.rbf]); if (!rbf) return;
+      const fd = toDate(r[ix.d]); let q = n(r[ix.q]); if (q != null && q <= 1.5) q = r2(q * 100);
+      out.push({ finished_date: fd, pay_month: pm || fd.slice(0, 7), customer: String(r[ix.cust] || '').trim(), job_description: String(r[ix.desc] || '').trim(), project_type: commNormType(r[ix.type]),
+        quoted_margin: q, rbf, est_labor: n(r[ix.el]), actual_labor: n(r[ix.al]), est_material: n(r[ix.em]), actual_material: n(r[ix.am]), est_hours: n(r[ix.eh]), actual_hours: n(r[ix.ah]),
+        callback: String(r[ix.cb] || '').trim().toLowerCase() === 'yes', crew_lead: String(r[ix.lead] || '').trim(), estimators: commSplitNames(r[ix.est]),
+        reason: r[ix.reason] ? String(r[ix.reason]).trim() : '', product_variance: r[ix.pv] ? String(r[ix.pv]).trim() : '', brand_used: r[ix.brand] ? String(r[ix.brand]).trim() : '',
+        source: 'import', source_id: `${pm || fd.slice(0, 7)}-r${hi + 2 + k}`, detail: { file: fileName, sheet: sn } });
+    });
+  });
+  return out;
+}
+function commXlsxImport() {
+  modal(`<div class="modal-hd"><h3>Import tracker workbook</h3><button class="btn ghost" onclick="closeModal()">✕</button></div>
+    <div class="modal-bd"><p class="small" style="margin-bottom:8px">Pick one or more <b>Job Margin Performance Tracking</b> workbooks. Jobs are read from the month sheet (the Pivot, Note and Call Backs sheets are ignored). The pay month comes from the sheet / file name. Importing the same file again updates those rows instead of duplicating them.</p>
+    <input type="file" id="xlsxIn" accept=".xlsx,.xls" multiple><div id="xlsxPrev" style="margin-top:10px"></div></div>
+    <div class="modal-ft"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" id="xlsxGo" disabled>Import</button></div>`, true);
+  let parsed = [];
+  $('xlsxIn').onchange = async ev => {
+    const prev = $('xlsxPrev'); prev.innerHTML = '<div class="small muted">Reading…</div>';
+    try {
+      await commLoadXlsxLib(); parsed = [];
+      for (const f of ev.target.files) { const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', cellDates: false }); parsed.push(...commParseWorkbook(wb, f.name)); }
+      const by = {}; parsed.forEach(j => { by[j.pay_month] = (by[j.pay_month] || 0) + 1; });
+      prev.innerHTML = parsed.length ? `<div class="w info"><span class="ic">ℹ</span><span>Found <b>${parsed.length}</b> jobs: ${Object.entries(by).sort().map(([m, c]) => `${ymLabel(m)} ${c}`).join(' · ')}</span></div>` : '<div class="w warn"><span class="ic">⚠</span><span>No job rows found — is this a Job Margin Performance Tracking workbook?</span></div>';
+      $('xlsxGo').disabled = !parsed.length;
+    } catch (e) { prev.innerHTML = `<div class="w error"><span class="ic">⛔</span><span>${esc(e.message)}</span></div>`; }
+  };
+  $('xlsxGo').onclick = async () => {
+    const b = $('xlsxGo'); b.disabled = true; b.textContent = 'Importing…';
+    try { for (let i = 0; i < parsed.length; i += 200) await rpc('koala_comm_upsert_many', { p_jobs: parsed.slice(i, i + 200) });
+      await commLoad(); const ms = [...new Set(parsed.map(j => j.pay_month))].sort(); C.month = ms[ms.length - 1] || C.month; closeModal(); renderCommissions(); toast(`Imported ${parsed.length} jobs`, 'ok'); }
+    catch (e) { toast('Import failed: ' + e.message, 'error'); b.disabled = false; b.textContent = 'Import'; }
+  };
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────────────────────
+function commExport() {
+  const jobs = C.jobs.filter(j => j.pay_month === C.month), rep = commReport(jobs, C.plan);
+  const q = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const lines = [[`Sales commissions — ${ymLabel(C.month)}`], [], ['Estimator', 'Commission']];
+  Object.entries(rep.payouts).forEach(([p, v]) => lines.push([p, r2(v.total)]));
+  lines.push([], ['Crew lead', 'Efficiency bonus']); Object.entries(rep.leads).forEach(([p, v]) => lines.push([p, r2(v.total)]));
+  lines.push([], ['Estimator(s)', 'Project type', 'Jobs', 'Avg quoted %', 'Avg actual %', 'RBF', 'Rate %', 'Commission']);
+  rep.rows.forEach(g => lines.push([groupName(g.people), g.type, g.jobs.length, g.avgQuoted == null ? '' : r2(g.avgQuoted), r2(g.avgActual), r2(g.rbf), g.shares.map(s => s.rate).join('/'), r2(g.commission)]));
+  lines.push([], ['Date finished', 'Customer/Project', 'Job description', 'Project type', 'Quoted margin %', 'Actual margin %', 'Margin difference', 'Call back', 'Crew lead bonus', 'Crew lead', 'Sales estimator', 'Revenue before fees', 'Est labor', 'Actual labor', 'Difference in labor', 'Est material', 'Actual material', 'Difference in material', 'Total over/short', 'Reason for variance', 'Product variance', 'Product brand used', 'Labor hours estimated', 'Actual labor hours']);
+  jobs.forEach(j => { const c = commJobCalc(j, C.plan); lines.push([j.finished_date, j.customer, j.job_description, j.project_type, c.quoted, c.actual == null ? '' : r2(c.actual), r2(c.marginDiff), j.callback ? 'Yes' : 'No', r2(c.bonus), j.crew_lead, groupName(j.estimators), j.rbf, j.est_labor, j.actual_labor, r2(c.laborDiff), j.est_material, j.actual_material, r2(c.matDiff), r2(c.overShort), j.reason, j.product_variance, j.brand_used, j.est_hours, j.actual_hours]); });
+  const blob = new Blob([lines.map(r => r.map(q).join(',')).join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Commissions ${C.month}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+// ─── PLAN SETTINGS ───────────────────────────────────────────────────────────
+function commPlanModal() {
+  const p = C.plan, tierTxt = t => (t || []).map(x => `${x.min}:${x.rate}`).join(', ');
+  modal(`<div class="modal-hd"><h3>Commission plan</h3><button class="btn ghost" onclick="closeModal()">✕</button></div>
+    <div class="modal-bd">
+      <p class="small muted" style="margin-bottom:10px">Tiers are written <b>avg actual margin % : commission %</b>, e.g. <code>20:1, 30:2, 40:3</code> = 1% from 20%, 2% from 30%, 3% from 40% (below the first tier = 0%). The average is the simple average of each job's actual margin for that estimator and project type in the pay month; the rate is paid on the group's total revenue before fees. These defaults were read from the 2026 trackers (they reproduce every March–August payout except Brian's separate plan).</p>
+      <table class="tbl-edit">${COMM_TYPES.map(t => `<tr><td>${esc(t)}</td><td><input data-tier="${esc(t)}" value="${esc(tierTxt(p.tiers[t]))}" style="width:220px"></td></tr>`).join('')}</table>
+      <h4 style="margin:14px 0 4px">Individual plans <span class="small muted">(one per line: Name | Project type | tiers)</span></h4>
+      <textarea id="planOv" rows="3" style="width:100%">${esc(Object.entries(p.overrides || {}).flatMap(([n, o]) => Object.entries(o).map(([t, tiers]) => `${n} | ${t} | ${tierTxt(tiers)}`)).join('\n'))}</textarea>
+      <h4 style="margin:14px 0 4px">Crew lead efficiency bonus</h4>
+      <table class="tbl-edit"><tr><td>Actual must beat quoted by ≥ pts</td><td><input id="clBeat" type="number" value="${esc(p.crewLead.minBeatPts)}"></td></tr>
+        <tr><td>Bonus = % of total over/short</td><td><input id="clShare" type="number" value="${esc(p.crewLead.sharePct)}"></td></tr>
+        <tr><td>Paired crew leads (“Jorge &amp; Ricardo”)</td><td><select id="clPair"><option value="full" ${p.crewLead.pairEachFull !== false ? 'selected' : ''}>each get the full bonus (as in tracker)</option><option value="split" ${p.crewLead.pairEachFull === false ? 'selected' : ''}>split the bonus</option></select></td></tr></table>
+      <h4 style="margin:14px 0 4px">Change password</h4>
+      <div class="row"><input id="pwNew" type="password" placeholder="New password (6+ characters)" autocomplete="new-password" style="flex:1;padding:6px 9px;border:1px solid var(--border);border-radius:6px"><button class="btn sm" onclick="commChangePw()">Change</button></div>
+    </div>
+    <div class="modal-ft"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="commSavePlan()">Save plan</button></div>`);
+}
+function parseTiers(s) { return String(s || '').split(/[,;]+/).map(x => x.split(':').map(y => parseFloat(y))).filter(a => a.length === 2 && isFinite(a[0]) && isFinite(a[1])).map(([min, rate]) => ({ min, rate })).sort((a, b) => a.min - b.min); }
+async function commSavePlan() {
+  const p = clone(C.plan);
+  document.querySelectorAll('[data-tier]').forEach(el => p.tiers[el.dataset.tier] = parseTiers(el.value));
+  p.overrides = {};
+  $('planOv').value.split('\n').map(l => l.split('|').map(x => x.trim())).filter(a => a.length === 3 && a[0]).forEach(([n, t, tiers]) => { const tt = COMM_TYPES.find(x => x.toLowerCase() === t.toLowerCase()) || commNormType(t); (p.overrides[n] = p.overrides[n] || {})[tt] = parseTiers(tiers); });
+  p.crewLead = { minBeatPts: num($('clBeat').value), sharePct: num($('clShare').value), pairEachFull: $('clPair').value === 'full' };
+  try { C.plan = deepMerge(clone(COMM_DEFAULT_PLAN), await rpc('koala_comm_save_plan', { p_plan: p })); closeModal(); renderCommissions(); toast('Commission plan saved', 'ok'); } catch (e) { toast('Could not save: ' + e.message, 'error'); }
+}
+async function commChangePw() {
+  const v = $('pwNew').value; if (v.length < 6) return toast('Use at least 6 characters', 'error');
+  try { await rpc('koala_comm_change_password', { p_new: v }); C.pw = v; ssSet('koalaCommPw', v); $('pwNew').value = ''; toast('Password changed', 'ok'); } catch (e) { toast(e.message, 'error'); }
 }
 
 </script>

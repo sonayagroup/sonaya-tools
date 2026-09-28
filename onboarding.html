@@ -343,41 +343,26 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 }
 
 /* ── Orientation Video Player ──────────────── */
-.video-player {
+.video-wrap {
   background: #111; border-radius: var(--radius); overflow: hidden;
-  box-shadow: var(--shadow-lg); position: relative; aspect-ratio: 16/9;
-  max-width: 100%; margin-bottom: 20px;
+  box-shadow: var(--shadow-lg); position: relative; max-width: 100%; margin-bottom: 20px;
 }
-.video-player .vp-scene {
-  position: absolute; inset: 0; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; padding: 40px 32px;
-  text-align: center; opacity: 0; transition: opacity 0.6s ease;
-  pointer-events: none;
+.video-wrap video {
+  display: block; width: 100%; border-radius: var(--radius);
 }
-.video-player .vp-scene.active { opacity: 1; pointer-events: auto; }
-.video-player .vp-scene .vp-icon { font-size: 64px; margin-bottom: 16px; line-height: 1; animation: vp-float 3s ease-in-out infinite; }
-@keyframes vp-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-.video-player .vp-scene h2 { font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.5px; margin-bottom: 10px; text-wrap: balance; }
-.video-player .vp-scene p { font-size: 16px; color: rgba(255,255,255,0.8); max-width: 520px; line-height: 1.6; }
-.video-player .vp-scene .vp-highlight { color: var(--gold); font-weight: 700; }
-.video-player .vp-scene ul { text-align: left; margin: 12px auto 0; max-width: 400px; list-style: none; padding: 0; }
-.video-player .vp-scene ul li { color: rgba(255,255,255,0.85); font-size: 15px; padding: 6px 0; display: flex; align-items: center; gap: 10px; }
-.video-player .vp-scene ul li::before { content: '✓'; color: var(--gold); font-weight: 700; font-size: 14px; }
-.video-player .vp-scene .vp-tag { display: inline-block; background: rgba(237,28,46,0.9); color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 4px 12px; border-radius: 4px; margin-bottom: 14px; }
-.vp-timeline { display: flex; gap: 3px; padding: 12px 16px; background: rgba(0,0,0,0.5); position: absolute; bottom: 0; left: 0; right: 0; }
-.vp-seg { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.2); cursor: pointer; transition: background 0.3s; }
-.vp-seg.done { background: var(--red); }
-.vp-seg.current { background: var(--gold); animation: pulse-seg 2s infinite; }
-.vp-controls { display: flex; align-items: center; gap: 12px; padding: 0 16px 10px; position: absolute; bottom: 22px; left: 0; right: 0; justify-content: space-between; }
-.vp-btn { background: rgba(255,255,255,0.12); border: none; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font); transition: background 0.15s; }
-.vp-btn:hover { background: rgba(255,255,255,0.22); }
-.vp-btn.playing { background: var(--red); }
-.vp-time { font-size: 12px; color: rgba(255,255,255,0.6); font-weight: 500; font-variant-numeric: tabular-nums; }
-@media (max-width: 600px) {
-  .video-player .vp-scene h2 { font-size: 22px; }
-  .video-player .vp-scene p { font-size: 14px; }
-  .video-player .vp-scene .vp-icon { font-size: 48px; }
-  .video-player .vp-scene { padding: 28px 20px; }
+.video-skip-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; background: var(--surface); border-radius: var(--radius-sm);
+  margin-top: 8px; border: 1px solid var(--border);
+}
+.video-skip-bar .vp-btn {
+  background: var(--red); border: none; color: #fff; padding: 8px 18px;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: var(--font); transition: background 0.15s;
+}
+.video-skip-bar .vp-btn:hover { background: var(--red-hover); }
+.video-skip-bar .vp-status {
+  font-size: 13px; color: var(--text-2); font-weight: 500;
 }
 </style>
 </head>
@@ -659,160 +644,67 @@ function htmlWelcome() {
 }
 
 /* ═════════ STEP 2 — ORIENTATION VIDEO ═════════ */
-const VIDEO_SCENES = [
-  { icon:'🌮', tag:'About Us', title:'Welcome to Del Taco',
-    text:'You\'re joining Patel DT LLC — a franchise group operating <span class="vp-highlight">10 Del Taco restaurants</span> across New Mexico. Many of our GMs started as Team Members. This is a real growth opportunity.',
-    dur: 8 },
-  { icon:'🏥', tag:'Benefits', title:'Your Benefits',
-    list:['Health Insurance — $0 deductible, employer pays 50%','Dental & Vision for all team members after 60 days','Combined Sick Leave / PTO — up to 80 hours/year','Employee Meals — 50% off hourly, 100% off for managers','Free drinks on shift — soft drinks, water, and tea'],
-    dur: 10 },
-  { icon:'📋', tag:'Key Policies', title:'Policies You Need to Know',
-    list:['Treat every customer with respect and courtesy','Food Handler\'s Permit required within 30 days','You are responsible for all your scheduled shifts','8 hours notice if you can\'t make a shift','Cash drawer: $75 start, $5 discrepancy threshold','Keys: $250 charge if unreturned at termination'],
-    dur: 10 },
-  { icon:'✅', tag:'Knowledge Check', title:'Up Next: Your Quiz',
-    text:'After this video, you\'ll take a <span class="vp-highlight">15-question knowledge check</span> covering everything we just reviewed — customer service, benefits, policies, and attendance. You need <span class="vp-highlight">80% to pass</span>. Don\'t worry — your administrator is here to help!',
-    dur: 8 },
-  { icon:'📅', tag:'Training', title:'Your First 3 Days',
-    list:['Day 1 — Restaurant tour, uniform, WhatsApp setup, shadow a team member','Day 2 — POS training, Del U courses, break procedures','Day 3 — Station training specific to your position','After Week 1 — Del U modules, Food Handler\'s Permit, benefits enrollment'],
-    dur: 8 },
-  { icon:'🎉', tag:'Let\'s Go!', title:`Welcome to the Team, ${'{S.name}'}!`,
-    text:'You\'re all set to begin your onboarding. Let\'s dive into the details — starting with your full benefits package.',
-    dur: 6 }
-];
+const VIDEO_URL = 'https://tools.sonayagroup.com/onboarding.mp4';
 
 function htmlVideo() {
-  const scenes = VIDEO_SCENES.map((sc, i) => {
-    const t = sc.title.replace('{S.name}', S.name);
-    let body = '';
-    if (sc.list) {
-      body = '<ul>' + sc.list.map(li => `<li>${li}</li>`).join('') + '</ul>';
-    } else {
-      body = `<p>${(sc.text || '').replace('{S.name}', S.name)}</p>`;
-    }
-    return `<div class="vp-scene${i === 0 ? ' active' : ''}" id="vpScene${i}">
-      <div class="vp-tag">${sc.tag}</div>
-      <div class="vp-icon">${sc.icon}</div>
-      <h2>${t}</h2>
-      ${body}
-    </div>`;
-  }).join('');
-
-  const segs = VIDEO_SCENES.map((_, i) =>
-    `<div class="vp-seg${i === 0 ? ' current' : ''}" id="vpSeg${i}" onclick="videoGoTo(${i})"></div>`
-  ).join('');
-
   return `
   <div class="card" style="padding:0;overflow:hidden;border:none;background:transparent;">
-    <div class="video-player" id="videoPlayer">
-      ${scenes}
-      <div class="vp-controls">
-        <button class="vp-btn playing" id="vpPlayBtn" onclick="videoToggle()">⏸ Pause</button>
-        <span class="vp-time" id="vpTime">Scene 1 / ${VIDEO_SCENES.length}</span>
-        <button class="vp-btn" onclick="videoSkip()">Skip Video →</button>
-      </div>
-      <div class="vp-timeline" id="vpTimeline">${segs}</div>
+    <div class="video-wrap">
+      <video id="obVideo" controls playsinline preload="auto">
+        <source src="${VIDEO_URL}" type="video/mp4">
+        Your browser does not support video playback.
+      </video>
+    </div>
+    <div class="video-skip-bar">
+      <span class="vp-status" id="vpStatus">▶ Press play to begin</span>
+      <button class="vp-btn" onclick="videoSkip()">Skip Video →</button>
     </div>
   </div>
 
   <div class="callout callout-blue" style="margin-top:4px;">
     <span class="callout-icon">🎬</span>
-    <span>This orientation video auto-plays through ${VIDEO_SCENES.length} scenes. You can pause, skip, or click any segment to jump to a section.</span>
+    <span>Watch this 3-minute orientation video covering your benefits, key policies, and what to expect. You can skip ahead if needed.</span>
   </div>`;
 }
 
-let videoTimer = null;
-let videoElapsed = 0;
-
 function startVideo() {
-  S.videoScene = 0;
   S.videoPlaying = true;
-  videoElapsed = 0;
-  videoAdvance();
-}
-
-function videoAdvance() {
-  if (videoTimer) clearInterval(videoTimer);
-  const sc = VIDEO_SCENES[S.videoScene];
-  // Update scenes
-  VIDEO_SCENES.forEach((_, i) => {
-    const el = $('vpScene' + i);
-    if (el) el.classList.toggle('active', i === S.videoScene);
-    const seg = $('vpSeg' + i);
-    if (seg) { seg.className = 'vp-seg' + (i < S.videoScene ? ' done' : i === S.videoScene ? ' current' : ''); }
-  });
-  $('vpTime').textContent = `Scene ${S.videoScene + 1} / ${VIDEO_SCENES.length}`;
-  $('vpPlayBtn').innerHTML = '⏸ Pause';
-  $('vpPlayBtn').classList.add('playing');
-  videoElapsed = 0;
-
-  if (!S.videoPlaying) return;
-  videoTimer = setInterval(() => {
-    videoElapsed++;
-    if (videoElapsed >= sc.dur) {
-      clearInterval(videoTimer);
-      if (S.videoScene < VIDEO_SCENES.length - 1) {
-        S.videoScene++;
-        videoAdvance();
-      } else {
-        videoFinish();
-      }
-    }
-  }, 1000);
-}
-
-function videoToggle() {
-  if (S.videoPlaying) {
-    S.videoPlaying = false;
-    if (videoTimer) clearInterval(videoTimer);
-    $('vpPlayBtn').innerHTML = '▶ Play';
-    $('vpPlayBtn').classList.remove('playing');
-  } else {
+  const vid = $('obVideo');
+  if (!vid) return;
+  vid.play().catch(() => {});
+  vid.addEventListener('playing', () => {
     S.videoPlaying = true;
-    const sc = VIDEO_SCENES[S.videoScene];
-    $('vpPlayBtn').innerHTML = '⏸ Pause';
-    $('vpPlayBtn').classList.add('playing');
-    videoTimer = setInterval(() => {
-      videoElapsed++;
-      if (videoElapsed >= sc.dur) {
-        clearInterval(videoTimer);
-        if (S.videoScene < VIDEO_SCENES.length - 1) {
-          S.videoScene++;
-          videoAdvance();
-        } else {
-          videoFinish();
-        }
-      }
-    }, 1000);
-  }
-}
-
-function videoGoTo(idx) {
-  S.videoScene = idx;
-  videoAdvance();
+    const nb = $('nextBtn');
+    nb.disabled = true;
+    nb.textContent = 'Playing…';
+    const st = $('vpStatus');
+    if (st) st.textContent = '⏸ Playing orientation…';
+  });
+  vid.addEventListener('pause', () => {
+    if (!vid.ended) {
+      S.videoPlaying = false;
+      const st = $('vpStatus');
+      if (st) st.textContent = '⏸ Paused';
+    }
+  });
+  vid.addEventListener('ended', () => {
+    videoFinish();
+  });
 }
 
 function videoSkip() {
+  const vid = $('obVideo');
+  if (vid) { vid.pause(); vid.currentTime = vid.duration || 0; }
   videoFinish();
 }
 
 function videoFinish() {
-  if (videoTimer) clearInterval(videoTimer);
   S.videoPlaying = false;
-  S.videoScene = VIDEO_SCENES.length - 1;
-  // Mark all segments done
-  VIDEO_SCENES.forEach((_, i) => {
-    const seg = $('vpSeg' + i);
-    if (seg) seg.className = 'vp-seg done';
-    const el = $('vpScene' + i);
-    if (el) el.classList.toggle('active', i === S.videoScene);
-  });
-  $('vpPlayBtn').innerHTML = '✓ Done';
-  $('vpPlayBtn').classList.remove('playing');
-  $('vpTime').textContent = 'Complete';
-  // Re-enable Continue button
   const nb = $('nextBtn');
   nb.disabled = false;
   nb.textContent = 'Continue →';
+  const st = $('vpStatus');
+  if (st) st.textContent = '✓ Video complete';
 }
 
 /* ═════════ STEP 3 — BENEFITS ═════════ */

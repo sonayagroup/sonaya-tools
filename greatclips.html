@@ -439,7 +439,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
     <h3>Salon Vendor Contacts <span class="badge" id="ctVendorCount">0</span></h3>
     <div class="card tbl-scroll">
       <table class="ct-tbl" id="ctVendorTbl"><thead><tr>
-        <th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th><th class="act-col"></th>
+        <th>Company</th><th>Description</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th><th class="act-col"></th>
       </tr></thead><tbody></tbody></table>
     </div>
   </div>
@@ -447,7 +447,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
     <h3>Company-Wide Contacts <span class="badge" id="ctCompCount">0</span> <button class="btn-outline btn-sm" style="margin-left:8px;font-size:11px" onclick="ctAddCompany()">+ Add</button></h3>
     <div class="card tbl-scroll">
       <table class="ct-tbl" id="ctCompTbl"><thead><tr>
-        <th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th><th class="act-col"></th>
+        <th>Company</th><th>Description</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th><th class="act-col"></th>
       </tr></thead><tbody></tbody></table>
     </div>
   </div>
@@ -2032,23 +2032,23 @@ function ctRender(){
   const vendors=CT_VENDORS.filter(v=>linkedIds.has(v.id));
   const vb=document.querySelector("#ctVendorTbl tbody");
   vb.innerHTML=vendors.length?vendors.map(v=>`<tr>
-    <td><b>${esc(v.company)}</b></td><td>${esc(v.contact_name||'')}</td><td>${esc(v.role||'')}</td>
+    <td><b>${esc(v.company)}</b></td><td>${esc(v.description||'')}</td><td>${esc(v.contact_name||'')}</td><td>${esc(v.role||'')}</td>
     <td>${esc(v.phone||'')}</td><td>${esc(v.mobile||'')}</td>
     <td>${v.email?'<a href="mailto:'+esc(v.email)+'">'+esc(v.email)+'</a>':''}</td>
     <td>${esc(v.account_num||'')}</td>
     <td class="act-col"><button class="ct-act" title="Edit" onclick="ctEditVendor(${v.id})">✏️</button><button class="ct-act" title="Unlink" onclick="ctUnlinkVendor(${v.id})">❌</button></td>
-  </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No vendors yet — click + Add Vendor to add one</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">No vendors yet — click + Add Vendor to add one</td></tr>';
   $("#ctVendorCount").textContent=vendors.length;
 
   // Company-wide contacts
   const cb=document.querySelector("#ctCompTbl tbody");
   cb.innerHTML=CT_COMPANY.length?CT_COMPANY.map(v=>`<tr>
-    <td><b>${esc(v.company)}</b></td><td>${esc(v.contact_name||'')}</td><td>${esc(v.role||'')}</td>
+    <td><b>${esc(v.company)}</b></td><td>${esc(v.description||'')}</td><td>${esc(v.contact_name||'')}</td><td>${esc(v.role||'')}</td>
     <td>${esc(v.phone||'')}</td><td>${esc(v.mobile||'')}</td>
     <td>${v.email?'<a href="mailto:'+esc(v.email)+'">'+esc(v.email)+'</a>':''}</td>
     <td>${esc(v.account_num||'')}</td>
     <td class="act-col"><button class="ct-act" title="Edit" onclick="ctEditCompany(${v.id})">✏️</button><button class="ct-act" title="Delete" onclick="ctDelCompany(${v.id})">🗑️</button></td>
-  </tr>`).join(''):'<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">No company-wide contacts yet — click + Add</td></tr>';
+  </tr>`).join(''):'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">No company-wide contacts yet — click + Add</td></tr>';
   $("#ctCompCount").textContent=CT_COMPANY.length;
 
   // Print header
@@ -2144,6 +2144,7 @@ async function ctDelStaff(id){
 function ctAddVendor(){
   const m=ctModal(`<h3>Add New Vendor</h3>
     <label>Company</label><input id="ctfCompany">
+    <label>Description</label><input id="ctfVDesc" placeholder="e.g. Property management, HVAC service">
     <label>Contact Name</label><input id="ctfVContact">
     <label>Role / Service</label><input id="ctfVRole">
     <label>Phone</label><input id="ctfVPhone">
@@ -2155,7 +2156,7 @@ function ctAddVendor(){
 
 async function ctSaveVendor(btn){
   const bg=btn.closest('.ct-modal-bg');
-  const body={company:bg.querySelector('#ctfCompany').value.trim(),contact_name:bg.querySelector('#ctfVContact').value.trim(),
+  const body={company:bg.querySelector('#ctfCompany').value.trim(),description:bg.querySelector('#ctfVDesc').value.trim(),contact_name:bg.querySelector('#ctfVContact').value.trim(),
     role:bg.querySelector('#ctfVRole').value.trim(),phone:normalizePhone(bg.querySelector('#ctfVPhone').value.trim()),
     mobile:normalizePhone(bg.querySelector('#ctfVMobile').value.trim()),email:bg.querySelector('#ctfVEmail').value.trim(),
     account_num:bg.querySelector('#ctfVAcct').value.trim()};
@@ -2176,6 +2177,7 @@ function ctEditVendor(id){
   const m=ctModal(`<h3>Edit Vendor</h3>
     <p style="font-size:12px;color:var(--muted);margin-bottom:4px">⚠️ Changes apply to all salons linked to this vendor</p>
     <label>Company</label><input id="ctfCompany" value="${esc(v.company)}">
+    <label>Description</label><input id="ctfVDesc" value="${esc(v.description||'')}" placeholder="e.g. Property management, HVAC service">
     <label>Contact Name</label><input id="ctfVContact" value="${esc(v.contact_name||'')}">
     <label>Role / Service</label><input id="ctfVRole" value="${esc(v.role||'')}">
     <label>Phone</label><input id="ctfVPhone" value="${esc(v.phone||'')}">
@@ -2187,7 +2189,7 @@ function ctEditVendor(id){
 
 async function ctUpdateVendor(id,btn){
   const bg=btn.closest('.ct-modal-bg');
-  const body={company:bg.querySelector('#ctfCompany').value.trim(),contact_name:bg.querySelector('#ctfVContact').value.trim(),
+  const body={company:bg.querySelector('#ctfCompany').value.trim(),description:bg.querySelector('#ctfVDesc').value.trim(),contact_name:bg.querySelector('#ctfVContact').value.trim(),
     role:bg.querySelector('#ctfVRole').value.trim(),phone:normalizePhone(bg.querySelector('#ctfVPhone').value.trim()),
     mobile:normalizePhone(bg.querySelector('#ctfVMobile').value.trim()),email:bg.querySelector('#ctfVEmail').value.trim(),
     account_num:bg.querySelector('#ctfVAcct').value.trim()};
@@ -2224,6 +2226,7 @@ function normalizePhone(raw){
 function ctAddCompany(){
   const m=ctModal(`<h3>Add Company Contact</h3>
     <label>Company</label><input id="ctfCCCompany">
+    <label>Description</label><input id="ctfCCDesc" placeholder="e.g. Payroll provider, Insurance broker">
     <label>Contact Name</label><input id="ctfCCName">
     <label>Role / Title</label><input id="ctfCCRole">
     <label>Phone</label><input id="ctfCCPhone">
@@ -2235,7 +2238,7 @@ function ctAddCompany(){
 
 async function ctSaveCompany(btn){
   const bg=btn.closest('.ct-modal-bg');
-  const body={company:bg.querySelector('#ctfCCCompany').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
+  const body={company:bg.querySelector('#ctfCCCompany').value.trim(),description:bg.querySelector('#ctfCCDesc').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
     role:bg.querySelector('#ctfCCRole').value.trim(),phone:normalizePhone(bg.querySelector('#ctfCCPhone').value.trim()),
     mobile:normalizePhone(bg.querySelector('#ctfCCMobile').value.trim()),email:bg.querySelector('#ctfCCEmail').value.trim(),
     account_num:bg.querySelector('#ctfCCAcct').value.trim()};
@@ -2252,6 +2255,7 @@ function ctEditCompany(id){
   const v=CT_COMPANY.find(x=>x.id===id);if(!v)return;
   const m=ctModal(`<h3>Edit Company Contact</h3>
     <label>Company</label><input id="ctfCCCompany" value="${esc(v.company)}">
+    <label>Description</label><input id="ctfCCDesc" value="${esc(v.description||'')}" placeholder="e.g. Payroll provider, Insurance broker">
     <label>Contact Name</label><input id="ctfCCName" value="${esc(v.contact_name||'')}">
     <label>Role / Title</label><input id="ctfCCRole" value="${esc(v.role||'')}">
     <label>Phone</label><input id="ctfCCPhone" value="${esc(v.phone||'')}">
@@ -2263,7 +2267,7 @@ function ctEditCompany(id){
 
 async function ctUpdateCompany(id,btn){
   const bg=btn.closest('.ct-modal-bg');
-  const body={company:bg.querySelector('#ctfCCCompany').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
+  const body={company:bg.querySelector('#ctfCCCompany').value.trim(),description:bg.querySelector('#ctfCCDesc').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
     role:bg.querySelector('#ctfCCRole').value.trim(),phone:normalizePhone(bg.querySelector('#ctfCCPhone').value.trim()),
     mobile:normalizePhone(bg.querySelector('#ctfCCMobile').value.trim()),email:bg.querySelector('#ctfCCEmail').value.trim(),
     account_num:bg.querySelector('#ctfCCAcct').value.trim()};

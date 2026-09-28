@@ -427,6 +427,17 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
     <button class="btn-outline btn-sm" onclick="ctPrint()">🖨️ Print PDF</button>
     <span class="savemsg" id="ctMsg"></span>
   </div>
+  <div id="ctPosBox" class="ct-sec" style="margin-bottom:14px;display:none">
+    <h3>🔑 POS Credentials</h3>
+    <div class="card" style="padding:14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="font-size:13px;color:var(--muted)">iPad POS Password:</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <code id="ctPosVal" style="font-size:15px;font-weight:700;letter-spacing:0.5px;background:var(--surface);padding:6px 14px;border-radius:6px;user-select:all">—</code>
+        <button class="btn-outline btn-sm" onclick="ctCopyPos()" title="Copy password" style="padding:4px 10px">📋</button>
+      </div>
+      <span class="savemsg" id="ctPosMsg" style="font-size:11px"></span>
+    </div>
+  </div>
   <div class="ct-sec">
     <h3>Staff Contacts <span class="badge" id="ctStaffCount">0</span></h3>
     <div class="card tbl-scroll">
@@ -1997,23 +2008,33 @@ $("#recapDraft").onclick=()=>doRecapSave('draft');
 $("#recapSave").onclick=()=>doRecapSave('final');
 
 // ===== CONTACTS TAB =====
-let CT_STAFF=[],CT_VENDORS=[],CT_JUNCTIONS=[],CT_COMPANY=[];
+let CT_STAFF=[],CT_VENDORS=[],CT_JUNCTIONS=[],CT_COMPANY=[],CT_POS={};
 const CT_SALON_NAMES={'0200':'Nob Hill','0646':'Espanola','0933':'Four Hills','2092':'North Towne','2850':'Southern & 528','3781':'Golf Course','3999':'Carlsbad','5809':'Juan Tabo','6101':'Star Plaza','6110':'Towne Park','6116':'DeVargas','6117':'Coronado','7700':'Entrada','7741':'Las Estancias','8914':'San Isidro'};
 
 async function ctLoad(){
   const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY};
-  const[staff,vendors,junctions,company]=await Promise.all([
+  const[staff,vendors,junctions,company,locations]=await Promise.all([
     fetch(SUPA_URL+"/rest/v1/salon_contacts?select=*&order=name",{headers:h}).then(r=>r.json()),
     fetch(SUPA_URL+"/rest/v1/vendors?select=*&order=company",{headers:h}).then(r=>r.json()),
     fetch(SUPA_URL+"/rest/v1/salon_vendors?select=*",{headers:h}).then(r=>r.json()),
-    fetch(SUPA_URL+"/rest/v1/company_contacts?select=*&order=company",{headers:h}).then(r=>r.json())
+    fetch(SUPA_URL+"/rest/v1/company_contacts?select=*&order=company",{headers:h}).then(r=>r.json()),
+    fetch(SUPA_URL+"/rest/v1/salon_locations?select=salon_id,pos_password",{headers:h}).then(r=>r.json()).catch(()=>[])
   ]);
   CT_STAFF=staff||[];CT_VENDORS=vendors||[];CT_JUNCTIONS=junctions||[];CT_COMPANY=company||[];
+  CT_POS={};(locations||[]).forEach(l=>{if(l.pos_password)CT_POS[l.salon_id]=l.pos_password;});
   ctRender();
 }
 
+function ctCopyPos(){const v=document.getElementById('ctPosVal').textContent;if(!v||v==='—')return;navigator.clipboard.writeText(v).then(()=>{const m=document.getElementById('ctPosMsg');m.textContent='Copied!';m.style.color='var(--good)';setTimeout(()=>m.textContent='',1500);});}
+
 function ctRender(){
   const sid=current;
+  // POS credential box
+  const posBox=document.getElementById('ctPosBox');
+  const posVal=document.getElementById('ctPosVal');
+  if(CT_POS[sid]){posBox.style.display='';posVal.textContent=CT_POS[sid];}
+  else{posBox.style.display='';posVal.textContent='—';posVal.style.color='var(--muted)';}
+  if(CT_POS[sid])posVal.style.color='';
   // Staff — sort Area Manager, Manager, Asst Manager to top
   const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('area manager'))return 0;if(r.includes('salon manager')||r==='manager')return 1;if(r.includes('assistant manager')||r.includes('asst manager'))return 2;if(r.includes('lead stylist'))return 3;return 9;};
   const staff=CT_STAFF.filter(c=>String(c.salon_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));

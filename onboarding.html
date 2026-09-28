@@ -342,28 +342,154 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
   .card, .q-card, .train-card { break-inside: avoid; box-shadow: none !important; border: 1px solid #ddd !important; }
 }
 
-/* ── Orientation Video Player ──────────────── */
-.video-wrap {
-  background: #111; border-radius: var(--radius); overflow: hidden;
-  box-shadow: var(--shadow-lg); position: relative; max-width: 100%; margin-bottom: 20px;
+/* ── Interactive Presentation ──────────────── */
+.ix-container {
+  position: relative; overflow: hidden;
 }
-.video-wrap video {
-  display: block; width: 100%; border-radius: var(--radius);
+.ix-scene {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden; margin-bottom: 16px;
+  box-shadow: var(--shadow);
 }
-.video-skip-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 16px; background: var(--surface); border-radius: var(--radius-sm);
-  margin-top: 8px; border: 1px solid var(--border);
+.ix-scene-header {
+  position: relative; padding: 32px 28px 24px; overflow: hidden;
 }
-.video-skip-bar .vp-btn {
-  background: var(--red); border: none; color: #fff; padding: 8px 18px;
-  border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
-  cursor: pointer; font-family: var(--font); transition: background 0.15s;
+.ix-scene-header::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, var(--scene-color, var(--red)) 0%, color-mix(in srgb, var(--scene-color, var(--red)) 70%, #000) 100%);
+  opacity: 1;
 }
-.video-skip-bar .vp-btn:hover { background: var(--red-hover); }
-.video-skip-bar .vp-status {
-  font-size: 13px; color: var(--text-2); font-weight: 500;
+.ix-scene-header * { position: relative; z-index: 1; }
+.ix-scene-icon {
+  width: 48px; height: 48px; background: rgba(255,255,255,0.2);
+  border-radius: 12px; display: flex; align-items: center; justify-content: center;
+  font-size: 26px; margin-bottom: 12px; backdrop-filter: blur(8px);
 }
+.ix-scene-header h2 {
+  font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.3px; margin-bottom: 4px;
+}
+.ix-scene-header p {
+  font-size: 14px; color: rgba(255,255,255,0.8); margin: 0;
+}
+.ix-scene-body {
+  padding: 24px 28px;
+}
+.ix-bullet {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+  opacity: 0; transform: translateY(10px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.ix-bullet.visible {
+  opacity: 1; transform: translateY(0);
+}
+.ix-bullet:last-child { border-bottom: none; }
+.ix-bullet-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; flex-shrink: 0;
+  background: var(--scene-color-soft, var(--red-soft));
+}
+.ix-bullet-text { font-size: 14px; color: var(--text-2); line-height: 1.5; }
+.ix-bullet-text strong { color: var(--text); }
+
+/* Narration bar */
+.ix-narration-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; background: var(--surface-alt);
+  border-top: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius);
+}
+.ix-narr-wave {
+  display: flex; align-items: center; gap: 2px; height: 20px;
+}
+.ix-narr-wave span {
+  width: 3px; border-radius: 2px; background: var(--red);
+  animation: ixWave 0.8s ease-in-out infinite;
+}
+.ix-narr-wave span:nth-child(2) { animation-delay: 0.1s; }
+.ix-narr-wave span:nth-child(3) { animation-delay: 0.2s; }
+.ix-narr-wave span:nth-child(4) { animation-delay: 0.3s; }
+.ix-narr-wave.paused span { animation: none; height: 4px; }
+@keyframes ixWave {
+  0%,100% { height: 4px; } 50% { height: 16px; }
+}
+.ix-narr-label {
+  flex: 1; font-size: 13px; color: var(--text-2); font-weight: 500;
+}
+.ix-narr-btn {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 12px; font-size: 12px; font-weight: 600;
+  color: var(--text-2); cursor: pointer; font-family: var(--font);
+  transition: all 0.15s;
+}
+.ix-narr-btn:hover { background: var(--surface-hover); border-color: var(--border-strong); }
+
+/* Quiz in-scene */
+.ix-quiz {
+  margin-top: 16px; padding: 20px; background: var(--surface-alt);
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  animation: fadeUp 0.4s ease;
+}
+.ix-quiz-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--red); margin-bottom: 10px;
+}
+.ix-quiz-tag .ix-qt-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--red); animation: pulse-seg 1.5s infinite;
+}
+.ix-quiz-text {
+  font-size: 16px; font-weight: 700; margin-bottom: 14px; line-height: 1.4;
+}
+
+/* Progress tracker */
+.ix-progress {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
+}
+.ix-prog-step {
+  display: flex; align-items: center; gap: 4px;
+}
+.ix-prog-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid var(--border); background: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: var(--text-3);
+  transition: all 0.3s ease;
+}
+.ix-prog-dot.active {
+  border-color: var(--red); background: var(--red); color: #fff;
+  box-shadow: 0 0 0 4px rgba(237,28,46,0.15);
+}
+.ix-prog-dot.done {
+  border-color: var(--green); background: var(--green); color: #fff;
+}
+.ix-prog-line {
+  flex: 1; height: 2px; background: var(--border);
+  transition: background 0.3s;
+}
+.ix-prog-line.done { background: var(--green); }
+
+/* Scene counter */
+.ix-scene-count {
+  font-size: 13px; color: var(--text-3); font-weight: 600;
+  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+}
+.ix-scene-count .ix-sc-badge {
+  background: var(--red); color: #fff; padding: 2px 8px;
+  border-radius: 4px; font-size: 11px; font-weight: 700;
+}
+
+/* Skip link */
+.ix-skip-all {
+  text-align: center; margin-top: 12px;
+}
+.ix-skip-all button {
+  background: none; border: none; color: var(--text-3); font-size: 13px;
+  cursor: pointer; font-family: var(--font); text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ix-skip-all button:hover { color: var(--text-2); }
 </style>
 </head>
 <body>
@@ -459,15 +585,16 @@ const STORES = {
   '1153':'Rio Rancho','1187':'Alamogordo','1205':'Gallup','1357':'T or C',
   '1364':'Bernalillo','1391':'Gibson'
 };
-const STEPS = ['welcome','video','benefits','policies','quiz','training','complete'];
-const STEP_NAMES = ['Welcome','Orientation Video','Benefits','Policies','Knowledge Check','Training Plan','Complete'];
+const STEPS = ['welcome','interactive','training','complete'];
+const STEP_NAMES = ['Welcome','Interactive Orientation','Training Plan','Complete'];
 
 let S = {
   step: 0, sid: null,
   name: '', pos: '', store: '', admin: '',
   xp: 0, badges: [],
   qAnswers: {}, qIdx: 0, qSubmitted: false, qScore: 0,
-  acked: false, videoPlaying: false, videoScene: 0
+  acked: false, videoPlaying: false, videoScene: 0,
+  ixScene: 0, ixQuizDone: false, ixNarrating: false, ixAllDone: false
 };
 
 /* ── Helpers ────────────────────────── */
@@ -549,17 +676,8 @@ $('nextBtn').addEventListener('click', handleNext);
 
 function handleNext() {
   const step = STEPS[S.step];
-  // Policies: must ack
-  if (step === 'policies' && !S.acked) return;
-  // Quiz: one-at-a-time mode
-  if (step === 'quiz') {
-    if (!S.qSubmitted) { submitCurrentQuestion(); return; }
-    if (S.qIdx < QUIZ.length - 1) { S.qIdx++; S.qSubmitted = false; renderQuizQuestion(); return; }
-    // All done — show score
-    S.step++; render();
-    addXP(50, 'Quiz completed');
-    return;
-  }
+  // Interactive: handled by its own engine
+  if (step === 'interactive') { ixHandleNext(); return; }
   if (step === 'training') {
     completeOnboarding();
     S.step++;
@@ -568,34 +686,25 @@ function handleNext() {
     addXP(100, 'Onboarding complete!');
     return;
   }
-  if (step === 'video' && S.videoPlaying) return;
   if (S.step < STEPS.length - 1) {
-    // XP for completing sections
     if (step === 'welcome') addXP(10, 'Welcome reviewed');
-    if (step === 'video') addXP(15, 'Orientation video watched');
-    if (step === 'benefits') addXP(20, 'Benefits learned');
-    if (step === 'policies') addXP(30, 'Policies acknowledged');
     S.step++;
     render();
   }
 }
 
 function render() {
-  // Progress
   $('stepLabel').textContent = `${STEP_NAMES[S.step]}`;
   $('progressTrack').innerHTML = STEPS.map((_, i) =>
     `<div class="progress-seg ${i < S.step ? 'done' : i === S.step ? 'current' : ''}"></div>`
   ).join('');
 
-  // Nav
   $('prevBtn').style.visibility = S.step === 0 ? 'hidden' : 'visible';
   const nb = $('nextBtn');
   nb.style.display = '';
   nb.disabled = false;
 
-  if (STEPS[S.step] === 'video') { nb.textContent = S.videoPlaying ? 'Playing…' : 'Continue →'; nb.disabled = S.videoPlaying; }
-  else if (STEPS[S.step] === 'policies') { nb.textContent = 'I Acknowledge — Continue →'; nb.disabled = !S.acked; }
-  else if (STEPS[S.step] === 'quiz') { nb.textContent = 'Check Answer'; }
+  if (STEPS[S.step] === 'interactive') { nb.textContent = 'Continue →'; ixUpdateNav(); }
   else if (STEPS[S.step] === 'training') { nb.textContent = 'Complete Onboarding ✓'; }
   else if (STEPS[S.step] === 'complete') { nb.style.display = 'none'; }
   else { nb.textContent = 'Continue →'; }
@@ -604,11 +713,8 @@ function render() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
   switch (STEPS[S.step]) {
     case 'welcome': c.innerHTML = htmlWelcome(); break;
-    case 'video': c.innerHTML = htmlVideo(); startVideo(); break;
-    case 'benefits': c.innerHTML = htmlBenefits(); break;
-    case 'policies': c.innerHTML = htmlPolicies(); break;
-    case 'quiz': c.innerHTML = htmlQuizShell(); renderQuizQuestion(); break;
-    case 'training': c.innerHTML = htmlTraining(); if (S.step === 5) { addXP(20, 'Training plan reviewed'); } break;
+    case 'interactive': c.innerHTML = htmlInteractive(); ixInit(); break;
+    case 'training': c.innerHTML = htmlTraining(); addXP(20, 'Training plan reviewed'); break;
     case 'complete': c.innerHTML = htmlComplete(); break;
   }
 }
@@ -626,9 +732,7 @@ function htmlWelcome() {
     <h3>What We'll Cover Today</h3>
     <p>Your ${S.admin.split(' ')[0]} will guide you through each section of this onboarding:</p>
     <div class="tile-grid" style="margin-top:16px;">
-      <div class="tile"><div class="tile-icon">🏥</div><h4>Benefits</h4><p>Health insurance, PTO, meal perks</p></div>
-      <div class="tile"><div class="tile-icon">📋</div><h4>Policies</h4><p>Cash handling, safety, attendance</p></div>
-      <div class="tile"><div class="tile-icon">✅</div><h4>Knowledge Check</h4><p>15 questions to confirm you're set</p></div>
+      <div class="tile"><div class="tile-icon">🎬</div><h4>Interactive Orientation</h4><p>Narrated walkthrough of benefits, policies, and procedures — with knowledge checks along the way</p></div>
       <div class="tile"><div class="tile-icon">📅</div><h4>Training Plan</h4><p>Your first 3 days roadmap</p></div>
     </div>
   </div>
@@ -643,376 +747,526 @@ function htmlWelcome() {
   </div>`;
 }
 
-/* ═════════ STEP 2 — ORIENTATION VIDEO ═════════ */
-const VIDEO_URL = 'https://tools.sonayagroup.com/onboarding.mp4';
+/* ═════════ STEP 2 — INTERACTIVE ORIENTATION ═════════ */
 
-function htmlVideo() {
-  return `
-  <div class="card" style="padding:0;overflow:hidden;border:none;background:transparent;">
-    <div class="video-wrap">
-      <video id="obVideo" controls playsinline preload="auto">
-        <source src="${VIDEO_URL}" type="video/mp4">
-        Your browser does not support video playback.
-      </video>
-    </div>
-    <div class="video-skip-bar">
-      <span class="vp-status" id="vpStatus">▶ Press play to begin</span>
-      <button class="vp-btn" onclick="videoSkip()">Skip Video →</button>
-    </div>
-  </div>
-
-  <div class="callout callout-blue" style="margin-top:4px;">
-    <span class="callout-icon">🎬</span>
-    <span>Watch this 3-minute orientation video covering your benefits, key policies, and what to expect. You can skip ahead if needed.</span>
-  </div>`;
-}
-
-function startVideo() {
-  S.videoPlaying = true;
-  const vid = $('obVideo');
-  if (!vid) return;
-  vid.play().catch(() => {});
-  vid.addEventListener('playing', () => {
-    S.videoPlaying = true;
-    const nb = $('nextBtn');
-    nb.disabled = true;
-    nb.textContent = 'Playing…';
-    const st = $('vpStatus');
-    if (st) st.textContent = '⏸ Playing orientation…';
-  });
-  vid.addEventListener('pause', () => {
-    if (!vid.ended) {
-      S.videoPlaying = false;
-      const st = $('vpStatus');
-      if (st) st.textContent = '⏸ Paused';
-    }
-  });
-  vid.addEventListener('ended', () => {
-    videoFinish();
-  });
-}
-
-function videoSkip() {
-  const vid = $('obVideo');
-  if (vid) { vid.pause(); vid.currentTime = vid.duration || 0; }
-  videoFinish();
-}
-
-function videoFinish() {
-  S.videoPlaying = false;
-  const nb = $('nextBtn');
-  nb.disabled = false;
-  nb.textContent = 'Continue →';
-  const st = $('vpStatus');
-  if (st) st.textContent = '✓ Video complete';
-}
-
-/* ═════════ STEP 3 — BENEFITS ═════════ */
-function htmlBenefits() {
-  return `
-  <div class="card">
-    <h2>Your Benefits Package</h2>
-    <p>Here's what's available to you as a Del Taco team member:</p>
-    <div class="tile-grid">
-      <div class="tile"><div class="tile-icon">🏥</div><h4>Health Insurance</h4><p>After 60 days, 30+ hrs/wk. Employer covers 50% of employee premium.</p></div>
-      <div class="tile"><div class="tile-icon">🦷</div><h4>Dental & Vision</h4><p>All team members eligible after 60 days, regardless of hours.</p></div>
-      <div class="tile"><div class="tile-icon">🕐</div><h4>Paid Time Off</h4><p>Combined Sick Leave / PTO: up to 80 hours/year for full-time.</p></div>
-      <div class="tile"><div class="tile-icon">🍔</div><h4>Employee Meals</h4><p>50% off (up to $10) per shift. Managers: 100% off (up to $12).</p></div>
-      <div class="tile"><div class="tile-icon">🥤</div><h4>Free Drinks</h4><p>Complimentary beverages while on shift.</p></div>
-      <div class="tile"><div class="tile-icon">📈</div><h4>Career Growth</h4><p>Del U online courses, structured promotion paths.</p></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Health Insurance Plans — NM Health Rosetta</h3>
-    <p>Three plan tiers, all with <strong>$0 deductible</strong>. Includes White Glove health advocate and Recuro virtual primary care ($0 copay).</p>
-    <table class="data-table">
-      <thead><tr><th>Plan</th><th>Coverage</th><th>Your Cost/Mo</th><th>Employer Pays</th></tr></thead>
-      <tbody>
-        <tr><td><strong>Basic</strong></td><td>Outpatient services</td><td>$33.25</td><td>$33.25 (50%)</td></tr>
-        <tr><td><strong>Plus</strong></td><td>In + outpatient, 3 hospital days</td><td>$70.25</td><td>$70.25 (50%)</td></tr>
-        <tr><td><strong>Premium</strong></td><td>Bronze MVP, 5 hospital days</td><td>$100.50</td><td>$100.50 (50%)</td></tr>
-      </tbody>
-    </table>
-    <p style="font-size:12px;color:var(--text-3);margin-top:6px;">Dependent coverage (spouse, children, family) available at additional cost.</p>
-    <div class="callout callout-blue">
-      <span class="callout-icon">📧</span>
-      <span><strong>Enrollment:</strong> After 60 days, you'll get a Paychex Flock email to enroll. If interested in medical/dental/vision, let your GM know right away.</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Employee Meal — How It Works</h3>
-    <div class="tile-grid">
-      <div class="tile"><h4>Hourly: 50% Off</h4><p>One meal per shift, pre-discount ≤ $10. Must eat on premises.</p></div>
-      <div class="tile"><h4>Managers: 100% Off</h4><p>One meal per shift, pre-discount ≤ $12. Must eat on premises.</p></div>
-    </div>
-    <div class="callout callout-red">
-      <span class="callout-icon">⚠️</span>
-      <span><strong>Cannot take food home.</strong> Meals must be eaten on premises during your shift. One meal per day, per shift worked. No meals for friends/family.</span>
-    </div>
-  </div>`;
-}
-
-/* ═════════ STEP 4 — POLICIES ═════════ */
-function htmlPolicies() {
-  const policies = [
-    { id: 'cust', icon: '🤝', title: 'Customer Relations & Service', body: `
-      <p>Treat every customer with <strong>respect and courtesy</strong>. No discrimination of any kind.</p>
-      <ul>
-        <li>Greet every guest with a smile</li>
-        <li>Customer complaint? <strong>Notify your supervisor immediately</strong> — never argue</li>
-        <li>Service animals are always permitted</li>
-        <li>Don't discuss politics, religion, or competitors with guests</li>
-      </ul>` },
-    { id: 'safety', icon: '🧤', title: 'Food Safety & Health', body: `
-      <p>Food safety is non-negotiable. You must comply with all health regulations.</p>
-      <ul>
-        <li><strong>Food Handler's Permit required within 30 days</strong> of hire</li>
-        <li>Wash hands before handling food, after restroom, handling money, touching face</li>
-        <li>Follow all temperature-control and storage procedures</li>
-        <li>If ill (vomiting, diarrhea, fever) — stay home and notify your manager</li>
-      </ul>
-      <div class="callout callout-red"><span class="callout-icon">⏰</span><span><strong>30-Day Deadline:</strong> Get your Food Handler's Permit within 30 days. Ask your GM for an approved course.</span></div>` },
-    { id: 'attend', icon: '📅', title: 'Scheduling & Attendance', body: `
-      <ul>
-        <li><strong>You are responsible for all your scheduled shifts</strong></li>
-        <li>Workweek: <strong>Wednesday through Tuesday</strong></li>
-        <li>Can't make a shift? Try to find a replacement <strong>AND</strong> notify management</li>
-        <li>Give at least <strong>8 hours notice</strong> before your start time</li>
-        <li>Time off: submit written request <strong>3 weeks in advance</strong></li>
-        <li>Blackout periods may apply (holidays, promos)</li>
-        <li>Clock in/out on Dayforce — never let someone clock for you</li>
-      </ul>` },
-    { id: 'cash', icon: '💵', title: 'Cash Handling', body: `
-      <ul>
-        <li>Assigned register = your responsibility for the shift</li>
-        <li>Starting drawer: <strong>$75</strong></li>
-        <li>Count your drawer at end of shift</li>
-        <li>Any discrepancy over <strong>$5</strong> → investigate and report</li>
-        <li><strong>Never share your employee ID code</strong></li>
-      </ul>
-      <div class="callout callout-red"><span class="callout-icon">🚨</span><span><strong>Scam Alert:</strong> Never take cash from the register based on a phone call. If someone claims to be corporate and asks you to remove cash — <strong>hang up and call your GM</strong>.</span></div>` },
-    { id: 'keys', icon: '🔑', title: 'Key Handling', body: `
-      <ul>
-        <li>Never copy or lend restaurant keys</li>
-        <li>Keep keys secure at all times</li>
-        <li><strong>$250</strong> for unreturned keys at termination</li>
-        <li><strong>$100</strong> for lost keys during employment</li>
-        <li>Keys lost? Notify GM immediately — never leave building unsecured</li>
-      </ul>` },
-    { id: 'meals', icon: '🍽️', title: 'Meals, Voids & Discounts', body: `
-      <p><strong>Meals:</strong> One per shift, on premises, during shift. Can't take home. Another team member prepares it — not you. No free food for friends/family.</p>
-      <p style="margin-top:10px;"><strong>Voids:</strong> All voids require <strong>manager approval</strong>. Reason noted in POS.</p>
-      <p style="margin-top:10px;"><strong>Coupons:</strong> Only valid, unexpired coupons. Staple to receipt. Ask manager if unsure.</p>` },
-    { id: 'breaks', icon: '☕', title: 'Breaks & Meal Periods', body: `
-      <ul>
-        <li>30-min meal break — <strong>must clock out</strong></li>
-        <li>Eat in designated dining area, not kitchen/prep</li>
-        <li>Ask a coworker to make your food — don't prepare your own</li>
-        <li>Return to station promptly after break</li>
-      </ul>` },
-    { id: 'conduct', icon: '🛡️', title: 'Harassment & Workplace Conduct', body: `
-      <p><strong>Zero-tolerance</strong> for harassment of any kind toward team members, managers, or guests.</p>
-      <ul>
-        <li>Report any harassment to GM or DM immediately</li>
-        <li>No retaliation for good-faith reports</li>
-        <li>Keep conversations professional</li>
-        <li>Outside employment is OK if it doesn't interfere with your schedule</li>
-      </ul>` }
-  ];
-
-  let html = `<div class="card">
-    <h2>Policies & Procedures</h2>
-    <p>Review each policy section below. These keep our team, guests, and restaurants safe.</p>
-    <div class="policy-accordion">
-      ${policies.map((p, i) => `
-        <div class="policy-item ${i === 0 ? 'open' : ''}" id="pol-${p.id}">
-          <button class="policy-trigger" onclick="document.getElementById('pol-${p.id}').classList.toggle('open')">
-            <span class="p-icon">${p.icon}</span> ${p.title}
-            <span class="p-arrow">▶</span>
-          </button>
-          <div class="policy-body">${p.body}</div>
-        </div>`).join('')}
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Key Systems You'll Use</h3>
-    <div class="system-pills">
-      <div class="sys-pill"><span class="dot" style="background:#2563eb"></span>Dayforce — clock in/out, schedule</div>
-      <div class="sys-pill"><span class="dot" style="background:#16a34a"></span>Paychex Flex — pay stubs, W-2</div>
-      <div class="sys-pill"><span class="dot" style="background:#7c3aed"></span>Flock — benefits enrollment</div>
-      <div class="sys-pill"><span class="dot" style="background:#ea580c"></span>Del U — online training</div>
-      <div class="sys-pill"><span class="dot" style="background:#059669"></span>WhatsApp — team chat</div>
-      <div class="sys-pill"><span class="dot" style="background:#6366f1"></span>TalentReef — hiring docs</div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="ack-bar" id="ackBar" onclick="toggleAck()">
-      <div class="ack-check" id="ackCheck">✓</div>
-      <label>I have reviewed and understand the policies above and had the opportunity to ask questions.</label>
-    </div>
-  </div>`;
-  return html;
-}
-
-function toggleAck() {
-  S.acked = !S.acked;
-  const bar = $('ackBar');
-  bar.classList.toggle('checked', S.acked);
-  $('nextBtn').disabled = !S.acked;
-}
-
-/* ═════════ STEP 5 — QUIZ ═════════ */
-const QUIZ = [
-  { id:'q1', type:'s', text:'A customer is upset about their order. What should you do?', src:'Customer Relations (5.2)',
-    opts:['Notify your supervisor immediately','Argue to explain what happened','Ignore them until they calm down','Offer a free meal on your own'],
-    ans:0, fb:'Always notify your supervisor. Never argue with or dismiss a guest.' },
-  { id:'q2', type:'s', text:'Can you take your employee meal home?', src:'Employee Meal Policy (3.14)',
-    opts:['Yes, if it would otherwise be wasted','No — must be eaten on premises during shift','Yes, with manager approval','Yes, once per week'],
-    ans:1, fb:'Meals must be consumed on premises during your shift. No exceptions.' },
-  { id:'q3', type:'s', text:'How often can you use your meal discount?', src:'Employee Meal Policy (3.14)',
-    opts:['Twice per shift','Once per business day, per shift worked','Unlimited during shift','Three times per week'],
-    ans:1, fb:'One discounted meal per business day, per shift you work.' },
-  { id:'q4', type:'s', text:'How many days to get your Food Handler\'s Permit?', src:'Food Safety (4.10)',
-    opts:['14 days','30 days','60 days','90 days'],
-    ans:1, fb:'You must obtain your Food Handler\'s Permit within 30 days of hire.' },
-  { id:'q5', type:'s', text:'Someone calls claiming to be corporate and asks you to remove cash from the register. What do you do?', src:'Scam Prevention (2.17)',
-    opts:['Follow their instructions','Ask for a callback number','Hang up and call your GM immediately','Remove cash but document it'],
-    ans:2, fb:'This is a known scam. Hang up and call your GM right away. Never remove cash based on a phone call.' },
-  { id:'q6', type:'s', text:'How much notice is required before an absence?', src:'Attendance Policy (6.9)',
-    opts:['2 hours','4 hours','At least 8 hours before scheduled start','24 hours'],
-    ans:2, fb:'You must give at least 8 hours notice before your scheduled start time.' },
-  { id:'q7', type:'s', text:'What is your starting cash drawer balance?', src:'Cash Handling Policy',
-    opts:['$50','$75','$100','$125'],
-    ans:1, fb:'Starting drawer balance is $75. Count it at the end of every shift.' },
-  { id:'q8', type:'s', text:'A cash discrepancy must be reported when it exceeds…', src:'Cash Handling Policy',
-    opts:['$1','$3','$5','$10'],
-    ans:2, fb:'Any discrepancy over $5 must be investigated and reported.' },
-  { id:'q9', type:'s', text:'What is the charge for lost restaurant keys?', src:'Key Handling Policy',
-    opts:['$50','$100','$150','$250'],
-    ans:1, fb:'$100 for lost keys during employment. $250 for unreturned keys at termination.' },
-  { id:'q10', type:'s', text:'How should you request time off?', src:'Time Off Policy (6.14)',
-    opts:['Tell a coworker to cover','Text your GM','Written request form, 3 weeks in advance','Call in same day'],
-    ans:2, fb:'Submit written time-off request at least 3 weeks in advance.' },
-  { id:'q11', type:'s', text:'If you can\'t make your shift, what must you do?', src:'Scheduling (6.7)',
-    opts:['Just don\'t show up','Post in WhatsApp group','Only notify management','Find a replacement AND notify management'],
-    ans:3, fb:'You must both try to find a replacement and notify management — at least 8 hours before.' },
-  { id:'q12', type:'s', text:'Who must approve a void transaction?', src:'Voids Policy (3.16)',
-    opts:['Any team member','Shift leader or manager on duty','The customer','Done automatically by POS'],
-    ans:1, fb:'All voids require manager approval, with the reason noted in POS.' },
-  { id:'q13', type:'s', text:'Where must you eat during your meal break?', src:'Meal Breaks (3.15)',
-    opts:['Anywhere in the restaurant','Designated dining area, after clocking out','Walk-in cooler','Drive-thru window'],
-    ans:1, fb:'Clock out, eat in the designated dining area. Not in the kitchen or prep areas.' },
-  { id:'q14', type:'s', text:'When are you eligible for health insurance?', src:'Benefits Guide',
-    opts:['Immediately','After 30 days full-time','After 60 days, 30+ hours/week','After 6 months'],
-    ans:2, fb:'Health insurance after 60 days if averaging 30+ hours/week. Dental/vision available to everyone after 60 days.' },
-  { id:'q15', type:'m', text:'Which benefits are available to Del Taco team members? (Select all)', src:'Benefits Overview',
-    opts:['Combined Sick Leave / PTO up to 80 hrs (FT)','Health insurance with 50% employer contribution','Employee meal discount (50% off, up to $10)','Complimentary drinks on shift'],
-    ans:[0,1,2,3], fb:'All four are correct! PTO, health insurance with employer contribution, discounted meals, and free drinks.' }
+/* Scene definitions: each has content + quiz questions */
+const IX_SCENES = [
+  {
+    id: 'intro', icon: '🌮', title: 'Welcome to Del Taco',
+    subtitle: 'Your orientation starts here',
+    color: '#C8102E', colorSoft: 'var(--red-soft)',
+    narration: "Welcome to Del Taco, and congratulations on joining our team! We're one of America's leading Mexican-American quick service restaurants. Here at Patel DT LLC, we operate ten Del Taco locations across New Mexico. In this interactive orientation, we'll walk you through your benefits, key policies, and what to expect. After each section, there'll be a quick question to make sure you're all set. Let's get started!",
+    bullets: [
+      { icon: '🏪', text: '<strong>10 restaurants</strong> across New Mexico — from Albuquerque to Gallup to Alamogordo' },
+      { icon: '👥', text: '<strong>Patel DT LLC</strong> (Sonaya Group) — your franchise operator since Day 1' },
+      { icon: '📋', text: "We'll cover <strong>benefits, policies, and procedures</strong> — with quick knowledge checks along the way" },
+      { icon: '🚀', text: 'Many GMs <strong>started as Team Members</strong>. This could be the start of a great career.' }
+    ],
+    quiz: null // intro has no quiz
+  },
+  {
+    id: 'benefits', icon: '🏥', title: 'Your Benefits Package',
+    subtitle: 'Health insurance, PTO, meal perks & more',
+    color: '#003DA5', colorSoft: 'var(--blue-soft)',
+    narration: "Let's talk about your benefits. After sixty days, full-time team members working thirty or more hours per week are eligible for medical insurance through NM Health Rosetta. We offer three tiers, all with a zero dollar deductible. Your employer covers fifty percent of the employee-only rate. Dental and vision are available to everyone. You'll also earn paid time off — up to eighty hours per year for full-time. And don't forget your meal discount: fifty percent off up to ten dollars per shift. Managers get one hundred percent off up to twelve dollars. Complimentary drinks are available while on shift.",
+    bullets: [
+      { icon: '🏥', text: '<strong>Health Insurance</strong> — After 60 days, 30+ hrs/wk. Employer covers 50%. Three plans: Basic ($33/mo), Plus ($70/mo), Premium ($101/mo). All $0 deductible.' },
+      { icon: '🦷', text: '<strong>Dental & Vision</strong> — All team members eligible after 60 days, regardless of hours worked.' },
+      { icon: '🕐', text: '<strong>Paid Time Off</strong> — Combined Sick Leave / PTO: up to 80 hours/year for full-time employees.' },
+      { icon: '🍔', text: '<strong>Employee Meals</strong> — Hourly: 50% off (up to $10). Managers: 100% off (up to $12). Must eat on premises.' },
+      { icon: '🥤', text: '<strong>Free Drinks</strong> — Complimentary beverages (mini cups) while on shift.' },
+      { icon: '📈', text: '<strong>Career Growth</strong> — Del U online courses, structured promotion paths from Team Member to GM.' }
+    ],
+    quiz: [
+      { id: 'iq1', text: 'When are you eligible for health insurance?',
+        opts: ['Immediately', 'After 30 days full-time', 'After 60 days, 30+ hours/week', 'After 6 months'],
+        ans: 2, fb: 'Health insurance after 60 days if averaging 30+ hours/week.' },
+      { id: 'iq2', text: 'Can you take your employee meal home?',
+        opts: ['Yes, if it would otherwise be wasted', 'No — must be eaten on premises during shift', 'Yes, with manager approval', 'Yes, once per week'],
+        ans: 1, fb: 'Meals must be consumed on premises during your shift. No exceptions.' },
+      { id: 'iq3', text: 'Which benefits are available on Day 1?',
+        opts: ['Health insurance', 'Dental coverage', 'Free drinks on shift', 'Paid time off'],
+        ans: 2, fb: 'Complimentary beverages start on Day 1. Health, dental, and PTO kick in after 60 days.' }
+    ]
+  },
+  {
+    id: 'scheduling', icon: '📅', title: 'Scheduling & Attendance',
+    subtitle: 'Shifts, time off, and what to do when you can\'t make it',
+    color: '#00843D', colorSoft: 'var(--green-soft)',
+    narration: "Now let's talk about scheduling. Our work week runs Wednesday through Tuesday, so keep that in mind. If you can't make a scheduled shift, you must try to find a replacement and notify management at least eight hours before your start time. For time off requests, submit them in writing using the request form at least three weeks in advance. You'll clock in and out using Dayforce — never let someone else clock for you. Blackout periods may apply during holidays and promotions.",
+    bullets: [
+      { icon: '📆', text: '<strong>Workweek</strong> — Wednesday through Tuesday. Keep this in mind for scheduling.' },
+      { icon: '⏰', text: '<strong>Can\'t make a shift?</strong> — Find a replacement AND notify management at least 8 hours before.' },
+      { icon: '✍️', text: '<strong>Time off</strong> — Written request form, submitted at least 3 weeks in advance.' },
+      { icon: '🕐', text: '<strong>Clock in/out</strong> — Use Dayforce every shift. Never let someone else clock for you.' },
+      { icon: '🚫', text: '<strong>Blackout dates</strong> — Holidays and promotional periods may restrict time off.' }
+    ],
+    quiz: [
+      { id: 'iq4', text: 'How much notice is required before an absence?',
+        opts: ['2 hours', '4 hours', 'At least 8 hours before scheduled start', '24 hours'],
+        ans: 2, fb: 'You must give at least 8 hours notice before your scheduled start time.' },
+      { id: 'iq5', text: 'If you can\'t make your shift, what must you do?',
+        opts: ['Just don\'t show up', 'Post in WhatsApp group', 'Only notify management', 'Find a replacement AND notify management'],
+        ans: 3, fb: 'You must both try to find a replacement and notify management.' },
+      { id: 'iq6', text: 'How should you request time off?',
+        opts: ['Tell a coworker to cover', 'Text your GM', 'Written request form, 3 weeks in advance', 'Call in same day'],
+        ans: 2, fb: 'Submit written time-off request at least 3 weeks in advance.' }
+    ]
+  },
+  {
+    id: 'safety', icon: '🧤', title: 'Food Safety & Customer Service',
+    subtitle: 'Health regulations, food handling, and guest relations',
+    color: '#ea580c', colorSoft: 'var(--orange-soft)',
+    narration: "Food safety is non-negotiable at Del Taco. You must obtain your Food Handler's Permit within thirty days of your hire date. Wash your hands before handling food, after using the restroom, handling money, or touching your face. Follow all temperature control and storage procedures. If you're ill with vomiting, diarrhea, or fever, stay home and notify your manager. For customer service, treat every guest with respect and courtesy. If a customer has a complaint, notify your supervisor immediately — never argue.",
+    bullets: [
+      { icon: '📋', text: '<strong>Food Handler\'s Permit</strong> — Required within 30 days of hire. Ask your GM for an approved course.' },
+      { icon: '🧼', text: '<strong>Handwashing</strong> — Before food handling, after restroom, handling money, or touching your face.' },
+      { icon: '🌡️', text: '<strong>Temperature control</strong> — Follow all storage and temperature procedures for food safety.' },
+      { icon: '🤒', text: '<strong>If ill</strong> — Stay home if you have vomiting, diarrhea, or fever. Notify your manager.' },
+      { icon: '🤝', text: '<strong>Customer complaints</strong> — Notify your supervisor immediately. Never argue with a guest.' },
+      { icon: '🐕', text: '<strong>Service animals</strong> — Always permitted. Don\'t discuss politics, religion, or competitors with guests.' }
+    ],
+    quiz: [
+      { id: 'iq7', text: 'How many days to get your Food Handler\'s Permit?',
+        opts: ['14 days', '30 days', '60 days', '90 days'],
+        ans: 1, fb: 'You must obtain your Food Handler\'s Permit within 30 days of hire.' },
+      { id: 'iq8', text: 'A customer is upset about their order. What should you do?',
+        opts: ['Notify your supervisor immediately', 'Argue to explain what happened', 'Ignore them until they calm down', 'Offer a free meal on your own'],
+        ans: 0, fb: 'Always notify your supervisor. Never argue with or dismiss a guest.' }
+    ]
+  },
+  {
+    id: 'cash', icon: '💵', title: 'Cash Handling & Key Policy',
+    subtitle: 'Register procedures, voids, and key responsibilities',
+    color: '#7c3aed', colorSoft: 'var(--purple-soft)',
+    narration: "Let's cover cash handling and key policies. Your assigned register is your responsibility for the entire shift. Starting drawer balance is seventy-five dollars. Count your drawer at end of shift, and any discrepancy over five dollars must be investigated and reported. Never share your employee ID code. All void transactions require manager approval. For key holders: never copy or lend restaurant keys. Lost keys carry a one hundred dollar replacement fee, and unreturned keys at separation cost two hundred and fifty dollars. And remember — if anyone calls claiming to be corporate and asks you to remove cash from the register, hang up and call your GM immediately. That's a known scam.",
+    bullets: [
+      { icon: '💰', text: '<strong>Starting drawer</strong> — $75. Count it at the end of every shift.' },
+      { icon: '⚠️', text: '<strong>Discrepancies over $5</strong> — Must be investigated and reported.' },
+      { icon: '🔐', text: '<strong>Employee ID code</strong> — Never share it with anyone.' },
+      { icon: '✋', text: '<strong>Voids</strong> — All void transactions require manager approval with reason noted in POS.' },
+      { icon: '🔑', text: '<strong>Keys</strong> — Never copy or lend. Lost: $100 fee. Unreturned at termination: $250.' },
+      { icon: '🚨', text: '<strong>Scam Alert</strong> — If someone calls claiming to be corporate asking to remove cash — hang up and call your GM!' }
+    ],
+    quiz: [
+      { id: 'iq9', text: 'What is your starting cash drawer balance?',
+        opts: ['$50', '$75', '$100', '$125'],
+        ans: 1, fb: 'Starting drawer balance is $75.' },
+      { id: 'iq10', text: 'Someone calls claiming to be corporate and asks you to remove cash. What do you do?',
+        opts: ['Follow their instructions', 'Ask for a callback number', 'Hang up and call your GM immediately', 'Remove cash but document it'],
+        ans: 2, fb: 'This is a known scam. Hang up and call your GM right away.' },
+      { id: 'iq11', text: 'Who must approve a void transaction?',
+        opts: ['Any team member', 'Shift leader or manager on duty', 'The customer', 'Done automatically by POS'],
+        ans: 1, fb: 'All voids require manager approval, with reason noted in POS.' }
+    ]
+  },
+  {
+    id: 'meals', icon: '☕', title: 'Meals, Breaks & Workplace Conduct',
+    subtitle: 'Break procedures, harassment policy, and key systems',
+    color: '#059669', colorSoft: 'var(--green-soft)',
+    narration: "Almost done! Let's cover meals, breaks, and workplace conduct. During your meal break, you must clock out and eat in the designated dining area, not in the kitchen or prep areas. Ask a coworker to make your food — don't prepare your own. Return to your station promptly after break. We have zero tolerance for harassment of any kind. Report concerns to your GM or DM immediately, and know that you're protected from retaliation. You'll use several systems: Dayforce for scheduling, Paychex Flex for pay stubs, and Del U for training. Welcome to the team!",
+    bullets: [
+      { icon: '🍽️', text: '<strong>Meal break</strong> — 30 min, must clock out. Eat in designated dining area, not kitchen.' },
+      { icon: '👨‍🍳', text: '<strong>Food prep</strong> — A coworker prepares your food, not you. No free food for friends/family.' },
+      { icon: '🛡️', text: '<strong>Zero tolerance</strong> — No harassment of any kind. Report to GM/DM. No retaliation.' },
+      { icon: '💻', text: '<strong>Systems</strong> — Dayforce (schedule), Paychex Flex (pay), Del U (training), WhatsApp (team chat).' },
+      { icon: '✅', text: '<strong>Coupons</strong> — Only valid, unexpired coupons accepted. Staple to receipt. Ask manager if unsure.' }
+    ],
+    quiz: [
+      { id: 'iq12', text: 'Where must you eat during your meal break?',
+        opts: ['Anywhere in the restaurant', 'Designated dining area, after clocking out', 'Walk-in cooler', 'Drive-thru window'],
+        ans: 1, fb: 'Clock out, eat in the designated dining area. Not in the kitchen or prep areas.' },
+      { id: 'iq13', text: 'What is the charge for lost restaurant keys?',
+        opts: ['$50', '$100', '$150', '$250'],
+        ans: 1, fb: '$100 for lost keys during employment. $250 for unreturned keys at termination.' }
+    ]
+  }
 ];
 
-function htmlQuizShell() {
+// Flatten all quiz questions for scoring
+const ALL_IX_QUIZ = IX_SCENES.flatMap(s => s.quiz || []);
+
+function htmlInteractive() {
   return `
-  <div class="quiz-progress">
-    <div class="qp-bar"><div class="qp-fill" id="qpFill" style="width:${((S.qIdx) / QUIZ.length) * 100}%"></div></div>
-    <div class="qp-text" id="qpText">${S.qIdx + 1} / ${QUIZ.length}</div>
-  </div>
-  <div id="quizArea"></div>`;
+  <div class="ix-container" id="ixContainer">
+    <div class="ix-scene-count">
+      <span class="ix-sc-badge" id="ixSceneBadge">1 / ${IX_SCENES.length}</span>
+      <span id="ixSceneTitle">${IX_SCENES[0].title}</span>
+    </div>
+    <div id="ixSceneArea"></div>
+    <div class="ix-skip-all">
+      <button onclick="ixSkipAll()">Skip entire orientation →</button>
+    </div>
+  </div>`;
 }
 
-function renderQuizQuestion() {
-  const q = QUIZ[S.qIdx];
-  const isMulti = q.type === 'm';
-  const selected = S.qAnswers[q.id] ?? (isMulti ? [] : null);
+/* ── Interactive engine ─────────────── */
+let ixNarrUtter = null;
+let ixBulletTimers = [];
 
-  $('qpFill').style.width = ((S.qIdx) / QUIZ.length * 100) + '%';
-  $('qpText').textContent = `${S.qIdx + 1} / ${QUIZ.length}`;
+function ixInit() {
+  S.ixScene = 0;
+  S.ixAllDone = false;
+  S.qScore = 0;
+  S.qAnswers = {};
+  ixRenderScene();
+}
 
-  $('nextBtn').textContent = S.qSubmitted
-    ? (S.qIdx < QUIZ.length - 1 ? 'Next Question →' : 'See Results →')
-    : 'Check Answer';
+function ixRenderScene() {
+  const scene = IX_SCENES[S.ixScene];
+  const badge = $('ixSceneBadge');
+  const title = $('ixSceneTitle');
+  if (badge) badge.textContent = `${S.ixScene + 1} / ${IX_SCENES.length}`;
+  if (title) title.textContent = scene.title;
 
-  let html = `<div class="q-card">
-    <div class="q-tag">Question ${S.qIdx + 1} of ${QUIZ.length}</div>
-    <div class="q-text">${q.text}</div>
-    <div class="q-source">${q.src}</div>`;
+  let html = `
+  <div class="ix-scene" style="--scene-color:${scene.color};--scene-color-soft:${scene.colorSoft};">
+    <div class="ix-scene-header">
+      <div class="ix-scene-icon">${scene.icon}</div>
+      <h2>${scene.title}</h2>
+      <p>${scene.subtitle}</p>
+    </div>
+    <div class="ix-scene-body" id="ixBullets">
+      ${scene.bullets.map((b, i) => `
+        <div class="ix-bullet" id="ixb${i}">
+          <div class="ix-bullet-icon">${b.icon}</div>
+          <div class="ix-bullet-text">${b.text}</div>
+        </div>`).join('')}
+    </div>
+    <div class="ix-narration-bar" id="ixNarrBar">
+      <div class="ix-narr-wave paused" id="ixWave">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <span class="ix-narr-label" id="ixNarrLabel">Ready to narrate</span>
+      <button class="ix-narr-btn" id="ixNarrBtn" onclick="ixToggleNarration()">▶ Play</button>
+      <button class="ix-narr-btn" onclick="ixSkipNarration()">Skip</button>
+    </div>
+  </div>
+  <div id="ixQuizArea"></div>`;
 
-  q.opts.forEach((o, i) => {
-    let cls = 'q-option';
-    if (S.qSubmitted) {
-      const isAns = isMulti ? q.ans.includes(i) : q.ans === i;
-      const isSel = isMulti ? (selected ?? []).includes(i) : selected === i;
-      if (isAns) cls += ' correct';
-      else if (isSel && !isAns) cls += ' wrong';
-    } else {
-      const isSel = isMulti ? (selected ?? []).includes(i) : selected === i;
-      if (isSel) cls += ' selected';
-    }
-    const indicator = isMulti
-      ? `<div class="q-check">${S.qSubmitted && (isMulti ? q.ans.includes(i) : false) ? '✓' : '✓'}</div>`
-      : `<div class="q-radio"></div>`;
-    html += `<div class="${cls}" onclick="pickOpt('${q.id}',${i},${isMulti})">${indicator}<span>${o}</span></div>`;
+  $('ixSceneArea').innerHTML = html;
+  ixUpdateNav();
+
+  // Start bullet animation + narration
+  setTimeout(() => ixStartScene(), 200);
+}
+
+function ixStartScene() {
+  const scene = IX_SCENES[S.ixScene];
+  // Stagger bullet reveals
+  ixBulletTimers.forEach(t => clearTimeout(t));
+  ixBulletTimers = [];
+  scene.bullets.forEach((_, i) => {
+    ixBulletTimers.push(setTimeout(() => {
+      const el = $('ixb' + i);
+      if (el) el.classList.add('visible');
+    }, 300 + i * 400));
   });
 
-  if (S.qSubmitted) {
-    const userAns = S.qAnswers[q.id];
-    let correct;
-    if (isMulti) {
-      const s = (userAns ?? []).slice().sort().join(',');
-      const e = q.ans.slice().sort().join(',');
-      correct = s === e;
-    } else {
-      correct = userAns === q.ans;
+  // Start narration
+  ixStartNarration(scene.narration);
+}
+
+function ixStartNarration(text) {
+  if (!('speechSynthesis' in window)) {
+    // Fallback: skip narration, just show content
+    ixNarrationDone();
+    return;
+  }
+  // Cancel any ongoing
+  window.speechSynthesis.cancel();
+
+  S.ixNarrating = true;
+  ixNarrUtter = new SpeechSynthesisUtterance(text);
+  ixNarrUtter.rate = 0.95;
+  ixNarrUtter.pitch = 1.0;
+  ixNarrUtter.volume = 1.0;
+
+  // Try to pick a good voice
+  const pickVoice = () => {
+    const voices = window.speechSynthesis.getVoices();
+    // Prefer Google US English voices (natural-sounding on Chrome)
+    const preferred = ['Google US English', 'Google UK English Female', 'Samantha', 'Karen', 'Daniel'];
+    for (const name of preferred) {
+      const v = voices.find(v => v.name.includes(name));
+      if (v) return v;
     }
-    html += `<div class="q-feedback show ${correct ? 'pass' : 'fail'}">
+    // Fallback to any English voice
+    return voices.find(v => v.lang.startsWith('en')) || voices[0];
+  };
+
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) {
+    ixNarrUtter.voice = pickVoice();
+  } else {
+    window.speechSynthesis.onvoiceschanged = () => {
+      ixNarrUtter.voice = pickVoice();
+    };
+  }
+
+  ixNarrUtter.onstart = () => {
+    const wave = $('ixWave');
+    if (wave) wave.classList.remove('paused');
+    const lbl = $('ixNarrLabel');
+    if (lbl) lbl.textContent = 'Narrating…';
+    const btn = $('ixNarrBtn');
+    if (btn) btn.textContent = '⏸ Pause';
+  };
+  ixNarrUtter.onend = () => ixNarrationDone();
+  ixNarrUtter.onerror = () => ixNarrationDone();
+
+  window.speechSynthesis.speak(ixNarrUtter);
+}
+
+function ixToggleNarration() {
+  if (!('speechSynthesis' in window)) return;
+  if (window.speechSynthesis.paused) {
+    window.speechSynthesis.resume();
+    const wave = $('ixWave');
+    if (wave) wave.classList.remove('paused');
+    const lbl = $('ixNarrLabel');
+    if (lbl) lbl.textContent = 'Narrating…';
+    const btn = $('ixNarrBtn');
+    if (btn) btn.textContent = '⏸ Pause';
+  } else if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.pause();
+    const wave = $('ixWave');
+    if (wave) wave.classList.add('paused');
+    const lbl = $('ixNarrLabel');
+    if (lbl) lbl.textContent = 'Paused';
+    const btn = $('ixNarrBtn');
+    if (btn) btn.textContent = '▶ Resume';
+  } else {
+    // Not speaking — restart
+    const scene = IX_SCENES[S.ixScene];
+    ixStartNarration(scene.narration);
+  }
+}
+
+function ixSkipNarration() {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  ixNarrationDone();
+}
+
+function ixNarrationDone() {
+  S.ixNarrating = false;
+  const wave = $('ixWave');
+  if (wave) wave.classList.add('paused');
+  const lbl = $('ixNarrLabel');
+  if (lbl) lbl.textContent = '✓ Narration complete';
+  const btn = $('ixNarrBtn');
+  if (btn) btn.textContent = '🔄 Replay';
+
+  const scene = IX_SCENES[S.ixScene];
+  // Make all bullets visible
+  scene.bullets.forEach((_, i) => {
+    const el = $('ixb' + i);
+    if (el) el.classList.add('visible');
+  });
+
+  // Show quiz if scene has one
+  if (scene.quiz && scene.quiz.length > 0) {
+    ixShowQuiz(scene);
+  } else {
+    S.ixQuizDone = true;
+    ixUpdateNav();
+  }
+}
+
+function ixShowQuiz(scene) {
+  S.ixQuizDone = false;
+  // Pick a random question from this scene's pool
+  const q = scene.quiz[Math.floor(Math.random() * scene.quiz.length)];
+  S._ixCurrentQ = q;
+  S._ixQAnswered = false;
+  S._ixQSelected = null;
+
+  let html = `
+  <div class="ix-quiz" id="ixQuiz">
+    <div class="ix-quiz-tag"><span class="ix-qt-dot"></span> Knowledge Check</div>
+    <div class="ix-quiz-text">${q.text}</div>
+    <div id="ixQuizOpts">
+      ${q.opts.map((o, i) => `
+        <div class="q-option" id="ixqo${i}" onclick="ixPickQuiz(${i})">
+          <div class="q-radio"></div>
+          <span>${o}</span>
+        </div>`).join('')}
+    </div>
+    <div id="ixQuizFeedback"></div>
+    <div style="margin-top:12px;text-align:right;">
+      <button class="btn btn-red btn-sm" id="ixQuizSubmit" onclick="ixSubmitQuiz()" disabled>Check Answer</button>
+    </div>
+  </div>`;
+
+  $('ixQuizArea').innerHTML = html;
+  // Scroll quiz into view
+  setTimeout(() => {
+    const el = $('ixQuiz');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 100);
+}
+
+function ixPickQuiz(idx) {
+  if (S._ixQAnswered) return;
+  S._ixQSelected = idx;
+  const q = S._ixCurrentQ;
+  q.opts.forEach((_, i) => {
+    const el = $('ixqo' + i);
+    if (el) el.classList.toggle('selected', i === idx);
+  });
+  const sub = $('ixQuizSubmit');
+  if (sub) sub.disabled = false;
+}
+
+function ixSubmitQuiz() {
+  if (S._ixQAnswered || S._ixQSelected === null) return;
+  S._ixQAnswered = true;
+  const q = S._ixCurrentQ;
+  const correct = S._ixQSelected === q.ans;
+
+  if (correct) {
+    S.qScore++;
+    addXP(5, 'Correct answer');
+  }
+  S.qAnswers[q.id] = S._ixQSelected;
+
+  // Show correct/wrong
+  q.opts.forEach((_, i) => {
+    const el = $('ixqo' + i);
+    if (!el) return;
+    el.classList.remove('selected');
+    if (i === q.ans) el.classList.add('correct');
+    else if (i === S._ixQSelected && i !== q.ans) el.classList.add('wrong');
+  });
+
+  $('ixQuizFeedback').innerHTML = `
+    <div class="q-feedback show ${correct ? 'pass' : 'fail'}">
       <span class="fb-icon">${correct ? '✅' : '❌'}</span>
       <span>${q.fb}</span>
     </div>`;
-  }
 
-  html += '</div>';
-  $('quizArea').innerHTML = html;
+  const sub = $('ixQuizSubmit');
+  if (sub) sub.style.display = 'none';
+
+  S.ixQuizDone = true;
+  ixUpdateNav();
+
+  // Auto-advance after a moment
+  if (S.ixScene < IX_SCENES.length - 1) {
+    setTimeout(() => {
+      const nb = $('nextBtn');
+      if (nb) { nb.classList.add('pulse-btn'); setTimeout(() => nb.classList.remove('pulse-btn'), 1500); }
+    }, 800);
+  }
 }
 
-function pickOpt(qid, idx, multi) {
-  if (S.qSubmitted) return;
-  if (multi) {
-    if (!S.qAnswers[qid]) S.qAnswers[qid] = [];
-    const arr = S.qAnswers[qid];
-    const pos = arr.indexOf(idx);
-    if (pos > -1) arr.splice(pos, 1); else arr.push(idx);
+function ixUpdateNav() {
+  const nb = $('nextBtn');
+  if (!nb) return;
+  const scene = IX_SCENES[S.ixScene];
+  const hasQuiz = scene.quiz && scene.quiz.length > 0;
+
+  if (S.ixAllDone) {
+    nb.textContent = 'Continue to Training →';
+    nb.disabled = false;
+  } else if (!hasQuiz) {
+    // Intro scene: allow continue after narration or any time
+    nb.textContent = S.ixScene === 0 ? 'Start Orientation →' : 'Next Section →';
+    nb.disabled = false;
+  } else if (S.ixQuizDone) {
+    nb.textContent = S.ixScene < IX_SCENES.length - 1 ? 'Next Section →' : 'Finish Orientation →';
+    nb.disabled = false;
   } else {
-    S.qAnswers[qid] = idx;
+    nb.textContent = 'Answer the question to continue';
+    nb.disabled = true;
   }
-  renderQuizQuestion();
 }
 
-function submitCurrentQuestion() {
-  const q = QUIZ[S.qIdx];
-  const ans = S.qAnswers[q.id];
-  // Require an answer
-  if (ans === undefined || ans === null || (Array.isArray(ans) && ans.length === 0)) return;
+function ixHandleNext() {
+  if (S.ixAllDone) {
+    // Move to training step
+    addXP(50, 'Orientation completed');
+    S.step++;
+    render();
+    return;
+  }
 
-  let correct;
-  if (q.type === 'm') {
-    correct = (ans || []).slice().sort().join(',') === q.ans.slice().sort().join(',');
+  // Advance to next scene
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  ixBulletTimers.forEach(t => clearTimeout(t));
+
+  if (S.ixScene < IX_SCENES.length - 1) {
+    S.ixScene++;
+    S.ixQuizDone = false;
+    ixRenderScene();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // XP for scene completion
+    const sceneName = IX_SCENES[S.ixScene - 1].title;
+    addXP(10, sceneName + ' reviewed');
   } else {
-    correct = ans === q.ans;
+    // All scenes done
+    S.ixAllDone = true;
+    addXP(10, IX_SCENES[S.ixScene].title + ' reviewed');
+    ixShowSummary();
   }
-  if (correct) { S.qScore++; addXP(5, 'Correct answer'); }
-
-  S.qSubmitted = true;
-  renderQuizQuestion();
 }
 
-/* ═════════ STEP 6 — TRAINING ═════════ */
+function ixShowSummary() {
+  const totalQ = Object.keys(S.qAnswers).length;
+  const pct = totalQ > 0 ? Math.round((S.qScore / totalQ) * 100) : 100;
+  const pass = pct >= 70;
+  const circ = 2 * Math.PI * 52;
+  const offset = circ - (pct / 100) * circ;
+
+  $('ixSceneArea').innerHTML = `
+  <div class="card" style="text-align:center;padding:40px;">
+    <div style="font-size:48px;margin-bottom:12px;">🎉</div>
+    <h2 style="margin-bottom:4px;">Orientation Complete!</h2>
+    <p style="color:var(--text-2);margin-bottom:24px;">Great job, ${S.name}. You've covered all the key topics.</p>
+    <div style="display:inline-block;position:relative;width:120px;height:120px;margin-bottom:20px;">
+      <svg viewBox="0 0 120 120" style="width:100%;height:100%;transform:rotate(-90deg);">
+        <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border)" stroke-width="7"/>
+        <circle cx="60" cy="60" r="52" fill="none" stroke="${pass?'var(--green)':'var(--red)'}" stroke-width="7"
+          stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}" style="transition:stroke-dashoffset 1s ease;"/>
+      </svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div style="font-size:28px;font-weight:800;color:${pass?'var(--green)':'var(--red)'}">${pct}%</div>
+        <div style="font-size:11px;color:var(--text-3);font-weight:700;">${S.qScore}/${totalQ}</div>
+      </div>
+    </div>
+    <div class="callout ${pass?'callout-green':'callout-gold'}" style="text-align:left;max-width:400px;margin:0 auto;">
+      <span class="callout-icon">${pass?'✅':'📝'}</span>
+      <span>${pass
+        ? 'You passed the knowledge checks! You\'re ready for training.'
+        : 'Review the missed topics with your '+S.admin.split(' ')[0]+' during training.'}</span>
+    </div>
+  </div>`;
+
+  const badge = $('ixSceneBadge');
+  if (badge) badge.textContent = '✓ Done';
+  const title = $('ixSceneTitle');
+  if (title) title.textContent = 'All sections complete';
+
+  ixUpdateNav();
+}
+
+function ixSkipAll() {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  ixBulletTimers.forEach(t => clearTimeout(t));
+  S.ixAllDone = true;
+  // Give partial credit
+  S.qScore = 0;
+  S.qAnswers = {};
+  ixShowSummary();
+}
+
+/* Policies and Quiz are now integrated into the interactive orientation above */
+
+/* ═════════ STEP 3 — TRAINING ═════════ */
 function htmlTraining() {
-  // Show score summary first
-  const pct = Math.round((S.qScore / QUIZ.length) * 100);
-  const pass = pct >= 80;
+  const totalQ = Object.keys(S.qAnswers).length || 1;
+  const pct = Math.round((S.qScore / totalQ) * 100);
+  const pass = pct >= 70;
   const circ = 2 * Math.PI * 68; // radius 68
   const offset = circ - (pct / 100) * circ;
 
@@ -1027,12 +1281,12 @@ function htmlTraining() {
         </svg>
         <div class="score-value">
           <div class="score-num" style="color:${pass?'var(--green)':'var(--red)'}">${pct}%</div>
-          <div class="score-label">${S.qScore}/${QUIZ.length}</div>
+          <div class="score-label">${S.qScore}/${totalQ}</div>
         </div>
       </div>
-      <h2 style="margin-bottom:4px;">${pass ? 'Knowledge Check Passed!' : 'Let\'s Keep Learning'}</h2>
+      <h2 style="margin-bottom:4px;">${pass ? 'Knowledge Checks Passed!' : 'Let\'s Keep Learning'}</h2>
       <p style="color:var(--text-2);font-size:15px;">${pass
-        ? 'Great job — you\'ve shown a solid understanding of our policies.'
+        ? 'Great job — you demonstrated a solid understanding of our policies during the orientation.'
         : `You scored ${pct}%. Review the missed topics with your ${S.admin.split(' ')[0]} during training.`}</p>
       <div style="margin-top:12px;">
         ${S.badges.length ? S.badges.map(b => `<span class="milestone">${b}</span>`).join('') : ''}
@@ -1113,9 +1367,10 @@ function htmlTraining() {
   return html;
 }
 
-/* ═════════ STEP 7 — COMPLETE ═════════ */
+/* ═════════ STEP 4 — COMPLETE ═════════ */
 function htmlComplete() {
-  const pct = Math.round((S.qScore / QUIZ.length) * 100);
+  const totalQ = Object.keys(S.qAnswers).length || 1;
+  const pct = Math.round((S.qScore / totalQ) * 100);
   const dateStr = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
 
   return `
@@ -1136,7 +1391,7 @@ function htmlComplete() {
         <tr><td>Employee</td><td>${S.name}</td></tr>
         <tr><td>Position</td><td>${S.pos}</td></tr>
         <tr><td>Store</td><td>${STORES[S.store]} (${S.store})</td></tr>
-        <tr><td>Quiz Score</td><td>${S.qScore}/${QUIZ.length} (${pct}%)</td></tr>
+        <tr><td>Quiz Score</td><td>${S.qScore}/${totalQ} (${pct}%)</td></tr>
         <tr><td>XP Earned</td><td>${S.xp}</td></tr>
         <tr><td>Administered By</td><td>${S.admin}</td></tr>
         <tr><td>Date</td><td>${dateStr}</td></tr>
@@ -1157,7 +1412,7 @@ function htmlComplete() {
     <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:28px;">
       <button class="btn btn-red" onclick="window.print()">Print Summary</button>
       <a href="deltaco.html" class="btn btn-ghost" style="text-decoration:none;">← Dashboard</a>
-      <button class="btn btn-ghost" onclick="retakeQuiz()">🔄 Retake Quiz</button>
+      <button class="btn btn-ghost" onclick="retakeQuiz()">🔄 Redo Orientation</button>
       <button class="btn btn-ghost" onclick="startNew()">Start New Onboarding</button>
     </div>
   </div>`;
@@ -1165,10 +1420,11 @@ function htmlComplete() {
 
 async function completeOnboarding() {
   if (!S.sid) return;
-  const pct = QUIZ.length > 0 ? parseFloat(((S.qScore / QUIZ.length) * 100).toFixed(2)) : 0;
+  const totalQ = Object.keys(S.qAnswers).length || 1;
+  const pct = totalQ > 0 ? parseFloat(((S.qScore / totalQ) * 100).toFixed(2)) : 0;
   sbPatch(`/rest/v1/dt_onboarding_sessions?id=eq.${S.sid}`, {
     status: 'completed', completed_at: new Date().toISOString(),
-    quiz_score: S.qScore, quiz_total: QUIZ.length, quiz_pct: pct,
+    quiz_score: S.qScore, quiz_total: totalQ, quiz_pct: pct,
     quiz_answers: S.qAnswers
   });
 }
@@ -1178,15 +1434,18 @@ function retakeQuiz() {
   S.qIdx = 0;
   S.qSubmitted = false;
   S.qScore = 0;
-  S.step = STEPS.indexOf('quiz');
+  S.ixScene = 0;
+  S.ixAllDone = false;
+  S.ixQuizDone = false;
+  S.step = STEPS.indexOf('interactive');
   render();
 }
 
 function startNew() {
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   S = { step:0, sid:null, name:'', pos:'', store:'', admin:'',
     xp:0, badges:[], qAnswers:{}, qIdx:0, qSubmitted:false, qScore:0, acked:false,
-    videoPlaying:false, videoScene:0 };
-  if (videoTimer) clearInterval(videoTimer);
+    videoPlaying:false, videoScene:0, ixScene:0, ixQuizDone:false, ixNarrating:false, ixAllDone:false };
   $('onboardingFlow').classList.remove('active');
   $('setupScreen').style.display = '';
   $('empName').value = ''; $('empStore').value = ''; $('adminBy').value = '';

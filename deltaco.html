@@ -1514,10 +1514,11 @@ body {
               <th style="text-align:left;padding:8px 10px;color:var(--text-secondary);font-weight:600;">Status</th>
               <th style="text-align:left;padding:8px 10px;color:var(--text-secondary);font-weight:600;">Date</th>
               <th style="text-align:left;padding:8px 10px;color:var(--text-secondary);font-weight:600;">Administered By</th>
+              <th style="text-align:center;padding:8px 10px;color:var(--text-secondary);font-weight:600;">Actions</th>
             </tr>
           </thead>
           <tbody id="obTableBody">
-            <tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-secondary);">Loading...</td></tr>
+            <tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-secondary);">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -7825,7 +7826,7 @@ async function loadOnboardingData() {
     obDataLoaded = true;
   } catch(err) {
     console.error('Onboarding fetch error:', err);
-    document.getElementById('obTableBody').innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-secondary);">Unable to load onboarding data. Check connection.</td></tr>';
+    document.getElementById('obTableBody').innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-secondary);">Unable to load onboarding data. Check connection.</td></tr>';
   }
 }
 
@@ -7866,7 +7867,7 @@ function renderOnboarding(data) {
 
   // Recent sessions table
   if (data.length === 0) {
-    document.getElementById('obTableBody').innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-secondary);">No onboarding sessions yet. Click "Start New Onboarding" to begin.</td></tr>';
+    document.getElementById('obTableBody').innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-secondary);">No onboarding sessions yet. Click "Start New Onboarding" to begin.</td></tr>';
     return;
   }
   const rows = data.slice(0, 50).map(d => {
@@ -7887,9 +7888,26 @@ function renderOnboarding(data) {
       <td style="padding:8px 10px;">${statusBadge}</td>
       <td style="padding:8px 10px;color:var(--text-secondary);">${dateStr}</td>
       <td style="padding:8px 10px;color:var(--text-secondary);">${d.administered_by || '—'}</td>
+      <td style="padding:8px 10px;text-align:center;"><button onclick="deleteOnboardingSession('${d.id}','${d.employee_name.replace(/'/g,"\\&#39;")}')" style="background:none;border:1px solid #ef444444;color:#ef4444;padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer;font-weight:600;transition:all 0.15s;" onmouseover="this.style.background='#ef444422'" onmouseout="this.style.background='none'">✕ Delete</button></td>
     </tr>`;
   }).join('');
   document.getElementById('obTableBody').innerHTML = rows;
+}
+
+async function deleteOnboardingSession(id, name) {
+  if (!confirm(`Delete onboarding session for "${name}"? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`${OB_SB_URL}/rest/v1/dt_onboarding_sessions?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { 'apikey': OB_SB_KEY, 'Authorization': `Bearer ${OB_SB_KEY}` }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    obDataLoaded = false;
+    loadOnboardingData();
+  } catch(err) {
+    console.error('Delete error:', err);
+    alert('Failed to delete session. Check connection.');
+  }
 }
 
 // Load onboarding data when tab is clicked

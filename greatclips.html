@@ -228,8 +228,9 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 <section class="panel active" id="portfolio">
   <div class="modebar">
     <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
-    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="ytd">YTD</button></span>
+    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="ytd">YTD</button><button data-mode="custom">Custom</button></span>
     <span id="portModeHint" style="font-size:12px;color:var(--muted)"></span>
+    <span id="customDateRange" style="display:none;margin-left:8px"><input type="date" id="customStart" style="font-size:12px;padding:2px 6px;border:1px solid #ccc;border-radius:4px"> – <input type="date" id="customEnd" style="font-size:12px;padding:2px 6px;border:1px solid #ccc;border-radius:4px"> <button id="customApply" style="font-size:11px;padding:2px 10px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:4px;cursor:pointer">Apply</button></span>
   </div>
   <div class="kpis" id="portKpis"></div>
   <div class="sec-title" id="portTitle"></div>
@@ -934,11 +935,18 @@ let sortK=4,sortDir=-1;
 document.querySelectorAll("#portModeToggle button").forEach(b=>b.onclick=()=>{
   portMode=b.dataset.mode;
   document.querySelectorAll("#portModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
+  $("#customDateRange").style.display=portMode==="custom"?"inline":"none";
+  if(portMode==="custom"){
+    if(!$("#customStart").value&&DATES.length){const yr=ytdYear();$("#customStart").value=yr+"-01-01";$("#customEnd").value=DATES[0];}
+    return renderPortCustom();
+  }
   renderPort();
 });
+$("#customApply").onclick=()=>renderPortCustom();
 function renderPort(){
   if(portMode==="ytd")return renderPortYTD();
   if(portMode==="wtd")return renderPortWTD();
+  if(portMode==="custom")return renderPortCustom();
   const SAL=DAY.SAL||[];
   $("#portModeHint").textContent=curDate?fmtDate(curDate):"";
   $("#portTitle").textContent="All salons — "+(curDate?fmtDate(curDate):"no day selected")+"  · click a row to open its detail";
@@ -971,10 +979,12 @@ function renderPortYTD(){
   let t={sales:0,cust:0,pay:0,payN:0,cg:0,sg:0,hc:0,hcN:0,cph:0,cphN:0,prod:0,wait:0,waitN:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];if(s[6]!==null&&s[6]!==undefined){t.pay+=s[6];t.payN++;}t.cg+=s[12];t.sg+=s[13];if(s[7]!==null&&s[7]!==undefined){t.hc+=s[7];t.hcN++;}if(s[8]!==null&&s[8]!==undefined){t.cph+=s[8];t.cphN++;}t.prod+=s[3]||0;if(s[11]!==null&&s[11]!==undefined){t.wait+=s[11];t.waitN++;}});
   const over=SAL.filter(s=>s[6]>40).length;
   const totalDays=Object.values(ytd.acc).reduce((a,v)=>Math.max(a,v.days),0);
+  const numWeeks=Object.keys(DATA.weeklies||{}).filter(w=>w.startsWith(yr+"-")).length||Math.max(1,Math.round(totalDays/7));
+  const avgWeeklyCust=Math.round(t.cust/numWeeks);
   const avgCg=t.cg/t.n,avgSg=t.sg/t.n,avgPay=t.payN?t.pay/t.payN:null;
   const avgHc=t.hcN?t.hc/t.hcN:null,avgCph=t.cphN?t.cph/t.cphN:null,avgProd=t.sales?t.prod/t.sales*100:null,avgWait=t.waitN?t.wait/t.waitN:null;
   $("#portKpis").innerHTML=[["YTD Sales",money0(t.sales),totalDays+" day(s)"],
-    ["YTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
+    ["Avg Weekly Cust",avgWeeklyCust.toLocaleString(),t.cust.toLocaleString()+" total / "+numWeeks+" wks"],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
     ["Over payroll",over+" of "+SAL.length,"avg above 40%"],
     ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
     ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
@@ -1003,6 +1013,73 @@ function renderPortWTD(){
   $("#portKpis").innerHTML=[["WTD Sales",money0(t.sales),wtd.daysInWeek+" day(s)"],
     ["WTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
     ["Over payroll",over+" of "+SAL.length,"above 40%"],
+    ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
+    ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
+    .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
+  const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
+  const tb=$("#portTable tbody");tb.innerHTML="";
+  rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    const pp=s[4]?s[3]/s[4]*100:null;
+    tr.innerHTML=`<td>${s[0]} — ${s[1]}</td><td>${money(s[4])}</td><td>${s[5]}</td>
+      <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
+      <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
+      <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
+    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
+    tb.appendChild(tr);});
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
+}
+function computeCustomRange(startD,endD){
+  const sids=Object.keys(DATA.salons||{});
+  const acc={};sids.forEach(id=>{acc[id]={sales:0,svcSales:0,prodSales:0,cust:0,paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,days:0};});
+  let dayCount=0;
+  Object.keys(DATA.days||{}).sort().forEach(d=>{
+    if(d<startD||d>endD)return;dayCount++;
+    (DATA.days[d].SAL||[]).forEach(s=>{
+      const id=String(s[0]);if(!acc[id])return;const a=acc[id];
+      a.sales+=s[4]||0;a.svcSales+=s[2]||0;a.prodSales+=s[3]||0;a.cust+=s[5]||0;
+      if(typeof s[6]==="number"){a.paySum+=s[6];a.hcSum+=s[7];a.cphSum+=s[8];a.prodSum+=s[9];a.waitSum+=s[10];a.w15Sum+=s[11];a.cgSum+=s[12];a.sgSum+=s[13];a.days++;}
+    });
+  });
+  // Weekly averages for rate metrics within the range
+  const wacc={};sids.forEach(id=>{wacc[id]={paySum:0,hcSum:0,cphSum:0,prodSum:0,waitSum:0,w15Sum:0,cgSum:0,sgSum:0,weeks:0};});
+  Object.keys(DATA.weeklies||{}).sort().forEach(wk=>{
+    if(wk<startD||wk>endD)return;
+    const wsalWeek=(DATA.weeklies[wk]||{}).WSAL||{};
+    sids.forEach(id=>{
+      const ws=wsalWeek[id];if(!ws)return;const w=wacc[id];
+      w.paySum+=Number(ws[WS.payrollPct])||0;w.hcSum+=Number(ws[WS.avgHC])||0;
+      w.cphSum+=Number(ws[WS.cutsHr])||0;w.prodSum+=Number(ws[WS.prodvity])||0;
+      w.waitSum+=Number(ws[WS.avgWait])||0;w.w15Sum+=Number(ws[WS.waitOver15Pct])||0;
+      w.cgSum+=Number(ws[WS.custGrowthPct])||0;w.sgSum+=Number(ws[WS.salesGrowthPct])||0;
+      w.weeks++;
+    });
+  });
+  const rows=[];
+  sids.forEach(id=>{const a=acc[id];if(!a.days)return;const n=a.days;
+    const w=wacc[id],wn=w.weeks;
+    rows.push([id,DATA.salons[id],a.svcSales,a.prodSales,a.sales,a.cust,
+      wn?w.paySum/wn:a.paySum/n, wn?w.hcSum/wn:a.hcSum/n,
+      wn?w.cphSum/wn:a.cphSum/n, wn?w.prodSum/wn:a.prodSum/n,
+      wn?w.waitSum/wn:a.waitSum/n, wn?w.w15Sum/wn:a.w15Sum/n,
+      wn?w.cgSum/wn:a.cgSum/n, wn?w.sgSum/wn:a.sgSum/n]);
+  });
+  return {rows,acc,dayCount,weeksInRange:Object.keys(DATA.weeklies||{}).filter(w=>w>=startD&&w<=endD).length};
+}
+function renderPortCustom(){
+  const startD=$("#customStart").value,endD=$("#customEnd").value;
+  if(!startD||!endD){$("#portModeHint").textContent="select a date range";return;}
+  const cr=computeCustomRange(startD,endD);const SAL=cr.rows;
+  $("#portModeHint").textContent=fmtDate(startD)+" – "+fmtDate(endD);
+  $("#portTitle").textContent="All salons — Custom range ("+cr.dayCount+" day"+(cr.dayCount!==1?"s":"")+")  · click a row to open its detail";
+  let t={sales:0,cust:0,pay:0,payN:0,cg:0,sg:0,hc:0,hcN:0,cph:0,cphN:0,prod:0,wait:0,waitN:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];if(s[6]!==null&&s[6]!==undefined){t.pay+=s[6];t.payN++;}t.cg+=s[12];t.sg+=s[13];if(s[7]!==null&&s[7]!==undefined){t.hc+=s[7];t.hcN++;}if(s[8]!==null&&s[8]!==undefined){t.cph+=s[8];t.cphN++;}t.prod+=s[3]||0;if(s[11]!==null&&s[11]!==undefined){t.wait+=s[11];t.waitN++;}});
+  const over=SAL.filter(s=>s[6]>40).length;
+  const numWeeks=cr.weeksInRange||Math.max(1,Math.round(cr.dayCount/7));
+  const avgWeeklyCust=numWeeks?Math.round(t.cust/numWeeks):t.cust;
+  const avgCg=t.cg/t.n,avgSg=t.sg/t.n,avgPay=t.payN?t.pay/t.payN:null;
+  const avgHc=t.hcN?t.hc/t.hcN:null,avgCph=t.cphN?t.cph/t.cphN:null,avgProd=t.sales?t.prod/t.sales*100:null,avgWait=t.waitN?t.wait/t.waitN:null;
+  $("#portKpis").innerHTML=[["Total Sales",money0(t.sales),cr.dayCount+" day(s)"],
+    ["Avg Weekly Cust",avgWeeklyCust.toLocaleString(),t.cust.toLocaleString()+" total / "+numWeeks+" wks"],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
+    ["Over payroll",over+" of "+SAL.length,"avg above 40%"],
     ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
     ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
     .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");

@@ -79,7 +79,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 .btn-danger{background:var(--critical);color:#fff}
 .btn-danger:hover{opacity:.9}
 .btn-sm{padding:5px 10px;font-size:.8rem}
-.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text-secondary)}.btn-outline:hover{background:var(--bg-hover);color:var(--text-primary)}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text-secondary)}.btn-outline:hover{background:var(--surface-2);color:var(--text-primary)}
 .btn-icon{padding:6px 8px;background:none;color:var(--text-muted)}
 .btn-icon:hover{color:var(--text-primary);background:var(--surface-2)}
 
@@ -160,7 +160,7 @@ tbody tr:hover{background:var(--surface-2)}
 .filter-row .search-input{min-width:200px}
 
 /* ===== CLICKABLE TITLE ===== */
-.wo-title-link{color:var(--primary);text-decoration:none;cursor:pointer;font-weight:600}
+.wo-title-link{color:var(--blue);text-decoration:none;cursor:pointer;font-weight:600}
 .wo-title-link:hover{text-decoration:underline}
 
 /* ===== RESPONSIVE ===== */
@@ -176,8 +176,8 @@ tbody tr:hover{background:var(--surface-2)}
   .topbar{padding:10px 12px;padding-left:52px;flex-wrap:wrap;gap:8px}
   .topbar h2{font-size:.95rem}
   .stats-row{grid-template-columns:1fr 1fr}
-  .stat-card{padding:12px}
-  .stat-card .value{font-size:1.3rem}
+  .stat-tile{padding:12px}
+  .stat-tile .value{font-size:1.3rem}
   .form-row{grid-template-columns:1fr}
   .filter-row{flex-direction:column;align-items:stretch}
   .filter-row select,.filter-row input{width:100%;font-size:.9rem;padding:10px 12px}
@@ -492,8 +492,14 @@ function photoGalleryHTML(entityType, entityId){
         ondragleave="this.classList.remove('dragover')"
         ondrop="event.preventDefault();this.classList.remove('dragover');handlePhotoDrop(event,'${entityType}','${entityId}')">
         <span class="upload-icon">📷</span>
-        Click or drag photos here to upload
+        Tap to select photos or drag here
         <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp,image/heic" multiple style="display:none"
+          onchange="handlePhotoSelect(this.files,'${entityType}','${entityId}')">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button type="button" class="btn btn-secondary btn-sm" style="flex:1" onclick="document.getElementById('photo-input').click()">📁 Choose from Gallery</button>
+        <button type="button" class="btn btn-secondary btn-sm" style="flex:1" onclick="document.getElementById('photo-capture').click()">📸 Take Photo</button>
+        <input type="file" id="photo-capture" accept="image/*" capture="environment" style="display:none"
           onchange="handlePhotoSelect(this.files,'${entityType}','${entityId}')">
       </div>
       <div class="photo-upload-progress" id="photo-progress"><div class="bar" id="photo-bar"></div></div>
@@ -520,6 +526,7 @@ window.handlePhotoSelect = async function(files,entityType,entityId){
   // refresh the modal content
   if(entityType==='equipment'){const eq=(cache.dt_equipment||[]).find(e=>e.id===entityId);if(eq)openEqForm(entityId);}
   if(entityType==='work_order'){const wo=(cache.dt_work_orders||[]).find(w=>w.id===entityId);if(wo)openWOForm(entityId);}
+  if(entityType==='pm_completion'){const pmItem=(cache.dt_pm_schedules||[]).find(x=>x.id===entityId);if(pmItem){const eq2=(cache.dt_equipment||[]).find(e=>e.id===pmItem.equipment_id)||{};const isRTU2=eq2.name&&eq2.name.toUpperCase().includes('RTU');if(isRTU2){openRTUChecklist(entityId,pmItem.frequency_days||30,pmItem,eq2);}else{completePM(entityId,pmItem.frequency_days||30);}}}
 };
 window.handlePhotoDrop = function(event,entityType,entityId){
   const files=event.dataTransfer.files;
@@ -581,7 +588,7 @@ function receiptSectionHTML(woId){
         <table style="font-size:.82rem;margin-top:8px">
           <thead><tr><th>File</th><th style="text-align:right">Amount</th><th style="text-align:right">Date</th><th></th></tr></thead>
           <tbody>${receipts.map(r=>`<tr>
-            <td><a href="${receiptUrl(r)}" target="_blank" style="color:var(--primary);text-decoration:none">${r.file_name}</a></td>
+            <td><a href="${receiptUrl(r)}" target="_blank" style="color:var(--blue);text-decoration:none">${r.file_name}</a></td>
             <td style="text-align:right">${r.amount?'$'+Number(r.amount).toFixed(2):'—'}</td>
             <td style="text-align:right">${formatDate(r.created_at)}</td>
             <td><button class="btn-icon btn-sm" onclick="deleteReceipt(${JSON.stringify(r).replace(/"/g,'&quot;')})" title="Delete">✕</button></td>
@@ -1152,7 +1159,7 @@ function renderPM(){
   const assignees=[...new Set(pm.filter(p=>p.is_active&&p.assigned_to).map(p=>p.assigned_to))];
   $('#content').innerHTML=`
     <div class="filter-row" style="flex-wrap:wrap;gap:8px;align-items:center">
-      <input type="text" id="pm-search" placeholder="Search tasks, equipment, locations..." style="flex:1;min-width:180px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface-1);color:var(--text-primary)">
+      <input type="text" id="pm-search" placeholder="Search tasks, equipment, locations..." style="flex:1;min-width:180px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-primary)">
       <select id="pm-cat"><option value="">All Categories</option>${allCats.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
       <select id="pm-loc"><option value="">All Locations</option>${(cache.dt_locations||[]).map(l=>`<option value="${l.id}">#${l.store_number} ${l.name}</option>`).join('')}</select>
       <select id="pm-assign"><option value="">All Assigned</option>${assignees.map(a=>`<option value="${a}">${teamName(a)}</option>`).join('')}</select>
@@ -1181,10 +1188,10 @@ function renderPM(){
     const overdueCount=pm.filter(p=>p.is_active&&p.next_due&&daysUntil(p.next_due)<0).length;
     const dueSoonCount=pm.filter(p=>p.is_active&&p.next_due&&daysUntil(p.next_due)>=0&&daysUntil(p.next_due)<=7).length;
     $('#pm-summary').innerHTML=`
-      <div class="stat-card" style="flex:1;min-width:130px"><div class="stat-value">${totalActive}</div><div class="stat-label">Total Active PMs</div></div>
-      <div class="stat-card" style="flex:1;min-width:130px"><div class="stat-value" style="color:var(--emergency)">${overdueCount}</div><div class="stat-label">Overdue</div></div>
-      <div class="stat-card" style="flex:1;min-width:130px"><div class="stat-value" style="color:var(--medium)">${dueSoonCount}</div><div class="stat-label">Due in 7 Days</div></div>
-      <div class="stat-card" style="flex:1;min-width:130px"><div class="stat-value">${items.length}</div><div class="stat-label">Showing</div></div>`;
+      <div class="stat-tile" style="flex:1;min-width:130px"><div class="value">${totalActive}</div><div class="label">Total Active PMs</div></div>
+      <div class="stat-tile" style="flex:1;min-width:130px"><div class="value" style="color:var(--critical)">${overdueCount}</div><div class="label">Overdue</div></div>
+      <div class="stat-tile" style="flex:1;min-width:130px"><div class="value" style="color:var(--warning)">${dueSoonCount}</div><div class="label">Due in 7 Days</div></div>
+      <div class="stat-tile" style="flex:1;min-width:130px"><div class="value">${items.length}</div><div class="label">Showing</div></div>`;
 
     // Group items by task_name (category)
     const groups={};
@@ -1229,7 +1236,7 @@ function renderPM(){
               const cls=d!==null&&d<0?'pm-overdue':d!==null&&d<=7?'pm-due-soon':'';
               const dueBadge=d!==null?(d<0?`<span class="badge badge-emergency">${Math.abs(d)}d</span>`:d<=7?`<span class="badge badge-medium">${d}d</span>`:`<span class="badge badge-completed">${d}d</span>`):'—';
               return `<tr class="${cls}"><td>${eqName(p.equipment_id)}</td><td>${locStore(p.location_id)}</td><td>${vendName(p.vendor_id)}</td><td>${formatDate(p.last_completed)}</td><td>${dueBadge}</td><td>${teamName(p.assigned_to)}</td><td style="white-space:nowrap">
-                <button class="btn btn-sm btn-secondary" onclick="completePM('${p.id}',${p.frequency_days})">Done</button>
+                <button class="btn btn-sm btn-secondary" onclick="completePM('${p.id}',${p.frequency_days||30})">Done</button>
                 <button class="btn-icon btn-sm" onclick="openPMForm('${p.id}')">✏️</button>
                 <button class="btn-icon btn-sm" onclick="deletePM('${p.id}')">🗑️</button>
               </td></tr>`;
@@ -1249,10 +1256,23 @@ function renderPM(){
 }
 window.openPMForm = function(id){
   const p = id?(cache.dt_pm_schedules||[]).find(x=>x.id===id):{};
+  const existingCats=[...new Set((cache.dt_pm_schedules||[]).filter(x=>x.is_active&&x.task_name).map(x=>x.task_name))].sort();
+  const catOptions=existingCats.map(c=>`<option value="${c}"${p.task_name===c?' selected':''}>${c}</option>`).join('');
+  const isNew=!id;
+  const isCustom=p.task_name&&!existingCats.includes(p.task_name);
   openModal(`
     <div class="modal-header"><h3>${id?'Edit':'Add'} PM Schedule</h3><button class="btn-icon" onclick="closeModal()">✕</button></div>
     <div class="modal-body">
-      <div class="form-group"><label>Task Name*</label><input id="m-task" value="${p.task_name||''}" placeholder="e.g. Clean grease traps"></div>
+      <div class="form-group"><label>PM Category*</label>
+        <select id="m-task-sel" onchange="window._pmCatChange()">
+          <option value="">— Select Category —</option>
+          ${catOptions}
+          <option value="__new__"${isCustom?' selected':''}>+ Add New Category...</option>
+        </select>
+        <div id="m-task-new-wrap" style="margin-top:8px;display:${isCustom||(!p.task_name&&!id)?'block':'none'}">
+          <input id="m-task-new" placeholder="Enter new category name, e.g. Grease Trap Cleaning" value="${isCustom?p.task_name:''}">
+        </div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label>Location*</label><select id="m-loc" onchange="document.getElementById('m-eq').innerHTML=eqOptions('',this.value)">${locOptions(p.location_id)}</select></div>
         <div class="form-group"><label>Equipment</label><select id="m-eq">${eqOptions(p.equipment_id,p.location_id||'')}</select></div>
@@ -1272,10 +1292,19 @@ window.openPMForm = function(id){
       <div class="form-group"><label>Description</label><textarea id="m-desc">${p.description||''}</textarea></div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePM('${id||''}')">Save</button></div>`);
+  window._pmCatChange=function(){
+    const sel=$('#m-task-sel');
+    const wrap=$('#m-task-new-wrap');
+    if(sel.value==='__new__'){wrap.style.display='block';$('#m-task-new').focus();}
+    else{wrap.style.display='none';}
+  };
+  if(isCustom) $('#m-task-new-wrap').style.display='block';
 };
 window.savePM = async function(id){
-  const row={task_name:$('#m-task').value,location_id:$('#m-loc').value||null,equipment_id:$('#m-eq').value||null,frequency_days:parseInt($('#m-freq').value)||30,assigned_to:$('#m-assign').value||null,vendor_id:$('#m-vendor').value||null,last_completed:$('#m-last').value||null,next_due:$('#m-next').value||null,description:$('#m-desc').value||null,is_active:true,updated_at:new Date().toISOString()};
-  if(!row.task_name||!row.location_id){toast('Task name and Location are required','error');return;}
+  const selVal=$('#m-task-sel')?.value;
+  const taskName=selVal==='__new__'?($('#m-task-new')?.value||'').trim():selVal;
+  const row={task_name:taskName,location_id:$('#m-loc').value||null,equipment_id:$('#m-eq').value||null,frequency_days:parseInt($('#m-freq').value)||30,assigned_to:$('#m-assign').value||null,vendor_id:$('#m-vendor').value||null,last_completed:$('#m-last').value||null,next_due:$('#m-next').value||null,description:$('#m-desc').value||null,is_active:true,updated_at:new Date().toISOString()};
+  if(!row.task_name||!row.location_id){toast('Category and Location are required','error');return;}
   if(await upsert('dt_pm_schedules',row,id||undefined)){closeModal();await load('dt_pm_schedules','next_due',true);render();}
 };
 window.completePM = function(id,freq){
@@ -1375,9 +1404,15 @@ function openRTUChecklist(id,freq,p,eq){
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="submitRTUChecklist('${id}',${freq})">✓ Submit & Complete</button></div>`);
 }
 window.submitPMCompletion = async function(id,freq){
+  // Require notes
+  const notes=$('#pm-notes')?.value?.trim()||'';
+  if(!notes){toast('Please add completion notes before submitting','error');return;}
+  // Require at least one photo
+  const completionPhotos=getPhotos('pm_completion',id);
+  if(completionPhotos.length===0){toast('Please upload at least one photo before submitting','error');return;}
+  freq=freq||30;
   const today=new Date().toISOString().slice(0,10);
   const nextDate=new Date();nextDate.setDate(nextDate.getDate()+freq);
-  const notes=$('#pm-notes')?.value||'';
   const pm=(cache.dt_pm_schedules||[]).find(x=>x.id===id)||{};
   const row={last_completed:today,next_due:nextDate.toISOString().slice(0,10),updated_at:new Date().toISOString()};
   if(notes){row.description=(pm.description?pm.description+'\n':'')+`[${today}] ${notes}`;}
@@ -1389,7 +1424,7 @@ window.submitPMCompletion = async function(id,freq){
       equipment_id: pm.equipment_id||null,
       log_type: 'maintenance',
       cost: null,
-      performed_by: teamName(pm.assigned_to)||null,
+      performed_by: pm.assigned_to?teamName(pm.assigned_to):null,
       vendor_id: pm.vendor_id||null,
       description: notes || `Scheduled PM completed (every ${freq} days)`
     };
@@ -1404,7 +1439,7 @@ window.submitRTUChecklist = async function(id,freq){
   // Require at least one photo
   const photos=getPhotos('pm_completion',id);
   if(photos.length===0){toast('Please upload at least one photo before submitting the checklist','error');return;}
-
+  freq=freq||30;
   const today=new Date().toISOString().slice(0,10);
   const nextDate=new Date();nextDate.setDate(nextDate.getDate()+freq);
   const pm=(cache.dt_pm_schedules||[]).find(x=>x.id===id)||{};
@@ -1416,7 +1451,7 @@ window.submitRTUChecklist = async function(id,freq){
     pm_schedule_id:id,
     equipment_id:pm.equipment_id||null,
     location_id:pm.location_id||null,
-    performed_by:teamName(pm.assigned_to)||null,
+    performed_by:pm.assigned_to?teamName(pm.assigned_to):null,
     date_performed:today,
     rtu_number:$('#ck-rtu')?.value||null,
     refrigerant_type:$('#ck-refrig')?.value||null,
@@ -1461,7 +1496,7 @@ window.submitRTUChecklist = async function(id,freq){
       equipment_id:pm.equipment_id||null,
       log_type:'maintenance',
       cost:null,
-      performed_by:teamName(pm.assigned_to)||null,
+      performed_by:pm.assigned_to?teamName(pm.assigned_to):null,
       vendor_id:pm.vendor_id||null,
       description:summaryNotes
     };
@@ -1905,7 +1940,7 @@ function renderReceipts(){
         <td><strong>${w.wo_number||'—'}</strong></td>
         <td class="truncate"><a href="#" class="wo-title-link" onclick="event.preventDefault();openWOForm('${r.wo_id}')">${w.title||'—'}</a></td>
         <td>${locName(w.location_id)}</td>
-        <td><a href="${receiptUrl(r)}" target="_blank" style="color:var(--primary);text-decoration:none">${r.file_name}</a></td>
+        <td><a href="${receiptUrl(r)}" target="_blank" style="color:var(--blue);text-decoration:none">${r.file_name}</a></td>
         <td style="text-align:right">${r.amount?'$'+Number(r.amount).toFixed(2):'—'}</td>
         <td>${formatDate(r.created_at)}</td>
       </tr>`;}).join('')}</tbody></table>`;

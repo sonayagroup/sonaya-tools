@@ -3766,7 +3766,7 @@ function openPostModal(postId, prefillDate, isQuickIdea) {
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Title</label><input class="form-input" name="title" required value="${escAttr(post?.title||'')}" placeholder="Post title" autofocus></div></div>`;
   const captionVal = post?.caption||'';
   html += `<div class="form-row full"><div class="form-group"><div class="form-label" style="display:flex;align-items:center">Caption / Brief <span class="char-count" id="caption-count">${captionVal.length}/2200</span><button type="button" class="btn btn-ghost btn-sm caption-assist-btn" id="caption-assist-btn" onclick="toggleCaptionAssist()">&#10024; Generate Caption</button></div><textarea class="form-textarea" name="caption" id="post-caption" placeholder="Write your caption...">${escHtml(captionVal)}</textarea><div class="caption-preview" id="caption-preview" style="font-size:11px;color:var(--ink-3);padding:6px 0"><span id="caption-platform-limits"></span></div><div id="caption-assist-panel" class="caption-assist-panel" hidden></div></div></div>`;
-  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Hashtags</label><input class="form-input" name="hashtags" id="post-hashtags" value="${escAttr(post?.hashtags||'')}" placeholder="#hashtag1 #hashtag2"><div class="hashtag-suggestions" id="hashtag-suggestions"></div></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Hashtags</label><input class="form-input" name="hashtags" id="post-hashtags" value="${escAttr(post?.hashtags||'')}" placeholder="#hashtag1 #hashtag2"><div class="hashtag-suggestions" id="hashtag-suggestions"></div><div style="font-size:10px;color:var(--ink-3);margin-top:4px">&#9989; Hashtags are automatically appended to your caption when publishing.</div></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Media URL</label><div style="display:flex;gap:8px"><input class="form-input" name="media_url" id="post-media-url" value="${escAttr(post?.media_url||'')}" placeholder="https://... or select from Drive" style="flex:1"><button type="button" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="openDrivePickerModal()">&#128193; From Drive</button></div></div></div>`;
   if (!isQuickIdea) {
     html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Scheduled Date</label><input class="form-input" type="date" name="scheduled_date" value="${post?.scheduled_date||prefillDate||''}"></div><div class="form-group"><label class="form-label">Scheduled Time</label><input class="form-input" type="time" name="scheduled_time" value="${post?.scheduled_time||'09:00'}"></div></div>`;
@@ -5167,18 +5167,21 @@ function runCaptionAssist() {
 
   const varEl = document.getElementById('ca-variations');
   varEl.innerHTML = variations.map((text, i) => `
-    <div class="caption-variation">${escHtml(text)}
+    <div class="caption-variation">
+      <textarea class="caption-variation-text" data-varidx="${i}" rows="4" style="width:100%;border:1px solid var(--surface-border);border-radius:var(--r-sm);padding:8px;font-size:12px;font-family:inherit;background:var(--surface-2);color:var(--ink-1);resize:vertical">${escHtml(text)}</textarea>
       <div class="caption-variation-actions">
-        <button type="button" class="btn btn-ghost btn-sm" data-varidx="${i}">Use This</button>
+        <button type="button" class="btn btn-primary btn-sm" data-usevaridx="${i}">Use This</button>
       </div>
     </div>`).join('');
-  varEl.querySelectorAll('[data-varidx]').forEach(btn => {
+  varEl.querySelectorAll('[data-usevaridx]').forEach(btn => {
     btn.onclick = () => {
-      const text = variations[parseInt(btn.dataset.varidx, 10)];
+      const idx = parseInt(btn.dataset.usevaridx, 10);
+      const textarea = varEl.querySelector(`textarea[data-varidx="${idx}"]`);
+      const text = textarea ? textarea.value : variations[idx];
       const captionEl = document.getElementById('post-caption');
       captionEl.value = text;
       captionEl.dispatchEvent(new Event('input'));
-      showToast('Caption applied', 'success');
+      showToast('Caption applied — edit it above if needed', 'success');
     };
   });
 }
@@ -5228,8 +5231,9 @@ function generateCaptionVariations({ brandName, platformName, pillarName, title,
 }
 
 function buildHook(title, angle, isDT, variant) {
-  // Always use the actual title as one of the hooks
-  const titleHook = title.length > 80 ? title.substring(0, 77) + '...' : title;
+  // Always use the actual title as one of the hooks — ensure it ends with punctuation
+  let titleHook = title.length > 80 ? title.substring(0, 77) + '...' : title;
+  if (titleHook && !/[.!?…]$/.test(titleHook.trim())) titleHook = titleHook.trim() + '.';
 
   if (angle === 'hero_item' || angle === 'food_sizzle') {
     return [titleHook, `Stop scrolling. You need to see this.`, `This is what ${isDT ? 'New Mexico cravings' : 'comfort'} look like.`][variant];

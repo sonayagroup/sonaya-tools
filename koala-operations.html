@@ -2377,6 +2377,7 @@ const CRM_ACTIVITY_LABELS = {
 // history of what actually happened to the deal can't be silently rewritten. Added 2026-09-29 per Pranav.
 const CRM_ACTIVITY_EDITABLE = new Set(['note', 'trello_comment']);
 let crmActivityEditingId = null;
+let crmActivityDeletingId = null;
 async function crmRenderActivityPanel(dealId) {
   const el = document.getElementById('crmActivityPanel');
   if (!el) return;
@@ -2400,6 +2401,21 @@ async function crmRenderActivityPanel(dealId) {
         <div class="crm-activity-edit-actions">
           <button type="button" class="crm-btn crm-btn-primary crm-btn-xs" onclick="crmSaveActivityEdit('${a.id}')">Save</button>
           <button type="button" class="crm-btn crm-btn-secondary crm-btn-xs" onclick="crmCancelActivityEdit()">Cancel</button>
+        </div>
+      </div>`;
+      }
+      if (editable && crmActivityDeletingId === a.id) {
+        return `
+      <div class="crm-activity-row">
+        <div class="crm-activity-row-top">
+          <span class="crm-activity-label">${crmEsc(CRM_ACTIVITY_LABELS[a.action] || a.action)}</span>
+          <span class="crm-activity-time">${crmActivityTimeAgo(a.created_at)}</span>
+        </div>
+        <div class="crm-activity-detail">${a.detail ? crmEsc(a.detail) + ' &mdash; ' : ''}<span class="crm-activity-actor">${crmEsc(a.actor)}</span></div>
+        <div class="crm-activity-edit-actions">
+          <span style="font-size:11px;color:var(--status-critical);align-self:center;">Delete this entry? This can't be undone.</span>
+          <button type="button" class="crm-btn crm-btn-danger crm-btn-xs" onclick="crmConfirmDeleteActivity('${a.id}')">Delete</button>
+          <button type="button" class="crm-btn crm-btn-secondary crm-btn-xs" onclick="crmCancelActivityDelete()">Cancel</button>
         </div>
       </div>`;
       }
@@ -2460,11 +2476,21 @@ async function crmSaveActivityEdit(activityId) {
     alert('Could not save the edit: ' + err.message);
   }
 }
-async function crmDeleteActivityNote(activityId) {
-  if (!confirm('Delete this activity entry? This cannot be undone.')) return;
+function crmDeleteActivityNote(activityId) {
+  // Inline confirm (not window.confirm()) — a native dialog blocks the page's JS thread entirely,
+  // which is disruptive and, notably, freezes browser-automation tooling used to test this page.
+  crmActivityDeletingId = activityId;
+  crmRenderActivityPanel(crmEditingId);
+}
+function crmCancelActivityDelete() {
+  crmActivityDeletingId = null;
+  crmRenderActivityPanel(crmEditingId);
+}
+async function crmConfirmDeleteActivity(activityId) {
   try {
     const res = await fetch(`${CRM_ACTIVITY_REST}?id=eq.${activityId}`, { method: 'DELETE', headers: CRM_HEADERS });
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    crmActivityDeletingId = null;
     await crmRenderActivityPanel(crmEditingId);
   } catch (err) {
     alert('Could not delete this entry: ' + err.message);
@@ -2797,6 +2823,7 @@ async function crmHandleDrop(e, columnEl, stageName) {
 function openCrmDealModal(id, presetStage) {
   crmEditingId = id || null;
   crmActivityEditingId = null;
+  crmActivityDeletingId = null;
   const deal = id ? crmDeals.find(d => d.id === id) : null;
   const isEdit = !!deal;
   document.getElementById('crmStageModalTitle').textContent = isEdit ? 'Edit Deal' : 'Add Deal';
@@ -2970,6 +2997,7 @@ function closeCrmStageModal() {
   document.body.style.overflow = '';
   crmEditingId = null;
   crmActivityEditingId = null;
+  crmActivityDeletingId = null;
 }
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && document.getElementById('crmStageModalBackdrop').classList.contains('open')) {

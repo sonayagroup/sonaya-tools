@@ -284,20 +284,32 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 .crm-actor-picker { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .crm-actor-picker label { font-size: 11px; color: var(--text-muted); }
 .crm-actor-input { font-size: 12.5px; color: var(--text-primary); background: var(--surface-card); border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 6px 10px; width: 130px; }
-.crm-activity-panel { max-height: 220px; overflow-y: auto; border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 8px 10px; background: var(--surface-page); }
-.crm-activity-row { padding: 6px 0; border-bottom: 1px solid var(--gridline); }
-.crm-activity-row:last-child { border-bottom: none; }
-.crm-activity-row-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.crm-activity-label { font-size: 12px; font-weight: 600; color: var(--text-primary); }
-.crm-activity-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
-.crm-activity-detail { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
-.crm-activity-actor { font-weight: 600; color: var(--text-secondary); }
+/* ---- Activity panel: Trello-style feed (redesigned 2026-09-29 per Pranav, "look at how Trello has
+   it set up"). A real comment (a rep's note, or an imported Trello comment) gets an avatar, a
+   name-first header, and a rounded "bubble" for the text — same shape as a Trello card comment.
+   A system/audit entry (created, stage_change, archived, ...) stays flat and compact — a small
+   muted one-liner with no bubble — matching how Trello itself renders "added this card to..."
+   activity differently from an actual comment. ---- */
+.crm-activity-panel { max-height: 320px; overflow-y: auto; padding: 2px 2px 2px 0; }
+.crm-activity-item { display: flex; gap: 8px; padding: 10px 4px; }
+.crm-activity-item + .crm-activity-item { border-top: 1px solid var(--gridline); }
+.crm-activity-avatar { width: 27px; height: 27px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex: 0 0 auto; }
+.crm-activity-avatar-sm { width: 20px; height: 20px; font-size: 9px; margin-top: 1px; }
+.crm-activity-body { flex: 1; min-width: 0; }
+.crm-activity-header { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.crm-activity-actor-name { font-size: 12.5px; font-weight: 700; color: var(--text-primary); }
+.crm-activity-source-tag { font-size: 10px; font-weight: 600; color: var(--text-muted); background: var(--surface-page); border-radius: 8px; padding: 1px 6px; }
+.crm-activity-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; margin-left: auto; }
+.crm-activity-bubble { margin-top: 4px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; background: var(--surface-page); border: 1px solid var(--gridline); border-radius: 10px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
+.crm-activity-item-system { padding: 6px 4px; }
+.crm-activity-item-system .crm-activity-header { gap: 5px; }
+.crm-activity-system-text { font-size: 11.5px; color: var(--text-muted); }
 .crm-activity-empty, .crm-activity-loading { font-size: 12px; color: var(--text-muted); padding: 6px 2px; }
-.crm-activity-edit-links { margin-top: 3px; font-size: 11px; }
+.crm-activity-edit-links { margin-top: 4px; font-size: 11px; }
 .crm-activity-edit-links a { color: var(--text-muted); cursor: pointer; text-decoration: none; }
 .crm-activity-edit-links a:hover { color: var(--text-primary); text-decoration: underline; }
-.crm-activity-edit-textarea { width: 100%; margin-top: 4px; font-size: 11.5px; min-height: 44px; }
-.crm-activity-edit-actions { display: flex; gap: 6px; margin-top: 4px; }
+.crm-activity-edit-textarea { width: 100%; margin-top: 4px; font-size: 12px; min-height: 44px; }
+.crm-activity-edit-actions { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
 .crm-btn-xs { padding: 3px 9px !important; font-size: 11px !important; }
 .crm-activity-add-row { border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 8px; margin-bottom: 8px; background: var(--surface-page); }
 .crm-activity-add-input { width: 100%; min-height: 44px; font-size: 12px; }
@@ -2330,12 +2342,38 @@ function crmHandleActorInput() {
   const el = document.getElementById('crmActorInput');
   if (el) crmSetActingAs(el.value.trim());
 }
+// "Logged by" should offer every active dashboard user, not just sales reps — whoever's logging
+// the activity (ops, admin, a rep) should be able to find their own name. crmKnownReps() alone only
+// covers people assigned as a Rep on some deal. The extra names come from the koala_dashboard_user_names()
+// RPC (SECURITY DEFINER, gated to active users — see migration add_dashboard_user_names_rpc), fetched
+// once and merged in without blocking the initial render. Added 2026-09-29 per Pranav.
+let crmDashboardUserNames = [];
+let crmDashboardUserNamesLoaded = false;
+async function crmLoadDashboardUserNames() {
+  try {
+    const res = await fetch(`${CRM_SUPABASE_URL}/rest/v1/rpc/koala_dashboard_user_names`, { method: 'POST', headers: CRM_HEADERS, body: '{}' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    crmDashboardUserNames = rows.map(r => r.name).filter(Boolean);
+    crmDashboardUserNamesLoaded = true;
+    crmPopulateActorList();
+  } catch (err) {
+    console.warn('crm dashboard user names load failed', err);
+  }
+}
+function crmActorOptions() {
+  return [...new Set([...crmKnownReps(), ...crmDashboardUserNames])].sort();
+}
+function crmPopulateActorList() {
+  const list = document.getElementById('crmActorList');
+  if (list) list.innerHTML = crmActorOptions().map(r => `<option value="${crmEsc(r)}">`).join('');
+}
 function crmInitActorPicker() {
   const input = document.getElementById('crmActorInput');
-  const list = document.getElementById('crmActorList');
   if (!input) return;
   input.value = crmGetActingAs();
-  if (list) list.innerHTML = crmKnownReps().map(r => `<option value="${crmEsc(r)}">`).join('');
+  crmPopulateActorList();
+  if (!crmDashboardUserNamesLoaded) crmLoadDashboardUserNames();
 }
 async function crmLogActivity(dealId, action, detail) {
   const actor = crmGetActingAs().trim() || 'Unknown';
@@ -2390,43 +2428,63 @@ async function crmRenderActivityPanel(dealId) {
     }
     el.innerHTML = entries.map(a => {
       const editable = CRM_ACTIVITY_EDITABLE.has(a.action);
+      const avatar = `<div class="crm-activity-avatar${editable ? '' : ' crm-activity-avatar-sm'}" style="background:${crmRepColor(a.actor || '?')};">${crmInitials(a.actor || '?')}</div>`;
+      const sourceTag = a.action === 'trello_comment' ? `<span class="crm-activity-source-tag">Trello</span>` : '';
+      const time = `<span class="crm-activity-time">${crmActivityTimeAgo(a.created_at)}</span>`;
+      // Editable entries (a note, or an imported Trello comment) render like a Trello comment: avatar,
+      // name-first header, rounded bubble. Everything else (created/stage_change/archived/...) renders
+      // as a flat, compact, muted one-liner — same distinction Trello itself makes.
       if (editable && crmActivityEditingId === a.id) {
         return `
-      <div class="crm-activity-row">
-        <div class="crm-activity-row-top">
-          <span class="crm-activity-label">${crmEsc(CRM_ACTIVITY_LABELS[a.action] || a.action)}</span>
-          <span class="crm-activity-time">${crmActivityTimeAgo(a.created_at)}</span>
-        </div>
-        <textarea class="crm-form-textarea crm-activity-edit-textarea" id="crmActivityEditText">${crmEsc(a.detail || '')}</textarea>
-        <div class="crm-activity-edit-actions">
-          <button type="button" class="crm-btn crm-btn-primary crm-btn-xs" onclick="crmSaveActivityEdit('${a.id}')">Save</button>
-          <button type="button" class="crm-btn crm-btn-secondary crm-btn-xs" onclick="crmCancelActivityEdit()">Cancel</button>
+      <div class="crm-activity-item">
+        ${avatar}
+        <div class="crm-activity-body">
+          <div class="crm-activity-header"><span class="crm-activity-actor-name">${crmEsc(a.actor)}</span>${sourceTag}${time}</div>
+          <textarea class="crm-form-textarea crm-activity-edit-textarea" id="crmActivityEditText">${crmEsc(a.detail || '')}</textarea>
+          <div class="crm-activity-edit-actions">
+            <button type="button" class="crm-btn crm-btn-primary crm-btn-xs" onclick="crmSaveActivityEdit('${a.id}')">Save</button>
+            <button type="button" class="crm-btn crm-btn-secondary crm-btn-xs" onclick="crmCancelActivityEdit()">Cancel</button>
+          </div>
         </div>
       </div>`;
       }
       if (editable && crmActivityDeletingId === a.id) {
         return `
-      <div class="crm-activity-row">
-        <div class="crm-activity-row-top">
-          <span class="crm-activity-label">${crmEsc(CRM_ACTIVITY_LABELS[a.action] || a.action)}</span>
-          <span class="crm-activity-time">${crmActivityTimeAgo(a.created_at)}</span>
-        </div>
-        <div class="crm-activity-detail">${a.detail ? crmEsc(a.detail) + ' &mdash; ' : ''}<span class="crm-activity-actor">${crmEsc(a.actor)}</span></div>
-        <div class="crm-activity-edit-actions">
-          <span style="font-size:11px;color:var(--status-critical);align-self:center;">Delete this entry? This can't be undone.</span>
-          <button type="button" class="crm-btn crm-btn-danger crm-btn-xs" onclick="crmConfirmDeleteActivity('${a.id}')">Delete</button>
-          <button type="button" class="crm-btn crm-btn-secondary crm-btn-xs" onclick="crmCancelActivityDelete()">Cancel</button>
+      <div class="crm-activity-item">
+        ${avatar}
+        <div class="crm-activity-body">
+          <div class="crm-activity-header"><span class="crm-activity-actor-name">${crmEsc(a.actor)}</span>${sourceTag}${time}</div>
+          <div class="crm-activity-bubble">${crmEsc(a.detail || '')}</div>
+          <div class="crm-activity-edit-actions">
+            <span style="font-size:11px;color:var(--status-critical);align-self:center;">Delete this entry? This can't be undone.</span>
+            <button type="button" class="crm-btn crm-btn-danger crm-btn-xs" onclick="crmConfirmDeleteActivity('${a.id}')">Delete</button>
+            <button type="button" class="crm-btn crm-btn-secondary crm-btn-xs" onclick="crmCancelActivityDelete()">Cancel</button>
+          </div>
         </div>
       </div>`;
       }
-      return `
-      <div class="crm-activity-row">
-        <div class="crm-activity-row-top">
-          <span class="crm-activity-label">${crmEsc(CRM_ACTIVITY_LABELS[a.action] || a.action)}</span>
-          <span class="crm-activity-time">${crmActivityTimeAgo(a.created_at)}</span>
+      if (editable) {
+        return `
+      <div class="crm-activity-item">
+        ${avatar}
+        <div class="crm-activity-body">
+          <div class="crm-activity-header"><span class="crm-activity-actor-name">${crmEsc(a.actor)}</span>${sourceTag}${time}</div>
+          <div class="crm-activity-bubble">${crmEsc(a.detail || '')}</div>
+          <div class="crm-activity-edit-links"><a onclick="crmEditActivityNote('${a.id}')">Edit</a> &middot; <a onclick="crmDeleteActivityNote('${a.id}')">Delete</a></div>
         </div>
-        <div class="crm-activity-detail">${a.detail ? crmEsc(a.detail) + ' &mdash; ' : ''}<span class="crm-activity-actor">${crmEsc(a.actor)}</span></div>
-        ${editable ? `<div class="crm-activity-edit-links"><a onclick="crmEditActivityNote('${a.id}')">Edit</a> &middot; <a onclick="crmDeleteActivityNote('${a.id}')">Delete</a></div>` : ''}
+      </div>`;
+      }
+      // System / audit entry — flat, compact, no bubble.
+      return `
+      <div class="crm-activity-item crm-activity-item-system">
+        ${avatar}
+        <div class="crm-activity-body">
+          <div class="crm-activity-header">
+            <span class="crm-activity-actor-name">${crmEsc(a.actor)}</span>
+            <span class="crm-activity-system-text">${crmEsc(CRM_ACTIVITY_LABELS[a.action] || a.action)}${a.detail ? ' &mdash; ' + crmEsc(a.detail) : ''}</span>
+            ${time}
+          </div>
+        </div>
       </div>`;
     }).join('');
   } catch (err) {
@@ -2863,7 +2921,7 @@ function openCrmDealModal(id, presetStage) {
         <textarea class="crm-form-textarea crm-activity-add-input" id="crmActivityNoteInput" placeholder="Add a note — a call, a site visit, anything worth logging…" rows="2"></textarea>
         <div class="crm-activity-add-footer">
           <span class="crm-activity-add-actor-label">Logged by</span>
-          <input type="text" class="crm-form-input crm-activity-add-actor" id="crmActivityNoteActor" list="crmActorList" placeholder="Name" value="${crmEsc(crmGetActingAs())}">
+          <input type="text" class="crm-form-input crm-activity-add-actor" id="crmActivityNoteActor" list="crmActorList" placeholder="Name" value="${crmEsc((deal && deal.reps && deal.reps[0]) || crmGetActingAs())}">
           <button type="button" class="crm-btn crm-btn-primary" id="crmActivityAddBtn" onclick="crmAddActivityNote()">Add</button>
         </div>
       </div>

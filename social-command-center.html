@@ -3217,12 +3217,12 @@ const SOCIAL_PLATFORMS = [
   { key:'instagram', label:'Instagram', color:'var(--plat-ig)', hex:'#E1306C', icon:'&#128247;',
     modalTitle:'Connect via Meta Graph API',
     desc:'Instagram business accounts connect through the Meta Graph API. Paste your long-lived User Access Token (from the Graph API Explorer after OAuth) and the Instagram Business Account ID (starts with 17841…).',
-    oauth:'https://www.facebook.com/v18.0/dialog/oauth?client_id={APP_ID}&redirect_uri={REDIRECT}&scope=instagram_basic,instagram_manage_insights,pages_show_list,pages_read_engagement',
+    oauth:'https://www.facebook.com/v18.0/dialog/oauth?client_id={APP_ID}&redirect_uri={REDIRECT}&scope=instagram_basic,instagram_manage_insights,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts',
     fields:[{key:'user_access_token',label:'User Access Token',placeholder:'Long-lived Meta User Access Token',type:'password'},{key:'ig_account_id',label:'Instagram Business Account ID',placeholder:'e.g. 17841450413357739'}] },
   { key:'facebook', label:'Facebook', color:'var(--plat-fb)', hex:'#1877F2', icon:'&#128101;',
     modalTitle:'Connect via Meta Graph API',
     desc:'Connect a specific Facebook Page. Paste the same long-lived User Access Token used for Instagram, plus the Page ID or vanity username (e.g. "KIofNM" from facebook.com/KIofNM).',
-    oauth:'https://www.facebook.com/v18.0/dialog/oauth?client_id={APP_ID}&redirect_uri={REDIRECT}&scope=pages_show_list,pages_read_engagement',
+    oauth:'https://www.facebook.com/v18.0/dialog/oauth?client_id={APP_ID}&redirect_uri={REDIRECT}&scope=pages_show_list,pages_read_engagement,pages_manage_posts',
     fields:[{key:'user_access_token',label:'User Access Token',placeholder:'Long-lived Meta User Access Token',type:'password'},{key:'page_id',label:'Page ID or Username',placeholder:'e.g. KIofNM or 104500432041676'}] },
   { key:'tiktok', label:'TikTok', color:'var(--plat-tt)', hex:'#00C9B1', icon:'&#127925;',
     modalTitle:'Connect via TikTok for Developers',
@@ -3232,7 +3232,7 @@ const SOCIAL_PLATFORMS = [
   { key:'youtube', label:'YouTube', color:'var(--plat-yt)', hex:'#FF0000', icon:'&#9654;',
     modalTitle:'Connect via Google Cloud Console',
     desc:'YouTube connects through the YouTube Data API v3. Enable the API in Google Cloud Console and generate an API key. Paste your Channel ID (starts with UC…) to pull real stats.',
-    oauth:'https://accounts.google.com/o/oauth2/v2/auth?client_id={CLIENT_ID}&redirect_uri={REDIRECT}&scope=https://www.googleapis.com/auth/youtube.readonly&response_type=code',
+    oauth:'https://accounts.google.com/o/oauth2/v2/auth?client_id={CLIENT_ID}&redirect_uri={REDIRECT}&scope=https://www.googleapis.com/auth/youtube.readonly%20https://www.googleapis.com/auth/youtube.upload&response_type=code',
     fields:[{key:'api_key',label:'API Key',placeholder:'YouTube Data API v3 key'},{key:'channel_id',label:'Channel ID',placeholder:'e.g. UCxxxxxxxxxxxxxxxxxxxxxxx'}] },
 ];
 const API_CONN_KEY = 'sm_api_connections';
@@ -3802,17 +3802,17 @@ function renderCrewForBrand(brandId, post) {
 }
 
 async function publishPostNow(existingId) {
-  // First save the post
+  // Collect form data
   const form = document.getElementById('post-form'); const fd = new FormData(form); const data = {};
   ['brand_id','content_pillar_id','created_by','title','caption','hashtags','media_url','media_type','scheduled_date','scheduled_time','notes'].forEach(k => { const v = fd.get(k); data[k] = v===''?null:v; });
-  data.status = 'posted'; data.posted_at = new Date().toISOString();
   const platformIds = fd.getAll('platform_ids').filter(Boolean); data.platform_ids = platformIds.length?platformIds:null; data.platform_id = platformIds[0]||null;
   const crewIds = fd.getAll('crew_members').filter(Boolean); data.crew_members = crewIds.length?crewIds:null;
   if (!data.title) { showToast('Title is required','error'); return; }
   if (!data.caption) { showToast('Caption is required to publish','error'); return; }
   if (!platformIds.length) { showToast('Select at least one platform to publish to','error'); return; }
 
-  // Save post first
+  // Save post as draft first (don't mark posted until API succeeds)
+  data.status = 'draft';
   try {
     if (existingId) await sb.from('sm_posts').update(data).eq('id',existingId);
     else { const ins = await sb.from('sm_posts').insert(data).select('id').single(); existingId = ins.data?.id; }
@@ -3872,11 +3872,21 @@ async function publishPostNow(existingId) {
     }
   }
 
-  // Show results
+  // Only mark as "posted" if at least one platform succeeded
   const successes = results.filter(r => r.ok);
   const failures = results.filter(r => !r.ok);
-  if (successes.length > 0) { showToast(`Published to: ${successes.map(r=>r.platform).join(', ')}`, 'success'); logAudit('publish','post',postId,data.title,{platforms:successes.map(r=>r.platform)}); }
-  if (failures.length > 0) showToast(`Failed: ${failures.map(r=>r.platform+' — '+r.msg).join('; ')}`, 'error');
+  if (successes.length > 0) {
+    try {
+      await sb.from('sm_posts').update({ status: 'posted', posted_at: new Date().toISOString() }).eq('id', existingId);
+    } catch(e) { /* post published but status update failed — non-critical */ }
+    showToast(`Published to: ${successes.map(r=>r.platform).join(', ')}`, 'success');
+    logAudit('publish','post',existingId,data.title,{platforms:successes.map(r=>r.platform)});
+  }
+  if (failures.length > 0) {
+    const failMsg = `Failed: ${failures.map(r=>r.platform+' — '+r.msg).join('; ')}`;
+    if (successes.length === 0) showToast(failMsg + '. Post saved as draft — nothing was published.', 'error');
+    else showToast(failMsg, 'error');
+  }
 
   closeModal(); await loadAll(); render();
 }

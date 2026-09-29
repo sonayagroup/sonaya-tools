@@ -293,6 +293,17 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 .crm-activity-detail { font-size: 11.5px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
 .crm-activity-actor { font-weight: 600; color: var(--text-secondary); }
 .crm-activity-empty, .crm-activity-loading { font-size: 12px; color: var(--text-muted); padding: 6px 2px; }
+.crm-activity-edit-links { margin-top: 3px; font-size: 11px; }
+.crm-activity-edit-links a { color: var(--text-muted); cursor: pointer; text-decoration: none; }
+.crm-activity-edit-links a:hover { color: var(--text-primary); text-decoration: underline; }
+.crm-activity-edit-textarea { width: 100%; margin-top: 4px; font-size: 11.5px; min-height: 44px; }
+.crm-activity-edit-actions { display: flex; gap: 6px; margin-top: 4px; }
+.crm-btn-xs { padding: 3px 9px !important; font-size: 11px !important; }
+.crm-activity-add-row { border: 1px solid var(--gridline); border-radius: var(--radius-sm); padding: 8px; margin-bottom: 8px; background: var(--surface-page); }
+.crm-activity-add-input { width: 100%; min-height: 44px; font-size: 12px; }
+.crm-activity-add-footer { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.crm-activity-add-actor { flex: 1; font-size: 12px; padding: 5px 8px; }
+.crm-activity-add-footer .crm-activity-add-actor-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 
 /* ---------------- Responsive: tablet ---------------- */
 @media (max-width: 1000px) {
@@ -1888,7 +1899,7 @@ function renderSalesTab() {
   document.getElementById('salesPeriodKpiRow').innerHTML = [
     kpiTile('Estimates Sent', cohort ? cohort.cohortSize : '—'),
     kpiTile('Close Rate', cohort && cohort.closeRate != null ? fmtPct(cohort.closeRate * 100) : '—',
-      cohort ? (cohort.overall.won + cohort.overall.lost) + ' decided of ' + cohort.cohortSize + ' sent' : null),
+      cohort ? cohort.overall.won + ' won of ' + cohort.cohortSize + ' sent (' + (cohort.overall.won + cohort.overall.lost) + ' decided)' : null),
     kpiTile('Revenue (' + rangeLabel + ')', fmtMoneyCompact(totalPeriodRevenue)),
     kpiTile('Avg Deal Size', totalPeriodInvoices ? fmtMoney(totalPeriodRevenue / totalPeriodInvoices) : '—', totalPeriodInvoices + ' invoices'),
   ].join('');
@@ -2358,7 +2369,14 @@ const CRM_ACTIVITY_LABELS = {
   restored: 'Restored',
   notes_imported: 'Notes imported',
   trello_comment: 'Trello comment',
+  note: 'Note',
 };
+// Manually-entered activity (a rep's note, or an imported Trello comment) can be corrected or removed
+// after the fact, same as Trello's own "Edit · Delete" on comments — but NOT the auto-generated audit
+// entries (created/edited/stage_change/archived/restored/market changes), which stay read-only so the
+// history of what actually happened to the deal can't be silently rewritten. Added 2026-09-29 per Pranav.
+const CRM_ACTIVITY_EDITABLE = new Set(['note', 'trello_comment']);
+let crmActivityEditingId = null;
 async function crmRenderActivityPanel(dealId) {
   const el = document.getElementById('crmActivityPanel');
   if (!el) return;
@@ -2369,16 +2387,87 @@ async function crmRenderActivityPanel(dealId) {
       el.innerHTML = `<div class="crm-activity-empty">No activity recorded yet.</div>`;
       return;
     }
-    el.innerHTML = entries.map(a => `
+    el.innerHTML = entries.map(a => {
+      const editable = CRM_ACTIVITY_EDITABLE.has(a.action);
+      if (editable && crmActivityEditingId === a.id) {
+        return `
+      <div class="crm-activity-row">
+        <div class="crm-activity-row-top">
+          <span class="crm-activity-label">${crmEsc(CRM_ACTIVITY_LABELS[a.action] || a.action)}</span>
+          <span class="crm-activity-time">${crmActivityTimeAgo(a.created_at)}</span>
+        </div>
+        <textarea class="crm-form-textarea crm-activity-edit-textarea" id="crmActivityEditText">${crmEsc(a.detail || '')}</textarea>
+        <div class="crm-activity-edit-actions">
+          <button type="button" class="crm-btn crm-btn-primary crm-btn-xs" onclick="crmSaveActivityEdit('${a.id}')">Save</button>
+          <button type="button" class="crm-btn crm-btn-secondary crm-btn-xs" onclick="crmCancelActivityEdit()">Cancel</button>
+        </div>
+      </div>`;
+      }
+      return `
       <div class="crm-activity-row">
         <div class="crm-activity-row-top">
           <span class="crm-activity-label">${crmEsc(CRM_ACTIVITY_LABELS[a.action] || a.action)}</span>
           <span class="crm-activity-time">${crmActivityTimeAgo(a.created_at)}</span>
         </div>
         <div class="crm-activity-detail">${a.detail ? crmEsc(a.detail) + ' &mdash; ' : ''}<span class="crm-activity-actor">${crmEsc(a.actor)}</span></div>
-      </div>`).join('');
+        ${editable ? `<div class="crm-activity-edit-links"><a onclick="crmEditActivityNote('${a.id}')">Edit</a> &middot; <a onclick="crmDeleteActivityNote('${a.id}')">Delete</a></div>` : ''}
+      </div>`;
+    }).join('');
   } catch (err) {
     el.innerHTML = `<div class="crm-activity-empty">Could not load activity.</div>`;
+  }
+}
+async function crmAddActivityNote() {
+  if (!crmEditingId) return;
+  const textEl = document.getElementById('crmActivityNoteInput');
+  const actorEl = document.getElementById('crmActivityNoteActor');
+  const detail = (textEl.value || '').trim();
+  if (!detail) { textEl.focus(); return; }
+  const actor = (actorEl.value || '').trim() || crmGetActingAs().trim() || 'Unknown';
+  const addBtn = document.getElementById('crmActivityAddBtn');
+  textEl.disabled = true; actorEl.disabled = true; if (addBtn) addBtn.disabled = true;
+  try {
+    // created_at is left to the column default (now()) — the note is automatically dated to the
+    // moment it's added, same as every other activity entry.
+    const res = await fetch(CRM_ACTIVITY_REST, { method: 'POST', headers: CRM_HEADERS, body: JSON.stringify({ deal_id: crmEditingId, actor, action: 'note', detail }) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    textEl.value = '';
+    await crmRenderActivityPanel(crmEditingId);
+  } catch (err) {
+    alert('Could not add the note: ' + err.message);
+  } finally {
+    textEl.disabled = false; actorEl.disabled = false; if (addBtn) addBtn.disabled = false;
+  }
+}
+function crmEditActivityNote(activityId) {
+  crmActivityEditingId = activityId;
+  crmRenderActivityPanel(crmEditingId);
+}
+function crmCancelActivityEdit() {
+  crmActivityEditingId = null;
+  crmRenderActivityPanel(crmEditingId);
+}
+async function crmSaveActivityEdit(activityId) {
+  const textarea = document.getElementById('crmActivityEditText');
+  const detail = (textarea.value || '').trim();
+  if (!detail) { textarea.focus(); return; }
+  try {
+    const res = await fetch(`${CRM_ACTIVITY_REST}?id=eq.${activityId}`, { method: 'PATCH', headers: CRM_HEADERS, body: JSON.stringify({ detail }) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    crmActivityEditingId = null;
+    await crmRenderActivityPanel(crmEditingId);
+  } catch (err) {
+    alert('Could not save the edit: ' + err.message);
+  }
+}
+async function crmDeleteActivityNote(activityId) {
+  if (!confirm('Delete this activity entry? This cannot be undone.')) return;
+  try {
+    const res = await fetch(`${CRM_ACTIVITY_REST}?id=eq.${activityId}`, { method: 'DELETE', headers: CRM_HEADERS });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await crmRenderActivityPanel(crmEditingId);
+  } catch (err) {
+    alert('Could not delete this entry: ' + err.message);
   }
 }
 
@@ -2707,6 +2796,7 @@ async function crmHandleDrop(e, columnEl, stageName) {
 /* ---- Add / Edit deal modal (reuses the crmStageModal shell) ---- */
 function openCrmDealModal(id, presetStage) {
   crmEditingId = id || null;
+  crmActivityEditingId = null;
   const deal = id ? crmDeals.find(d => d.id === id) : null;
   const isEdit = !!deal;
   document.getElementById('crmStageModalTitle').textContent = isEdit ? 'Edit Deal' : 'Add Deal';
@@ -2740,7 +2830,18 @@ function openCrmDealModal(id, presetStage) {
     </div>
     <div class="crm-form-row"><label>Notes</label><textarea class="crm-form-textarea" id="crmFNotes" placeholder="Optional">${crmEsc(deal ? deal.notes || '' : '')}</textarea></div>
     <div class="crm-form-error" id="crmFormError" style="display:none;"></div>
-    ${isEdit ? `<div class="crm-form-row"><label>Activity</label><div class="crm-activity-panel" id="crmActivityPanel"></div></div>` : ''}
+    ${isEdit ? `<div class="crm-form-row">
+      <label>Activity</label>
+      <div class="crm-activity-add-row">
+        <textarea class="crm-form-textarea crm-activity-add-input" id="crmActivityNoteInput" placeholder="Add a note — a call, a site visit, anything worth logging…" rows="2"></textarea>
+        <div class="crm-activity-add-footer">
+          <span class="crm-activity-add-actor-label">Logged by</span>
+          <input type="text" class="crm-form-input crm-activity-add-actor" id="crmActivityNoteActor" list="crmActorList" placeholder="Name" value="${crmEsc(crmGetActingAs())}">
+          <button type="button" class="crm-btn crm-btn-primary" id="crmActivityAddBtn" onclick="crmAddActivityNote()">Add</button>
+        </div>
+      </div>
+      <div class="crm-activity-panel" id="crmActivityPanel"></div>
+    </div>` : ''}
   `;
   document.getElementById('crmStageModalFooter').innerHTML = `
     <div class="crm-modal-actions">
@@ -2868,6 +2969,7 @@ function closeCrmStageModal() {
   document.getElementById('crmStageModalBackdrop').classList.remove('open');
   document.body.style.overflow = '';
   crmEditingId = null;
+  crmActivityEditingId = null;
 }
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && document.getElementById('crmStageModalBackdrop').classList.contains('open')) {

@@ -230,6 +230,13 @@ body {
 .crm-age-warm { color: var(--status-warn); background: var(--status-warn-bg); }
 .crm-age-stale { color: var(--status-critical); background: var(--status-critical-bg); }
 .crm-due-overdue { color: var(--status-critical); background: var(--status-critical-bg); }
+/* Market badge (added 2026-09-29 per Pranav: an easy way to tell Las Cruces vs Albuquerque cards
+   apart on the board — previously only an informal "(LC)" some reps typed into the deal name by
+   hand, with no equivalent marker for Albuquerque). */
+.crm-market-badge { font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 10px; white-space: nowrap; }
+.crm-market-Albuquerque { color: var(--cat-1); background: color-mix(in srgb, var(--cat-1) 16%, transparent); }
+.crm-market-Las-Cruces  { color: var(--cat-7); background: color-mix(in srgb, var(--cat-7) 16%, transparent); }
+.crm-market-Other       { color: var(--text-muted); background: var(--surface-chart); border: 1px solid var(--border); }
 /* Follow-Ups panel (added 2026-09-24 per Pranav: a visible-at-a-glance, tiered replacement for
    "buried in email" reminders, built around crm_deals.next_followup_date). cfw-* tiers are shared
    between the panel and the small per-card badge so a card's color always matches the panel. */
@@ -536,6 +543,12 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       <div class="control-group crm-search-group">
         <input type="search" id="crmSearchInput" class="control-select" style="width:100%;" placeholder="Search deals by customer or rep…" oninput="crmHandleSearchInput()">
       </div>
+      <select class="control-select" id="crmMarketFilterInput" onchange="crmHandleMarketFilterChange()">
+        <option value="">All markets</option>
+        <option value="Albuquerque">Albuquerque</option>
+        <option value="Las Cruces">Las Cruces</option>
+        <option value="Other">Other</option>
+      </select>
       <span class="live-status" id="crmSearchStatus" style="display:none;"></span>
       <div class="crm-actor-picker" title="Sets whose name is attached to activity you log in the CRM on this device">
         <label for="crmActorInput">Acting as</label>
@@ -2230,6 +2243,15 @@ let crmLoaded = false;
 let crmEditingId = null;
 let crmDragId = null;
 let crmSearchQuery = ''; // raw (not lowercased) — drives the CRM board search box
+let crmMarketFilter = ''; // '' = all markets — drives the board's market dropdown
+const CRM_MARKETS = ['Albuquerque', 'Las Cruces', 'Other'];
+// CSS class suffix for a market value — "Las Cruces" -> "Las-Cruces" so it's a valid single class
+// token (crm-market-Las-Cruces), matching the classes defined above.
+function crmMarketCls(market) { return (market || '').replace(/\s+/g, '-'); }
+function crmMarketBadge(market) {
+  if (!market) return '';
+  return `<span class="crm-market-badge crm-market-${crmMarketCls(market)}">${crmEsc(market)}</span>`;
+}
 let crmFollowupRepFilter = ''; // '' = all reps — drives the Follow-Ups panel above the board
 
 function crmEsc(s) {
@@ -2461,7 +2483,10 @@ function crmRenderFollowupPanel() {
     filterEl.value = crmFollowupRepFilter;
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // Local (Mountain time) calendar date, same as localTodayISO() — fixed 2026-09-29 after an audit
+  // caught this using toISOString()'s UTC date, which flips "today" several hours early each
+  // evening (identical bug to the one localTodayISO()'s own comment already documents and avoids).
+  const todayStr = localTodayISO();
   let pool = crmDeals.filter(d => CRM_ACTIVE_STAGES.has(d.stage));
   if (crmFollowupRepFilter) {
     const wanted = crmFollowupRepFilter.trim().toLowerCase();
@@ -2536,11 +2561,16 @@ function crmDealMatchesSearch(d, qLower) {
 }
 function crmSearchFilteredDeals() {
   const q = crmSearchQuery.trim().toLowerCase();
-  if (!q) return crmDeals;
-  return crmDeals.filter(d => crmDealMatchesSearch(d, q));
+  let deals = crmMarketFilter ? crmDeals.filter(d => d.market === crmMarketFilter) : crmDeals;
+  if (q) deals = deals.filter(d => crmDealMatchesSearch(d, q));
+  return deals;
 }
 function crmHandleSearchInput() {
   crmSearchQuery = document.getElementById('crmSearchInput').value || '';
+  renderCrmBoards();
+}
+function crmHandleMarketFilterChange() {
+  crmMarketFilter = document.getElementById('crmMarketFilterInput').value || '';
   renderCrmBoards();
 }
 function renderCrmBoards() {
@@ -2550,9 +2580,12 @@ function renderCrmBoards() {
   renderPipelineBoard('crmEstimateRow', CRM_ESTIMATE_ACTIVE, CRM_ESTIMATE_OUTCOMES, groups);
   const status = document.getElementById('crmSearchStatus');
   const q = crmSearchQuery.trim();
-  if (q) {
+  if (q || crmMarketFilter) {
     status.style.display = '';
-    status.textContent = `${filtered.length} match${filtered.length === 1 ? '' : 'es'} for "${q}" (of ${crmDeals.length} deals)`;
+    const parts = [];
+    if (q) parts.push(`"${q}"`);
+    if (crmMarketFilter) parts.push(crmMarketFilter);
+    status.textContent = `${filtered.length} match${filtered.length === 1 ? '' : 'es'} for ${parts.join(' + ')} (of ${crmDeals.length} deals)`;
   } else {
     status.style.display = 'none';
   }
@@ -2560,7 +2593,8 @@ function renderCrmBoards() {
 function crmCardHtml(d) {
   const due = crmDueBadge(d.due_date, d.due_complete, d.due_time);
   const age = crmAgeBadge(crmDaysStale(d.last_activity_at));
-  const followup = crmFollowupBadge(d, new Date().toISOString().slice(0, 10));
+  const followup = crmFollowupBadge(d, localTodayISO());
+  const marketHtml = d.market ? `<div style="margin-bottom:6px;">${crmMarketBadge(d.market)}</div>` : '';
   const valueHtml = d.value != null ? `<div class="crm-card-value">${fmtMoneyCompact(d.value)}</div>` : '';
   const notesIcon = d.notes && d.notes.trim()
     ? `<span class="crm-card-notes-icon" title="${crmEsc(d.notes.trim().slice(0, 200))}">\u{1F4DD}</span>`
@@ -2569,6 +2603,7 @@ function crmCardHtml(d) {
       ondragstart="crmHandleDragStart(event, this, '${d.id}')"
       ondragend="this.classList.remove('crm-dragging')"
       onclick="openCrmDealModal('${d.id}')" role="button" tabindex="0">
+    ${marketHtml}
     <div class="crm-card-name">${crmEsc(d.name)}${notesIcon}</div>
     ${valueHtml}
     <div class="crm-card-meta">
@@ -2665,10 +2700,13 @@ function openCrmDealModal(id, presetStage) {
   document.getElementById('crmStageModalSubtitle').textContent = isEdit ? `Last touched ${crmDaysStale(deal.last_activity_at)} day(s) ago` : 'New deal';
   const currentStage = (deal && deal.stage) || presetStage || CRM_ALL_STAGES[0];
   const stageOptions = CRM_ALL_STAGES.map(s => `<option value="${crmEsc(s)}" ${currentStage === s ? 'selected' : ''}>${crmEsc(s)}</option>`).join('');
+  const currentMarket = deal ? deal.market || '' : '';
+  const marketOptions = `<option value="">— not set —</option>` + CRM_MARKETS.map(m => `<option value="${crmEsc(m)}" ${currentMarket === m ? 'selected' : ''}>${crmEsc(m)}</option>`).join('');
   document.getElementById('crmStageModalBody').innerHTML = `
     <div class="crm-form-row"><label>Deal / Company Name</label><input class="crm-form-input" id="crmFName" value="${crmEsc(deal ? deal.name : '')}" placeholder="e.g. Smith Residence"></div>
-    <div class="crm-form-grid">
+    <div class="crm-form-grid" style="grid-template-columns:1fr 1fr 1fr;">
       <div class="crm-form-row"><label>Stage</label><select class="crm-form-select" id="crmFStage">${stageOptions}</select></div>
+      <div class="crm-form-row"><label>Market</label><select class="crm-form-select" id="crmFMarket">${marketOptions}</select></div>
       <div class="crm-form-row"><label>Estimate Value ($)</label><input class="crm-form-input" id="crmFValue" type="number" min="0" step="1" value="${deal && deal.value != null ? deal.value : ''}" placeholder="Optional"></div>
     </div>
     <div class="crm-form-row"><label>Rep(s)</label><input class="crm-form-input" id="crmFReps" value="${crmEsc(deal && deal.reps ? deal.reps.join(', ') : '')}" placeholder="e.g. Frank Emanuel, Mike Jones" list="crmRepList"></div>
@@ -2706,13 +2744,16 @@ function openCrmDealModal(id, presetStage) {
 function crmSetFollowupQuick(days) {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  document.getElementById('crmFFollowup').value = d.toISOString().slice(0, 10);
+  // Local Y/M/D formatting (matches localTodayISO()) — not .toISOString(), which converts through
+  // UTC and would land a day late whenever the local time-of-day has already crossed midnight UTC.
+  document.getElementById('crmFFollowup').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 async function crmSaveCurrentDeal() {
   const errEl = document.getElementById('crmFormError');
   const name = document.getElementById('crmFName').value.trim();
   if (!name) { errEl.textContent = 'Deal name is required.'; errEl.style.display = 'block'; return; }
   const stage = document.getElementById('crmFStage').value;
+  const market = document.getElementById('crmFMarket').value || null;
   const valueRaw = document.getElementById('crmFValue').value;
   const value = valueRaw === '' ? null : Number(valueRaw);
   const repsRaw = document.getElementById('crmFReps').value.trim();
@@ -2731,7 +2772,7 @@ async function crmSaveCurrentDeal() {
   try {
     if (crmEditingId) {
       const existing = crmDeals.find(d => d.id === crmEditingId);
-      const patch = { name, stage, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, next_followup_date: nextFollowupDate, notes, updated_at: nowIso, last_activity_at: nowIso };
+      const patch = { name, stage, market, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, next_followup_date: nextFollowupDate, notes, updated_at: nowIso, last_activity_at: nowIso };
       if (existing && existing.stage !== stage) {
         const groups = crmDealsByStage();
         const target = groups[stage] || [];
@@ -2742,6 +2783,7 @@ async function crmSaveCurrentDeal() {
         const changes = [];
         if (existing.name !== name) changes.push(`Name: "${existing.name}" → "${name}"`);
         if (existing.stage !== stage) changes.push(`Stage: ${existing.stage} → ${stage}`);
+        if ((existing.market || null) !== market) changes.push(`Market: ${existing.market || '—'} → ${market || '—'}`);
         if ((existing.value ?? null) !== value) changes.push(`Value: ${existing.value != null ? fmtMoney(existing.value) : '—'} → ${value != null ? fmtMoney(value) : '—'}`);
         const existingReps = (existing.reps || []).join(', ');
         const newReps = reps.join(', ');
@@ -2760,7 +2802,7 @@ async function crmSaveCurrentDeal() {
       const groups = crmDealsByStage();
       const target = groups[stage] || [];
       const position = target.length ? Math.max(...target.map(d => d.position)) + 1 : 0;
-      const created = await crmCreateDeal({ name, stage, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, next_followup_date: nextFollowupDate, notes, position, last_activity_at: nowIso });
+      const created = await crmCreateDeal({ name, stage, market, reps, value, due_date: dueDate, due_time: dueTime, due_complete: dueComplete, next_followup_date: nextFollowupDate, notes, position, last_activity_at: nowIso });
       await crmLogActivity(created.id, 'created', `Deal created in ${stage}${reps.length ? ' — assigned to ' + reps.join(', ') : ''}`);
     }
     closeCrmStageModal();

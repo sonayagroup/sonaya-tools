@@ -4364,8 +4364,26 @@ document.getElementById('brand-pills').addEventListener('click', e => {
 });
 
 document.getElementById('new-post-btn').addEventListener('click', () => openPostModal(null));
-document.getElementById('modal-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
-document.getElementById('cmd-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) closeCmdPalette(); });
+// Close modal only when BOTH mousedown and mouseup occur on the overlay background
+// (prevents accidental close when dragging text selections or clicking near edges)
+(function() {
+  const overlay = document.getElementById('modal-overlay');
+  let mouseDownTarget = null;
+  overlay.addEventListener('mousedown', e => { mouseDownTarget = e.target; });
+  overlay.addEventListener('mouseup', e => {
+    if (mouseDownTarget === overlay && e.target === overlay) closeModal();
+    mouseDownTarget = null;
+  });
+})();
+(function() {
+  const overlay = document.getElementById('cmd-overlay');
+  let mouseDownTarget = null;
+  overlay.addEventListener('mousedown', e => { mouseDownTarget = e.target; });
+  overlay.addEventListener('mouseup', e => {
+    if (mouseDownTarget === overlay && e.target === overlay) closeCmdPalette();
+    mouseDownTarget = null;
+  });
+})();
 
 document.getElementById('brand-dropdown-btn').addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('brand-dropdown-menu').classList.toggle('open'); });
 document.addEventListener('click', () => { document.querySelectorAll('.tb-dropdown-menu.open').forEach(m => m.classList.remove('open')); });

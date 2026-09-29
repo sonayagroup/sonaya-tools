@@ -2364,9 +2364,35 @@ async function crmLoadDashboardUserNames() {
 function crmActorOptions() {
   return [...new Set([...crmKnownReps(), ...crmDashboardUserNames])].sort();
 }
+// Refreshes every datalist that should offer the full active-user list: the global "Acting as"
+// picker (#crmActorList) and, inside the deal modal, both "Rep(s)" (#crmRepList) and "Logged by"
+// (which shares #crmActorList via its own list="" attribute). Called on initial render and again
+// once crmLoadDashboardUserNames() resolves, so a modal opened before the RPC finishes still gets
+// enriched with the non-rep dashboard users as soon as they're available.
 function crmPopulateActorList() {
+  const optsHtml = crmActorOptions().map(r => `<option value="${crmEsc(r)}">`).join('');
   const list = document.getElementById('crmActorList');
-  if (list) list.innerHTML = crmActorOptions().map(r => `<option value="${crmEsc(r)}">`).join('');
+  if (list) list.innerHTML = optsHtml;
+  const repList = document.getElementById('crmRepList');
+  if (repList) repList.innerHTML = optsHtml;
+}
+// Native <input list="..."> datalist suggestions filter to options matching the field's CURRENT
+// text — so a field pre-filled with a default (the deal's Rep, or previously-assigned reps) only
+// ever shows that one matching suggestion, hiding the rest of the list. Clearing the field on focus
+// (and restoring it on blur if the person didn't type/pick anything) lets the full suggestion list
+// show while editing, without losing the default if they just click away. Added 2026-09-29 per
+// Pranav ("Logged by and Reps does not show all CRM users").
+function crmComboReveal(el) {
+  if (el.value) { el.dataset.crmComboPrev = el.value; el.value = ''; }
+  delete el.dataset.crmComboTouched;
+}
+function crmComboRestore(el) {
+  // Only snap back to the pre-focus value if the person never actually typed/edited anything —
+  // if they deliberately cleared the field (e.g. to unassign all Reps) and clicked away, that
+  // intentional empty value is respected, not silently overwritten.
+  if (!el.value.trim() && el.dataset.crmComboPrev && el.dataset.crmComboTouched !== '1') el.value = el.dataset.crmComboPrev;
+  delete el.dataset.crmComboPrev;
+  delete el.dataset.crmComboTouched;
 }
 function crmInitActorPicker() {
   const input = document.getElementById('crmActorInput');
@@ -2897,8 +2923,8 @@ function openCrmDealModal(id, presetStage) {
       <div class="crm-form-row"><label>Market</label><select class="crm-form-select" id="crmFMarket">${marketOptions}</select></div>
       <div class="crm-form-row"><label>Estimate Value ($)</label><input class="crm-form-input" id="crmFValue" type="number" min="0" step="1" value="${deal && deal.value != null ? deal.value : ''}" placeholder="Optional"></div>
     </div>
-    <div class="crm-form-row"><label>Rep(s)</label><input class="crm-form-input" id="crmFReps" value="${crmEsc(deal && deal.reps ? deal.reps.join(', ') : '')}" placeholder="e.g. Frank Emanuel, Mike Jones" list="crmRepList"></div>
-    <datalist id="crmRepList">${crmKnownReps().map(r => `<option value="${crmEsc(r)}">`).join('')}</datalist>
+    <div class="crm-form-row"><label>Rep(s)</label><input class="crm-form-input" id="crmFReps" value="${crmEsc(deal && deal.reps ? deal.reps.join(', ') : '')}" placeholder="e.g. Frank Emanuel, Mike Jones" list="crmRepList" onfocus="crmComboReveal(this)" onblur="crmComboRestore(this)" oninput="this.dataset.crmComboTouched='1'"></div>
+    <datalist id="crmRepList">${crmActorOptions().map(r => `<option value="${crmEsc(r)}">`).join('')}</datalist>
     <div class="crm-form-grid">
       <div class="crm-form-row"><label>Due Date</label><input class="crm-form-input" id="crmFDue" type="date" value="${deal && deal.due_date ? deal.due_date : ''}"></div>
       <div class="crm-form-row"><label>Due Time <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label><input class="crm-form-input" id="crmFDueTime" type="time" value="${deal && deal.due_time ? deal.due_time.slice(0, 5) : ''}"></div>
@@ -2921,7 +2947,7 @@ function openCrmDealModal(id, presetStage) {
         <textarea class="crm-form-textarea crm-activity-add-input" id="crmActivityNoteInput" placeholder="Add a note — a call, a site visit, anything worth logging…" rows="2"></textarea>
         <div class="crm-activity-add-footer">
           <span class="crm-activity-add-actor-label">Logged by</span>
-          <input type="text" class="crm-form-input crm-activity-add-actor" id="crmActivityNoteActor" list="crmActorList" placeholder="Name" value="${crmEsc((deal && deal.reps && deal.reps[0]) || crmGetActingAs())}">
+          <input type="text" class="crm-form-input crm-activity-add-actor" id="crmActivityNoteActor" list="crmActorList" placeholder="Name" value="${crmEsc((deal && deal.reps && deal.reps[0]) || crmGetActingAs())}" onfocus="crmComboReveal(this)" onblur="crmComboRestore(this)" oninput="this.dataset.crmComboTouched='1'">
           <button type="button" class="crm-btn crm-btn-primary" id="crmActivityAddBtn" onclick="crmAddActivityNote()">Add</button>
         </div>
       </div>

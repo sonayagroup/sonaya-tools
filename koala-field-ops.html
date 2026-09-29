@@ -484,7 +484,9 @@ function crewCheckboxesHtml(selectedCsv) {
 /* ============================== KPI CARDS ============================== */
 function renderKpis() {
   const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const curYear = now.getFullYear();
+  const curMonth = now.getMonth();
+  const ym = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
   const monthChecks = state.ppeChecks.filter(c => (c.fo_job_audits && c.fo_job_audits.audit_date || '').startsWith(ym));
   let ok = 0, total = 0;
   monthChecks.forEach(c => PPE_ITEMS.forEach(([key]) => { const v = c[key]; if (v && v !== 'na') { total++; if (v === 'ok') ok++; } }));
@@ -493,7 +495,14 @@ function renderKpis() {
     ? `${ok} of ${total} items OK across ${monthChecks.length} check${monthChecks.length === 1 ? '' : 's'}`
     : 'No PPE checks logged yet this month';
 
-  const monthCallbacks = state.callbacks.filter(c => (c.created_at || '').startsWith(ym));
+  // c.created_at is a Postgres timestamptz (UTC ISO string) — parse it to a Date and
+  // compare LOCAL year/month so callbacks near month boundaries land in the correct
+  // local month, instead of a naive UTC-string-prefix match against a local ym.
+  const monthCallbacks = state.callbacks.filter(c => {
+    if (!c.created_at) return false;
+    const d = new Date(c.created_at);
+    return d.getFullYear() === curYear && d.getMonth() === curMonth;
+  });
   document.getElementById('kpiCallbacks').textContent = String(monthCallbacks.length);
   document.getElementById('kpiCallbacksDetail').textContent = state.callbacks.length
     ? `${state.callbacks.length} total logged all-time`

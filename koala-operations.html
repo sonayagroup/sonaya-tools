@@ -1664,7 +1664,10 @@ function aggregateProposalCohort(allProposals, fromISO, throughISO) {
       const rb = bump(byRep, owner || '(Unassigned)'); rb.sent++; if (outcome !== 'pending') rb[outcome]++;
     }
   });
-  const closeRateOf = b => (b.won + b.lost) > 0 ? b.won / (b.won + b.lost) : null;
+  // Close rate = won / sent (not won / decided) — per Pranav 2026-09-16: still-open estimates should
+  // count against the rate, not be excluded from it, so it isn't inflated early in a week/month when
+  // most of what's been sent hasn't been decided yet. Mirrors koala-sales-tv.html's repFunnelStats().
+  const closeRateOf = b => b.sent > 0 ? b.won / b.sent : null;
   return { cohortSize: cohort.length, overall, closeRate: closeRateOf(overall), bySource, byRep, closeRateOf };
 }
 
@@ -1912,13 +1915,14 @@ function renderSalesTab() {
       revenue: v ? v.revenue : 0,
       invoices: v ? v.invoices : 0,
       sent: c ? c.sent : 0,
+      won: c ? c.won : 0,
       closeRate: c ? cohort.closeRateOf(c) : null,
     };
   }).sort((a, b) => b.revenue - a.revenue);
   document.getElementById('salesSourceTbody').innerHTML = sourceRows.length ? sourceRows.map(s => `<tr>
       <td>${s.name}</td>
       <td>${s.sent || '&mdash;'}</td>
-      <td>${s.closeRate != null ? fmtPct(s.closeRate * 100) : '&mdash;'}</td>
+      <td>${s.closeRate != null ? `${fmtPct(s.closeRate * 100)} <span style="color:var(--text-muted);font-size:11px;">(${s.won}/${s.sent})</span>` : '&mdash;'}</td>
       <td>${fmtMoney(s.revenue)}</td>
       <td>${s.invoices || '&mdash;'}</td>
       <td>${s.invoices ? fmtMoney(s.revenue / s.invoices) : '&mdash;'}</td>
@@ -1935,13 +1939,14 @@ function renderSalesTab() {
       revenue: v ? v.revenue : 0,
       invoices: v ? v.invoiceCount : 0,
       sent: c ? c.sent : 0,
+      won: c ? c.won : 0,
       closeRate: c ? cohort.closeRateOf(c) : null,
     };
   }).sort((a, b) => b.revenue - a.revenue);
   document.getElementById('salesRepTbody').innerHTML = repRows.length ? repRows.map(rp => `<tr>
       <td>${rp.name}</td>
       <td>${rp.sent || '&mdash;'}</td>
-      <td>${rp.closeRate != null ? fmtPct(rp.closeRate * 100) : '&mdash;'}</td>
+      <td>${rp.closeRate != null ? `${fmtPct(rp.closeRate * 100)} <span style="color:var(--text-muted);font-size:11px;">(${rp.won}/${rp.sent})</span>` : '&mdash;'}</td>
       <td>${fmtMoney(rp.revenue)}</td>
       <td>${rp.invoices || '&mdash;'}</td>
       <td>${rp.invoices ? fmtMoney(rp.revenue / rp.invoices) : '&mdash;'}</td>
@@ -2223,6 +2228,13 @@ const CRM_ESTIMATE_ACTIVE = ['Plans Received', 'Takeoff In Process', 'Estimate C
 const CRM_ESTIMATE_OUTCOMES = ['Estimate Lost', 'Estimate Won'];
 const CRM_ACTIVE_STAGES = new Set([...CRM_PROSPECT_ACTIVE, ...CRM_ESTIMATE_ACTIVE]);
 const CRM_ALL_STAGES = [...CRM_PROSPECT_ACTIVE, ...CRM_PROSPECT_OUTCOMES, ...CRM_ESTIMATE_ACTIVE, ...CRM_ESTIMATE_OUTCOMES];
+// Closed/terminal stages a deal can never go stale in — mirrors TERMINAL_STAGES in koala-sales-tv.html
+// and koala-crm-followup-reminder (the daily stale-deal email), both of which intentionally do NOT
+// exclude 'Prospecting On Hold': an on-hold deal is still open, just paused, so it's still eligible to
+// be flagged stale if nobody's touched it in 90+ days (arguably more concerning, not less). Reconciled
+// 2026-09-29 — this file's Stale 90+ Days KPI previously used CRM_ACTIVE_STAGES instead, which excluded
+// On Hold deals and was the 2-vs-1 outlier of the three systems that all claim to share this rule.
+const CRM_TERMINAL_STAGES = new Set([...CRM_PROSPECT_OUTCOMES.filter(s => s !== 'Prospecting On Hold'), ...CRM_ESTIMATE_OUTCOMES]);
 const CRM_STAGE_META = {
   'Prospecting List':        { accent: 'var(--cat-1)' },
   'Prospecting 1st Contact': { accent: 'var(--cat-1)' },
@@ -2345,6 +2357,7 @@ const CRM_ACTIVITY_LABELS = {
   archived: 'Archived',
   restored: 'Restored',
   notes_imported: 'Notes imported',
+  trello_comment: 'Trello comment',
 };
 async function crmRenderActivityPanel(dealId) {
   const el = document.getElementById('crmActivityPanel');
@@ -2977,7 +2990,11 @@ async function renderCrmTab() {
   const activeEstimates = CRM_ESTIMATE_ACTIVE.reduce((s, l) => s + (counts[l] || 0), 0);
   const won = counts['Estimate Won'] || 0, lost = counts['Estimate Lost'] || 0;
   const winRate = (won + lost) ? 100 * won / (won + lost) : null;
-  const activeDeals = crmDeals.filter(d => CRM_ACTIVE_STAGES.has(d.stage));
+  // Stale-90 pool = anything not in a terminal/closed stage (matches koala-sales-tv.html and the
+  // koala-crm-followup-reminder edge function — see CRM_TERMINAL_STAGES comment above), NOT
+  // CRM_ACTIVE_STAGES, so 'Prospecting On Hold' deals are included here even though they're excluded
+  // from the Active Prospects/Estimates counts above.
+  const activeDeals = crmDeals.filter(d => !CRM_TERMINAL_STAGES.has(d.stage));
   const stale90 = activeDeals.filter(d => crmDaysStale(d.last_activity_at) >= 90).length;
   const stale90Pct = activeDeals.length ? 100 * stale90 / activeDeals.length : 0;
   const weightedValue = crmDeals.filter(d => CRM_ESTIMATE_ACTIVE.includes(d.stage)).reduce((s, d) => s + (d.value || 0), 0);

@@ -274,8 +274,18 @@
 
   /* ---- Page 2: Open & Expired Estimates board ---- */
   .est-hero { flex: 1 1 auto; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1.2vw; min-height: 0; }
+  /* Two stacked lists per rep (Open / Expired), each taking half the remaining card height and
+     auto-scrolling independently, so both are always on screen at once. */
+  .est-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; margin-top: 1.4vh; }
+  .est-subhead {
+    display: flex; justify-content: space-between; gap: 8px; font-size: 1.1vh; letter-spacing: 0.1em;
+    text-transform: uppercase; font-weight: 800; padding-bottom: 0.5vh; margin-bottom: 0.2vh; border-bottom: 1px solid var(--gridline);
+  }
+  .est-subhead span:last-child { color: var(--text-muted); font-weight: 700; }
+  .est-subhead-open { color: var(--brand-teal); }
+  .est-subhead-expired { color: var(--status-critical); }
   .est-list {
-    list-style: none; margin: 1.6vh 0 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto;
+    list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto;
     scrollbar-width: thin; scrollbar-color: var(--gridline) transparent;
   }
   .est-list::-webkit-scrollbar { width: 6px; }
@@ -286,7 +296,8 @@
   .est-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-weight: 600; }
   .est-age { flex: 0 0 auto; width: 5ch; text-align: right; color: var(--text-muted); font-weight: 700; }
   .est-value { flex: 0 0 auto; width: 9ch; text-align: right; color: var(--text-secondary); font-weight: 700; }
-  .est-row.est-expired .est-age, .est-row.est-expired .est-name { color: var(--status-critical); }
+  .est-row.est-expired .est-age { color: var(--status-critical); }
+  .est-row.est-expired .est-value { color: var(--text-muted); }
 
   /* ---- Page 3: CRM Pipeline — Progress, Follow-Ups & Updates ---- */
   .crm-hero { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,1fr); gap: 1.2vw; min-height: 0; }
@@ -470,11 +481,10 @@
 
   </div> <!-- /tvPageDashboard -->
 
-  <!-- ---- Page 2: Open & Expired Estimates (Gabriel/Mike 90d, Frank 365d) — added 2026-09-30
-       per Pranav, "more visibility into their estimates and prospecting." Reuses the same
-       allProposalsCache (ServiceMinder Open proposals) already fetched by refreshFunnel() for
-       page 1's close-rate/stale-bid stats — see repEstimatesBoard() below — so this page adds
-       zero extra network calls. ---- -->
+  <!-- ---- Page 2: Open & Expired Estimates (Gabriel/Mike sent in last 90d, Frank last 365d) —
+       added 2026-09-30 per Pranav, "more visibility into their estimates and prospecting." Open vs
+       Expired is ServiceMinder's own proposal status. Reuses allProposalsCache, already fetched by
+       refreshFunnel() for page 1 — see repEstimatesBoard() below — so no extra network calls. ---- -->
   <div class="tv-page" id="tvPageEstimates">
     <div class="cal-section-label">Open &amp; Expired Estimates — Gabriel · Mike · Frank</div>
     <div class="hero est-hero">
@@ -483,18 +493,25 @@
           <div class="rep-top">
             <div class="rep-avatar" style="background:var(--cat-1)">GE</div>
             <div>
-              <div class="rep-period">90-Day Window</div>
+              <div class="rep-period">Sent in Last 90 Days</div>
               <div class="rep-name">Gabriel Espinosa</div>
             </div>
           </div>
           <div class="crm-stats" style="margin-top:1.8vh;">
-            <div class="crm-num-block"><div class="crm-num" data-el="open-count">—</div><div class="crm-num-label">Open &le;90d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="open-count">—</div><div class="crm-num-label">Open</div></div>
             <div class="crm-num-block"><div class="crm-num" data-el="open-value" style="font-size:2vh">—</div><div class="crm-num-label">Open $ Value</div></div>
-            <div class="crm-num-block"><div class="crm-num" data-el="expired-count" style="color:var(--status-critical)">—</div><div class="crm-num-label">Expired &gt;90d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="expired-count" style="color:var(--status-critical)">—</div><div class="crm-num-label">Expired</div></div>
             <div class="crm-num-block"><div class="crm-num" data-el="expired-value" style="font-size:2vh;color:var(--status-critical)">—</div><div class="crm-num-label">Expired $ Value</div></div>
           </div>
         </div>
-        <ul class="est-list" id="estList-gabriel" data-el="est-list"><li class="empty-followups">Loading…</li></ul>
+        <div class="est-section">
+          <div class="est-subhead est-subhead-open"><span>Open — awaiting decision</span><span>oldest first</span></div>
+          <ul class="est-list" id="estOpen-gabriel" data-el="open-list"><li class="empty-followups">Loading…</li></ul>
+        </div>
+        <div class="est-section">
+          <div class="est-subhead est-subhead-expired"><span>Expired in ServiceMinder</span><span>newest first</span></div>
+          <ul class="est-list" id="estExpired-gabriel" data-el="expired-list"><li class="empty-followups">Loading…</li></ul>
+        </div>
       </div>
 
       <div class="card rep-card" id="estCard-mike">
@@ -502,18 +519,25 @@
           <div class="rep-top">
             <div class="rep-avatar" style="background:var(--cat-2)">MJ</div>
             <div>
-              <div class="rep-period">90-Day Window</div>
+              <div class="rep-period">Sent in Last 90 Days</div>
               <div class="rep-name">Mike Jones</div>
             </div>
           </div>
           <div class="crm-stats" style="margin-top:1.8vh;">
-            <div class="crm-num-block"><div class="crm-num" data-el="open-count">—</div><div class="crm-num-label">Open &le;90d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="open-count">—</div><div class="crm-num-label">Open</div></div>
             <div class="crm-num-block"><div class="crm-num" data-el="open-value" style="font-size:2vh">—</div><div class="crm-num-label">Open $ Value</div></div>
-            <div class="crm-num-block"><div class="crm-num" data-el="expired-count" style="color:var(--status-critical)">—</div><div class="crm-num-label">Expired &gt;90d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="expired-count" style="color:var(--status-critical)">—</div><div class="crm-num-label">Expired</div></div>
             <div class="crm-num-block"><div class="crm-num" data-el="expired-value" style="font-size:2vh;color:var(--status-critical)">—</div><div class="crm-num-label">Expired $ Value</div></div>
           </div>
         </div>
-        <ul class="est-list" id="estList-mike" data-el="est-list"><li class="empty-followups">Loading…</li></ul>
+        <div class="est-section">
+          <div class="est-subhead est-subhead-open"><span>Open — awaiting decision</span><span>oldest first</span></div>
+          <ul class="est-list" id="estOpen-mike" data-el="open-list"><li class="empty-followups">Loading…</li></ul>
+        </div>
+        <div class="est-section">
+          <div class="est-subhead est-subhead-expired"><span>Expired in ServiceMinder</span><span>newest first</span></div>
+          <ul class="est-list" id="estExpired-mike" data-el="expired-list"><li class="empty-followups">Loading…</li></ul>
+        </div>
       </div>
 
       <div class="card rep-card" id="estCard-frank">
@@ -521,18 +545,25 @@
           <div class="rep-top">
             <div class="rep-avatar" style="background:var(--cat-3)">FE</div>
             <div>
-              <div class="rep-period">365-Day Window</div>
+              <div class="rep-period">Sent in Last 365 Days</div>
               <div class="rep-name">Frank Emanuel</div>
             </div>
           </div>
           <div class="crm-stats" style="margin-top:1.8vh;">
-            <div class="crm-num-block"><div class="crm-num" data-el="open-count">—</div><div class="crm-num-label">Open &le;365d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="open-count">—</div><div class="crm-num-label">Open</div></div>
             <div class="crm-num-block"><div class="crm-num" data-el="open-value" style="font-size:2vh">—</div><div class="crm-num-label">Open $ Value</div></div>
-            <div class="crm-num-block"><div class="crm-num" data-el="expired-count" style="color:var(--status-critical)">—</div><div class="crm-num-label">Expired &gt;365d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="expired-count" style="color:var(--status-critical)">—</div><div class="crm-num-label">Expired</div></div>
             <div class="crm-num-block"><div class="crm-num" data-el="expired-value" style="font-size:2vh;color:var(--status-critical)">—</div><div class="crm-num-label">Expired $ Value</div></div>
           </div>
         </div>
-        <ul class="est-list" id="estList-frank" data-el="est-list"><li class="empty-followups">Loading…</li></ul>
+        <div class="est-section">
+          <div class="est-subhead est-subhead-open"><span>Open — awaiting decision</span><span>oldest first</span></div>
+          <ul class="est-list" id="estOpen-frank" data-el="open-list"><li class="empty-followups">Loading…</li></ul>
+        </div>
+        <div class="est-section">
+          <div class="est-subhead est-subhead-expired"><span>Expired in ServiceMinder</span><span>newest first</span></div>
+          <ul class="est-list" id="estExpired-frank" data-el="expired-list"><li class="empty-followups">Loading…</li></ul>
+        </div>
       </div>
     </div>
   </div>
@@ -877,54 +908,66 @@
   }
 
   // ---- Page 2: Open & Expired Estimates board (Gabriel/Mike/Frank) ----
-  // Like repOpenPipeline's staleBids, but returns EVERY currently-Open ServiceMinder proposal for
-  // the rep (not just the ones past a threshold), split into "open" (within the rep's own
-  // follow-up window) vs "expired" (past it) — the window itself is a parameter instead of
-  // repOpenPipeline's hard-coded 60-day commercial-only threshold, since Gabriel/Mike's
-  // residential pace (90d) and Frank's commercial pace (365d) are deliberately different per
-  // Pranav. Reuses allProposalsCache — populated by refreshFunnel(), which also calls
-  // renderEstimatesPage() once it's fresh — so this adds no extra network calls. Sorted
-  // oldest-first, same convention as the other bid lists on this page.
+  // Uses ServiceMinder's OWN proposal status — 'Open' (still awaiting a decision) vs 'Expired'
+  // (ServiceMinder aged it out with no answer) — not an age cutoff guessed on this side. The first
+  // version (2026-09-30) only looked at 'Open' proposals and called the old ones "expired," which
+  // hid every real ServiceMinder-Expired estimate entirely; fixed same day per Pranav
+  // ("serviceminder distinguishes between expired and open... show both").
+  //
+  // The per-rep window (90d Gabriel/Mike, 365d Frank — Frank's commercial bids run on a much
+  // longer cycle) is a lookback on the SENT date, applied to both lists alike: "estimates this rep
+  // sent in the last N days that are still open or that expired." Reuses allProposalsCache —
+  // populated by refreshFunnel(), which calls renderEstimatesPage() once it's fresh — so this
+  // adds no extra network calls.
   const ESTIMATE_BOARD_REPS = [
-    { fullName: 'Gabriel Espinosa', key: 'gabriel', expiredAfterDays: 90 },
-    { fullName: 'Mike Jones',       key: 'mike',    expiredAfterDays: 90 },
-    { fullName: 'Frank Emanuel',    key: 'frank',   expiredAfterDays: 365 },
+    { fullName: 'Gabriel Espinosa', key: 'gabriel', windowDays: 90 },
+    { fullName: 'Mike Jones',       key: 'mike',    windowDays: 90 },
+    { fullName: 'Frank Emanuel',    key: 'frank',   windowDays: 365 },
   ];
-  function repEstimatesBoard(fullName, expiredAfterDays) {
+  function repEstimatesBoard(fullName, windowDays) {
     if (!allProposalsCache) return null;
     const todayISO = todayLocalISO();
-    const bids = [];
-    let openCount = 0, openValue = 0, expiredCount = 0, expiredValue = 0;
+    const open = { count: 0, value: 0, bids: [] };
+    const expired = { count: 0, value: 0, bids: [] };
     for (const [v, status, acceptedDate, owner, leadSource, sentDate, name] of allProposalsCache) {
-      if (owner !== fullName || status !== 'Open') continue;
+      if (owner !== fullName || (status !== 'Open' && status !== 'Expired')) continue;
       const ageDays = bidAgeDays(sentDate, todayISO);
+      if (ageDays === null || ageDays < 0 || ageDays > windowDays) continue;
+      const bucket = status === 'Open' ? open : expired;
       const value = Number(v) || 0;
-      const expired = ageDays !== null && ageDays > expiredAfterDays;
-      if (expired) { expiredCount++; expiredValue += value; } else { openCount++; openValue += value; }
-      bids.push({ name: name || '(unnamed)', value, ageDays, expired });
+      bucket.count++; bucket.value += value;
+      bucket.bids.push({ name: name || '(unnamed)', value, ageDays });
     }
-    bids.sort((a, b) => (b.ageDays ?? -1) - (a.ageDays ?? -1));
-    return { openCount, openValue, expiredCount, expiredValue, bids };
+    // Open: oldest first — the one waiting longest for a decision needs the follow-up most.
+    open.bids.sort((a, b) => b.ageDays - a.ageDays);
+    // Expired: newest first — the most recently expired are the most recoverable with a call.
+    expired.bids.sort((a, b) => a.ageDays - b.ageDays);
+    return { open, expired };
+  }
+  function estRowsHtml(bids, isExpired, emptyText) {
+    if (!bids.length) return `<li class="empty-followups">${emptyText}</li>`;
+    return bids.map(b => `
+          <li class="est-row${isExpired ? ' est-expired' : ''}">
+            <span class="est-name">${escapeHtml(b.name)}</span>
+            <span class="est-age">${b.ageDays}d</span>
+            <span class="est-value">${fmtMoney(b.value)}</span>
+          </li>`).join('');
   }
   function renderEstimatesPage() {
     ESTIMATE_BOARD_REPS.forEach(rep => {
       const card = document.getElementById(`estCard-${rep.key}`);
-      const board = repEstimatesBoard(rep.fullName, rep.expiredAfterDays);
+      const board = repEstimatesBoard(rep.fullName, rep.windowDays);
       if (!card || !board) return;
-      el(card, 'open-count').textContent = board.openCount;
-      el(card, 'open-value').textContent = fmtMoney(board.openValue);
-      el(card, 'expired-count').textContent = board.expiredCount;
-      el(card, 'expired-value').textContent = fmtMoney(board.expiredValue);
-      const list = el(card, 'est-list');
-      list.innerHTML = board.bids.length
-        ? board.bids.map(b => `
-          <li class="est-row${b.expired ? ' est-expired' : ''}">
-            <span class="est-name">${escapeHtml(b.name)}</span>
-            <span class="est-age">${b.ageDays != null ? b.ageDays + 'd' : '—'}</span>
-            <span class="est-value">${fmtMoney(b.value)}</span>
-          </li>`).join('')
-        : '<li class="empty-followups">No open estimates 👏</li>';
-      resetAutoscroll(list);
+      el(card, 'open-count').textContent = board.open.count;
+      el(card, 'open-value').textContent = fmtMoney(board.open.value);
+      el(card, 'expired-count').textContent = board.expired.count;
+      el(card, 'expired-value').textContent = fmtMoney(board.expired.value);
+      const openList = el(card, 'open-list');
+      const expiredList = el(card, 'expired-list');
+      openList.innerHTML = estRowsHtml(board.open.bids, false, 'No open estimates in this window');
+      expiredList.innerHTML = estRowsHtml(board.expired.bids, true, 'Nothing expired in this window 👏');
+      resetAutoscroll(openList);
+      resetAutoscroll(expiredList);
     });
   }
 
@@ -1556,7 +1599,7 @@
     // Pages 2 & 3's scrollable lists exist in the static markup from parse time, so they can be
     // armed once up front — resetAutoscroll() (called from each page's render function) restarts
     // the cycle whenever fresh content lands.
-    ['estList-gabriel', 'estList-mike', 'estList-frank', 'followupsFullList', 'updatesList']
+    ['estOpen-gabriel', 'estExpired-gabriel', 'estOpen-mike', 'estExpired-mike', 'estOpen-frank', 'estExpired-frank', 'followupsFullList', 'updatesList']
       .forEach(id => armAutoscroll(document.getElementById(id)));
     showTvPage(0);
     setInterval(rotateTvPage, PAGE_ROTATE_MS);

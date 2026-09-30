@@ -3273,6 +3273,7 @@ function renderConnections() {
       </div>
       <div class="conn-card-actions">
         <button class="btn btn-ghost btn-sm" onclick="syncPlatform('${p.key}')">&#8635; Sync Now</button>
+        ${p.key==='youtube'?`<button class="btn btn-ghost btn-sm" onclick="testYouTubeConnection()">&#9889; Test</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="openPlatformConnectModal('${p.key}')">&#9998; Edit</button>
         <button class="btn btn-danger btn-sm" onclick="disconnectPlatform('${p.key}')">Disconnect</button>
       </div>` : `
@@ -3905,6 +3906,68 @@ async function ensureDriveFilePublic(fileId) {
   }
 }
 
+// Diagnostic: test YouTube connection and token validity
+async function testYouTubeConnection() {
+  const state = loadApiConnections();
+  const yt = state.platforms?.youtube;
+  if (!yt || !yt.access_token) { showToast('YouTube: No access token stored — connect YouTube first', 'error'); return; }
+  showToast('Testing YouTube connection…', 'info');
+  try {
+    // Test 1: Check token validity by listing channels
+    let resp = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true', {
+      headers: { 'Authorization': 'Bearer ' + yt.access_token }
+    });
+    if (resp.status === 401 || resp.status === 403) {
+      showToast('Token expired — attempting refresh…', 'info');
+      const ref = await refreshYouTubeToken();
+      if (!ref.ok) { showToast('YouTube token refresh failed: ' + ref.msg, 'error'); return; }
+      resp = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true', {
+        headers: { 'Authorization': 'Bearer ' + ref.token }
+      });
+    }
+    const data = await resp.json();
+    console.log('[YT Diag] Channel response:', JSON.stringify(data));
+    if (data.error) {
+      showToast(`YouTube API error: ${data.error.message} (code ${data.error.code})`, 'error');
+      console.error('[YT Diag] Error details:', JSON.stringify(data.error));
+      return;
+    }
+    if (!data.items || data.items.length === 0) {
+      showToast('YouTube: Token works but no channel found — make sure the Google account has a YouTube channel', 'error');
+      return;
+    }
+    const ch = data.items[0];
+    showToast(`YouTube connected: ${ch.snippet.title} (${ch.statistics.subscriberCount} subs, ${ch.statistics.videoCount} videos)`, 'success');
+
+    // Test 2: Check Drive API access
+    const driveResp = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+      headers: { 'Authorization': 'Bearer ' + yt.access_token }
+    });
+    const driveData = await driveResp.json();
+    if (driveData.error) {
+      showToast('Drive API: ' + driveData.error.message + ' — re-authorize with drive.readonly scope', 'error');
+    } else {
+      showToast('Drive API: Connected as ' + (driveData.user?.displayName || driveData.user?.emailAddress || 'OK'), 'success');
+    }
+
+    // Test 3: Try listing recent uploads to verify upload API access
+    const uploadsResp = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&forMine=true&type=video&maxResults=5&order=date`, {
+      headers: { 'Authorization': 'Bearer ' + yt.access_token }
+    });
+    const uploadsData = await uploadsResp.json();
+    console.log('[YT Diag] Recent uploads:', JSON.stringify(uploadsData));
+    if (uploadsData.items && uploadsData.items.length > 0) {
+      const titles = uploadsData.items.map(v => v.snippet.title).join(', ');
+      showToast(`Recent uploads found: ${titles}`, 'info');
+    } else {
+      showToast('No recent uploads found on this channel', 'info');
+    }
+  } catch(e) {
+    showToast('YouTube connection test failed: ' + e.message, 'error');
+    console.error('[YT Diag] Exception:', e);
+  }
+}
+
 // Auto-refresh YouTube OAuth token using stored refresh_token + client credentials
 async function refreshYouTubeToken() {
   const state = loadApiConnections();
@@ -4058,7 +4121,10 @@ async function publishPostNow(existingId) {
         if (data.media_type !== 'video' && data.media_type !== 'reel' && data.media_type !== 'short') {
           results.push({ platform: 'YouTube', ok: false, msg: 'YouTube only supports video uploads — set Media Type to Video' }); continue;
         }
-        const ytTitle = data.title || 'Untitled';
+        const isShort = data.media_type === 'short' || data.media_type === 'reel';
+        let ytTitle = data.title || 'Untitled';
+        // YouTube Shorts: add #Shorts to title if not already present
+        if (isShort && !ytTitle.includes('#Shorts')) ytTitle = ytTitle + ' #Shorts';
         const ytDesc = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
         const ytCategory = '22'; // People & Blogs
         const ytSnippetBody = JSON.stringify({
@@ -4091,11 +4157,15 @@ async function publishPostNow(existingId) {
           }
         }
         if (!initResp.ok) {
-          const errData = await initResp.json().catch(()=>({}));
-          results.push({ platform: 'YouTube', ok: false, msg: errData.error?.message || `Upload init failed (HTTP ${initResp.status})` });
+          const errText = await initResp.text().catch(()=>'');
+          console.error('[YT Init] Failed HTTP', initResp.status, errText);
+          let errMsg;
+          try { const ej = JSON.parse(errText); errMsg = ej.error?.message || errText.substring(0,200); } catch(e) { errMsg = errText.substring(0,200); }
+          results.push({ platform: 'YouTube', ok: false, msg: errMsg || `Upload init failed (HTTP ${initResp.status})` });
           continue;
         }
         const uploadUrl = initResp.headers.get('Location');
+        console.log('[YT Init] Success — upload URL obtained, status:', initResp.status);
         if (!uploadUrl) { results.push({ platform: 'YouTube', ok: false, msg: 'No upload URL returned — try again' }); continue; }
         // Step 2: Fetch the video file
         showToast('YouTube: Downloading video from source…', 'info');
@@ -4129,12 +4199,28 @@ async function publishPostNow(existingId) {
           headers: { 'Content-Type': videoBlob.type || 'video/mp4' },
           body: videoBlob
         });
-        const upData = await upResp.json().catch(()=>({}));
-        if (!upResp.ok || upData.error) {
-          results.push({ platform: 'YouTube', ok: false, msg: upData.error?.message || `Upload failed (HTTP ${upResp.status})` });
+        let upData;
+        try {
+          const upText = await upResp.text();
+          console.log('[YT Upload] HTTP status:', upResp.status, 'Response:', upText);
+          upData = JSON.parse(upText);
+        } catch(parseErr) {
+          console.error('[YT Upload] Response parse failed:', parseErr);
+          results.push({ platform: 'YouTube', ok: false, msg: `Upload response invalid (HTTP ${upResp.status}) — check browser console for details` });
           continue;
         }
-        results.push({ platform: 'YouTube', ok: true, msg: 'Video uploaded!', postId: upData.id, url: `https://youtu.be/${upData.id}` });
+        if (!upResp.ok || upData.error) {
+          console.error('[YT Upload] Error response:', JSON.stringify(upData));
+          results.push({ platform: 'YouTube', ok: false, msg: upData.error?.message || `Upload failed (HTTP ${upResp.status}): ${JSON.stringify(upData).substring(0,200)}` });
+          continue;
+        }
+        if (!upData.id) {
+          console.error('[YT Upload] No video ID in response:', JSON.stringify(upData));
+          results.push({ platform: 'YouTube', ok: false, msg: 'Upload completed but YouTube returned no video ID — check console' });
+          continue;
+        }
+        console.log('[YT Upload] Success! Video ID:', upData.id, 'Status:', upData.status?.uploadStatus);
+        results.push({ platform: 'YouTube', ok: true, msg: `Video uploaded! ID: ${upData.id}`, postId: upData.id, url: `https://youtu.be/${upData.id}` });
 
       } else if (key === 'youtube' && !conn.access_token) {
         results.push({ platform: 'YouTube', ok: false, msg: 'Missing OAuth Access Token — click Edit on YouTube in Connections to add one from Google OAuth Playground' });
@@ -4254,7 +4340,9 @@ async function republishToSinglePlatform(postId, platformKey) {
       else if (data.media_type !== 'video' && data.media_type !== 'reel' && data.media_type !== 'short') {
         results.push({ platform: 'YouTube', ok: false, msg: 'YouTube only supports video uploads' });
       } else {
-        const ytTitle = data.title || 'Untitled';
+        const isShort = data.media_type === 'short' || data.media_type === 'reel';
+        let ytTitle = data.title || 'Untitled';
+        if (isShort && !ytTitle.includes('#Shorts')) ytTitle = ytTitle + ' #Shorts';
         const ytDesc = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
         const ytBody = JSON.stringify({ snippet: { title: ytTitle, description: ytDesc, categoryId: '22', tags: (data.hashtags||'').replace(/#/g,'').split(/\s+/).filter(Boolean) }, status: { privacyStatus: 'public', selfDeclaredMadeForKids: false } });
         let initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' }, body: ytBody });
@@ -4288,9 +4376,12 @@ async function republishToSinglePlatform(postId, platformKey) {
             if (videoBlob && results.length === 0) {
               showToast(`YouTube: Uploading ${(videoBlob.size/1048576).toFixed(1)} MB…`, 'info');
               const ur = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': videoBlob.type || 'video/mp4' }, body: videoBlob });
-              const ud = await ur.json().catch(()=>({}));
-              if (!ur.ok || ud.error) { results.push({ platform: 'YouTube', ok: false, msg: ud.error?.message || 'Upload failed' }); }
-              else { results.push({ platform: 'YouTube', ok: true, msg: 'Video uploaded!', url: `https://youtu.be/${ud.id}` }); }
+              let ud;
+              try { const utxt = await ur.text(); console.log('[YT Republish] HTTP:', ur.status, 'Response:', utxt); ud = JSON.parse(utxt); }
+              catch(pe) { console.error('[YT Republish] Parse failed:', pe); results.push({ platform: 'YouTube', ok: false, msg: `Upload response invalid (HTTP ${ur.status})` }); }
+              if (ud && (!ur.ok || ud.error)) { console.error('[YT Republish] Error:', JSON.stringify(ud)); results.push({ platform: 'YouTube', ok: false, msg: ud.error?.message || 'Upload failed' }); }
+              else if (ud && !ud.id) { console.error('[YT Republish] No video ID:', JSON.stringify(ud)); results.push({ platform: 'YouTube', ok: false, msg: 'Upload completed but no video ID returned' }); }
+              else if (ud) { console.log('[YT Republish] Success! ID:', ud.id); results.push({ platform: 'YouTube', ok: true, msg: `Video uploaded! ID: ${ud.id}`, url: `https://youtu.be/${ud.id}` }); }
             }
           }
         }

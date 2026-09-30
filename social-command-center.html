@@ -3231,9 +3231,9 @@ const SOCIAL_PLATFORMS = [
     fields:[{key:'client_key',label:'Client Key',placeholder:'TikTok Client Key'},{key:'client_secret',label:'Client Secret',placeholder:'TikTok Client Secret',type:'password'}] },
   { key:'youtube', label:'YouTube', color:'var(--plat-yt)', hex:'#FF0000', icon:'&#9654;',
     modalTitle:'Connect via Google Cloud Console',
-    desc:'YouTube connects through the YouTube Data API v3. For stats, use an API key. For publishing, get an OAuth token from Google OAuth Playground (developers.google.com/oauthplayground) with youtube.upload + drive.readonly scopes.',
+    desc:'YouTube connects through the YouTube Data API v3. For stats, use an API key. For publishing, get an OAuth token from Google OAuth Playground (developers.google.com/oauthplayground) with youtube.upload + drive.readonly scopes. To enable auto-refresh, add your OAuth Client ID &amp; Secret from Google Cloud Console.',
     oauth:'https://developers.google.com/oauthplayground/',
-    fields:[{key:'api_key',label:'API Key',placeholder:'YouTube Data API v3 key (for stats)'},{key:'channel_id',label:'Channel ID',placeholder:'e.g. UCxxxxxxxxxxxxxxxxxxxxxxx'},{key:'access_token',label:'OAuth Access Token',placeholder:'From Google OAuth Playground (for publishing)',type:'password'}] },
+    fields:[{key:'api_key',label:'API Key',placeholder:'YouTube Data API v3 key (for stats)'},{key:'channel_id',label:'Channel ID',placeholder:'e.g. UCxxxxxxxxxxxxxxxxxxxxxxx'},{key:'access_token',label:'OAuth Access Token',placeholder:'From Google OAuth Playground (for publishing)',type:'password'},{key:'refresh_token',label:'Refresh Token',placeholder:'From OAuth Playground Step 2 (for auto-refresh)',type:'password'},{key:'oauth_client_id',label:'OAuth Client ID (for auto-refresh)',placeholder:'From Google Cloud Console → Credentials',optional:true},{key:'oauth_client_secret',label:'OAuth Client Secret (for auto-refresh)',placeholder:'From Google Cloud Console → Credentials',type:'password',optional:true}] },
 ];
 const API_CONN_KEY = 'sm_api_connections';
 
@@ -3591,7 +3591,7 @@ function savePlatformCredentials(key) {
   p.fields.forEach(f => {
     const el = document.getElementById(`conn-field-${f.key}`);
     const v = el ? el.value.trim() : '';
-    if (!v) missingRequired = true;
+    if (!v && !f.optional) missingRequired = true;
     data[f.key] = v;
   });
   const handleEl = document.getElementById('conn-field-handle');
@@ -3825,7 +3825,21 @@ function openPostModal(postId, prefillDate, isQuickIdea) {
   html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Status</label><select class="form-select" name="status">${STATUS_ORDER.map(s=>`<option value="${s}" ${post&&post.status===s?'selected':(!post&&s==='idea'?'selected':'')}>${STATUS_META[s].label}</option>`).join('')}<option value="rejected" ${post&&post.status==='rejected'?'selected':''}>Rejected</option></select></div><div class="form-group"><label class="form-label">Assigned To</label><select class="form-select" name="created_by" id="post-assigned-to"><option value="">— None —</option>${S.members.filter(m => !m.brand_id || m.brand_id === brandId).map(m=>`<option value="${m.id}" ${post&&post.created_by===m.id?'selected':''}>${m.name}</option>`).join('')}</select></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Crew / Team Members</label><div id="crew-members-wrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0"></div></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" name="notes" placeholder="Internal notes...">${escHtml(post?.notes||'')}</textarea></div></div>`;
-  html += `</form></div><div class="modal-footer">${isEdit?`<button class="btn btn-danger btn-sm" onclick="deletePost('${post.id}')">Delete</button>`:''} ${isEdit?`<button class="btn btn-sm" onclick="generateBrief('${post.id}')" style="background:var(--accent);color:#fff;border:none">&#128203; Brief</button>`:''}<div style="flex:1"></div><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePost('${post?.id||''}')">${isEdit?'Update':'Create'} Post</button><button class="btn btn-sm" onclick="publishPostNow('${post?.id||''}')" style="background:#16a34a;color:#fff;border:none;margin-left:6px" title="Save and publish directly to connected platforms">&#9889; Publish Now</button></div>`;
+  // Build "Republish to…" dropdown for already-posted content
+  let republishHtml = '';
+  if (isEdit && post.status === 'posted') {
+    const connState = loadApiConnections();
+    const connectedPlatforms = S.platforms.filter(p => {
+      const k = p.name.toLowerCase();
+      return connState.platforms[k] && connState.platforms[k].connected;
+    });
+    if (connectedPlatforms.length > 0) {
+      republishHtml = `<div style="position:relative;display:inline-block" id="republish-wrap"><button class="btn btn-sm" onclick="document.getElementById('republish-dropdown').hidden=!document.getElementById('republish-dropdown').hidden" style="background:#7c3aed;color:#fff;border:none;margin-left:6px">&#128260; Republish to&hellip;</button><div id="republish-dropdown" hidden style="position:absolute;bottom:100%;left:0;margin-bottom:4px;background:var(--surface-1);border:1px solid var(--surface-border);border-radius:var(--r-sm);box-shadow:var(--shadow-md);min-width:160px;z-index:100;padding:4px 0">` +
+        connectedPlatforms.map(p => `<button class="btn btn-ghost btn-sm" style="width:100%;text-align:left;border-radius:0;padding:8px 12px;font-size:12px" onclick="republishToSinglePlatform('${post.id}','${p.name.toLowerCase()}');document.getElementById('republish-dropdown').hidden=true"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${PLAT_HEX[p.name]||'#6366f1'};margin-right:6px"></span>${p.name}</button>`).join('') +
+        `</div></div>`;
+    }
+  }
+  html += `</form></div><div class="modal-footer">${isEdit?`<button class="btn btn-danger btn-sm" onclick="deletePost('${post.id}')">Delete</button>`:''} ${isEdit?`<button class="btn btn-sm" onclick="generateBrief('${post.id}')" style="background:var(--accent);color:#fff;border:none">&#128203; Brief</button>`:''}<div style="flex:1"></div><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePost('${post?.id||''}')">${isEdit?'Update':'Create'} Post</button><button class="btn btn-sm" onclick="publishPostNow('${post?.id||''}')" style="background:#16a34a;color:#fff;border:none;margin-left:6px" title="Save and publish directly to connected platforms">&#9889; Publish Now</button>${republishHtml}</div>`;
   panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
   // Render crew members filtered by initial brand
   renderCrewForBrand(brandId, post);
@@ -3886,6 +3900,32 @@ async function ensureDriveFilePublic(fileId) {
     // We don't have a dedicated Google token stored, so we'll skip auto-sharing
     // and rely on the confirm=t parameter + public sharing done manually or via MCP
     return { ok: true, msg: 'Using confirm=t bypass' };
+  } catch (e) {
+    return { ok: false, msg: e.message };
+  }
+}
+
+// Auto-refresh YouTube OAuth token using stored refresh_token + client credentials
+async function refreshYouTubeToken() {
+  const state = loadApiConnections();
+  const yt = state.platforms?.youtube;
+  if (!yt || !yt.refresh_token) return { ok: false, msg: 'No refresh token stored' };
+  if (!yt.oauth_client_id || !yt.oauth_client_secret) return { ok: false, msg: 'OAuth Client ID & Secret required for auto-refresh — add them in YouTube connection settings' };
+  try {
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(yt.refresh_token)}&client_id=${encodeURIComponent(yt.oauth_client_id)}&client_secret=${encodeURIComponent(yt.oauth_client_secret)}`
+    });
+    const data = await resp.json();
+    if (data.access_token) {
+      yt.access_token = data.access_token;
+      yt.token_refreshed_at = new Date().toISOString();
+      saveApiConnections(state);
+      showToast('YouTube token refreshed automatically', 'success');
+      return { ok: true, token: data.access_token };
+    }
+    return { ok: false, msg: data.error_description || data.error || 'Refresh failed' };
   } catch (e) {
     return { ok: false, msg: e.message };
   }
@@ -4012,7 +4052,7 @@ async function publishPostNow(existingId) {
 
       } else if (key === 'youtube' && conn.access_token) {
         // YouTube Data API v3 — resumable video upload
-        const ytToken = conn.access_token;
+        let ytToken = conn.access_token;
         const channelId = conn.channel_id || '';
         if (!data.media_url) { results.push({ platform: 'YouTube', ok: false, msg: 'Media URL required — add a video URL to upload' }); continue; }
         if (data.media_type !== 'video' && data.media_type !== 'reel' && data.media_type !== 'short') {
@@ -4021,19 +4061,34 @@ async function publishPostNow(existingId) {
         const ytTitle = data.title || 'Untitled';
         const ytDesc = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
         const ytCategory = '22'; // People & Blogs
-        // Step 1: Initiate resumable upload
-        const initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+        const ytSnippetBody = JSON.stringify({
+          snippet: { title: ytTitle, description: ytDesc, categoryId: ytCategory, tags: (data.hashtags||'').replace(/#/g,'').split(/\s+/).filter(Boolean) },
+          status: { privacyStatus: 'public', selfDeclaredMadeForKids: false }
+        });
+        // Step 1: Initiate resumable upload (with auto-refresh on 401)
+        let initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
           method: 'POST',
           headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            snippet: { title: ytTitle, description: ytDesc, categoryId: ytCategory, tags: (data.hashtags||'').replace(/#/g,'').split(/\s+/).filter(Boolean) },
-            status: { privacyStatus: 'public', selfDeclaredMadeForKids: false }
-          })
+          body: ytSnippetBody
         });
         if (initResp.status === 401 || initResp.status === 403) {
-          const errData = await initResp.json().catch(()=>({}));
-          results.push({ platform: 'YouTube', ok: false, msg: errData.error?.message || 'Auth failed — token may be expired. Get a new one from OAuth Playground.' });
-          continue;
+          // Try auto-refresh
+          showToast('YouTube token expired — attempting auto-refresh…', 'info');
+          const refreshResult = await refreshYouTubeToken();
+          if (refreshResult.ok) {
+            ytToken = refreshResult.token;
+            conn.access_token = ytToken; // update in-memory for Drive fetch later
+            initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' },
+              body: ytSnippetBody
+            });
+          }
+          if (initResp.status === 401 || initResp.status === 403) {
+            const errData = await initResp.json().catch(()=>({}));
+            results.push({ platform: 'YouTube', ok: false, msg: errData.error?.message || 'Auth failed — token expired. ' + (refreshResult.ok ? 'Refresh succeeded but still denied.' : refreshResult.msg) });
+            continue;
+          }
         }
         if (!initResp.ok) {
           const errData = await initResp.json().catch(()=>({}));
@@ -4110,6 +4165,150 @@ async function publishPostNow(existingId) {
   }
 
   closeModal(); await loadAll(); render();
+}
+
+// Republish an already-posted piece of content to a single platform
+async function republishToSinglePlatform(postId, platformKey) {
+  const post = S.posts.find(p => p.id === postId);
+  if (!post) { showToast('Post not found', 'error'); return; }
+
+  const state = loadApiConnections();
+  const conn = state.platforms[platformKey];
+  if (!conn || !conn.connected) { showToast(`${platformKey} is not connected`, 'error'); return; }
+
+  // Build data object from the saved post
+  const data = {
+    title: post.title,
+    caption: post.caption,
+    hashtags: post.hashtags,
+    media_url: post.media_url,
+    media_type: post.media_type,
+    platform_ids: post.platform_ids
+  };
+
+  const platLabel = platformKey.charAt(0).toUpperCase() + platformKey.slice(1);
+  showToast(`Republishing to ${platLabel}…`, 'info');
+
+  // Disable the republish dropdown
+  const wrap = document.getElementById('republish-wrap');
+  if (wrap) wrap.style.pointerEvents = 'none';
+
+  const results = [];
+  try {
+    if (platformKey === 'instagram' && conn.user_access_token && conn.ig_account_id) {
+      const token = conn.user_access_token;
+      const igId = conn.ig_account_id;
+      const caption = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+      if (!data.media_url) { results.push({ platform: 'Instagram', ok: false, msg: 'Media URL required' }); }
+      else {
+        const mediaUrl = toDirectMediaUrl(data.media_url);
+        let containerParams = `caption=${encodeURIComponent(caption)}`;
+        const isVideo = data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short';
+        if (isVideo) { containerParams += `&media_type=REELS&video_url=${encodeURIComponent(mediaUrl)}`; }
+        else { containerParams += `&image_url=${encodeURIComponent(mediaUrl)}`; }
+        const createResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
+        const createData = await createResp.json();
+        if (createData.error) { results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); }
+        else {
+          const containerId = createData.id;
+          if (isVideo) {
+            let ready = false;
+            for (let i = 0; i < 12; i++) { await new Promise(r => setTimeout(r, 5000)); const sr = await fetch(`https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`); const sd = await sr.json(); if (sd.status_code === 'FINISHED') { ready = true; break; } if (sd.status_code === 'ERROR') { results.push({ platform: 'Instagram', ok: false, msg: 'Video processing failed' }); break; } }
+            if (!ready && results.length === 0) { results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing — try again' }); }
+          }
+          if (results.length === 0) {
+            const pubResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media_publish?creation_id=${containerId}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
+            const pubData = await pubResp.json();
+            if (pubData.error) { results.push({ platform: 'Instagram', ok: false, msg: pubData.error.message }); }
+            else { results.push({ platform: 'Instagram', ok: true, msg: 'Republished!' }); }
+          }
+        }
+      }
+
+    } else if (platformKey === 'facebook' && conn.user_access_token && conn.page_id) {
+      const token = conn.user_access_token;
+      const pageId = conn.fb_page_id || conn.page_id;
+      const pageResp = await fetch(`https://graph.facebook.com/v18.0/${encodeURIComponent(pageId)}?fields=access_token&access_token=${encodeURIComponent(token)}`);
+      const pageInfo = await pageResp.json();
+      if (!pageInfo.access_token) { results.push({ platform: 'Facebook', ok: false, msg: 'Could not get Page access token' }); }
+      else {
+        const pageToken = pageInfo.access_token;
+        const message = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+        let fbResp;
+        if (data.media_url && (data.media_type === 'image' || data.media_type === 'carousel' || !data.media_type)) {
+          const photoUrl = toDirectMediaUrl(data.media_url);
+          fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/photos?message=${encodeURIComponent(message)}&url=${encodeURIComponent(photoUrl)}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
+        } else if (data.media_url && (data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short')) {
+          fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos?description=${encodeURIComponent(message)}&file_url=${encodeURIComponent(toDirectMediaUrl(data.media_url))}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
+        } else {
+          fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/feed?message=${encodeURIComponent(message)}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
+        }
+        const fbData = await fbResp.json();
+        if (fbData.error) { results.push({ platform: 'Facebook', ok: false, msg: fbData.error.message }); }
+        else { results.push({ platform: 'Facebook', ok: true, msg: 'Republished!' }); }
+      }
+
+    } else if (platformKey === 'youtube' && conn.access_token) {
+      let ytToken = conn.access_token;
+      if (!data.media_url) { results.push({ platform: 'YouTube', ok: false, msg: 'Media URL required' }); }
+      else if (data.media_type !== 'video' && data.media_type !== 'reel' && data.media_type !== 'short') {
+        results.push({ platform: 'YouTube', ok: false, msg: 'YouTube only supports video uploads' });
+      } else {
+        const ytTitle = data.title || 'Untitled';
+        const ytDesc = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+        const ytBody = JSON.stringify({ snippet: { title: ytTitle, description: ytDesc, categoryId: '22', tags: (data.hashtags||'').replace(/#/g,'').split(/\s+/).filter(Boolean) }, status: { privacyStatus: 'public', selfDeclaredMadeForKids: false } });
+        let initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' }, body: ytBody });
+        if (initResp.status === 401 || initResp.status === 403) {
+          const ref = await refreshYouTubeToken();
+          if (ref.ok) { ytToken = ref.token; initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' }, body: ytBody }); }
+          if (initResp.status === 401 || initResp.status === 403) { results.push({ platform: 'YouTube', ok: false, msg: 'Auth failed — token expired' }); }
+        }
+        if (results.length === 0) {
+          if (!initResp.ok) { const e = await initResp.json().catch(()=>({})); results.push({ platform: 'YouTube', ok: false, msg: e.error?.message || 'Upload init failed' }); }
+          else {
+            const uploadUrl = initResp.headers.get('Location');
+            showToast('YouTube: Downloading video…', 'info');
+            let videoBlob;
+            const driveId = extractDriveFileId(data.media_url);
+            if (driveId) {
+              let dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } });
+              if (!dr.ok) dr = await fetch(toDirectMediaUrl(data.media_url));
+              if (!dr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video' }); }
+              else { videoBlob = await dr.blob(); }
+            } else {
+              const mr = await fetch(data.media_url);
+              if (!mr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video' }); }
+              else { videoBlob = await mr.blob(); }
+            }
+            if (videoBlob && results.length === 0) {
+              showToast(`YouTube: Uploading ${(videoBlob.size/1048576).toFixed(1)} MB…`, 'info');
+              const ur = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': videoBlob.type || 'video/mp4' }, body: videoBlob });
+              const ud = await ur.json().catch(()=>({}));
+              if (!ur.ok || ud.error) { results.push({ platform: 'YouTube', ok: false, msg: ud.error?.message || 'Upload failed' }); }
+              else { results.push({ platform: 'YouTube', ok: true, msg: 'Video uploaded!', url: `https://youtu.be/${ud.id}` }); }
+            }
+          }
+        }
+      }
+
+    } else {
+      results.push({ platform: platLabel, ok: false, msg: 'Publishing not supported or missing credentials for this platform' });
+    }
+  } catch (e) {
+    results.push({ platform: platLabel, ok: false, msg: e.message });
+  }
+
+  // Show results
+  if (wrap) wrap.style.pointerEvents = '';
+  const s = results.filter(r => r.ok);
+  const f = results.filter(r => !r.ok);
+  if (s.length > 0) {
+    showToast(`Republished to ${platLabel}!`, 'success');
+    logAudit('republish','post',postId,post.title,{platform:platLabel});
+  }
+  if (f.length > 0) {
+    f.forEach(r => showToast(`${r.platform}: ${r.msg}`, 'error'));
+  }
 }
 
 function renderHashtagSuggestions(brandId) {

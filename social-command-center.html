@@ -3231,9 +3231,9 @@ const SOCIAL_PLATFORMS = [
     fields:[{key:'client_key',label:'Client Key',placeholder:'TikTok Client Key'},{key:'client_secret',label:'Client Secret',placeholder:'TikTok Client Secret',type:'password'}] },
   { key:'youtube', label:'YouTube', color:'var(--plat-yt)', hex:'#FF0000', icon:'&#9654;',
     modalTitle:'Connect via Google Cloud Console',
-    desc:'YouTube connects through the YouTube Data API v3. Enable the API in Google Cloud Console and generate an API key. Paste your Channel ID (starts with UC…) to pull real stats.',
-    oauth:'https://accounts.google.com/o/oauth2/v2/auth?client_id={CLIENT_ID}&redirect_uri={REDIRECT}&scope=https://www.googleapis.com/auth/youtube.readonly%20https://www.googleapis.com/auth/youtube.upload&response_type=code',
-    fields:[{key:'api_key',label:'API Key',placeholder:'YouTube Data API v3 key'},{key:'channel_id',label:'Channel ID',placeholder:'e.g. UCxxxxxxxxxxxxxxxxxxxxxxx'}] },
+    desc:'YouTube connects through the YouTube Data API v3. For stats, use an API key. For publishing, get an OAuth token from Google OAuth Playground (developers.google.com/oauthplayground) with youtube.upload + drive.readonly scopes.',
+    oauth:'https://developers.google.com/oauthplayground/',
+    fields:[{key:'api_key',label:'API Key',placeholder:'YouTube Data API v3 key (for stats)'},{key:'channel_id',label:'Channel ID',placeholder:'e.g. UCxxxxxxxxxxxxxxxxxxxxxxx'},{key:'access_token',label:'OAuth Access Token',placeholder:'From Google OAuth Playground (for publishing)',type:'password'}] },
 ];
 const API_CONN_KEY = 'sm_api_connections';
 
@@ -3901,22 +3901,47 @@ async function publishPostNow(existingId) {
   if (!data.caption) { showToast('Caption is required to publish','error'); return; }
   if (!platformIds.length) { showToast('Select at least one platform to publish to','error'); return; }
 
+  // Prevent double-click — disable the button
+  const pubBtn = document.querySelector('[onclick*="publishPostNow"]');
+  if (pubBtn) { if (pubBtn.disabled) return; pubBtn.disabled = true; pubBtn.textContent = '⏳ Publishing…'; }
+
+  showToast('Publishing — please wait…','info');
+
   // Save post as draft first (don't mark posted until API succeeds)
   data.status = 'draft';
   try {
-    if (existingId) await sb.from('sm_posts').update(data).eq('id',existingId);
-    else { const ins = await sb.from('sm_posts').insert(data).select('id').single(); existingId = ins.data?.id; }
+    let saveResult;
+    if (existingId) { saveResult = await sb.from('sm_posts').update(data).eq('id',existingId); }
+    else { saveResult = await sb.from('sm_posts').insert(data).select('id').single(); existingId = saveResult.data?.id; }
+    if (saveResult.error) { showToast('Error saving post: '+saveResult.error.message,'error'); return; }
   } catch(e) { showToast('Error saving post: '+e.message,'error'); return; }
 
   // Attempt to publish to each selected platform via API
   const state = loadApiConnections();
   const platNames = platformIds.map(id => { const p = platById(id); return p ? p.name : ''; }).filter(Boolean);
+  if (!platNames.length) { showToast('Could not resolve selected platforms — try refreshing the page.','error'); return; }
   const results = [];
 
   for (const platName of platNames) {
     const key = platName.toLowerCase();
     const conn = state.platforms[key];
-    if (!conn || !conn.connected) { results.push({ platform: platName, ok: false, msg: 'Not connected' }); continue; }
+    if (!conn || !conn.connected) { results.push({ platform: platName, ok: false, msg: 'Not connected — go to Connections tab and connect this platform' }); continue; }
+
+    // Check for missing credentials before attempting API calls
+    if (key === 'instagram' && (!conn.user_access_token || !conn.ig_account_id)) {
+      const missing = [];
+      if (!conn.user_access_token) missing.push('Access Token');
+      if (!conn.ig_account_id) missing.push('IG Account ID');
+      results.push({ platform: 'Instagram', ok: false, msg: `Missing ${missing.join(' & ')} — click Edit on Instagram in Connections to add` });
+      continue;
+    }
+    if (key === 'facebook' && (!conn.user_access_token || !conn.page_id)) {
+      const missing = [];
+      if (!conn.user_access_token) missing.push('Access Token');
+      if (!conn.page_id) missing.push('Page ID');
+      results.push({ platform: 'Facebook', ok: false, msg: `Missing ${missing.join(' & ')} — click Edit on Facebook in Connections to add` });
+      continue;
+    }
 
     try {
       if (key === 'instagram' && conn.user_access_token && conn.ig_account_id) {
@@ -3985,9 +4010,79 @@ async function publishPostNow(existingId) {
         if (fbData.error) { results.push({ platform: 'Facebook', ok: false, msg: fbData.error.message }); continue; }
         results.push({ platform: 'Facebook', ok: true, msg: 'Published successfully', postId: fbData.id || fbData.post_id });
 
-      } else if (key === 'youtube') {
-        // YouTube publishing requires OAuth token with upload scope — not yet implemented
-        results.push({ platform: 'YouTube', ok: false, msg: 'YouTube video upload coming soon — requires OAuth setup with upload scope' });
+      } else if (key === 'youtube' && conn.access_token) {
+        // YouTube Data API v3 — resumable video upload
+        const ytToken = conn.access_token;
+        const channelId = conn.channel_id || '';
+        if (!data.media_url) { results.push({ platform: 'YouTube', ok: false, msg: 'Media URL required — add a video URL to upload' }); continue; }
+        if (data.media_type !== 'video' && data.media_type !== 'reel' && data.media_type !== 'short') {
+          results.push({ platform: 'YouTube', ok: false, msg: 'YouTube only supports video uploads — set Media Type to Video' }); continue;
+        }
+        const ytTitle = data.title || 'Untitled';
+        const ytDesc = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+        const ytCategory = '22'; // People & Blogs
+        // Step 1: Initiate resumable upload
+        const initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            snippet: { title: ytTitle, description: ytDesc, categoryId: ytCategory, tags: (data.hashtags||'').replace(/#/g,'').split(/\s+/).filter(Boolean) },
+            status: { privacyStatus: 'public', selfDeclaredMadeForKids: false }
+          })
+        });
+        if (initResp.status === 401 || initResp.status === 403) {
+          const errData = await initResp.json().catch(()=>({}));
+          results.push({ platform: 'YouTube', ok: false, msg: errData.error?.message || 'Auth failed — token may be expired. Get a new one from OAuth Playground.' });
+          continue;
+        }
+        if (!initResp.ok) {
+          const errData = await initResp.json().catch(()=>({}));
+          results.push({ platform: 'YouTube', ok: false, msg: errData.error?.message || `Upload init failed (HTTP ${initResp.status})` });
+          continue;
+        }
+        const uploadUrl = initResp.headers.get('Location');
+        if (!uploadUrl) { results.push({ platform: 'YouTube', ok: false, msg: 'No upload URL returned — try again' }); continue; }
+        // Step 2: Fetch the video file
+        showToast('YouTube: Downloading video from source…', 'info');
+        let videoBlob;
+        try {
+          const driveId = extractDriveFileId(data.media_url);
+          if (driveId) {
+            // Try Google Drive API with OAuth token first (needs drive.readonly scope)
+            let driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, {
+              headers: { 'Authorization': 'Bearer ' + ytToken }
+            });
+            if (!driveResp.ok) {
+              // Fallback: try public download URL
+              driveResp = await fetch(toDirectMediaUrl(data.media_url));
+            }
+            if (!driveResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from Google Drive — make sure the file is shared publicly or the OAuth token has drive.readonly scope' }); continue; }
+            videoBlob = await driveResp.blob();
+          } else {
+            const mediaResp = await fetch(data.media_url);
+            if (!mediaResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from URL' }); continue; }
+            videoBlob = await mediaResp.blob();
+          }
+        } catch(dlErr) {
+          results.push({ platform: 'YouTube', ok: false, msg: 'Video download failed: ' + dlErr.message });
+          continue;
+        }
+        // Step 3: Upload video to YouTube
+        showToast(`YouTube: Uploading ${(videoBlob.size/1048576).toFixed(1)} MB video…`, 'info');
+        const upResp = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': videoBlob.type || 'video/mp4' },
+          body: videoBlob
+        });
+        const upData = await upResp.json().catch(()=>({}));
+        if (!upResp.ok || upData.error) {
+          results.push({ platform: 'YouTube', ok: false, msg: upData.error?.message || `Upload failed (HTTP ${upResp.status})` });
+          continue;
+        }
+        results.push({ platform: 'YouTube', ok: true, msg: 'Video uploaded!', postId: upData.id, url: `https://youtu.be/${upData.id}` });
+
+      } else if (key === 'youtube' && !conn.access_token) {
+        results.push({ platform: 'YouTube', ok: false, msg: 'Missing OAuth Access Token — click Edit on YouTube in Connections to add one from Google OAuth Playground' });
 
       } else {
         results.push({ platform: platName, ok: false, msg: 'Publishing not yet supported or missing credentials' });
@@ -4001,16 +4096,17 @@ async function publishPostNow(existingId) {
   const successes = results.filter(r => r.ok);
   const failures = results.filter(r => !r.ok);
   if (successes.length > 0) {
-    try {
-      await sb.from('sm_posts').update({ status: 'posted', posted_at: new Date().toISOString() }).eq('id', existingId);
-    } catch(e) { /* post published but status update failed — non-critical */ }
+    const upd = await sb.from('sm_posts').update({ status: 'posted', posted_at: new Date().toISOString() }).eq('id', existingId);
+    if (upd.error) console.warn('Post published but status update failed:', upd.error.message);
     showToast(`Published to: ${successes.map(r=>r.platform).join(', ')}`, 'success');
     logAudit('publish','post',existingId,data.title,{platforms:successes.map(r=>r.platform)});
   }
   if (failures.length > 0) {
-    const failMsg = `Failed: ${failures.map(r=>r.platform+' — '+r.msg).join('; ')}`;
-    if (successes.length === 0) showToast(failMsg + '. Post saved as draft — nothing was published.', 'error');
-    else showToast(failMsg, 'error');
+    failures.forEach(f => showToast(`${f.platform}: ${f.msg}`, 'error'));
+    if (successes.length === 0) showToast('Nothing was published — post saved as draft.', 'error');
+  }
+  if (results.length === 0) {
+    showToast('No platforms were processed — check your connections.', 'error');
   }
 
   closeModal(); await loadAll(); render();
@@ -5375,10 +5471,9 @@ function generateCaptionVariations({ brandName, platformName, pillarName, title,
       if (v === 0) { const trimBody = bodyLine.split('. ').slice(0,2).join('. ').replace(/\.+$/,'') + '.'; text = `${hookLine}\n\n${trimBody}\n\n${ctaLine}`; }
     }
 
-    // Apply tone BEFORE hashtags
+    // Apply tone (hashtags are added manually via the Hashtags section, not auto-appended)
     text = applyTone(text, tone);
-    text = text.trim() + '\n\n' + tags;
-    variations.push(text);
+    variations.push(text.trim());
   }
   return variations;
 }

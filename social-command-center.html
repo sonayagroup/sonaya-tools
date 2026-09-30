@@ -3231,7 +3231,7 @@ const SOCIAL_PLATFORMS = [
     fields:[{key:'client_key',label:'Client Key',placeholder:'TikTok Client Key'},{key:'client_secret',label:'Client Secret',placeholder:'TikTok Client Secret',type:'password'}] },
   { key:'youtube', label:'YouTube', color:'var(--plat-yt)', hex:'#FF0000', icon:'&#9654;',
     modalTitle:'Connect via Google Cloud Console',
-    desc:'YouTube connects through the YouTube Data API v3. For stats, use an API key. For publishing, get an OAuth token from Google OAuth Playground (developers.google.com/oauthplayground) with youtube.upload + drive.readonly scopes. To enable auto-refresh, add your OAuth Client ID &amp; Secret from Google Cloud Console.',
+    desc:'YouTube connects through the YouTube Data API v3. For stats, use an API key. For publishing, click "Authorize YouTube Channel" below to connect directly (supports brand accounts). Or get an OAuth token from Google OAuth Playground with youtube.upload scope. Add your OAuth Client ID &amp; Secret from Google Cloud Console.',
     oauth:'https://developers.google.com/oauthplayground/',
     fields:[{key:'api_key',label:'API Key',placeholder:'YouTube Data API v3 key (for stats)'},{key:'channel_id',label:'Channel ID',placeholder:'e.g. UCxxxxxxxxxxxxxxxxxxxxxxx'},{key:'access_token',label:'OAuth Access Token',placeholder:'From Google OAuth Playground (for publishing)',type:'password'},{key:'refresh_token',label:'Refresh Token',placeholder:'From OAuth Playground Step 2 (for auto-refresh)',type:'password'},{key:'oauth_client_id',label:'OAuth Client ID (for auto-refresh)',placeholder:'From Google Cloud Console → Credentials',optional:true},{key:'oauth_client_secret',label:'OAuth Client Secret (for auto-refresh)',placeholder:'From Google Cloud Console → Credentials',type:'password',optional:true}] },
 ];
@@ -3295,7 +3295,7 @@ function renderConnections() {
     </div>
     ${driveConnected ? `<div class="conn-card-body">
       <div class="conn-detail-row"><span>Label</span><span>${escHtml(drive.folder_name||'My Drive')}</span></div>
-      <div class="conn-detail-row"><span>Scope</span><span style="font-weight:400;font-size:10px">drive.readonly</span></div>
+      <div class="conn-detail-row"><span>Scope</span><span style="font-weight:400;font-size:10px">youtube.upload, youtube.readonly</span></div>
       <div class="conn-detail-row"><span>Picker</span><span style="font-weight:400;font-size:10px;color:var(--success)">&#10003; Google Picker API</span></div>
     </div>
     <div class="conn-card-actions">
@@ -3534,7 +3534,7 @@ function openPlatformConnectModal(key) {
         <li>Paste both below and save</li>
       </ol>
     </div>`;
-    html += `<div class="oauth-url-box" style="font-size:11px">Scope: https://www.googleapis.com/auth/drive.readonly<br>Authorized origin: https://tools.sonayagroup.com</div>`;
+    html += `<div class="oauth-url-box" style="font-size:11px">Scopes: youtube.upload, youtube.readonly<br>Authorized origin: https://tools.sonayagroup.com</div>`;
     html += `<div class="form-row full"><div class="form-group"><label class="form-label">OAuth 2.0 Client ID <span style="color:var(--danger)">*</span></label><input class="form-input" id="drive-client-id" value="${escAttr(drive.client_id||'')}" placeholder="123456789-abcdef.apps.googleusercontent.com"></div></div>`;
     html += `<div class="form-row full"><div class="form-group"><label class="form-label">API Key <span style="color:var(--danger)">*</span></label><input class="form-input" id="drive-api-key" value="${escAttr(drive.api_key||'')}" placeholder="AIzaSy..."></div></div>`;
     html += `<div class="form-row full"><div class="form-group"><label class="form-label">Display Name (optional)</label><input class="form-input" id="drive-folder-name" value="${escAttr(drive.folder_name||'Sonaya Group Media')}" placeholder="e.g. Sonaya Group Media"></div></div>`;
@@ -3933,7 +3933,7 @@ function startYouTubeOAuth() {
     if (clientSecret) state.platforms.youtube.oauth_client_secret = clientSecret;
     saveApiConnections(state);
   }
-  const scopes = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/drive.readonly';
+  const scopes = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(YT_OAUTH_REDIRECT)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent`;
   window.location.href = authUrl;
 }
@@ -4067,7 +4067,7 @@ async function testYouTubeConnection() {
     });
     const driveData = await driveResp.json();
     if (driveData.error) {
-      showToast('Drive API: ' + driveData.error.message + ' — re-authorize with drive.readonly scope', 'error');
+      showToast('Drive API: ' + driveData.error.message + ' — check your Google Drive connection or make the file publicly shared', 'error');
     } else {
       showToast('Drive API: Connected as ' + (driveData.user?.displayName || driveData.user?.emailAddress || 'OK'), 'success');
     }
@@ -4301,16 +4301,20 @@ async function publishPostNow(existingId) {
         try {
           const driveId = extractDriveFileId(data.media_url);
           if (driveId) {
-            // Try Drive API with YouTube OAuth token (works if token has drive.readonly scope)
+            // Try Drive API — first with a separate drive token, then with YouTube token as fallback
             let driveResp;
-            try { driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { driveResp = null; }
-            // Fallback: try Drive API with separate drive token if stored
+            const state2 = loadApiConnections();
+            const driveToken = state2.platforms?.youtube?.drive_access_token || state2.drive?.access_token;
+            if (driveToken) { try { driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { driveResp = null; } }
+            // Fallback: try with YouTube OAuth token (works if token has drive scope)
             if (!driveResp || !driveResp.ok) {
-              const state2 = loadApiConnections();
-              const driveToken = state2.platforms?.youtube?.drive_access_token || state2.drive?.access_token;
-              if (driveToken) { try { driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { driveResp = null; } }
+              try { driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { driveResp = null; }
             }
-            if (!driveResp || !driveResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Cannot download video from Drive — your YouTube OAuth token needs drive.readonly scope. Re-authorize in OAuth Playground with both youtube.upload AND drive.readonly scopes selected.' }); continue; }
+            // Fallback: try direct Drive export link (works for publicly shared files)
+            if (!driveResp || !driveResp.ok) {
+              try { driveResp = await fetch(`https://drive.google.com/uc?export=download&id=${driveId}`); } catch(e) { driveResp = null; }
+            }
+            if (!driveResp || !driveResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Cannot download video from Drive. Make sure the video file is shared as "Anyone with link" or connect a Google Drive API token in Connections.' }); continue; }
             videoBlob = await driveResp.blob();
           } else {
             try { const mediaResp = await fetch(data.media_url); if (!mediaResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from URL' }); continue; } videoBlob = await mediaResp.blob(); }
@@ -4492,15 +4496,19 @@ async function republishToSinglePlatform(postId, platformKey) {
             let videoBlob;
             const driveId = extractDriveFileId(data.media_url);
             if (driveId) {
-              // Try Drive API with YouTube OAuth token (works if token has drive.readonly scope)
+              // Try Drive API — first with a separate drive token, then YouTube token as fallback
               let dr;
-              try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { dr = null; }
-              // Fallback: try Drive API with separate drive token if stored
+              const driveToken = state.platforms?.youtube?.drive_access_token || state.drive?.access_token;
+              if (driveToken) { try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { dr = null; } }
+              // Fallback: try with YouTube OAuth token
               if (!dr || !dr.ok) {
-                const driveToken = state.platforms?.youtube?.drive_access_token || state.drive?.access_token;
-                if (driveToken) { try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { dr = null; } }
+                try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { dr = null; }
               }
-              if (!dr || !dr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Cannot download video from Drive — your YouTube OAuth token needs drive.readonly scope. Re-authorize in OAuth Playground with both youtube.upload AND drive.readonly scopes selected.' }); }
+              // Fallback: try direct Drive export link (works for publicly shared files)
+              if (!dr || !dr.ok) {
+                try { dr = await fetch(`https://drive.google.com/uc?export=download&id=${driveId}`); } catch(e) { dr = null; }
+              }
+              if (!dr || !dr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Cannot download video from Drive. Make sure the video file is shared as "Anyone with link" or connect a Google Drive API token in Connections.' }); }
               else { videoBlob = await dr.blob(); }
             } else {
               try { const mr = await fetch(data.media_url); if (!mr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from URL' }); } else { videoBlob = await mr.blob(); } }

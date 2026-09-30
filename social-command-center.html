@@ -4211,6 +4211,24 @@ function copyYTStudioContent() {
   navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!', 'success')).catch(() => showToast('Copy failed — select and copy manually', 'error'));
 }
 
+// ── Temporary media storage (Supabase Storage) for Instagram video publishing ──
+// Instagram's API requires a publicly accessible URL — Google Drive links don't work.
+// Upload the video blob to Supabase Storage, get a public URL, then clean up after publish.
+async function uploadToTempStorage(blob, filename) {
+  try {
+    const path = `temp/${Date.now()}_${filename}`;
+    const { data, error } = await sb.storage.from('sm-temp-media').upload(path, blob, {
+      contentType: blob.type || 'video/mp4', upsert: false
+    });
+    if (error) return { ok: false, msg: 'Storage upload failed: ' + error.message };
+    const { data: urlData } = sb.storage.from('sm-temp-media').getPublicUrl(path);
+    return { ok: true, url: urlData.publicUrl, path: path };
+  } catch (e) { return { ok: false, msg: 'Storage upload error: ' + e.message }; }
+}
+async function deleteFromTempStorage(path) {
+  try { await sb.storage.from('sm-temp-media').remove([path]); } catch(e) { console.warn('[deleteFromTempStorage]', e); }
+}
+
 // Download video blob from a media URL (Google Drive or direct link)
 // Used by Facebook and Instagram publishing to upload binary instead of passing URL
 async function downloadVideoBlob(mediaUrl) {
@@ -4325,28 +4343,40 @@ async function publishPostNow(existingId) {
         const igId = conn.ig_account_id;
         const caption = (data.caption || '');
         if (!data.media_url) { results.push({ platform: 'Instagram', ok: false, msg: 'Media URL required for Instagram posts' }); continue; }
-        const mediaUrl = toDirectMediaUrl(data.media_url);
-        let containerParams = `caption=${encodeURIComponent(caption)}`;
         const isVideo = data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short';
+        let videoPublicUrl = null; let tempStoragePath = null;
         if (isVideo) {
-          containerParams += `&media_type=REELS&video_url=${encodeURIComponent(mediaUrl)}`;
+          // Download video and upload to temp storage so Instagram can fetch it
+          showToast('Downloading video for Instagram…', 'info');
+          const dlResult = await downloadVideoBlob(data.media_url);
+          if (!dlResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: dlResult.msg }); continue; }
+          showToast('Uploading to temp storage for Instagram…', 'info');
+          const upResult = await uploadToTempStorage(dlResult.blob, 'ig_video.mp4');
+          if (!upResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: upResult.msg }); continue; }
+          videoPublicUrl = upResult.url; tempStoragePath = upResult.path;
+        }
+        let containerParams = `caption=${encodeURIComponent(caption)}`;
+        if (isVideo) {
+          containerParams += `&media_type=REELS&video_url=${encodeURIComponent(videoPublicUrl)}`;
         } else {
+          const mediaUrl = toDirectMediaUrl(data.media_url);
           containerParams += `&image_url=${encodeURIComponent(mediaUrl)}`;
         }
         const createResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
         const createData = await createResp.json();
-        if (createData.error) { results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); continue; }
+        if (createData.error) { if (tempStoragePath) deleteFromTempStorage(tempStoragePath); results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); continue; }
         const containerId = createData.id;
-        // For videos, poll status until finished processing (up to 60s)
+        // For videos, poll status until finished processing (up to 2 min)
         if (isVideo) {
           let ready = false;
-          for (let i = 0; i < 12; i++) {
+          for (let i = 0; i < 24; i++) {
             await new Promise(r => setTimeout(r, 5000));
             const statusResp = await fetch(`https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`);
             const statusData = await statusResp.json();
             if (statusData.status_code === 'FINISHED') { ready = true; break; }
-            if (statusData.status_code === 'ERROR') { results.push({ platform: 'Instagram', ok: false, msg: 'Video processing failed' }); break; }
+            if (statusData.status_code === 'ERROR') { results.push({ platform: 'Instagram', ok: false, msg: 'Video processing failed — check video format (MP4 H.264 recommended)' }); break; }
           }
+          if (tempStoragePath) deleteFromTempStorage(tempStoragePath);
           if (!ready) { results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing — try again in a minute' }); continue; }
         }
         // Publish the container
@@ -4422,6 +4452,7 @@ async function publishPostNow(existingId) {
         const studioUrl = channelId ? `https://studio.youtube.com/channel/${channelId}/videos/upload?d=ud` : 'https://www.youtube.com/upload';
         const mediaLink = data.media_url || '';
         showYouTubeStudioModal(ytTitle, ytDesc, studioUrl, mediaLink, isShort);
+        window._ytStudioModalOpen = true; // prevent closeModal() at end of publish from closing this
         results.push({ platform: 'YouTube', ok: true, msg: 'Content copied — opening YouTube Studio for upload' });
 
       } else {
@@ -4449,7 +4480,10 @@ async function publishPostNow(existingId) {
     showToast('No platforms were processed — check your connections.', 'error');
   }
 
-  closeModal(); await loadAll(); render();
+  // Don't close if YouTube Studio modal is showing — user needs to click "Open YouTube Studio"
+  if (!window._ytStudioModalOpen) { closeModal(); }
+  else { window._ytStudioModalOpen = false; }
+  await loadAll(); render();
 }
 
 // Republish an already-posted piece of content to a single platform
@@ -4485,26 +4519,40 @@ async function republishToSinglePlatform(postId, platformKey) {
       const caption = (data.caption || '');
       if (!data.media_url) { results.push({ platform: 'Instagram', ok: false, msg: 'Media URL required' }); }
       else {
-        const mediaUrl = toDirectMediaUrl(data.media_url);
-        let containerParams = `caption=${encodeURIComponent(caption)}`;
         const isVideo = data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short';
-        if (isVideo) { containerParams += `&media_type=REELS&video_url=${encodeURIComponent(mediaUrl)}`; }
-        else { containerParams += `&image_url=${encodeURIComponent(mediaUrl)}`; }
-        const createResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
-        const createData = await createResp.json();
-        if (createData.error) { results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); }
-        else {
-          const containerId = createData.id;
-          if (isVideo) {
-            let ready = false;
-            for (let i = 0; i < 12; i++) { await new Promise(r => setTimeout(r, 5000)); const sr = await fetch(`https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`); const sd = await sr.json(); if (sd.status_code === 'FINISHED') { ready = true; break; } if (sd.status_code === 'ERROR') { results.push({ platform: 'Instagram', ok: false, msg: 'Video processing failed' }); break; } }
-            if (!ready && results.length === 0) { results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing — try again' }); }
+        let videoPublicUrl = null; let tempStoragePath = null;
+        if (isVideo) {
+          showToast('Downloading video for Instagram…', 'info');
+          const dlResult = await downloadVideoBlob(data.media_url);
+          if (!dlResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: dlResult.msg }); }
+          else {
+            showToast('Uploading to temp storage…', 'info');
+            const upResult = await uploadToTempStorage(dlResult.blob, 'ig_video.mp4');
+            if (!upResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: upResult.msg }); }
+            else { videoPublicUrl = upResult.url; tempStoragePath = upResult.path; }
           }
-          if (results.length === 0) {
-            const pubResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media_publish?creation_id=${containerId}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
-            const pubData = await pubResp.json();
-            if (pubData.error) { results.push({ platform: 'Instagram', ok: false, msg: pubData.error.message }); }
-            else { results.push({ platform: 'Instagram', ok: true, msg: 'Republished!' }); }
+        }
+        if (results.length === 0) {
+          let containerParams = `caption=${encodeURIComponent(caption)}`;
+          if (isVideo) { containerParams += `&media_type=REELS&video_url=${encodeURIComponent(videoPublicUrl)}`; }
+          else { const mediaUrl = toDirectMediaUrl(data.media_url); containerParams += `&image_url=${encodeURIComponent(mediaUrl)}`; }
+          const createResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
+          const createData = await createResp.json();
+          if (createData.error) { if (tempStoragePath) deleteFromTempStorage(tempStoragePath); results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); }
+          else {
+            const containerId = createData.id;
+            if (isVideo) {
+              let ready = false;
+              for (let i = 0; i < 24; i++) { await new Promise(r => setTimeout(r, 5000)); const sr = await fetch(`https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`); const sd = await sr.json(); if (sd.status_code === 'FINISHED') { ready = true; break; } if (sd.status_code === 'ERROR') { results.push({ platform: 'Instagram', ok: false, msg: 'Video processing failed — check video format (MP4 H.264 recommended)' }); break; } }
+              if (tempStoragePath) deleteFromTempStorage(tempStoragePath);
+              if (!ready && results.length === 0) { results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing — try again' }); }
+            }
+            if (results.length === 0) {
+              const pubResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media_publish?creation_id=${containerId}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
+              const pubData = await pubResp.json();
+              if (pubData.error) { results.push({ platform: 'Instagram', ok: false, msg: pubData.error.message }); }
+              else { results.push({ platform: 'Instagram', ok: true, msg: 'Republished!' }); }
+            }
           }
         }
       }

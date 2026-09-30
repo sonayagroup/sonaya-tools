@@ -3801,6 +3801,17 @@ function renderCrewForBrand(brandId, post) {
   }).join('');
 }
 
+function toDirectImageUrl(url) {
+  if (!url) return url;
+  // Google Drive sharing link → direct download
+  const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (driveMatch) return `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`;
+  // Google Drive open link
+  const openMatch = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
+  if (openMatch) return `https://drive.google.com/uc?export=download&id=${openMatch[1]}`;
+  return url;
+}
+
 async function publishPostNow(existingId) {
   // Collect form data
   const form = document.getElementById('post-form'); const fd = new FormData(form); const data = {};
@@ -3835,8 +3846,10 @@ async function publishPostNow(existingId) {
         const igId = conn.ig_account_id;
         const caption = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
         let containerParams = `caption=${encodeURIComponent(caption)}`;
-        if (data.media_url) containerParams += `&image_url=${encodeURIComponent(data.media_url)}`;
-        else { results.push({ platform: 'Instagram', ok: false, msg: 'Image URL required for Instagram posts' }); continue; }
+        if (data.media_url) {
+          const imageUrl = toDirectImageUrl(data.media_url);
+          containerParams += `&image_url=${encodeURIComponent(imageUrl)}`;
+        } else { results.push({ platform: 'Instagram', ok: false, msg: 'Image URL required for Instagram posts' }); continue; }
         const createResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
         const createData = await createResp.json();
         if (createData.error) { results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); continue; }
@@ -3857,12 +3870,29 @@ async function publishPostNow(existingId) {
         if (!pageInfo.access_token) { results.push({ platform: 'Facebook', ok: false, msg: 'Could not get Page access token' }); continue; }
         const pageToken = pageInfo.access_token;
         const message = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
-        let postBody = `message=${encodeURIComponent(message)}`;
-        if (data.media_url) postBody += `&link=${encodeURIComponent(data.media_url)}`;
-        const fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/feed?${postBody}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
-        const fbData = await fbResp.json();
+        let fbResp, fbData;
+        if (data.media_url && (data.media_type === 'image' || data.media_type === 'carousel' || !data.media_type)) {
+          // Photo post — use /photos endpoint with the image URL
+          const photoUrl = toDirectImageUrl(data.media_url);
+          const photoBody = `message=${encodeURIComponent(message)}&url=${encodeURIComponent(photoUrl)}`;
+          fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/photos?${photoBody}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
+        } else if (data.media_url && (data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short')) {
+          // Video post — use /videos endpoint
+          const videoUrl = toDirectImageUrl(data.media_url);
+          const videoBody = `description=${encodeURIComponent(message)}&file_url=${encodeURIComponent(videoUrl)}`;
+          fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos?${videoBody}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
+        } else {
+          // Text-only post
+          const postBody = `message=${encodeURIComponent(message)}`;
+          fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/feed?${postBody}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
+        }
+        fbData = await fbResp.json();
         if (fbData.error) { results.push({ platform: 'Facebook', ok: false, msg: fbData.error.message }); continue; }
-        results.push({ platform: 'Facebook', ok: true, msg: 'Published successfully', postId: fbData.id });
+        results.push({ platform: 'Facebook', ok: true, msg: 'Published successfully', postId: fbData.id || fbData.post_id });
+
+      } else if (key === 'youtube') {
+        // YouTube publishing requires OAuth token with upload scope — not yet implemented
+        results.push({ platform: 'YouTube', ok: false, msg: 'YouTube video upload coming soon — requires OAuth setup with upload scope' });
 
       } else {
         results.push({ platform: platName, ok: false, msg: 'Publishing not yet supported or missing credentials' });

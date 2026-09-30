@@ -3177,21 +3177,74 @@ async function promoteIdeaToPost(id) {
   showToast('Idea moved to your pipeline as a new post — finish it off below','info');
 }
 
+let hashtagEditMode = false;
+function toggleHashtagEditMode() { hashtagEditMode = !hashtagEditMode; renderHashtags(); }
+
 function renderHashtags() {
   const rawTags = filterByBrand(S.hashtags);
   const seenTags = new Set(); const tags = rawTags.filter(h => { const key = h.tag.toLowerCase(); if (seenTags.has(key)) return false; seenTags.add(key); return true; });
-  let html = `<div class="v-header"><h1>Hashtag Library</h1><p class="v-sub">Curated hashtags organized by category</p></div><div class="v-body">`;
-  if (tags.length === 0) html += emptyState('#', 'No hashtags loaded.');
+  let html = `<div class="v-header" style="display:flex;align-items:flex-start;justify-content:space-between"><div><h1>Hashtag Library</h1><p class="v-sub">Curated hashtags organized by category</p></div><div style="display:flex;gap:8px"><button class="btn ${hashtagEditMode?'btn-ghost':'btn-ghost'}" onclick="toggleHashtagEditMode()" style="${hashtagEditMode?'background:var(--accent);color:#fff':''}">${hashtagEditMode?'&#10003; Done':'&#9998; Edit'}</button><button class="btn btn-primary" onclick="openHashtagModal()">+ Add Hashtag</button></div></div><div class="v-body">`;
+  if (tags.length === 0) html += emptyState('#', 'No hashtags loaded. Click "+ Add Hashtag" to get started.');
   else {
     const byCategory = {}; tags.forEach(t => { const cat = t.category||'Uncategorized'; if (!byCategory[cat]) byCategory[cat]=[]; byCategory[cat].push(t); });
-    Object.entries(byCategory).forEach(([cat, items]) => {
+    Object.entries(byCategory).sort((a,b) => a[0].localeCompare(b[0])).forEach(([cat, items]) => {
       html += `<div style="margin-bottom:20px"><h3 style="font-family:Outfit;font-size:15px;font-weight:700;color:var(--ink-0);margin-bottom:10px;text-transform:capitalize">${escHtml(cat)}</h3><div style="display:flex;flex-wrap:wrap;gap:6px">`;
-      items.forEach(t => { const br = brandById(t.brand_id); const isPrimary = t.is_primary; html += `<span class="tag tag-clickable${isPrimary?' tag-primary':''}" onclick="navigator.clipboard.writeText('${escAttr(t.tag)}').then(()=>showToast('Copied: ${escAttr(t.tag)}','success'))" title="Click to copy">${escHtml(t.tag)}</span>`; });
+      items.forEach(t => {
+        const isPrimary = t.is_primary;
+        if (hashtagEditMode) {
+          html += `<span class="tag tag-clickable${isPrimary?' tag-primary':''}" style="display:inline-flex;align-items:center;gap:4px;padding-right:4px" title="Click to edit">
+            <span onclick="openHashtagModal('${t.id}')" style="cursor:pointer">${escHtml(t.tag)}</span>
+            <button onclick="event.stopPropagation();deleteHashtag('${t.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--ink-3);padding:0 2px;line-height:1" title="Delete">&#10005;</button>
+          </span>`;
+        } else {
+          html += `<span class="tag tag-clickable${isPrimary?' tag-primary':''}" onclick="navigator.clipboard.writeText('${escAttr(t.tag)}').then(()=>showToast('Copied: ${escAttr(t.tag)}','success'))" title="Click to copy">${escHtml(t.tag)}</span>`;
+        }
+      });
       html += `</div></div>`;
     });
-    html += `<p style="font-size:11px;color:var(--ink-3);margin-top:8px">Click any hashtag to copy it to clipboard</p>`;
+    if (!hashtagEditMode) html += `<p style="font-size:11px;color:var(--ink-3);margin-top:8px">Click any hashtag to copy it to clipboard</p>`;
+    else html += `<p style="font-size:11px;color:var(--ink-3);margin-top:8px">Click a hashtag to edit it, or &#10005; to delete</p>`;
   }
   html += `</div>`; document.getElementById('main-view').innerHTML = html;
+}
+
+function openHashtagModal(hashtagId) {
+  const ht = hashtagId ? S.hashtags.find(h=>h.id===hashtagId) : null; const isEdit = !!ht;
+  const panel = document.getElementById('modal-panel'); panel.classList.remove('wide');
+  const existingCategories = [...new Set(S.hashtags.map(h=>h.category).filter(Boolean))].sort();
+  const defaultBrandId = ht ? ht.brand_id : (S.brandFilter !== 'all' ? (S.brands.find(b=>b.slug===S.brandFilter)?.id||S.brands[0]?.id||'') : (S.brands[0]?.id||''));
+  let html = `<div class="modal-header"><span class="modal-title">${isEdit?'Edit':'Add'} Hashtag</span><button class="modal-close" onclick="closeModal()">&#10005;</button></div><div class="modal-body"><form id="hashtag-form">`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Hashtag</label><input class="form-input" name="tag" required value="${escAttr(ht?.tag||'#')}" placeholder="#yourhashtag" autofocus></div></div>`;
+  html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Brand</label><select class="form-select" name="brand_id" required>${S.brands.map(b=>`<option value="${b.id}" ${b.id===defaultBrandId?'selected':''}>${b.logo_emoji} ${b.name}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">Category</label><div style="display:flex;gap:6px"><input class="form-input" name="category" list="hashtag-categories" value="${escAttr(ht?.category||'')}" placeholder="e.g. location, brand, food" required><datalist id="hashtag-categories">${existingCategories.map(c=>`<option value="${c}">`).join('')}</datalist></div></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px"><input type="checkbox" name="is_primary" ${ht&&ht.is_primary?'checked':''} style="accent-color:var(--accent)"> Primary hashtag (highlighted in the library)</label></div></div>`;
+  html += `</form></div><div class="modal-footer">${isEdit?`<button class="btn btn-danger btn-sm" onclick="deleteHashtag('${ht.id}')">Delete</button><div style="flex:1"></div>`:''}<button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveHashtag('${ht?.id||''}')">${isEdit?'Update':'Add'} Hashtag</button></div>`;
+  panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
+}
+
+async function saveHashtag(existingId) {
+  const form = document.getElementById('hashtag-form'); const fd = new FormData(form);
+  let tag = (fd.get('tag')||'').trim();
+  if (!tag.startsWith('#')) tag = '#' + tag;
+  tag = tag.replace(/\s+/g, '').toLowerCase();
+  const category = (fd.get('category')||'').trim().toLowerCase();
+  if (!tag || tag === '#') { showToast('Hashtag is required','error'); return; }
+  if (!category) { showToast('Category is required','error'); return; }
+  const data = { brand_id: fd.get('brand_id'), tag, category, is_primary: form.querySelector('[name=is_primary]').checked };
+  try {
+    if (existingId) { await sb.from('sm_hashtags').update(data).eq('id', existingId); logAudit('edit','hashtag',existingId,tag); }
+    else { await sb.from('sm_hashtags').insert(data); logAudit('create','hashtag','',tag); }
+    closeModal(); await loadAll(); render(); showToast(existingId ? 'Hashtag updated' : 'Hashtag added', 'success');
+  } catch(e) { showToast('Error: '+e.message,'error'); }
+}
+
+async function deleteHashtag(hashtagId) {
+  if (!confirm('Delete this hashtag?')) return;
+  const ht = S.hashtags.find(h=>h.id===hashtagId);
+  try {
+    await sb.from('sm_hashtags').delete().eq('id', hashtagId);
+    logAudit('delete','hashtag',hashtagId,ht?.tag||'');
+    closeModal(); await loadAll(); render(); showToast('Hashtag deleted','info');
+  } catch(e) { showToast('Error: '+e.message,'error'); }
 }
 
 function renderStores() {
@@ -4163,15 +4216,35 @@ function copyYTStudioContent() {
 async function downloadVideoBlob(mediaUrl) {
   const driveId = extractDriveFileId(mediaUrl);
   if (driveId) {
-    // Try YouTube OAuth token for Drive API (has readonly scope)
+    // Try all available tokens that might have Drive access
     const state = loadApiConnections();
     const ytToken = state.platforms?.youtube?.access_token;
     const driveToken = state.platforms?.youtube?.drive_access_token || state.drive?.access_token;
-    let dr;
-    if (driveToken) { try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { dr = null; } }
-    if ((!dr || !dr.ok) && ytToken) { try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { dr = null; } }
-    if (!dr || !dr.ok) { try { dr = await fetch(`https://drive.google.com/uc?export=download&id=${driveId}`); } catch(e) { dr = null; } }
-    if (!dr || !dr.ok) return { ok: false, msg: 'Cannot download video from Drive. Make sure the file is shared as "Anyone with link".' };
+    // _googleAccessToken is from the Google Picker / Drive OAuth flow (drive.readonly scope)
+    const pickerToken = (typeof _googleAccessToken !== 'undefined') ? _googleAccessToken : null;
+    const tokensToTry = [driveToken, pickerToken, ytToken].filter(Boolean);
+    let dr = null;
+    for (const token of tokensToTry) {
+      try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + token } }); } catch(e) { dr = null; }
+      if (dr && dr.ok) break;
+      dr = null;
+    }
+    // Fallback: try public download link
+    if (!dr) { try { dr = await fetch(`https://drive.google.com/uc?export=download&confirm=t&id=${driveId}`); if (dr.ok) { const ct = dr.headers.get('content-type')||''; if (ct.includes('text/html')) dr = null; } } catch(e) { dr = null; } }
+    if (!dr || !dr.ok) {
+      // Last resort: prompt user to get a fresh Drive token via Google Picker OAuth
+      const driveCreds = _getDriveCredentials();
+      if (driveCreds && typeof google !== 'undefined' && google.accounts) {
+        try {
+          showToast('Requesting Drive access to download video…', 'info');
+          const freshToken = await _requestDriveToken(driveCreds.client_id);
+          if (freshToken) {
+            try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + freshToken } }); } catch(e) { dr = null; }
+          }
+        } catch(e) { /* user may have dismissed popup */ }
+      }
+      if (!dr || !dr.ok) return { ok: false, msg: 'Cannot download video from Drive. Please try using the Google Drive picker to re-select the file, or make the file shared as "Anyone with link".' };
+    }
     const blob = await dr.blob();
     return { ok: true, blob };
   } else {

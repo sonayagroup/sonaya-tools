@@ -3554,6 +3554,17 @@ function openPlatformConnectModal(key) {
   p.fields.forEach(f => {
     html += `<div class="form-row full"><div class="form-group"><label class="form-label">${f.label}</label><input class="form-input" id="conn-field-${f.key}" type="${f.type||'text'}" value="${escAttr(conn[f.key]||'')}" placeholder="${escAttr(f.placeholder||'')}"></div></div>`;
   });
+  // Token exchange section for Meta platforms (Instagram & Facebook)
+  if (key === 'instagram' || key === 'facebook') {
+    html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:12px;margin:8px 0 4px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px">&#128260; Exchange for 60-Day Token</div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:8px">Paste a short-lived token from Graph API Explorer above, enter your App Secret below, then click Exchange. The token field will be replaced with a 60-day long-lived token.</div>
+      <div class="form-row full" style="margin-bottom:6px"><div class="form-group"><label class="form-label" style="font-size:11px">App ID</label><input class="form-input" id="conn-exchange-app-id" value="4485387288365919" style="font-size:12px"></div></div>
+      <div class="form-row full" style="margin-bottom:8px"><div class="form-group"><label class="form-label" style="font-size:11px">App Secret</label><input class="form-input" id="conn-exchange-app-secret" type="password" placeholder="From Meta App Dashboard → Settings → Basic" style="font-size:12px"></div></div>
+      <button class="btn btn-ghost btn-sm" onclick="exchangeForLongLivedToken('${key}')" style="width:100%">&#9889; Exchange for 60-Day Token</button>
+      <div id="exchange-result" style="font-size:11px;margin-top:6px;display:none"></div>
+    </div>`;
+  }
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Account Handle (optional)</label><input class="form-input" id="conn-field-handle" value="${escAttr(conn.handle||'')}" placeholder="e.g. sonayagroup"></div></div>`;
   html += `</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePlatformCredentials('${key}')">${isEditing ? 'Update &amp; Sync' : 'Save Credentials'}</button></div>`;
   panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
@@ -3599,6 +3610,40 @@ function savePlatformCredentials(key) {
   }
   if (key === 'facebook' && data.user_access_token && data.page_id) {
     setTimeout(() => syncPlatform('facebook'), 400);
+  }
+}
+
+async function exchangeForLongLivedToken(platformKey) {
+  const resultDiv = document.getElementById('exchange-result');
+  const shortToken = document.getElementById('conn-field-user_access_token')?.value?.trim();
+  const appId = document.getElementById('conn-exchange-app-id')?.value?.trim();
+  const appSecret = document.getElementById('conn-exchange-app-secret')?.value?.trim();
+  if (!shortToken) { resultDiv.style.display='block'; resultDiv.style.color='var(--danger)'; resultDiv.textContent='Paste a short-lived token in the User Access Token field first.'; return; }
+  if (!appId || !appSecret) { resultDiv.style.display='block'; resultDiv.style.color='var(--danger)'; resultDiv.textContent='App ID and App Secret are required.'; return; }
+  resultDiv.style.display='block'; resultDiv.style.color='var(--text-secondary)'; resultDiv.textContent='Exchanging token…';
+  try {
+    const url = `https://graph.facebook.com/v18.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(appId)}&client_secret=${encodeURIComponent(appSecret)}&fb_exchange_token=${encodeURIComponent(shortToken)}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data.access_token) {
+      document.getElementById('conn-field-user_access_token').value = data.access_token;
+      document.getElementById('conn-field-user_access_token').type = 'text';
+      const expiresIn = data.expires_in ? Math.round(data.expires_in / 86400) : 60;
+      resultDiv.style.color='var(--success)'; resultDiv.innerHTML=`&#10003; Got ${expiresIn}-day token! It's now in the token field above. Click <strong>${platformKey === 'instagram' || platformKey === 'facebook' ? 'Update &amp; Sync' : 'Save'}</strong> to store it.`;
+      // If both IG and FB use the same token, auto-fill the other one too
+      const state = loadApiConnections();
+      const otherKey = platformKey === 'instagram' ? 'facebook' : 'instagram';
+      if (state.platforms[otherKey]?.connected) {
+        state.platforms[otherKey].user_access_token = data.access_token;
+        saveApiConnections(state);
+        resultDiv.innerHTML += `<br><span style="color:var(--text-secondary)">Also updated ${otherKey} with the same token.</span>`;
+      }
+    } else {
+      const errMsg = data.error?.message || JSON.stringify(data);
+      resultDiv.style.color='var(--danger)'; resultDiv.textContent='Error: ' + errMsg;
+    }
+  } catch(e) {
+    resultDiv.style.color='var(--danger)'; resultDiv.textContent='Network error: ' + e.message;
   }
 }
 

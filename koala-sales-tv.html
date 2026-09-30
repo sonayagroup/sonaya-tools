@@ -276,7 +276,13 @@
   .est-hero { flex: 1 1 auto; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1.2vw; min-height: 0; }
   /* Two stacked lists per rep (Open / Expired), each taking half the remaining card height and
      auto-scrolling independently, so both are always on screen at once. */
-  .est-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; margin-top: 1.4vh; }
+  .est-section { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  /* Scoped with .est-hero on purpose: page 1's `.rep-card > div:last-child { margin: auto 0 }`
+     (which floats the stats block there) also matches the Expired section here, since it's the
+     last div in its card — that zeroed this gap and made the Open list's clipped bottom row look
+     like it was sliding under the Expired header (reported 2026-09-30). This selector outranks it. */
+  .est-hero .rep-card > .est-section { margin-top: 1.4vh; margin-bottom: 0; }
+  .est-hero .rep-card > .est-section + .est-section { margin-top: 2.2vh; }
   .est-subhead {
     display: flex; justify-content: space-between; gap: 8px; font-size: 1.1vh; letter-spacing: 0.1em;
     text-transform: uppercase; font-weight: 800; padding-bottom: 0.5vh; margin-bottom: 0.2vh; border-bottom: 1px solid var(--gridline);
@@ -284,8 +290,13 @@
   .est-subhead span:last-child { color: var(--text-muted); font-weight: 700; }
   .est-subhead-open { color: var(--brand-teal); }
   .est-subhead-expired { color: var(--status-critical); }
+  /* Soft fade at both edges instead of a hard cut, so rows scrolling past the subhead (top) or the
+     end of the box (bottom) read as "more here" rather than as clipped/overlapping. The padding
+     lets the first and last rows sit fully clear of the fades when scrolled to either end. */
   .est-list {
-    list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto;
+    list-style: none; margin: 0; padding: 0.8vh 0 2vh; flex: 1; min-height: 0; overflow-y: auto;
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 1.4vh, #000 calc(100% - 3vh), transparent);
+            mask-image: linear-gradient(to bottom, transparent, #000 1.4vh, #000 calc(100% - 3vh), transparent);
     scrollbar-width: thin; scrollbar-color: var(--gridline) transparent;
   }
   .est-list::-webkit-scrollbar { width: 6px; }

@@ -4103,20 +4103,20 @@ async function publishPostNow(existingId) {
         try {
           const driveId = extractDriveFileId(data.media_url);
           if (driveId) {
-            // Try Google Drive API with OAuth token first (needs drive.readonly scope)
-            let driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, {
-              headers: { 'Authorization': 'Bearer ' + ytToken }
-            });
-            if (!driveResp.ok) {
-              // Fallback: try public download URL
-              driveResp = await fetch(toDirectMediaUrl(data.media_url));
+            // Try Drive API with YouTube OAuth token (works if token has drive.readonly scope)
+            let driveResp;
+            try { driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { driveResp = null; }
+            // Fallback: try Drive API with separate drive token if stored
+            if (!driveResp || !driveResp.ok) {
+              const state2 = loadApiConnections();
+              const driveToken = state2.platforms?.youtube?.drive_access_token || state2.drive?.access_token;
+              if (driveToken) { try { driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { driveResp = null; } }
             }
-            if (!driveResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from Google Drive — make sure the file is shared publicly or the OAuth token has drive.readonly scope' }); continue; }
+            if (!driveResp || !driveResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Cannot download video from Drive — your YouTube OAuth token needs drive.readonly scope. Re-authorize in OAuth Playground with both youtube.upload AND drive.readonly scopes selected.' }); continue; }
             videoBlob = await driveResp.blob();
           } else {
-            const mediaResp = await fetch(data.media_url);
-            if (!mediaResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from URL' }); continue; }
-            videoBlob = await mediaResp.blob();
+            try { const mediaResp = await fetch(data.media_url); if (!mediaResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from URL' }); continue; } videoBlob = await mediaResp.blob(); }
+            catch(e) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not fetch video — URL may be blocked by CORS: ' + e.message }); continue; }
           }
         } catch(dlErr) {
           results.push({ platform: 'YouTube', ok: false, msg: 'Video download failed: ' + dlErr.message });
@@ -4261,7 +4261,7 @@ async function republishToSinglePlatform(postId, platformKey) {
         if (initResp.status === 401 || initResp.status === 403) {
           const ref = await refreshYouTubeToken();
           if (ref.ok) { ytToken = ref.token; initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' }, body: ytBody }); }
-          if (initResp.status === 401 || initResp.status === 403) { results.push({ platform: 'YouTube', ok: false, msg: 'Auth failed — token expired' }); }
+          if (initResp.status === 401 || initResp.status === 403) { const errD = await initResp.json().catch(()=>({})); results.push({ platform: 'YouTube', ok: false, msg: errD.error?.message || 'Auth failed — token expired' }); }
         }
         if (results.length === 0) {
           if (!initResp.ok) { const e = await initResp.json().catch(()=>({})); results.push({ platform: 'YouTube', ok: false, msg: e.error?.message || 'Upload init failed' }); }
@@ -4271,14 +4271,19 @@ async function republishToSinglePlatform(postId, platformKey) {
             let videoBlob;
             const driveId = extractDriveFileId(data.media_url);
             if (driveId) {
-              let dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } });
-              if (!dr.ok) dr = await fetch(toDirectMediaUrl(data.media_url));
-              if (!dr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video' }); }
+              // Try Drive API with YouTube OAuth token (works if token has drive.readonly scope)
+              let dr;
+              try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { dr = null; }
+              // Fallback: try Drive API with separate drive token if stored
+              if (!dr || !dr.ok) {
+                const driveToken = state.platforms?.youtube?.drive_access_token || state.drive?.access_token;
+                if (driveToken) { try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { dr = null; } }
+              }
+              if (!dr || !dr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Cannot download video from Drive — your YouTube OAuth token needs drive.readonly scope. Re-authorize in OAuth Playground with both youtube.upload AND drive.readonly scopes selected.' }); }
               else { videoBlob = await dr.blob(); }
             } else {
-              const mr = await fetch(data.media_url);
-              if (!mr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video' }); }
-              else { videoBlob = await mr.blob(); }
+              try { const mr = await fetch(data.media_url); if (!mr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from URL' }); } else { videoBlob = await mr.blob(); } }
+              catch(e) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not fetch video — URL may be blocked by CORS: ' + e.message }); }
             }
             if (videoBlob && results.length === 0) {
               showToast(`YouTube: Uploading ${(videoBlob.size/1048576).toFixed(1)} MB…`, 'info');

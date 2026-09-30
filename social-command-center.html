@@ -3879,8 +3879,8 @@ function openPostModal(postId, prefillDate, isQuickIdea) {
   html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Content Pillar</label><select class="form-select" name="content_pillar_id" id="post-pillar"><option value="">— None —</option>${pillarsForBrand.map(p=>`<option value="${p.id}" ${post&&post.content_pillar_id===p.id?'selected':''}>${p.name}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">Media Type</label><select class="form-select" name="media_type"><option value="">— None —</option>${MEDIA_TYPES.map(t=>`<option value="${t}" ${post&&post.media_type===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}</select></div></div>`;
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Title</label><input class="form-input" name="title" required value="${escAttr(post?.title||'')}" placeholder="Post title" autofocus></div></div>`;
   const captionVal = post?.caption||'';
-  html += `<div class="form-row full"><div class="form-group"><div class="form-label" style="display:flex;align-items:center">Caption / Brief <span class="char-count" id="caption-count">${captionVal.length}/2200</span><button type="button" class="btn btn-ghost btn-sm caption-assist-btn" id="caption-assist-btn" onclick="toggleCaptionAssist()">&#10024; Generate Caption</button></div><textarea class="form-textarea" name="caption" id="post-caption" placeholder="Write your caption...">${escHtml(captionVal)}</textarea><div class="caption-preview" id="caption-preview" style="font-size:11px;color:var(--ink-3);padding:6px 0"><span id="caption-platform-limits"></span></div><div id="caption-assist-panel" class="caption-assist-panel" hidden></div></div></div>`;
-  html += `<div class="form-row full"><div class="form-group"><label class="form-label">Hashtags</label><input class="form-input" name="hashtags" id="post-hashtags" value="${escAttr(post?.hashtags||'')}" placeholder="#hashtag1 #hashtag2"><div class="hashtag-suggestions" id="hashtag-suggestions"></div><div style="font-size:10px;color:var(--ink-3);margin-top:4px">&#9989; Hashtags are automatically appended to your caption when publishing.</div></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><div class="form-label" style="display:flex;align-items:center">Caption / Brief <span class="char-count" id="caption-count">${captionVal.length}/2200</span><button type="button" class="btn btn-ghost btn-sm caption-assist-btn" id="caption-assist-btn" onclick="toggleCaptionAssist()">&#10024; Generate Caption</button></div><textarea class="form-textarea" name="caption" id="post-caption" placeholder="Write your caption...">${escHtml(captionVal)}</textarea><div class="caption-preview" id="caption-preview" style="font-size:11px;color:var(--ink-3);padding:6px 0"><span id="caption-platform-limits"></span></div><div id="caption-assist-panel" class="caption-assist-panel" hidden></div><div class="hashtag-suggestions" id="hashtag-suggestions"></div></div></div>`;
+  // Hashtag suggestions shown below caption instead of a separate field
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Media URL</label><div style="display:flex;gap:8px"><input class="form-input" name="media_url" id="post-media-url" value="${escAttr(post?.media_url||'')}" placeholder="https://... or select from Drive" style="flex:1"><button type="button" class="btn btn-ghost btn-sm" style="white-space:nowrap" onclick="openDrivePickerModal()">&#128193; From Drive</button></div></div></div>`;
   if (!isQuickIdea) {
     html += `<div class="form-row two-col"><div class="form-group"><label class="form-label">Scheduled Date</label><input class="form-input" type="date" name="scheduled_date" value="${post?.scheduled_date||prefillDate||''}"></div><div class="form-group"><label class="form-label">Scheduled Time</label><input class="form-input" type="time" name="scheduled_time" value="${post?.scheduled_time||'09:00'}"></div></div>`;
@@ -4268,7 +4268,8 @@ async function downloadVideoBlob(mediaUrl) {
 async function publishPostNow(existingId) {
   // Collect form data
   const form = document.getElementById('post-form'); const fd = new FormData(form); const data = {};
-  ['brand_id','content_pillar_id','created_by','title','caption','hashtags','media_url','media_type','scheduled_date','scheduled_time','notes'].forEach(k => { const v = fd.get(k); data[k] = v===''?null:v; });
+  ['brand_id','content_pillar_id','created_by','title','caption','media_url','media_type','scheduled_date','scheduled_time','notes'].forEach(k => { const v = fd.get(k); data[k] = v===''?null:v; });
+  data.hashtags = null; // hashtags now live inside caption
   const platformIds = fd.getAll('platform_ids').filter(Boolean); data.platform_ids = platformIds.length?platformIds:null; data.platform_id = platformIds[0]||null;
   const crewIds = fd.getAll('crew_members').filter(Boolean); data.crew_members = crewIds.length?crewIds:null;
   if (!data.title) { showToast('Title is required','error'); return; }
@@ -4322,7 +4323,7 @@ async function publishPostNow(existingId) {
         // Instagram Content Publishing API — create media container then publish
         const token = conn.user_access_token;
         const igId = conn.ig_account_id;
-        const caption = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+        const caption = (data.caption || '');
         if (!data.media_url) { results.push({ platform: 'Instagram', ok: false, msg: 'Media URL required for Instagram posts' }); continue; }
         const mediaUrl = toDirectMediaUrl(data.media_url);
         let containerParams = `caption=${encodeURIComponent(caption)}`;
@@ -4369,7 +4370,7 @@ async function publishPostNow(existingId) {
           continue;
         }
         const pageToken = pageInfo.access_token;
-        const message = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+        const message = (data.caption || '');
         let fbResp, fbData;
         if (data.media_url && (data.media_type === 'image' || data.media_type === 'carousel' || !data.media_type)) {
           // Photo post — use /photos endpoint with the image URL
@@ -4412,7 +4413,7 @@ async function publishPostNow(existingId) {
         const isShort = data.media_type === 'short' || data.media_type === 'reel';
         let ytTitle = data.title || 'Untitled';
         if (isShort && !ytTitle.includes('#Shorts')) ytTitle = ytTitle + ' #Shorts';
-        const ytDesc = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+        const ytDesc = (data.caption || '');
         // Copy details to clipboard and open YouTube Studio
         const clipText = `Title: ${ytTitle}\n\nDescription:\n${ytDesc}`;
         try { await navigator.clipboard.writeText(clipText); } catch(e) { /* clipboard may fail in some contexts */ }
@@ -4464,7 +4465,6 @@ async function republishToSinglePlatform(postId, platformKey) {
   const data = {
     title: post.title,
     caption: post.caption,
-    hashtags: post.hashtags,
     media_url: post.media_url,
     media_type: post.media_type,
     platform_ids: post.platform_ids
@@ -4482,7 +4482,7 @@ async function republishToSinglePlatform(postId, platformKey) {
     if (platformKey === 'instagram' && conn.user_access_token && conn.ig_account_id) {
       const token = conn.user_access_token;
       const igId = conn.ig_account_id;
-      const caption = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+      const caption = (data.caption || '');
       if (!data.media_url) { results.push({ platform: 'Instagram', ok: false, msg: 'Media URL required' }); }
       else {
         const mediaUrl = toDirectMediaUrl(data.media_url);
@@ -4522,7 +4522,7 @@ async function republishToSinglePlatform(postId, platformKey) {
       }
       else {
         const pageToken = pageInfo.access_token;
-        const message = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+        const message = (data.caption || '');
         let fbResp;
         if (data.media_url && (data.media_type === 'image' || data.media_type === 'carousel' || !data.media_type)) {
           const photoUrl = toDirectMediaUrl(data.media_url);
@@ -4564,7 +4564,7 @@ async function republishToSinglePlatform(postId, platformKey) {
         const isShort = data.media_type === 'short' || data.media_type === 'reel';
         let ytTitle = data.title || 'Untitled';
         if (isShort && !ytTitle.includes('#Shorts')) ytTitle = ytTitle + ' #Shorts';
-        const ytDesc = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
+        const ytDesc = (data.caption || '');
         const clipText = `Title: ${ytTitle}\n\nDescription:\n${ytDesc}`;
         try { await navigator.clipboard.writeText(clipText); } catch(e) { /* clipboard may fail */ }
         const channelId = conn?.channel_id || '';
@@ -4598,7 +4598,7 @@ function renderHashtagSuggestions(brandId) {
   const suggestions = S.hashtags.filter(h => h.brand_id === brandId).slice(0, 12);
   if (suggestions.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = suggestions.map(h => `<span class="tag tag-clickable" data-tag="${escAttr(h.tag)}">${escHtml(h.tag)}</span>`).join('');
-  el.querySelectorAll('.tag').forEach(t => { t.onclick = () => { const input = document.getElementById('post-hashtags'); const tag = t.dataset.tag; if (!input.value.includes(tag)) input.value = (input.value.trim()+' '+tag).trim(); }; });
+  el.querySelectorAll('.tag').forEach(t => { t.onclick = () => { const ta = document.getElementById('post-caption'); const tag = t.dataset.tag; if (!ta.value.includes(tag)) { ta.value = (ta.value.trimEnd() + ' ' + tag); ta.dispatchEvent(new Event('input')); } }; });
 }
 
 // ═══ Strategy / Shot List / Brief / Theme Modals ═══
@@ -4699,7 +4699,7 @@ function generateBrief(postId) {
   const assignee = post.created_by ? S.members.find(m=>m.id===post.created_by) : null;
   const crewNames = Array.isArray(post.crew_members) ? post.crew_members.map(id=>{const m=S.members.find(x=>x.id===id);return m?m.name:'Unknown';}).join(', ') : '—';
   const meta = STATUS_META[post.status] || { label: post.status };
-  const rows = [['Title',post.title||'Untitled'],['Brand',br?(br.logo_emoji+' '+br.name):'—'],['Platforms',plats.length?plats.map(pl=>pl.name).join(', '):'—'],['Content Pillar',pil?pil.name:'—'],['Status',meta.label],['Scheduled',(post.scheduled_date?fmtDate(post.scheduled_date):'TBD')+' at '+(post.scheduled_time?fmtTime(post.scheduled_time):'TBD')],['Caption',post.caption||'—'],['Hashtags',post.hashtags||'—'],['Media Type',post.media_type?post.media_type.charAt(0).toUpperCase()+post.media_type.slice(1):'—'],['Assigned To',assignee?assignee.name:'—'],['Crew / Talent',crewNames],['Notes',post.notes||'—']];
+  const rows = [['Title',post.title||'Untitled'],['Brand',br?(br.logo_emoji+' '+br.name):'—'],['Platforms',plats.length?plats.map(pl=>pl.name).join(', '):'—'],['Content Pillar',pil?pil.name:'—'],['Status',meta.label],['Scheduled',(post.scheduled_date?fmtDate(post.scheduled_date):'TBD')+' at '+(post.scheduled_time?fmtTime(post.scheduled_time):'TBD')],['Caption',post.caption||'—'],['Media Type',post.media_type?post.media_type.charAt(0).toUpperCase()+post.media_type.slice(1):'—'],['Assigned To',assignee?assignee.name:'—'],['Crew / Talent',crewNames],['Notes',post.notes||'—']];
   let tableHtml = `<table style="width:100%;border-collapse:collapse;font-size:13px;line-height:1.6">`;
   rows.forEach(([k,v]) => { tableHtml += `<tr style="border-bottom:1px solid var(--surface-border)"><td style="padding:8px 10px;font-weight:600;color:var(--ink-3);width:140px;vertical-align:top">${k}</td><td style="padding:8px 10px;color:var(--ink-1);white-space:pre-wrap">${escHtml(v)}</td></tr>`; });
   tableHtml += `</table>`;
@@ -4732,7 +4732,8 @@ function toggleBriefEdit() {
 // ══════════════════════════════════════════════
 async function savePost(existingId) {
   const form = document.getElementById('post-form'); const fd = new FormData(form); const data = {};
-  ['brand_id','content_pillar_id','created_by','title','caption','hashtags','media_url','media_type','status','scheduled_date','scheduled_time','notes'].forEach(k => { const v = fd.get(k); data[k] = v===''?null:v; });
+  ['brand_id','content_pillar_id','created_by','title','caption','media_url','media_type','status','scheduled_date','scheduled_time','notes'].forEach(k => { const v = fd.get(k); data[k] = v===''?null:v; });
+  data.hashtags = null; // hashtags now live inside caption
   const platformIds = fd.getAll('platform_ids').filter(Boolean); data.platform_ids = platformIds.length?platformIds:null; data.platform_id = platformIds[0]||null;
   const crewIds = fd.getAll('crew_members').filter(Boolean); data.crew_members = crewIds.length?crewIds:null;
   if (!data.title) { showToast('Title is required','error'); return; }
@@ -5952,7 +5953,7 @@ function generateCaptionVariations({ brandName, platformName, pillarName, title,
       if (v === 0) { const trimBody = bodyLine.split('. ').slice(0,2).join('. ').replace(/\.+$/,'') + '.'; text = `${hookLine}\n\n${trimBody}\n\n${ctaLine}`; }
     }
 
-    // Apply tone (hashtags are added manually via the Hashtags section, not auto-appended)
+    // Apply tone (hashtags are added to the caption directly via suggestions below the textarea)
     text = applyTone(text, tone);
     variations.push(text.trim());
   }

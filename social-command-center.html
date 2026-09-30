@@ -3273,6 +3273,7 @@ function renderConnections() {
       </div>
       <div class="conn-card-actions">
         <button class="btn btn-ghost btn-sm" onclick="syncPlatform('${p.key}')">&#8635; Sync Now</button>
+        <button class="btn btn-ghost btn-sm" onclick="openPlatformConnectModal('${p.key}')">&#9998; Edit</button>
         <button class="btn btn-danger btn-sm" onclick="disconnectPlatform('${p.key}')">Disconnect</button>
       </div>` : `
       <div class="conn-card-actions" style="margin-top:14px">
@@ -3542,14 +3543,19 @@ function openPlatformConnectModal(key) {
 
   const p = SOCIAL_PLATFORMS.find(pl => pl.key === key); if (!p) return;
   const conn = state.platforms[key]||{};
-  let html = `<div class="modal-header"><span class="modal-title">${p.icon} ${p.modalTitle}</span><button class="modal-close" onclick="closeModal()">&#10005;</button></div><div class="modal-body">`;
-  html += `<div class="conn-modal-steps">${p.desc}<ol><li>Register / open your app in the platform developer console.</li><li>Add the redirect URI for this app.</li><li>Enable the scopes shown below.</li><li>Paste your credentials and save.</li></ol></div>`;
+  const isEditing = !!(conn && conn.connected);
+  let html = `<div class="modal-header"><span class="modal-title">${p.icon} ${isEditing ? 'Edit' : p.modalTitle}</span><button class="modal-close" onclick="closeModal()">&#10005;</button></div><div class="modal-body">`;
+  if (isEditing) {
+    html += `<div class="conn-modal-steps" style="font-size:12px;line-height:1.6;margin-bottom:10px"><strong>Update your credentials below.</strong> Existing values are pre-filled — change only what you need (e.g. paste a fresh token).</div>`;
+  } else {
+    html += `<div class="conn-modal-steps">${p.desc}<ol><li>Register / open your app in the platform developer console.</li><li>Add the redirect URI for this app.</li><li>Enable the scopes shown below.</li><li>Paste your credentials and save.</li></ol></div>`;
+  }
   html += `<div class="oauth-url-box">${escHtml(p.oauth)}</div>`;
   p.fields.forEach(f => {
     html += `<div class="form-row full"><div class="form-group"><label class="form-label">${f.label}</label><input class="form-input" id="conn-field-${f.key}" type="${f.type||'text'}" value="${escAttr(conn[f.key]||'')}" placeholder="${escAttr(f.placeholder||'')}"></div></div>`;
   });
   html += `<div class="form-row full"><div class="form-group"><label class="form-label">Account Handle (optional)</label><input class="form-input" id="conn-field-handle" value="${escAttr(conn.handle||'')}" placeholder="e.g. sonayagroup"></div></div>`;
-  html += `</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePlatformCredentials('${key}')">Save Credentials</button></div>`;
+  html += `</div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePlatformCredentials('${key}')">${isEditing ? 'Update &amp; Sync' : 'Save Credentials'}</button></div>`;
   panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
 }
 

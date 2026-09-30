@@ -3295,7 +3295,7 @@ function renderConnections() {
     </div>
     ${driveConnected ? `<div class="conn-card-body">
       <div class="conn-detail-row"><span>Label</span><span>${escHtml(drive.folder_name||'My Drive')}</span></div>
-      <div class="conn-detail-row"><span>Scope</span><span style="font-weight:400;font-size:10px">youtube.upload, youtube.readonly</span></div>
+      <div class="conn-detail-row"><span>Scope</span><span style="font-weight:400;font-size:10px">youtube.readonly (analytics) · uploads via Studio</span></div>
       <div class="conn-detail-row"><span>Picker</span><span style="font-weight:400;font-size:10px;color:var(--success)">&#10003; Google Picker API</span></div>
     </div>
     <div class="conn-card-actions">
@@ -3933,7 +3933,7 @@ function startYouTubeOAuth() {
     if (clientSecret) state.platforms.youtube.oauth_client_secret = clientSecret;
     saveApiConnections(state);
   }
-  const scopes = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly';
+  const scopes = 'https://www.googleapis.com/auth/youtube.readonly';
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(YT_OAUTH_REDIRECT)}&response_type=code&scope=${encodeURIComponent(scopes)}&access_type=offline&prompt=consent`;
   window.location.href = authUrl;
 }
@@ -4116,6 +4116,76 @@ async function refreshYouTubeToken() {
   }
 }
 
+// YouTube Studio redirect modal — used instead of direct API upload
+// (Brand account workaround: OAuth doesn't support brand accounts for uploads)
+function showYouTubeStudioModal(title, description, studioUrl, mediaUrl, isShort) {
+  const overlay = document.getElementById('modal-overlay');
+  const panel = document.getElementById('modal-panel');
+  panel.classList.remove('wide');
+  const shortLabel = isShort ? ' (Short)' : '';
+  let html = `<div class="modal-header"><span class="modal-title">Upload to YouTube Studio${shortLabel}</span><button class="modal-close" onclick="closeModal()">&#10005;</button></div>`;
+  html += `<div class="modal-body" style="max-height:60vh;overflow-y:auto">`;
+  html += `<p style="margin:0 0 12px;color:var(--ink-2);font-size:13px">Your video details have been copied to the clipboard. Click <strong>Open YouTube Studio</strong> to upload the video manually, then paste the title and description.</p>`;
+  html += `<div style="background:var(--bg-2);border-radius:8px;padding:12px;margin-bottom:12px">`;
+  html += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:4px;font-weight:600">Title</div>`;
+  html += `<div style="font-size:14px;color:var(--ink-0);margin-bottom:10px;font-weight:500" id="yt-studio-title">${escHtml(title)}</div>`;
+  html += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:4px;font-weight:600">Description</div>`;
+  html += `<div style="font-size:13px;color:var(--ink-1);white-space:pre-wrap;max-height:200px;overflow-y:auto" id="yt-studio-desc">${escHtml(description)}</div>`;
+  html += `</div>`;
+  if (mediaUrl) {
+    html += `<div style="background:var(--bg-2);border-radius:8px;padding:12px;margin-bottom:12px">`;
+    html += `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);margin-bottom:4px;font-weight:600">Video Source</div>`;
+    html += `<a href="${escAttr(mediaUrl)}" target="_blank" style="font-size:12px;color:var(--accent);word-break:break-all">${escHtml(mediaUrl.length > 80 ? mediaUrl.substring(0,80)+'…' : mediaUrl)}</a>`;
+    html += `<div style="font-size:11px;color:var(--ink-3);margin-top:4px">Download this video first, then upload it in YouTube Studio</div>`;
+    html += `</div>`;
+  }
+  html += `<div style="display:flex;gap:8px;flex-wrap:wrap">`;
+  html += `<button class="btn btn-ghost btn-sm" onclick="copyYTStudioContent()">&#128203; Copy Again</button>`;
+  if (mediaUrl) {
+    html += `<a href="${escAttr(mediaUrl)}" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">&#11015; Download Video</a>`;
+  }
+  html += `</div>`;
+  html += `</div>`;
+  html += `<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Done</button><a href="${escAttr(studioUrl)}" target="_blank" class="btn btn-primary" style="text-decoration:none" onclick="showToast('YouTube Studio opened — paste your title &amp; description there','success')">&#9654; Open YouTube Studio</a></div>`;
+  panel.innerHTML = html;
+  overlay.hidden = false;
+}
+
+function copyYTStudioContent() {
+  const title = document.getElementById('yt-studio-title')?.textContent || '';
+  const desc = document.getElementById('yt-studio-desc')?.textContent || '';
+  const text = `Title: ${title}\n\nDescription:\n${desc}`;
+  navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!', 'success')).catch(() => showToast('Copy failed — select and copy manually', 'error'));
+}
+
+// Download video blob from a media URL (Google Drive or direct link)
+// Used by Facebook and Instagram publishing to upload binary instead of passing URL
+async function downloadVideoBlob(mediaUrl) {
+  const driveId = extractDriveFileId(mediaUrl);
+  if (driveId) {
+    // Try YouTube OAuth token for Drive API (has readonly scope)
+    const state = loadApiConnections();
+    const ytToken = state.platforms?.youtube?.access_token;
+    const driveToken = state.platforms?.youtube?.drive_access_token || state.drive?.access_token;
+    let dr;
+    if (driveToken) { try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { dr = null; } }
+    if ((!dr || !dr.ok) && ytToken) { try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { dr = null; } }
+    if (!dr || !dr.ok) { try { dr = await fetch(`https://drive.google.com/uc?export=download&id=${driveId}`); } catch(e) { dr = null; } }
+    if (!dr || !dr.ok) return { ok: false, msg: 'Cannot download video from Drive. Make sure the file is shared as "Anyone with link".' };
+    const blob = await dr.blob();
+    return { ok: true, blob };
+  } else {
+    try {
+      const resp = await fetch(mediaUrl);
+      if (!resp.ok) return { ok: false, msg: 'Could not download video from URL' };
+      const blob = await resp.blob();
+      return { ok: true, blob };
+    } catch(e) {
+      return { ok: false, msg: 'Could not fetch video — URL may be blocked by CORS: ' + e.message };
+    }
+  }
+}
+
 async function publishPostNow(existingId) {
   // Collect form data
   const form = document.getElementById('post-form'); const fd = new FormData(form); const data = {};
@@ -4228,10 +4298,17 @@ async function publishPostNow(existingId) {
           const photoBody = `message=${encodeURIComponent(message)}&url=${encodeURIComponent(photoUrl)}`;
           fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/photos?${photoBody}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
         } else if (data.media_url && (data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short')) {
-          // Video post — use /videos endpoint
-          const videoUrl = toDirectMediaUrl(data.media_url);
-          const videoBody = `description=${encodeURIComponent(message)}&file_url=${encodeURIComponent(videoUrl)}`;
-          fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos?${videoBody}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
+          // Video/Reel post — download video binary first, then upload via FormData
+          // (file_url doesn't work reliably for Google Drive links because FB servers can't access them)
+          showToast('Facebook: Downloading video from source…', 'info');
+          const dlResult = await downloadVideoBlob(data.media_url);
+          if (!dlResult.ok) { results.push({ platform: 'Facebook', ok: false, msg: dlResult.msg }); continue; }
+          showToast(`Facebook: Uploading ${(dlResult.blob.size/1048576).toFixed(1)} MB video…`, 'info');
+          const fbForm = new FormData();
+          fbForm.append('description', message);
+          fbForm.append('source', dlResult.blob, 'video.mp4');
+          fbForm.append('access_token', pageToken);
+          fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos`, { method: 'POST', body: fbForm });
         } else {
           // Text-only post
           const postBody = `message=${encodeURIComponent(message)}`;
@@ -4241,121 +4318,25 @@ async function publishPostNow(existingId) {
         if (fbData.error) { results.push({ platform: 'Facebook', ok: false, msg: fbData.error.message }); continue; }
         results.push({ platform: 'Facebook', ok: true, msg: 'Published successfully', postId: fbData.id || fbData.post_id });
 
-      } else if (key === 'youtube' && conn.access_token) {
-        // YouTube Data API v3 — resumable video upload
-        let ytToken = conn.access_token;
-        const channelId = conn.channel_id || '';
-        if (!data.media_url) { results.push({ platform: 'YouTube', ok: false, msg: 'Media URL required — add a video URL to upload' }); continue; }
+      } else if (key === 'youtube') {
+        // YouTube — open YouTube Studio for manual upload (brand account workaround)
+        // Analytics still work via youtube.readonly scope; uploads go through Studio
         if (data.media_type !== 'video' && data.media_type !== 'reel' && data.media_type !== 'short') {
           results.push({ platform: 'YouTube', ok: false, msg: 'YouTube only supports video uploads — set Media Type to Video' }); continue;
         }
         const isShort = data.media_type === 'short' || data.media_type === 'reel';
         let ytTitle = data.title || 'Untitled';
-        // YouTube Shorts: add #Shorts to title if not already present
         if (isShort && !ytTitle.includes('#Shorts')) ytTitle = ytTitle + ' #Shorts';
         const ytDesc = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
-        const ytCategory = '22'; // People & Blogs
-        const ytSnippetBody = JSON.stringify({
-          snippet: { title: ytTitle, description: ytDesc, categoryId: ytCategory, tags: (data.hashtags||'').replace(/#/g,'').split(/\s+/).filter(Boolean) },
-          status: { privacyStatus: 'public', selfDeclaredMadeForKids: false }
-        });
-        // Step 1: Initiate resumable upload (with auto-refresh on 401)
-        let initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' },
-          body: ytSnippetBody
-        });
-        if (initResp.status === 401 || initResp.status === 403) {
-          // Try auto-refresh
-          showToast('YouTube token expired — attempting auto-refresh…', 'info');
-          const refreshResult = await refreshYouTubeToken();
-          if (refreshResult.ok) {
-            ytToken = refreshResult.token;
-            conn.access_token = ytToken; // update in-memory for Drive fetch later
-            initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
-              method: 'POST',
-              headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' },
-              body: ytSnippetBody
-            });
-          }
-          if (initResp.status === 401 || initResp.status === 403) {
-            const errData = await initResp.json().catch(()=>({}));
-            results.push({ platform: 'YouTube', ok: false, msg: errData.error?.message || 'Auth failed — token expired. ' + (refreshResult.ok ? 'Refresh succeeded but still denied.' : refreshResult.msg) });
-            continue;
-          }
-        }
-        if (!initResp.ok) {
-          const errText = await initResp.text().catch(()=>'');
-          console.error('[YT Init] Failed HTTP', initResp.status, errText);
-          let errMsg;
-          try { const ej = JSON.parse(errText); errMsg = ej.error?.message || errText.substring(0,200); } catch(e) { errMsg = errText.substring(0,200); }
-          results.push({ platform: 'YouTube', ok: false, msg: errMsg || `Upload init failed (HTTP ${initResp.status})` });
-          continue;
-        }
-        const uploadUrl = initResp.headers.get('Location');
-        console.log('[YT Init] Success — upload URL obtained, status:', initResp.status);
-        if (!uploadUrl) { results.push({ platform: 'YouTube', ok: false, msg: 'No upload URL returned — try again' }); continue; }
-        // Step 2: Fetch the video file
-        showToast('YouTube: Downloading video from source…', 'info');
-        let videoBlob;
-        try {
-          const driveId = extractDriveFileId(data.media_url);
-          if (driveId) {
-            // Try Drive API — first with a separate drive token, then with YouTube token as fallback
-            let driveResp;
-            const state2 = loadApiConnections();
-            const driveToken = state2.platforms?.youtube?.drive_access_token || state2.drive?.access_token;
-            if (driveToken) { try { driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { driveResp = null; } }
-            // Fallback: try with YouTube OAuth token (works if token has drive scope)
-            if (!driveResp || !driveResp.ok) {
-              try { driveResp = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { driveResp = null; }
-            }
-            // Fallback: try direct Drive export link (works for publicly shared files)
-            if (!driveResp || !driveResp.ok) {
-              try { driveResp = await fetch(`https://drive.google.com/uc?export=download&id=${driveId}`); } catch(e) { driveResp = null; }
-            }
-            if (!driveResp || !driveResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Cannot download video from Drive. Make sure the video file is shared as "Anyone with link" or connect a Google Drive API token in Connections.' }); continue; }
-            videoBlob = await driveResp.blob();
-          } else {
-            try { const mediaResp = await fetch(data.media_url); if (!mediaResp.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from URL' }); continue; } videoBlob = await mediaResp.blob(); }
-            catch(e) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not fetch video — URL may be blocked by CORS: ' + e.message }); continue; }
-          }
-        } catch(dlErr) {
-          results.push({ platform: 'YouTube', ok: false, msg: 'Video download failed: ' + dlErr.message });
-          continue;
-        }
-        // Step 3: Upload video to YouTube
-        showToast(`YouTube: Uploading ${(videoBlob.size/1048576).toFixed(1)} MB video…`, 'info');
-        const upResp = await fetch(uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': videoBlob.type || 'video/mp4' },
-          body: videoBlob
-        });
-        let upData;
-        try {
-          const upText = await upResp.text();
-          console.log('[YT Upload] HTTP status:', upResp.status, 'Response:', upText);
-          upData = JSON.parse(upText);
-        } catch(parseErr) {
-          console.error('[YT Upload] Response parse failed:', parseErr);
-          results.push({ platform: 'YouTube', ok: false, msg: `Upload response invalid (HTTP ${upResp.status}) — check browser console for details` });
-          continue;
-        }
-        if (!upResp.ok || upData.error) {
-          console.error('[YT Upload] Error response:', JSON.stringify(upData));
-          results.push({ platform: 'YouTube', ok: false, msg: upData.error?.message || `Upload failed (HTTP ${upResp.status}): ${JSON.stringify(upData).substring(0,200)}` });
-          continue;
-        }
-        if (!upData.id) {
-          console.error('[YT Upload] No video ID in response:', JSON.stringify(upData));
-          results.push({ platform: 'YouTube', ok: false, msg: 'Upload completed but YouTube returned no video ID — check console' });
-          continue;
-        }
-        console.log('[YT Upload] Success! Video ID:', upData.id, 'Status:', upData.status?.uploadStatus);
-        results.push({ platform: 'YouTube', ok: true, msg: `Video uploaded! ID: ${upData.id}`, postId: upData.id, url: `https://youtu.be/${upData.id}` });
-
-      } else if (key === 'youtube' && !conn.access_token) {
-        results.push({ platform: 'YouTube', ok: false, msg: 'Missing OAuth Access Token — click Edit on YouTube in Connections to add one from Google OAuth Playground' });
+        // Copy details to clipboard and open YouTube Studio
+        const clipText = `Title: ${ytTitle}\n\nDescription:\n${ytDesc}`;
+        try { await navigator.clipboard.writeText(clipText); } catch(e) { /* clipboard may fail in some contexts */ }
+        // Show a helper modal with the content and a button to open Studio
+        const channelId = conn?.channel_id || '';
+        const studioUrl = channelId ? `https://studio.youtube.com/channel/${channelId}/videos/upload?d=ud` : 'https://www.youtube.com/upload';
+        const mediaLink = data.media_url || '';
+        showYouTubeStudioModal(ytTitle, ytDesc, studioUrl, mediaLink, isShort);
+        results.push({ platform: 'YouTube', ok: true, msg: 'Content copied — opening YouTube Studio for upload' });
 
       } else {
         results.push({ platform: platName, ok: false, msg: 'Publishing not yet supported or missing credentials' });
@@ -4462,70 +4443,43 @@ async function republishToSinglePlatform(postId, platformKey) {
           const photoUrl = toDirectMediaUrl(data.media_url);
           fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/photos?message=${encodeURIComponent(message)}&url=${encodeURIComponent(photoUrl)}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
         } else if (data.media_url && (data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short')) {
-          fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos?description=${encodeURIComponent(message)}&file_url=${encodeURIComponent(toDirectMediaUrl(data.media_url))}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
+          // Download video binary and upload via FormData (file_url fails for Google Drive)
+          showToast('Facebook: Downloading video…', 'info');
+          const dlResult = await downloadVideoBlob(data.media_url);
+          if (!dlResult.ok) { results.push({ platform: 'Facebook', ok: false, msg: dlResult.msg }); }
+          else {
+            showToast(`Facebook: Uploading ${(dlResult.blob.size/1048576).toFixed(1)} MB…`, 'info');
+            const fbForm = new FormData();
+            fbForm.append('description', message);
+            fbForm.append('source', dlResult.blob, 'video.mp4');
+            fbForm.append('access_token', pageToken);
+            fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos`, { method: 'POST', body: fbForm });
+          }
         } else {
           fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/feed?message=${encodeURIComponent(message)}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
         }
-        const fbData = await fbResp.json();
-        if (fbData.error) { results.push({ platform: 'Facebook', ok: false, msg: fbData.error.message }); }
-        else { results.push({ platform: 'Facebook', ok: true, msg: 'Republished!' }); }
+        if (fbResp) {
+          const fbData = await fbResp.json();
+          if (fbData.error) { results.push({ platform: 'Facebook', ok: false, msg: fbData.error.message }); }
+          else { results.push({ platform: 'Facebook', ok: true, msg: 'Republished!' }); }
+        }
       }
 
-    } else if (platformKey === 'youtube' && conn.access_token) {
-      let ytToken = conn.access_token;
-      if (!data.media_url) { results.push({ platform: 'YouTube', ok: false, msg: 'Media URL required' }); }
-      else if (data.media_type !== 'video' && data.media_type !== 'reel' && data.media_type !== 'short') {
+    } else if (platformKey === 'youtube') {
+      // YouTube — open YouTube Studio for manual upload (brand account workaround)
+      if (data.media_type !== 'video' && data.media_type !== 'reel' && data.media_type !== 'short') {
         results.push({ platform: 'YouTube', ok: false, msg: 'YouTube only supports video uploads' });
       } else {
         const isShort = data.media_type === 'short' || data.media_type === 'reel';
         let ytTitle = data.title || 'Untitled';
         if (isShort && !ytTitle.includes('#Shorts')) ytTitle = ytTitle + ' #Shorts';
         const ytDesc = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
-        const ytBody = JSON.stringify({ snippet: { title: ytTitle, description: ytDesc, categoryId: '22', tags: (data.hashtags||'').replace(/#/g,'').split(/\s+/).filter(Boolean) }, status: { privacyStatus: 'public', selfDeclaredMadeForKids: false } });
-        let initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' }, body: ytBody });
-        if (initResp.status === 401 || initResp.status === 403) {
-          const ref = await refreshYouTubeToken();
-          if (ref.ok) { ytToken = ref.token; initResp = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', { method: 'POST', headers: { 'Authorization': 'Bearer ' + ytToken, 'Content-Type': 'application/json' }, body: ytBody }); }
-          if (initResp.status === 401 || initResp.status === 403) { const errD = await initResp.json().catch(()=>({})); results.push({ platform: 'YouTube', ok: false, msg: errD.error?.message || 'Auth failed — token expired' }); }
-        }
-        if (results.length === 0) {
-          if (!initResp.ok) { const e = await initResp.json().catch(()=>({})); results.push({ platform: 'YouTube', ok: false, msg: e.error?.message || 'Upload init failed' }); }
-          else {
-            const uploadUrl = initResp.headers.get('Location');
-            showToast('YouTube: Downloading video…', 'info');
-            let videoBlob;
-            const driveId = extractDriveFileId(data.media_url);
-            if (driveId) {
-              // Try Drive API — first with a separate drive token, then YouTube token as fallback
-              let dr;
-              const driveToken = state.platforms?.youtube?.drive_access_token || state.drive?.access_token;
-              if (driveToken) { try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + driveToken } }); } catch(e) { dr = null; } }
-              // Fallback: try with YouTube OAuth token
-              if (!dr || !dr.ok) {
-                try { dr = await fetch(`https://www.googleapis.com/drive/v3/files/${driveId}?alt=media`, { headers: { 'Authorization': 'Bearer ' + ytToken } }); } catch(e) { dr = null; }
-              }
-              // Fallback: try direct Drive export link (works for publicly shared files)
-              if (!dr || !dr.ok) {
-                try { dr = await fetch(`https://drive.google.com/uc?export=download&id=${driveId}`); } catch(e) { dr = null; }
-              }
-              if (!dr || !dr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Cannot download video from Drive. Make sure the video file is shared as "Anyone with link" or connect a Google Drive API token in Connections.' }); }
-              else { videoBlob = await dr.blob(); }
-            } else {
-              try { const mr = await fetch(data.media_url); if (!mr.ok) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not download video from URL' }); } else { videoBlob = await mr.blob(); } }
-              catch(e) { results.push({ platform: 'YouTube', ok: false, msg: 'Could not fetch video — URL may be blocked by CORS: ' + e.message }); }
-            }
-            if (videoBlob && results.length === 0) {
-              showToast(`YouTube: Uploading ${(videoBlob.size/1048576).toFixed(1)} MB…`, 'info');
-              const ur = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': videoBlob.type || 'video/mp4' }, body: videoBlob });
-              let ud;
-              try { const utxt = await ur.text(); console.log('[YT Republish] HTTP:', ur.status, 'Response:', utxt); ud = JSON.parse(utxt); }
-              catch(pe) { console.error('[YT Republish] Parse failed:', pe); results.push({ platform: 'YouTube', ok: false, msg: `Upload response invalid (HTTP ${ur.status})` }); }
-              if (ud && (!ur.ok || ud.error)) { console.error('[YT Republish] Error:', JSON.stringify(ud)); results.push({ platform: 'YouTube', ok: false, msg: ud.error?.message || 'Upload failed' }); }
-              else if (ud && !ud.id) { console.error('[YT Republish] No video ID:', JSON.stringify(ud)); results.push({ platform: 'YouTube', ok: false, msg: 'Upload completed but no video ID returned' }); }
-              else if (ud) { console.log('[YT Republish] Success! ID:', ud.id); results.push({ platform: 'YouTube', ok: true, msg: `Video uploaded! ID: ${ud.id}`, url: `https://youtu.be/${ud.id}` }); }
-            }
-          }
-        }
+        const clipText = `Title: ${ytTitle}\n\nDescription:\n${ytDesc}`;
+        try { await navigator.clipboard.writeText(clipText); } catch(e) { /* clipboard may fail */ }
+        const channelId = conn?.channel_id || '';
+        const studioUrl = channelId ? `https://studio.youtube.com/channel/${channelId}/videos/upload?d=ud` : 'https://www.youtube.com/upload';
+        showYouTubeStudioModal(ytTitle, ytDesc, studioUrl, data.media_url || '', isShort);
+        results.push({ platform: 'YouTube', ok: true, msg: 'Content copied — opening YouTube Studio' });
       }
 
     } else {

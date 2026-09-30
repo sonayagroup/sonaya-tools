@@ -3274,6 +3274,7 @@ function renderConnections() {
       <div class="conn-card-actions">
         <button class="btn btn-ghost btn-sm" onclick="syncPlatform('${p.key}')">&#8635; Sync Now</button>
         ${p.key==='youtube'?`<button class="btn btn-ghost btn-sm" onclick="testYouTubeConnection()">&#9889; Test</button>`:''}
+        ${p.key==='facebook'?`<button class="btn btn-ghost btn-sm" onclick="testFacebookConnection()">&#9889; Test</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="openPlatformConnectModal('${p.key}')">&#9998; Edit</button>
         <button class="btn btn-danger btn-sm" onclick="disconnectPlatform('${p.key}')">Disconnect</button>
       </div>` : `
@@ -3906,6 +3907,43 @@ async function ensureDriveFilePublic(fileId) {
   }
 }
 
+// Diagnostic: test Facebook token validity
+async function testFacebookConnection() {
+  const state = loadApiConnections();
+  const conn = state.platforms?.facebook;
+  if (!conn?.user_access_token) { showToast('No Facebook token saved', 'error'); return; }
+  showToast('Testing Facebook token…', 'info');
+  try {
+    // Test 1: Check token validity via debug_token or /me
+    const meResp = await fetch(`https://graph.facebook.com/v18.0/me?access_token=${encodeURIComponent(conn.user_access_token)}`);
+    const meData = await meResp.json();
+    console.log('[FB Diag] /me response:', JSON.stringify(meData));
+    if (meData.error) {
+      showToast(`Token invalid: ${meData.error.message}`, 'error');
+      return;
+    }
+    showToast(`Token valid — user: ${meData.name} (${meData.id})`, 'success');
+
+    // Test 2: Check page access
+    const pageId = conn.fb_page_id || conn.page_id;
+    if (pageId) {
+      const pageResp = await fetch(`https://graph.facebook.com/v18.0/${encodeURIComponent(pageId)}?fields=name,access_token&access_token=${encodeURIComponent(conn.user_access_token)}`);
+      const pageData = await pageResp.json();
+      console.log('[FB Diag] Page response:', JSON.stringify(pageData));
+      if (pageData.error) {
+        showToast(`Page token failed: ${pageData.error.message}`, 'error');
+      } else if (pageData.access_token) {
+        showToast(`Page "${pageData.name}" — token OK ✓`, 'success');
+      } else {
+        showToast(`Page found but no access_token — check permissions`, 'warning');
+      }
+    }
+  } catch(e) {
+    console.error('[FB Diag] Error:', e);
+    showToast(`Facebook test error: ${e.message}`, 'error');
+  }
+}
+
 // Diagnostic: test YouTube connection and token validity
 async function testYouTubeConnection() {
   const state = loadApiConnections();
@@ -4090,7 +4128,13 @@ async function publishPostNow(existingId) {
         // Get page access token
         const pageResp = await fetch(`https://graph.facebook.com/v18.0/${encodeURIComponent(pageId)}?fields=access_token&access_token=${encodeURIComponent(token)}`);
         const pageInfo = await pageResp.json();
-        if (!pageInfo.access_token) { results.push({ platform: 'Facebook', ok: false, msg: 'Could not get Page access token' }); continue; }
+        console.log('[FB Publish] Page token exchange response:', JSON.stringify(pageInfo));
+        if (!pageInfo.access_token) {
+          const errDetail = pageInfo.error ? `${pageInfo.error.message} (code ${pageInfo.error.code})` : 'No access_token in response';
+          console.error('[FB Publish] Page token failed:', errDetail);
+          results.push({ platform: 'Facebook', ok: false, msg: `Could not get Page access token — ${errDetail}` });
+          continue;
+        }
         const pageToken = pageInfo.access_token;
         const message = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');
         let fbResp, fbData;
@@ -4316,7 +4360,12 @@ async function republishToSinglePlatform(postId, platformKey) {
       const pageId = conn.fb_page_id || conn.page_id;
       const pageResp = await fetch(`https://graph.facebook.com/v18.0/${encodeURIComponent(pageId)}?fields=access_token&access_token=${encodeURIComponent(token)}`);
       const pageInfo = await pageResp.json();
-      if (!pageInfo.access_token) { results.push({ platform: 'Facebook', ok: false, msg: 'Could not get Page access token' }); }
+      console.log('[FB Republish] Page token exchange response:', JSON.stringify(pageInfo));
+      if (!pageInfo.access_token) {
+        const errDetail = pageInfo.error ? `${pageInfo.error.message} (code ${pageInfo.error.code})` : 'No access_token in response';
+        console.error('[FB Republish] Page token failed:', errDetail);
+        results.push({ platform: 'Facebook', ok: false, msg: `Could not get Page access token — ${errDetail}` });
+      }
       else {
         const pageToken = pageInfo.access_token;
         const message = (data.caption || '') + (data.hashtags ? '\n\n' + data.hashtags : '');

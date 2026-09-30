@@ -1127,8 +1127,11 @@
 
   // ---- page rotation: Sales Floor (dashboard) / Open & Expired Estimates / CRM Pipeline ----
   const TV_PAGE_IDS = ['tvPageDashboard', 'tvPageEstimates', 'tvPageCrm'];
-  const PAGE_ROTATE_MS = 25 * 1000;
+  // Per-page dwell time, same order as TV_PAGE_IDS — set 2026-09-30 per Pranav: 30s Sales Floor,
+  // 60s Open & Expired Estimates (the long scrolling lists need the extra time), 30s CRM Pipeline.
+  const PAGE_DWELL_MS = [30 * 1000, 60 * 1000, 30 * 1000];
   let tvPageIndex = 0;
+  let tvPageTimer = null;
   function showTvPage(index) {
     tvPageIndex = ((index % TV_PAGE_IDS.length) + TV_PAGE_IDS.length) % TV_PAGE_IDS.length;
     TV_PAGE_IDS.forEach((id, i) => {
@@ -1136,6 +1139,10 @@
       if (pageEl) pageEl.classList.toggle('active', i === tvPageIndex);
     });
     document.querySelectorAll('.page-dot').forEach((dot, i) => dot.classList.toggle('active', i === tvPageIndex));
+    // Schedule the next page from HERE (setTimeout, not a fixed setInterval) so each page gets its
+    // own dwell time, and jumping to a page via its dot restarts that page's full timer.
+    clearTimeout(tvPageTimer);
+    tvPageTimer = setTimeout(rotateTvPage, PAGE_DWELL_MS[tvPageIndex]);
   }
   function rotateTvPage() { showTvPage(tvPageIndex + 1); }
 
@@ -1612,8 +1619,7 @@
     // the cycle whenever fresh content lands.
     ['estOpen-gabriel', 'estExpired-gabriel', 'estOpen-mike', 'estExpired-mike', 'estOpen-frank', 'estExpired-frank', 'followupsFullList', 'updatesList']
       .forEach(id => armAutoscroll(document.getElementById(id)));
-    showTvPage(0);
-    setInterval(rotateTvPage, PAGE_ROTATE_MS);
+    showTvPage(0); // also schedules the rotation (see PAGE_DWELL_MS)
 
     await loadSettings();
     await Promise.allSettled([refreshRevenue(), refreshCRM(), refreshPacing(), refreshCalendar(), refreshRecentWins()]);

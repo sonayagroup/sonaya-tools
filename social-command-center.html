@@ -4216,14 +4216,18 @@ function copyYTStudioContent() {
 // Upload the video blob to Supabase Storage, get a public URL, then clean up after publish.
 async function uploadToTempStorage(blob, filename) {
   try {
+    // Ensure content type is video/mp4 — some blobs from fetch may have empty or wrong type
+    const contentType = (blob.type && blob.type.startsWith('video/')) ? blob.type : 'video/mp4';
     const path = `temp/${Date.now()}_${filename}`;
+    console.log('[uploadToTempStorage] Uploading', blob.size, 'bytes as', contentType, 'to', path);
     const { data, error } = await sb.storage.from('sm-temp-media').upload(path, blob, {
-      contentType: blob.type || 'video/mp4', upsert: false
+      contentType: contentType, upsert: false
     });
-    if (error) return { ok: false, msg: 'Storage upload failed: ' + error.message };
+    if (error) { console.error('[uploadToTempStorage] Error:', error); return { ok: false, msg: 'Storage upload failed: ' + error.message }; }
     const { data: urlData } = sb.storage.from('sm-temp-media').getPublicUrl(path);
+    console.log('[uploadToTempStorage] Public URL:', urlData.publicUrl);
     return { ok: true, url: urlData.publicUrl, path: path };
-  } catch (e) { return { ok: false, msg: 'Storage upload error: ' + e.message }; }
+  } catch (e) { console.error('[uploadToTempStorage] Exception:', e); return { ok: false, msg: 'Storage upload error: ' + e.message }; }
 }
 async function deleteFromTempStorage(path) {
   try { await sb.storage.from('sm-temp-media').remove([path]); } catch(e) { console.warn('[deleteFromTempStorage]', e); }
@@ -4350,10 +4354,23 @@ async function publishPostNow(existingId) {
           showToast('Downloading video for Instagram…', 'info');
           const dlResult = await downloadVideoBlob(data.media_url);
           if (!dlResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: dlResult.msg }); continue; }
+          console.log('[IG Publish] Downloaded video blob:', dlResult.blob.size, 'bytes, type:', dlResult.blob.type);
           showToast('Uploading to temp storage for Instagram…', 'info');
           const upResult = await uploadToTempStorage(dlResult.blob, 'ig_video.mp4');
           if (!upResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: upResult.msg }); continue; }
           videoPublicUrl = upResult.url; tempStoragePath = upResult.path;
+          console.log('[IG Publish] Temp storage URL:', videoPublicUrl);
+          // Verify the URL is actually accessible before sending to Instagram
+          try {
+            const verifyResp = await fetch(videoPublicUrl, { method: 'HEAD' });
+            console.log('[IG Publish] URL verify:', verifyResp.status, verifyResp.headers.get('content-type'), verifyResp.headers.get('content-length'));
+            if (!verifyResp.ok) {
+              console.error('[IG Publish] Temp URL not accessible:', verifyResp.status);
+              if (tempStoragePath) deleteFromTempStorage(tempStoragePath);
+              results.push({ platform: 'Instagram', ok: false, msg: `Temp storage URL returned ${verifyResp.status} — upload may have failed` });
+              continue;
+            }
+          } catch(verifyErr) { console.warn('[IG Publish] Could not verify temp URL (CORS):', verifyErr.message); }
         }
         let containerParams = `caption=${encodeURIComponent(caption)}`;
         if (isVideo) {
@@ -4362,26 +4379,42 @@ async function publishPostNow(existingId) {
           const mediaUrl = toDirectMediaUrl(data.media_url);
           containerParams += `&image_url=${encodeURIComponent(mediaUrl)}`;
         }
-        const createResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
+        console.log('[IG Publish] Creating container…', isVideo ? 'REELS' : 'IMAGE');
+        const createResp = await fetch(`https://graph.facebook.com/v21.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
         const createData = await createResp.json();
+        console.log('[IG Publish] Container response:', JSON.stringify(createData));
         if (createData.error) { if (tempStoragePath) deleteFromTempStorage(tempStoragePath); results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); continue; }
         const containerId = createData.id;
         // For videos, poll status until finished processing (up to 2 min)
         if (isVideo) {
           let ready = false;
+          showToast('Instagram: Processing video…', 'info');
           for (let i = 0; i < 24; i++) {
             await new Promise(r => setTimeout(r, 5000));
-            const statusResp = await fetch(`https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`);
+            const statusResp = await fetch(`https://graph.facebook.com/v21.0/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`);
             const statusData = await statusResp.json();
+            console.log(`[IG Publish] Poll ${i+1}/24:`, JSON.stringify(statusData));
             if (statusData.status_code === 'FINISHED') { ready = true; break; }
-            if (statusData.status_code === 'ERROR') { results.push({ platform: 'Instagram', ok: false, msg: 'Video processing failed — check video format (MP4 H.264 recommended)' }); break; }
+            if (statusData.status_code === 'ERROR') {
+              const errDetail = statusData.status?.error_message || statusData.status?.error?.message || 'Unknown error';
+              console.error('[IG Publish] Processing error:', errDetail);
+              results.push({ platform: 'Instagram', ok: false, msg: `Video processing failed: ${errDetail}` });
+              break;
+            }
+            if (statusData.status_code === 'IN_PROGRESS') { showToast(`Instagram: Processing video (${i+1}/24)…`, 'info'); }
           }
           if (tempStoragePath) deleteFromTempStorage(tempStoragePath);
-          if (!ready) { results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing — try again in a minute' }); continue; }
+          if (!ready) {
+            if (!results.find(r => r.platform === 'Instagram')) {
+              results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing after 2 min — try again shortly' });
+            }
+            continue;
+          }
         }
         // Publish the container
-        const pubResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media_publish?creation_id=${containerId}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
+        const pubResp = await fetch(`https://graph.facebook.com/v21.0/${igId}/media_publish?creation_id=${containerId}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
         const pubData = await pubResp.json();
+        console.log('[IG Publish] Publish response:', JSON.stringify(pubData));
         if (pubData.error) { results.push({ platform: 'Instagram', ok: false, msg: pubData.error.message }); continue; }
         results.push({ platform: 'Instagram', ok: true, msg: 'Published successfully', postId: pubData.id });
 
@@ -4526,30 +4559,35 @@ async function republishToSinglePlatform(postId, platformKey) {
           const dlResult = await downloadVideoBlob(data.media_url);
           if (!dlResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: dlResult.msg }); }
           else {
+            console.log('[IG Republish] Downloaded video blob:', dlResult.blob.size, 'bytes, type:', dlResult.blob.type);
             showToast('Uploading to temp storage…', 'info');
             const upResult = await uploadToTempStorage(dlResult.blob, 'ig_video.mp4');
             if (!upResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: upResult.msg }); }
-            else { videoPublicUrl = upResult.url; tempStoragePath = upResult.path; }
+            else { videoPublicUrl = upResult.url; tempStoragePath = upResult.path; console.log('[IG Republish] Temp storage URL:', videoPublicUrl); }
           }
         }
         if (results.length === 0) {
           let containerParams = `caption=${encodeURIComponent(caption)}`;
           if (isVideo) { containerParams += `&media_type=REELS&video_url=${encodeURIComponent(videoPublicUrl)}`; }
           else { const mediaUrl = toDirectMediaUrl(data.media_url); containerParams += `&image_url=${encodeURIComponent(mediaUrl)}`; }
-          const createResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
+          console.log('[IG Republish] Creating container…', isVideo ? 'REELS' : 'IMAGE');
+          const createResp = await fetch(`https://graph.facebook.com/v21.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
           const createData = await createResp.json();
+          console.log('[IG Republish] Container response:', JSON.stringify(createData));
           if (createData.error) { if (tempStoragePath) deleteFromTempStorage(tempStoragePath); results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); }
           else {
             const containerId = createData.id;
             if (isVideo) {
               let ready = false;
-              for (let i = 0; i < 24; i++) { await new Promise(r => setTimeout(r, 5000)); const sr = await fetch(`https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`); const sd = await sr.json(); if (sd.status_code === 'FINISHED') { ready = true; break; } if (sd.status_code === 'ERROR') { results.push({ platform: 'Instagram', ok: false, msg: 'Video processing failed — check video format (MP4 H.264 recommended)' }); break; } }
+              showToast('Instagram: Processing video…', 'info');
+              for (let i = 0; i < 24; i++) { await new Promise(r => setTimeout(r, 5000)); const sr = await fetch(`https://graph.facebook.com/v21.0/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`); const sd = await sr.json(); console.log(`[IG Republish] Poll ${i+1}/24:`, JSON.stringify(sd)); if (sd.status_code === 'FINISHED') { ready = true; break; } if (sd.status_code === 'ERROR') { const errDetail = sd.status?.error_message || sd.status?.error?.message || 'Unknown error'; console.error('[IG Republish] Processing error:', errDetail); results.push({ platform: 'Instagram', ok: false, msg: `Video processing failed: ${errDetail}` }); break; } }
               if (tempStoragePath) deleteFromTempStorage(tempStoragePath);
               if (!ready && results.length === 0) { results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing — try again' }); }
             }
             if (results.length === 0) {
-              const pubResp = await fetch(`https://graph.facebook.com/v18.0/${igId}/media_publish?creation_id=${containerId}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
+              const pubResp = await fetch(`https://graph.facebook.com/v21.0/${igId}/media_publish?creation_id=${containerId}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
               const pubData = await pubResp.json();
+              console.log('[IG Republish] Publish response:', JSON.stringify(pubData));
               if (pubData.error) { results.push({ platform: 'Instagram', ok: false, msg: pubData.error.message }); }
               else { results.push({ platform: 'Instagram', ok: true, msg: 'Republished!' }); }
             }

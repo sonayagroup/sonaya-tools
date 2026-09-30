@@ -251,6 +251,65 @@
     transition: opacity .2s;
   }
   .theme-btn:hover { opacity: 0.9; }
+
+  /* ---- rotating pages (added 2026-09-30 per Pranav — "rotating pages instead of a single
+     static screen") ----
+     The header (brand/clock/sync) stays fixed above every page; only the body below it rotates
+     between 3 full-screen pages. Inactive pages stay in the DOM (not display:none) so their
+     content/animations are already warm the instant they become active — just invisible and
+     non-interactive until then. */
+  .tv-pages { flex: 1 1 auto; min-height: 0; position: relative; }
+  .tv-page {
+    position: absolute; inset: 0; display: flex; flex-direction: column; gap: 1.2vh;
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transition: opacity 0.6s ease, visibility 0s linear 0.6s;
+  }
+  .tv-page.active { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 0.6s ease; }
+  .page-dots { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+  .page-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--gridline); cursor: pointer;
+    opacity: 0.6; transition: background .3s, opacity .3s, transform .3s;
+  }
+  .page-dot.active { background: var(--brand-teal); opacity: 1; transform: scale(1.3); }
+
+  /* ---- Page 2: Open & Expired Estimates board ---- */
+  .est-hero { flex: 1 1 auto; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1.2vw; min-height: 0; }
+  .est-list {
+    list-style: none; margin: 1.6vh 0 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--gridline) transparent;
+  }
+  .est-list::-webkit-scrollbar { width: 6px; }
+  .est-list::-webkit-scrollbar-track { background: transparent; }
+  .est-list::-webkit-scrollbar-thumb { background: var(--gridline); border-radius: 4px; }
+  .est-row { display: flex; align-items: center; gap: 8px; font-size: 1.4vh; padding: 0.6vh 0; border-top: 1px solid var(--gridline); }
+  .est-row:first-child { border-top: none; }
+  .est-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-weight: 600; }
+  .est-age { flex: 0 0 auto; width: 5ch; text-align: right; color: var(--text-muted); font-weight: 700; }
+  .est-value { flex: 0 0 auto; width: 9ch; text-align: right; color: var(--text-secondary); font-weight: 700; }
+  .est-row.est-expired .est-age, .est-row.est-expired .est-name { color: var(--status-critical); }
+
+  /* ---- Page 3: CRM Pipeline — Progress, Follow-Ups & Updates ---- */
+  .crm-hero { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0,0.9fr) minmax(0,1.3fr) minmax(0,1fr); gap: 1.2vw; min-height: 0; }
+  .stage-bar-row { display: flex; align-items: center; gap: 8px; padding: 0.65vh 0; }
+  .stage-bar-label { width: 38%; flex: 0 0 auto; font-size: 1.3vh; color: var(--text-secondary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stage-bar-track { flex: 1; height: 1.5vh; background: var(--gridline); border-radius: 999px; overflow: hidden; min-width: 0; }
+  .stage-bar-fill { height: 100%; border-radius: 999px; background: var(--brand-teal); transition: width 0.6s ease; }
+  .stage-bar-count { flex: 0 0 auto; width: 3ch; text-align: right; font-size: 1.3vh; font-weight: 800; color: var(--text-primary); }
+  .followup-when.soon { color: var(--brand-teal); }
+  .followup-when.later { color: var(--text-muted); }
+  .update-list {
+    list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0;
+    scrollbar-width: thin; scrollbar-color: var(--gridline) transparent;
+  }
+  .update-list::-webkit-scrollbar { width: 6px; }
+  .update-list::-webkit-scrollbar-track { background: transparent; }
+  .update-list::-webkit-scrollbar-thumb { background: var(--gridline); border-radius: 4px; }
+  .update-row { padding: 0.7vh 0; border-top: 1px solid var(--gridline); }
+  .update-row:first-child { border-top: none; }
+  .update-top { display: flex; justify-content: space-between; gap: 8px; }
+  .update-name { font-size: 1.4vh; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .update-when { font-size: 1.2vh; color: var(--text-muted); font-weight: 700; white-space: nowrap; flex: 0 0 auto; }
+  .update-sub { font-size: 1.15vh; color: var(--text-muted); margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -272,6 +331,9 @@
       <div class="sync-row"><span class="sync-dot" id="syncDot"></span><span class="sync-text" id="syncText">syncing…</span></div>
     </div>
   </div>
+
+  <div class="tv-pages">
+  <div class="tv-page active" id="tvPageDashboard">
 
   <div class="hero">
     <div class="card rep-card" id="repCard-gabriel">
@@ -404,6 +466,110 @@
       <div class="ticker-tag">Recent Wins</div>
       <div class="ticker-track" id="tickerTrack"><span>Loading recent activity…</span></div>
     </div>
+  </div>
+
+  </div> <!-- /tvPageDashboard -->
+
+  <!-- ---- Page 2: Open & Expired Estimates (Gabriel/Mike 90d, Frank 365d) — added 2026-09-30
+       per Pranav, "more visibility into their estimates and prospecting." Reuses the same
+       allProposalsCache (ServiceMinder Open proposals) already fetched by refreshFunnel() for
+       page 1's close-rate/stale-bid stats — see repEstimatesBoard() below — so this page adds
+       zero extra network calls. ---- -->
+  <div class="tv-page" id="tvPageEstimates">
+    <div class="cal-section-label">Open &amp; Expired Estimates — Gabriel · Mike · Frank</div>
+    <div class="hero est-hero">
+      <div class="card rep-card" id="estCard-gabriel">
+        <div>
+          <div class="rep-top">
+            <div class="rep-avatar" style="background:var(--cat-1)">GE</div>
+            <div>
+              <div class="rep-period">90-Day Window</div>
+              <div class="rep-name">Gabriel Espinosa</div>
+            </div>
+          </div>
+          <div class="crm-stats" style="margin-top:1.8vh;">
+            <div class="crm-num-block"><div class="crm-num" data-el="open-count">—</div><div class="crm-num-label">Open &le;90d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="open-value" style="font-size:2vh">—</div><div class="crm-num-label">Open $ Value</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="expired-count" style="color:var(--status-critical)">—</div><div class="crm-num-label">Expired &gt;90d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="expired-value" style="font-size:2vh;color:var(--status-critical)">—</div><div class="crm-num-label">Expired $ Value</div></div>
+          </div>
+        </div>
+        <ul class="est-list" id="estList-gabriel" data-el="est-list"><li class="empty-followups">Loading…</li></ul>
+      </div>
+
+      <div class="card rep-card" id="estCard-mike">
+        <div>
+          <div class="rep-top">
+            <div class="rep-avatar" style="background:var(--cat-2)">MJ</div>
+            <div>
+              <div class="rep-period">90-Day Window</div>
+              <div class="rep-name">Mike Jones</div>
+            </div>
+          </div>
+          <div class="crm-stats" style="margin-top:1.8vh;">
+            <div class="crm-num-block"><div class="crm-num" data-el="open-count">—</div><div class="crm-num-label">Open &le;90d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="open-value" style="font-size:2vh">—</div><div class="crm-num-label">Open $ Value</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="expired-count" style="color:var(--status-critical)">—</div><div class="crm-num-label">Expired &gt;90d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="expired-value" style="font-size:2vh;color:var(--status-critical)">—</div><div class="crm-num-label">Expired $ Value</div></div>
+          </div>
+        </div>
+        <ul class="est-list" id="estList-mike" data-el="est-list"><li class="empty-followups">Loading…</li></ul>
+      </div>
+
+      <div class="card rep-card" id="estCard-frank">
+        <div>
+          <div class="rep-top">
+            <div class="rep-avatar" style="background:var(--cat-3)">FE</div>
+            <div>
+              <div class="rep-period">365-Day Window</div>
+              <div class="rep-name">Frank Emanuel</div>
+            </div>
+          </div>
+          <div class="crm-stats" style="margin-top:1.8vh;">
+            <div class="crm-num-block"><div class="crm-num" data-el="open-count">—</div><div class="crm-num-label">Open &le;365d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="open-value" style="font-size:2vh">—</div><div class="crm-num-label">Open $ Value</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="expired-count" style="color:var(--status-critical)">—</div><div class="crm-num-label">Expired &gt;365d</div></div>
+            <div class="crm-num-block"><div class="crm-num" data-el="expired-value" style="font-size:2vh;color:var(--status-critical)">—</div><div class="crm-num-label">Expired $ Value</div></div>
+          </div>
+        </div>
+        <ul class="est-list" id="estList-frank" data-el="est-list"><li class="empty-followups">Loading…</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---- Page 3: CRM Pipeline — Progress, Follow-Ups & Updates — added 2026-09-30 per Pranav.
+       Reuses the same crm_deals rows already fetched by refreshCRM() for page 1's Open
+       Estimates/Follow-Ups Due/Stale 90+ tile — see renderCrmProgressPage() below — so this
+       page also adds zero extra network calls. ---- -->
+  <div class="tv-page" id="tvPageCrm">
+    <div class="cal-section-label">CRM Pipeline — Progress, Follow-Ups &amp; Updates</div>
+    <div class="hero crm-hero">
+      <div class="card tile">
+        <div class="tile-label" style="display:flex;justify-content:space-between;">
+          <span>Pipeline Progress</span>
+          <span id="stageProgressTotal" style="color:var(--text-secondary);">—</span>
+        </div>
+        <div id="stageProgressBody" style="flex:1;min-height:0;overflow-y:auto;"></div>
+      </div>
+
+      <div class="card tile">
+        <div class="tile-label">Follow-Ups — All Open</div>
+        <ul class="followup-list" id="followupsFullList"><li class="empty-followups">Loading…</li></ul>
+      </div>
+
+      <div class="card tile">
+        <div class="tile-label">Recent Updates</div>
+        <ul class="update-list" id="updatesList"><li class="empty-followups">Loading…</li></ul>
+      </div>
+    </div>
+  </div>
+
+  </div> <!-- /tv-pages -->
+
+  <div class="page-dots" id="pageDots">
+    <span class="page-dot active" onclick="showTvPage(0)" title="Sales Floor"></span>
+    <span class="page-dot" onclick="showTvPage(1)" title="Open &amp; Expired Estimates"></span>
+    <span class="page-dot" onclick="showTvPage(2)" title="CRM Pipeline"></span>
   </div>
 
 </div>
@@ -561,6 +727,7 @@
 
   // ---- proposals (close rate / estimates sent) cache ----
   let allProposalsCache = null;
+  let crmDealsCache = null; // rows fetched by refreshCRM(), reused by renderCrmProgressPage() (page 3)
   function parseSMDate(s) {
     if (!s) return null;
     let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
@@ -708,6 +875,215 @@
     const duration = Math.max(TICKER_MIN_DURATION_S, singleCopyWidth / TICKER_SPEED_PX_PER_SEC);
     trackEl.style.animationDuration = duration.toFixed(2) + 's';
   }
+
+  // ---- Page 2: Open & Expired Estimates board (Gabriel/Mike/Frank) ----
+  // Like repOpenPipeline's staleBids, but returns EVERY currently-Open ServiceMinder proposal for
+  // the rep (not just the ones past a threshold), split into "open" (within the rep's own
+  // follow-up window) vs "expired" (past it) — the window itself is a parameter instead of
+  // repOpenPipeline's hard-coded 60-day commercial-only threshold, since Gabriel/Mike's
+  // residential pace (90d) and Frank's commercial pace (365d) are deliberately different per
+  // Pranav. Reuses allProposalsCache — populated by refreshFunnel(), which also calls
+  // renderEstimatesPage() once it's fresh — so this adds no extra network calls. Sorted
+  // oldest-first, same convention as the other bid lists on this page.
+  const ESTIMATE_BOARD_REPS = [
+    { fullName: 'Gabriel Espinosa', key: 'gabriel', expiredAfterDays: 90 },
+    { fullName: 'Mike Jones',       key: 'mike',    expiredAfterDays: 90 },
+    { fullName: 'Frank Emanuel',    key: 'frank',   expiredAfterDays: 365 },
+  ];
+  function repEstimatesBoard(fullName, expiredAfterDays) {
+    if (!allProposalsCache) return null;
+    const todayISO = todayLocalISO();
+    const bids = [];
+    let openCount = 0, openValue = 0, expiredCount = 0, expiredValue = 0;
+    for (const [v, status, acceptedDate, owner, leadSource, sentDate, name] of allProposalsCache) {
+      if (owner !== fullName || status !== 'Open') continue;
+      const ageDays = bidAgeDays(sentDate, todayISO);
+      const value = Number(v) || 0;
+      const expired = ageDays !== null && ageDays > expiredAfterDays;
+      if (expired) { expiredCount++; expiredValue += value; } else { openCount++; openValue += value; }
+      bids.push({ name: name || '(unnamed)', value, ageDays, expired });
+    }
+    bids.sort((a, b) => (b.ageDays ?? -1) - (a.ageDays ?? -1));
+    return { openCount, openValue, expiredCount, expiredValue, bids };
+  }
+  function renderEstimatesPage() {
+    ESTIMATE_BOARD_REPS.forEach(rep => {
+      const card = document.getElementById(`estCard-${rep.key}`);
+      const board = repEstimatesBoard(rep.fullName, rep.expiredAfterDays);
+      if (!card || !board) return;
+      el(card, 'open-count').textContent = board.openCount;
+      el(card, 'open-value').textContent = fmtMoney(board.openValue);
+      el(card, 'expired-count').textContent = board.expiredCount;
+      el(card, 'expired-value').textContent = fmtMoney(board.expiredValue);
+      const list = el(card, 'est-list');
+      list.innerHTML = board.bids.length
+        ? board.bids.map(b => `
+          <li class="est-row${b.expired ? ' est-expired' : ''}">
+            <span class="est-name">${escapeHtml(b.name)}</span>
+            <span class="est-age">${b.ageDays != null ? b.ageDays + 'd' : '—'}</span>
+            <span class="est-value">${fmtMoney(b.value)}</span>
+          </li>`).join('')
+        : '<li class="empty-followups">No open estimates 👏</li>';
+      resetAutoscroll(list);
+    });
+  }
+
+  // ---- Generic gentle-autoscroll ticker, additive alongside the CRM follow-up list's own
+  // dedicated (already-tuned/live) implementation below — used by the new page-2/page-3 scrollable
+  // lists so each doesn't need its own bespoke top/scrolling/bottom state machine. Same behavior:
+  // pause at top, scroll down, pause at bottom, reset, repeat; pauses on manual wheel/touch.
+  const genericAutoscroll = new Map();
+  function armAutoscroll(listEl) {
+    if (!listEl || genericAutoscroll.has(listEl)) return;
+    genericAutoscroll.set(listEl, { state: 'top', pauseUntil: 0, manualUntil: 0 });
+    const pause = () => { const s = genericAutoscroll.get(listEl); if (s) s.manualUntil = Date.now() + 8000; };
+    listEl.addEventListener('wheel', pause, { passive: true });
+    listEl.addEventListener('touchstart', pause, { passive: true });
+  }
+  function resetAutoscroll(listEl) {
+    const s = genericAutoscroll.get(listEl);
+    if (!s || !listEl) return;
+    listEl.scrollTop = 0;
+    s.state = 'top';
+    s.pauseUntil = Date.now() + 2500;
+  }
+  function tickGenericAutoscroll() {
+    genericAutoscroll.forEach((s, listEl) => {
+      if (!listEl.isConnected) return;
+      if (Date.now() < s.manualUntil) return;
+      const max = listEl.scrollHeight - listEl.clientHeight;
+      if (max <= 2) { s.state = 'top'; return; }
+      const now = Date.now();
+      if (now < s.pauseUntil) return;
+      if (s.state === 'top') s.state = 'scrolling';
+      if (s.state === 'scrolling') {
+        listEl.scrollTop += 0.5;
+        if (listEl.scrollTop >= max - 1) { listEl.scrollTop = max; s.state = 'bottom'; s.pauseUntil = now + 3500; }
+      } else if (s.state === 'bottom') {
+        listEl.scrollTop = 0; s.state = 'top'; s.pauseUntil = now + 2000;
+      }
+    });
+  }
+
+  // ---- Page 3: CRM Pipeline — Progress, Follow-Ups & Updates ----
+  // All three panels are derived from the same crm_deals rows refreshCRM() already fetches for
+  // page 1's Open Estimates/Follow-Ups Due/Stale 90+ tile (cached in crmDealsCache) — no extra
+  // network calls.
+  const CRM_FUNNEL_STAGES = ['Prospecting List', 'Prospecting 1st Contact', 'Prospecting 2nd Contact', 'Prospecting 3rd Contact', 'Prospecting On Hold', 'Plans Received', 'Takeoff In Process', 'Estimate Completed'];
+  const STAGE_SHORT_LABEL = {
+    'Prospecting List': 'New Leads', 'Prospecting 1st Contact': '1st Contact', 'Prospecting 2nd Contact': '2nd Contact',
+    'Prospecting 3rd Contact': '3rd Contact', 'Prospecting On Hold': 'On Hold', 'Plans Received': 'Plans Received',
+    'Takeoff In Process': 'Takeoff', 'Estimate Completed': 'Est. Completed',
+  };
+  function renderStageProgress(rows) {
+    const body = document.getElementById('stageProgressBody');
+    if (!body) return;
+    const counts = {};
+    CRM_FUNNEL_STAGES.forEach(s => { counts[s] = 0; });
+    let total = 0;
+    rows.forEach(d => { if (counts.hasOwnProperty(d.stage)) { counts[d.stage]++; total++; } });
+    const max = Math.max(1, ...CRM_FUNNEL_STAGES.map(s => counts[s]));
+    body.innerHTML = CRM_FUNNEL_STAGES.map(s => `
+      <div class="stage-bar-row">
+        <span class="stage-bar-label">${escapeHtml(STAGE_SHORT_LABEL[s] || s)}</span>
+        <span class="stage-bar-track"><span class="stage-bar-fill" style="width:${Math.round((counts[s] / max) * 100)}%"></span></span>
+        <span class="stage-bar-count">${counts[s]}</span>
+      </div>`).join('');
+    const totalEl = document.getElementById('stageProgressTotal');
+    if (totalEl) totalEl.textContent = total + ' active';
+  }
+  // Overdue/today/this-week/scheduled tiers, mirroring crmFollowupTier() in koala-operations.html
+  // (kept as a separate, simpler implementation here — see that file's comment for why all such
+  // tier logic should stay in sync if the underlying rule changes). Unlike page 1's flat
+  // "due-today-or-overdue-only" list, this includes everything with a date set, so it doubles as
+  // a forward-looking view of the whole follow-up queue, not just what's already late.
+  function tvFollowupTier(days) {
+    if (days < 0) return { cls: 'overdue' };
+    if (days === 0) return { cls: 'today' };
+    if (days <= 7) return { cls: 'soon' };
+    return { cls: 'later' };
+  }
+  function renderFollowupsFull(rows, todayISO) {
+    const list = document.getElementById('followupsFullList');
+    if (!list) return;
+    const items = [];
+    for (const d of rows) {
+      let bestDays = null, kind = null;
+      if (d.next_followup_date) { bestDays = daysBetweenISO(todayISO, d.next_followup_date); kind = 'followup'; }
+      if (d.due_date && d.due_complete !== true) {
+        const days = daysBetweenISO(todayISO, d.due_date);
+        if (bestDays === null || days < bestDays) { bestDays = days; kind = 'due'; }
+      }
+      if (bestDays === null) continue;
+      items.push({ name: d.name, reps: d.reps || [], days: bestDays, kind });
+    }
+    items.sort((a, b) => a.days - b.days);
+    list.innerHTML = items.length
+      ? items.map(it => {
+        const tier = tvFollowupTier(it.days);
+        const who = (it.reps || []).map(r => r.split(' ').map(w => w[0]).join('')).join(', ');
+        const prefix = it.kind === 'followup' ? 'Follow up: ' : '';
+        const when = it.days < 0 ? `${-it.days}d overdue` : it.days === 0 ? 'Today' : `in ${it.days}d`;
+        return `<li><span class="followup-name">${prefix}${escapeHtml(it.name)}${who ? ' — ' + escapeHtml(who) : ''}</span><span class="followup-when ${tier.cls}">${when}</span></li>`;
+      }).join('')
+      : '<li class="empty-followups">Nothing scheduled 👏</li>';
+    resetAutoscroll(list);
+  }
+  // Compact relative-time label, mirrors crmActivityTimeAgo() in koala-operations.html.
+  function tvTimeAgo(iso) {
+    if (!iso) return '—';
+    const ms = Date.now() - new Date(iso).getTime();
+    const mins = Math.round(ms / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.round(hrs / 24);
+    if (days < 30) return `${days}d ago`;
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  // "Updates" = the deals that moved most recently (by last_activity_at, already maintained by
+  // every save/stage-change/import on this table) — deliberately NOT a raw crm_activity comment
+  // feed: crm_activity's SELECT policy requires an authenticated, active dashboard user (see the
+  // "authorized_select_crm_activity" RLS policy), and this TV page — like the rest of it — reads
+  // with the plain anon key, no login. last_activity_at is already anon-readable via crm_deals'
+  // own sales-tv policy, so this needs no RLS change and no extra fetch.
+  function renderRecentUpdates(rows) {
+    const list = document.getElementById('updatesList');
+    if (!list) return;
+    const sorted = rows.filter(d => d.last_activity_at).slice().sort((a, b) => new Date(b.last_activity_at) - new Date(a.last_activity_at)).slice(0, 20);
+    list.innerHTML = sorted.length
+      ? sorted.map(d => {
+        const who = (d.reps || []).map(r => r.split(' ').map(w => w[0]).join('')).join(', ');
+        return `<li class="update-row">
+          <div class="update-top"><span class="update-name">${escapeHtml(d.name)}</span><span class="update-when">${tvTimeAgo(d.last_activity_at)}</span></div>
+          <div class="update-sub">${escapeHtml(d.stage || '')}${who ? ' · ' + escapeHtml(who) : ''}</div>
+        </li>`;
+      }).join('')
+      : '<li class="empty-followups">No recent activity.</li>';
+    resetAutoscroll(list);
+  }
+  function renderCrmProgressPage() {
+    if (!crmDealsCache) return;
+    const todayISO = todayLocalISO();
+    renderStageProgress(crmDealsCache);
+    renderFollowupsFull(crmDealsCache, todayISO);
+    renderRecentUpdates(crmDealsCache);
+  }
+
+  // ---- page rotation: Sales Floor (dashboard) / Open & Expired Estimates / CRM Pipeline ----
+  const TV_PAGE_IDS = ['tvPageDashboard', 'tvPageEstimates', 'tvPageCrm'];
+  const PAGE_ROTATE_MS = 25 * 1000;
+  let tvPageIndex = 0;
+  function showTvPage(index) {
+    tvPageIndex = ((index % TV_PAGE_IDS.length) + TV_PAGE_IDS.length) % TV_PAGE_IDS.length;
+    TV_PAGE_IDS.forEach((id, i) => {
+      const pageEl = document.getElementById(id);
+      if (pageEl) pageEl.classList.toggle('active', i === tvPageIndex);
+    });
+    document.querySelectorAll('.page-dot').forEach((dot, i) => dot.classList.toggle('active', i === tvPageIndex));
+  }
+  function rotateTvPage() { showTvPage(tvPageIndex + 1); }
 
   // ---- render helpers ----
   function paceStatus(actualFrac, expectedFrac, isNonBusinessDay) {
@@ -888,6 +1264,8 @@
     document.getElementById('frankStale').textContent = frankPipeline.staleCount;
     renderBidTicker(document.getElementById('frankStaleTickerWrap'), document.getElementById('frankStaleTicker'), frankPipeline.staleBids);
 
+    renderEstimatesPage(); // page 2 — same allProposalsCache, no extra fetch
+
     markSynced();
   }
 
@@ -985,6 +1363,7 @@
       restUrl('crm_deals', 'select=name,stage,reps,due_date,due_time,due_complete,last_activity_at,next_followup_date&archived=not.is.true&limit=2000'),
       { headers: REST_HEADERS }
     );
+    crmDealsCache = rows; // reused by renderCrmProgressPage() (page 3) — no extra fetch there
 
     const OPEN_STAGES = new Set(['Plans Received', 'Takeoff In Process', 'Estimate Completed']);
     // Deliberately does NOT include 'Prospecting On Hold' — an on-hold deal is still open, just
@@ -1051,6 +1430,8 @@
       followupScrollState = 'top';
       followupScrollPauseUntil = Date.now() + 2500;
     }
+
+    renderCrmProgressPage(); // page 3 — same crm_deals rows, no extra fetch
 
     markSynced();
   }
@@ -1170,6 +1551,15 @@
     setInterval(tickClock, 1000);
     setInterval(tickSyncIndicator, 1000);
     setInterval(tickFollowupAutoscroll, 40);
+    setInterval(tickGenericAutoscroll, 40);
+
+    // Pages 2 & 3's scrollable lists exist in the static markup from parse time, so they can be
+    // armed once up front — resetAutoscroll() (called from each page's render function) restarts
+    // the cycle whenever fresh content lands.
+    ['estList-gabriel', 'estList-mike', 'estList-frank', 'followupsFullList', 'updatesList']
+      .forEach(id => armAutoscroll(document.getElementById(id)));
+    showTvPage(0);
+    setInterval(rotateTvPage, PAGE_ROTATE_MS);
 
     await loadSettings();
     await Promise.allSettled([refreshRevenue(), refreshCRM(), refreshPacing(), refreshCalendar(), refreshRecentWins()]);

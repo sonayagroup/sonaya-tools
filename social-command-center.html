@@ -4350,28 +4350,42 @@ async function publishPostNow(existingId) {
         if (!data.media_url) { results.push({ platform: 'Instagram', ok: false, msg: 'Media URL required for Instagram posts' }); continue; }
         const isVideo = data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short';
         let videoPublicUrl = null;
+        let tempStoragePath = null; // Track for cleanup after publish
         if (isVideo) {
-          // For videos, Instagram needs a publicly accessible URL.
-          // Use Supabase Edge Function proxy to stream video from Google Drive
-          // so there's no file size limit (avoids Supabase Storage 50MB cap).
-          const driveId = extractDriveFileId(data.media_url);
-          if (driveId) {
-            // Get a Drive access token to pass to the proxy
-            const apiState = loadApiConnections();
-            const ytToken = apiState.platforms?.youtube?.access_token;
-            const driveToken = apiState.platforms?.youtube?.drive_access_token || apiState.drive?.access_token;
-            const pickerToken = (typeof _googleAccessToken !== 'undefined') ? _googleAccessToken : null;
-            const driveAccessToken = driveToken || pickerToken || ytToken;
-            if (!driveAccessToken) {
-              results.push({ platform: 'Instagram', ok: false, msg: 'No Drive access token available — re-authorize YouTube in Connections' });
+          // Instagram needs a publicly accessible URL that stays valid during async processing.
+          // Download the video blob in-browser, upload to Supabase Storage for a stable public URL.
+          // This avoids token expiry issues with the Edge Function proxy approach.
+          showToast('Instagram: Downloading video…', 'info');
+          console.log('[IG Publish] Downloading video blob from:', data.media_url);
+          const dlResult = await downloadVideoBlob(data.media_url);
+          if (!dlResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: 'Could not download video: ' + dlResult.msg }); continue; }
+          const videoSizeMB = (dlResult.blob.size / 1048576).toFixed(1);
+          console.log('[IG Publish] Downloaded', videoSizeMB, 'MB video');
+          if (dlResult.blob.size > 50 * 1048576) {
+            // Supabase free plan caps at 50MB per file — use Edge Function proxy as fallback
+            console.log('[IG Publish] Video > 50MB, falling back to Edge Function proxy');
+            const driveId = extractDriveFileId(data.media_url);
+            if (driveId) {
+              const apiState2 = loadApiConnections();
+              const driveAccessToken = apiState2.platforms?.youtube?.drive_access_token || apiState2.drive?.access_token || ((typeof _googleAccessToken !== 'undefined') ? _googleAccessToken : null) || apiState2.platforms?.youtube?.access_token;
+              if (!driveAccessToken) {
+                results.push({ platform: 'Instagram', ok: false, msg: 'Video is too large for temp storage (>50 MB) and no Drive token available for proxy — re-authorize YouTube in Connections' });
+                continue;
+              }
+              videoPublicUrl = `https://vcukhvjwsuaqxgqzotwb.supabase.co/functions/v1/drive-video-proxy?fileId=${encodeURIComponent(driveId)}&token=${encodeURIComponent(driveAccessToken)}`;
+              console.log('[IG Publish] Using proxy URL for large file:', driveId);
+            } else {
+              results.push({ platform: 'Instagram', ok: false, msg: `Video is ${videoSizeMB} MB — Instagram requires videos under 50 MB for upload. Please compress the video and try again.` });
               continue;
             }
-            videoPublicUrl = `https://vcukhvjwsuaqxgqzotwb.supabase.co/functions/v1/drive-video-proxy?fileId=${encodeURIComponent(driveId)}&token=${encodeURIComponent(driveAccessToken)}`;
-            console.log('[IG Publish] Using proxy URL for Drive file:', driveId);
           } else {
-            // Non-Drive URL — try using it directly, or fall back to temp storage for small files
-            videoPublicUrl = data.media_url;
-            console.log('[IG Publish] Using direct URL (non-Drive):', videoPublicUrl);
+            // Upload to Supabase Storage for a stable public URL
+            showToast(`Instagram: Uploading ${videoSizeMB} MB to temp storage…`, 'info');
+            const upResult = await uploadToTempStorage(dlResult.blob, 'ig_video.mp4');
+            if (!upResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: upResult.msg }); continue; }
+            videoPublicUrl = upResult.url;
+            tempStoragePath = upResult.path;
+            console.log('[IG Publish] Uploaded to temp storage:', videoPublicUrl);
           }
         }
         let containerParams = `caption=${encodeURIComponent(caption)}`;
@@ -4400,12 +4414,14 @@ async function publishPostNow(existingId) {
             if (statusData.status_code === 'ERROR') {
               const errDetail = statusData.status?.error_message || statusData.status?.error?.message || 'Unknown error';
               console.error('[IG Publish] Processing error:', errDetail);
+              if (tempStoragePath) deleteFromTempStorage(tempStoragePath);
               results.push({ platform: 'Instagram', ok: false, msg: `Video processing failed: ${errDetail}` });
               break;
             }
             if (statusData.status_code === 'IN_PROGRESS') { showToast(`Instagram: Processing video (${i+1}/36)…`, 'info'); }
           }
           if (!ready) {
+            if (tempStoragePath) deleteFromTempStorage(tempStoragePath);
             if (!results.find(r => r.platform === 'Instagram')) {
               results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing after 3 min — try again shortly' });
             }
@@ -4416,7 +4432,12 @@ async function publishPostNow(existingId) {
         const pubResp = await fetch(`https://graph.facebook.com/v21.0/${igId}/media_publish?creation_id=${containerId}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
         const pubData = await pubResp.json();
         console.log('[IG Publish] Publish response:', JSON.stringify(pubData));
-        if (pubData.error) { results.push({ platform: 'Instagram', ok: false, msg: pubData.error.message }); continue; }
+        if (pubData.error) {
+          if (tempStoragePath) deleteFromTempStorage(tempStoragePath);
+          results.push({ platform: 'Instagram', ok: false, msg: pubData.error.message }); continue;
+        }
+        // Clean up temp storage after successful publish
+        if (tempStoragePath) { deleteFromTempStorage(tempStoragePath); console.log('[IG Publish] Cleaned up temp storage:', tempStoragePath); }
         results.push({ platform: 'Instagram', ok: true, msg: 'Published successfully', postId: pubData.id });
 
       } else if (key === 'facebook' && conn.user_access_token && conn.page_id) {
@@ -4555,23 +4576,31 @@ async function republishToSinglePlatform(postId, platformKey) {
       else {
         const isVideo = data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short';
         let videoPublicUrl = null;
+        let tempStoragePath = null;
         if (isVideo) {
-          // Use Edge Function proxy for Drive videos (no file size limit)
-          const driveId = extractDriveFileId(data.media_url);
-          if (driveId) {
-            const apiState = loadApiConnections();
-            const ytToken = apiState.platforms?.youtube?.access_token;
-            const driveToken = apiState.platforms?.youtube?.drive_access_token || apiState.drive?.access_token;
-            const pickerToken = (typeof _googleAccessToken !== 'undefined') ? _googleAccessToken : null;
-            const driveAccessToken = driveToken || pickerToken || ytToken;
-            if (!driveAccessToken) { results.push({ platform: 'Instagram', ok: false, msg: 'No Drive access token — re-authorize YouTube in Connections' }); }
-            else {
-              videoPublicUrl = `https://vcukhvjwsuaqxgqzotwb.supabase.co/functions/v1/drive-video-proxy?fileId=${encodeURIComponent(driveId)}&token=${encodeURIComponent(driveAccessToken)}`;
-              console.log('[IG Republish] Using proxy URL for Drive file:', driveId);
+          // Download video blob in browser, upload to Supabase Storage for stable public URL
+          showToast('Instagram: Downloading video…', 'info');
+          console.log('[IG Republish] Downloading video blob from:', data.media_url);
+          const dlResult = await downloadVideoBlob(data.media_url);
+          if (!dlResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: 'Could not download video: ' + dlResult.msg }); }
+          else {
+            const videoSizeMB = (dlResult.blob.size / 1048576).toFixed(1);
+            console.log('[IG Republish] Downloaded', videoSizeMB, 'MB video');
+            if (dlResult.blob.size > 50 * 1048576) {
+              // Fallback to proxy for large files
+              const driveId = extractDriveFileId(data.media_url);
+              if (driveId) {
+                const apiState2 = loadApiConnections();
+                const driveAccessToken = apiState2.platforms?.youtube?.drive_access_token || apiState2.drive?.access_token || ((typeof _googleAccessToken !== 'undefined') ? _googleAccessToken : null) || apiState2.platforms?.youtube?.access_token;
+                if (!driveAccessToken) { results.push({ platform: 'Instagram', ok: false, msg: 'Video >50 MB and no Drive token — re-authorize YouTube' }); }
+                else { videoPublicUrl = `https://vcukhvjwsuaqxgqzotwb.supabase.co/functions/v1/drive-video-proxy?fileId=${encodeURIComponent(driveId)}&token=${encodeURIComponent(driveAccessToken)}`; }
+              } else { results.push({ platform: 'Instagram', ok: false, msg: `Video is ${videoSizeMB} MB — please compress under 50 MB` }); }
+            } else {
+              showToast(`Instagram: Uploading ${videoSizeMB} MB to temp storage…`, 'info');
+              const upResult = await uploadToTempStorage(dlResult.blob, 'ig_video.mp4');
+              if (!upResult.ok) { results.push({ platform: 'Instagram', ok: false, msg: upResult.msg }); }
+              else { videoPublicUrl = upResult.url; tempStoragePath = upResult.path; console.log('[IG Republish] Uploaded to temp storage:', videoPublicUrl); }
             }
-          } else {
-            videoPublicUrl = data.media_url;
-            console.log('[IG Republish] Using direct URL (non-Drive):', videoPublicUrl);
           }
         }
         if (results.length === 0) {
@@ -4582,21 +4611,21 @@ async function republishToSinglePlatform(postId, platformKey) {
           const createResp = await fetch(`https://graph.facebook.com/v21.0/${igId}/media?${containerParams}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
           const createData = await createResp.json();
           console.log('[IG Republish] Container response:', JSON.stringify(createData));
-          if (createData.error) { results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); }
+          if (createData.error) { if (tempStoragePath) deleteFromTempStorage(tempStoragePath); results.push({ platform: 'Instagram', ok: false, msg: createData.error.message }); }
           else {
             const containerId = createData.id;
             if (isVideo) {
               let ready = false;
               showToast('Instagram: Processing video…', 'info');
-              for (let i = 0; i < 36; i++) { await new Promise(r => setTimeout(r, 5000)); const sr = await fetch(`https://graph.facebook.com/v21.0/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`); const sd = await sr.json(); console.log(`[IG Republish] Poll ${i+1}/36:`, JSON.stringify(sd)); if (sd.status_code === 'FINISHED') { ready = true; break; } if (sd.status_code === 'ERROR') { const errDetail = sd.status?.error_message || sd.status?.error?.message || 'Unknown error'; console.error('[IG Republish] Processing error:', errDetail); results.push({ platform: 'Instagram', ok: false, msg: `Video processing failed: ${errDetail}` }); break; } }
-              if (!ready && results.length === 0) { results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing — try again' }); }
+              for (let i = 0; i < 36; i++) { await new Promise(r => setTimeout(r, 5000)); const sr = await fetch(`https://graph.facebook.com/v21.0/${containerId}?fields=status_code,status&access_token=${encodeURIComponent(token)}`); const sd = await sr.json(); console.log(`[IG Republish] Poll ${i+1}/36:`, JSON.stringify(sd)); if (sd.status_code === 'FINISHED') { ready = true; break; } if (sd.status_code === 'ERROR') { const errDetail = sd.status?.error_message || sd.status?.error?.message || 'Unknown error'; console.error('[IG Republish] Processing error:', errDetail); if (tempStoragePath) deleteFromTempStorage(tempStoragePath); results.push({ platform: 'Instagram', ok: false, msg: `Video processing failed: ${errDetail}` }); break; } }
+              if (!ready && results.length === 0) { if (tempStoragePath) deleteFromTempStorage(tempStoragePath); results.push({ platform: 'Instagram', ok: false, msg: 'Video still processing — try again' }); }
             }
             if (results.length === 0) {
               const pubResp = await fetch(`https://graph.facebook.com/v21.0/${igId}/media_publish?creation_id=${containerId}&access_token=${encodeURIComponent(token)}`, { method: 'POST' });
               const pubData = await pubResp.json();
               console.log('[IG Republish] Publish response:', JSON.stringify(pubData));
-              if (pubData.error) { results.push({ platform: 'Instagram', ok: false, msg: pubData.error.message }); }
-              else { results.push({ platform: 'Instagram', ok: true, msg: 'Republished!' }); }
+              if (pubData.error) { if (tempStoragePath) deleteFromTempStorage(tempStoragePath); results.push({ platform: 'Instagram', ok: false, msg: pubData.error.message }); }
+              else { if (tempStoragePath) { deleteFromTempStorage(tempStoragePath); console.log('[IG Republish] Cleaned up temp storage'); } results.push({ platform: 'Instagram', ok: true, msg: 'Republished!' }); }
             }
           }
         }

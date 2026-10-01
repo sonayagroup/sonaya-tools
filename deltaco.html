@@ -4464,9 +4464,8 @@ function getWeeklyOpsData(weekEndStr) {
       const totalGross = storeDays.reduce((sum, d) => sum + (d.grossSales || 0), 0);
       const totalNet = storeDays.reduce((sum, d) => sum + (d.netSales || 0), 0);
       const totalTrans = storeDays.reduce((sum, d) => sum + (d.trans || 0), 0);
-      const avgChangePct = (() => { let ws = 0, tns = 0; storeDays.forEach(d => { if (d.changePct !== undefined && d.changePct !== null) { const ns = d.netSales || 0; ws += d.changePct * ns; tns += ns; } }); return tns > 0 ? +(ws / tns).toFixed(2) : 0; })();
-      const daysWithTransComp = storeDays.filter(d => d.transChangePct !== undefined && d.transChangePct !== null);
-      const avgTransChangePct = daysWithTransComp.length > 0 ? +(daysWithTransComp.reduce((sum, d) => sum + d.transChangePct, 0) / daysWithTransComp.length).toFixed(1) : null;
+      const avgChangePct = (() => { let curSum = 0, priorSum = 0; storeDays.forEach(d => { if (d.changePct !== undefined && d.changePct !== null) { const ns = d.netSales || 0; curSum += ns; priorSum += ns / (1 + d.changePct / 100); } }); return priorSum > 0 ? +((curSum / priorSum - 1) * 100).toFixed(2) : 0; })();
+      const avgTransChangePct = (() => { let curSum = 0, priorSum = 0; storeDays.forEach(d => { if (d.transChangePct !== undefined && d.transChangePct !== null) { const t = d.trans || 0; curSum += t; priorSum += t / (1 + d.transChangePct / 100); } }); return priorSum > 0 ? +((curSum / priorSum - 1) * 100).toFixed(1) : null; })();
       const gcaVal = totalTrans > 0 ? +(totalNet / totalTrans).toFixed(2) : 0;
       const labor = laborData ? laborData[s.id] : null;
       const reviewData = findReviewsForStore(s.id);

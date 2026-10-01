@@ -689,6 +689,10 @@ button { font-family: inherit; }
   border-radius: var(--r-full);
 }
 .pipeline-drag-handle { color: var(--ink-4); font-size: 12px; cursor: grab; }
+.pipeline-card[draggable="true"] { user-select: none; }
+.pipeline-card.dragging { opacity: 0.35; transform: scale(0.97); box-shadow: none; }
+.pipeline-col.drag-over { background: color-mix(in srgb, var(--accent) 8%, var(--surface-0)); outline: 2px dashed var(--accent); outline-offset: -2px; }
+.pipeline-col .pipeline-card-drop-placeholder { border: 2px dashed var(--accent); border-radius: var(--r-md); height: 48px; margin-bottom: 8px; background: color-mix(in srgb, var(--accent) 5%, transparent); transition: opacity var(--fast); }
 .pipeline-card-title { font-size: 12px; font-weight: 600; color: var(--ink-1); margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
 .pipeline-media-icon { font-size: 12px; }
 .pipeline-pillar-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
@@ -2528,12 +2532,12 @@ function renderPipeline() {
   let html = `<div class="v-header"><div class="v-header-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><h1>Content Pipeline</h1><p class="v-sub">Track posts through your workflow</p></div><button class="btn btn-primary btn-sm" onclick="openPostModal()">&#43; New Post</button></div></div><div class="v-body"><div class="pipeline-board">`;
   STATUS_ORDER.forEach(status => {
     const meta = STATUS_META[status]; const col = posts.filter(p => p.status === status);
-    html += `<div class="pipeline-col" style="border-top-color:${meta.color}"><div class="pipeline-col-header"><span class="pipeline-col-title" style="color:${meta.color}">${meta.label}</span><span class="pipeline-col-count">${col.length}</span></div>`;
+    html += `<div class="pipeline-col" data-status="${status}" style="border-top-color:${meta.color}"><div class="pipeline-col-header"><span class="pipeline-col-title" style="color:${meta.color}">${meta.label}</span><span class="pipeline-col-count">${col.length}</span></div>`;
     if (col.length === 0) html += `<div style="text-align:center;padding:20px 0;color:var(--ink-3);font-size:12px">No posts</div>`;
     col.forEach(p => {
       const br = brandById(p.brand_id); const pids = p.platform_ids || (p.platform_id ? [p.platform_id] : []);
       const plats = pids.map(id=>platById(id)).filter(Boolean); const pil = pillarById(p.content_pillar_id);
-      html += `<div class="pipeline-card" data-post-id="${p.id}"><div class="pipeline-card-top"><span class="pipeline-card-brand" style="background:${brandBg(br)};color:${br?br.color:'var(--accent)'}">${br?br.name:'—'}</span><span class="pipeline-status-badge" style="background:${meta.color}" data-post-id="${p.id}" onclick="event.stopPropagation();togglePipelineStatusMenu(event,'${p.id}')">${meta.label}</span><span class="pipeline-drag-handle">&#8942;&#8942;</span></div><div class="pipeline-card-title">${p.media_type?`<span class="pipeline-media-icon">${MEDIA_ICONS[p.media_type]||''}</span>`:''} ${pil?`<span class="pipeline-pillar-dot" style="background:${pil.color||'var(--accent)'}"></span>`:''} ${escHtml(p.title)}</div><div class="pipeline-card-meta">${plats.length?plats.map(pl=>`<span class="pipeline-plat-dot" style="background:${PLAT_HEX[pl.name]||'#6366f1'}" title="${escAttr(pl.name)}"></span>`).join('')+`<span style="font-size:11px;color:var(--ink-3)">${plats.map(pl=>pl.name).join(', ')}</span>`:''} ${p.scheduled_date?`<span class="pipeline-card-date">${fmtDate(p.scheduled_date)}</span>`:''}</div><div style="display:flex;gap:4px;margin-top:4px"><button class="metrics-btn" onclick="event.stopPropagation();generateBrief('${p.id}')" title="Generate Brief">&#128203; Brief</button>${status==='posted'&&!metricsForPost(p.id)?`<button class="metrics-btn" onclick="event.stopPropagation();openMetricsModal('${p.id}')">Log Metrics</button>`:''}</div></div>`;
+      html += `<div class="pipeline-card" draggable="true" data-post-id="${p.id}" data-status="${status}"><div class="pipeline-card-top"><span class="pipeline-card-brand" style="background:${brandBg(br)};color:${br?br.color:'var(--accent)'}">${br?br.name:'—'}</span><span class="pipeline-status-badge" style="background:${meta.color}" data-post-id="${p.id}" onclick="event.stopPropagation();togglePipelineStatusMenu(event,'${p.id}')">${meta.label}</span><span class="pipeline-drag-handle">&#8942;&#8942;</span></div><div class="pipeline-card-title">${p.media_type?`<span class="pipeline-media-icon">${MEDIA_ICONS[p.media_type]||''}</span>`:''} ${pil?`<span class="pipeline-pillar-dot" style="background:${pil.color||'var(--accent)'}"></span>`:''} ${escHtml(p.title)}</div><div class="pipeline-card-meta">${plats.length?plats.map(pl=>`<span class="pipeline-plat-dot" style="background:${PLAT_HEX[pl.name]||'#6366f1'}" title="${escAttr(pl.name)}"></span>`).join('')+`<span style="font-size:11px;color:var(--ink-3)">${plats.map(pl=>pl.name).join(', ')}</span>`:''} ${p.scheduled_date?`<span class="pipeline-card-date">${fmtDate(p.scheduled_date)}</span>`:''}</div><div style="display:flex;gap:4px;margin-top:4px"><button class="metrics-btn" onclick="event.stopPropagation();generateBrief('${p.id}')" title="Generate Brief">&#128203; Brief</button>${status==='posted'&&!metricsForPost(p.id)?`<button class="metrics-btn" onclick="event.stopPropagation();openMetricsModal('${p.id}')">Log Metrics</button>`:''}</div></div>`;
     });
     if (status === 'idea') html += `<button class="pipeline-quick-add" id="pipeline-quick-add">+ Quick Add Idea</button>`;
     html += `</div>`;
@@ -2542,6 +2546,86 @@ function renderPipeline() {
   document.getElementById('main-view').innerHTML = html;
   document.querySelectorAll('.pipeline-card').forEach(el => { el.onclick = () => openPostModal(el.dataset.postId); });
   const qa = document.getElementById('pipeline-quick-add'); if (qa) qa.onclick = () => openPostModal(null, null, true);
+  // ─── Drag & Drop ───
+  wirePipelineDragDrop();
+}
+
+function wirePipelineDragDrop() {
+  let draggedId = null;
+  let draggedEl = null;
+  let placeholder = null;
+
+  function removePlaceholder() {
+    if (placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+    placeholder = null;
+  }
+
+  document.querySelectorAll('.pipeline-card[draggable]').forEach(card => {
+    card.addEventListener('dragstart', e => {
+      draggedId = card.dataset.postId;
+      draggedEl = card;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedId);
+      // Slight delay so the browser captures the drag image before we dim the card
+      requestAnimationFrame(() => card.classList.add('dragging'));
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.pipeline-col.drag-over').forEach(c => c.classList.remove('drag-over'));
+      removePlaceholder();
+      draggedId = null;
+      draggedEl = null;
+    });
+  });
+
+  document.querySelectorAll('.pipeline-col').forEach(col => {
+    col.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      col.classList.add('drag-over');
+
+      // Position placeholder among sibling cards
+      const cards = [...col.querySelectorAll('.pipeline-card:not(.dragging)')];
+      const afterEl = cards.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = e.clientY - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) return { offset, element: child };
+        return closest;
+      }, { offset: -Infinity }).element;
+
+      if (!placeholder) {
+        placeholder = document.createElement('div');
+        placeholder.className = 'pipeline-card-drop-placeholder';
+      }
+      if (afterEl) col.insertBefore(placeholder, afterEl);
+      else {
+        // Drop at bottom — insert before quick-add button if present, else append
+        const quickAdd = col.querySelector('.pipeline-quick-add');
+        if (quickAdd) col.insertBefore(placeholder, quickAdd);
+        else col.appendChild(placeholder);
+      }
+    });
+
+    col.addEventListener('dragleave', e => {
+      // Only remove if we truly left this column (not entering a child)
+      if (!col.contains(e.relatedTarget)) {
+        col.classList.remove('drag-over');
+        if (placeholder && placeholder.parentNode === col) removePlaceholder();
+      }
+    });
+
+    col.addEventListener('drop', e => {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      removePlaceholder();
+      const newStatus = col.dataset.status;
+      if (!draggedId || !newStatus) return;
+      const oldStatus = draggedEl ? draggedEl.dataset.status : null;
+      if (oldStatus === newStatus) return; // dropped in same column — no-op
+      updatePostStatus(draggedId, newStatus);
+    });
+  });
 }
 
 function closeAllPipelineMenus() { document.querySelectorAll('.pipeline-status-menu').forEach(m => m.remove()); }

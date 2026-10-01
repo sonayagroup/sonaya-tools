@@ -272,8 +272,8 @@ const DEFAULT_RULES = {
   marginByType: { res_nc: 45, commercial: 30 },          // spreadsheet defaults: residential 45% GP, commercial 30% GP
   // Material pricing: residential price book carries a built-in markup; commercial is priced at TRUE cost
   materialPricing: {
-    battMarkup: 1.10,                                       // residential batt = true cost × 1.10 (common_items holds residential prices)
-    blow: { res: { cellulose: 15, l77: 39 }, commercial: { cellulose: 10.94, l77: 33 } },
+    battMarkup: 1.21,                                       // fallback only: residential ÷ this = true cost when a batt has no listed true cost (Oct-2026 sheet: 1.10 × 1.10)
+    blow: { res: { cellulose: 15, jetstream: 39, l77: 39 }, commercial: { cellulose: 10.94, jetstream: 30, l77: 33 } },
     spf:  { res: { cc: 0.57, oc: 0.17 }, commercial: { cc: 0.52, oc: 0.12 } },
   },
   // Commercial mobilization: 1 hr per installer per day for loading/unloading (Arthouse / Avid lessons)
@@ -306,7 +306,8 @@ const DEFAULT_RULES = {
 // ─── MATERIAL CATALOGS (prices refreshed live from common_items) ─────────────
 const BLOW_IN = [
   { key: 'cellulose', name: 'Cellulose', price: 15.00, unit: 'bag' },
-  { key: 'l77', name: 'Fiberglass ProPink L77', price: 36.30, unit: 'bag' },
+  { key: 'jetstream', name: 'Fiberglass Jet Stream Ultra', price: 39.00, unit: 'bag' },   // default fiberglass (Knauf) — Oct 2026
+  { key: 'l77', name: 'Fiberglass ProPink L77 (old)', price: 39.00, unit: 'bag' },
   { key: 'climatepro', name: 'JM Climate Pro B-7700', price: 0, unit: 'bag' },
   { key: 'havelock', name: 'Havelock Wool', price: 0, unit: 'bag' },
 ];
@@ -315,6 +316,12 @@ const COVERAGE = {
     attic: { 13: 64.8, 19: 43.2, 22: 37.0, 30: 26.6, 38: 20.8, 49: 16.0, 60: 12.9 },
     wall: { '2x4': { 16: 27.0, 24: 26.1 }, '2x6': { 16: 17.2, 24: 16.6 }, '2x8': { 16: 13.0, 24: 12.6 }, '2x10': { 16: 10.2, 24: 9.9 }, '2x12': { 16: 8.4, 24: 8.1 } },
     wallR: { '2x4': 13, '2x6': 21, '2x8': 27, '2x10': 34, '2x12': 42 },
+  },
+  // Knauf Jet Stream ULTRA product data sheet (valid from 05/25): max coverage per 32 lb bag
+  jetstream: {
+    attic: { 11: 210.8, 13: 175.3, 19: 119.3, 22: 102.2, 26: 85.0, 30: 73.3, 38: 56.2, 44: 47.8, 49: 42.5, 60: 33.6 },
+    wall: { '2x4-15': 61.0, '2x6-23': 38.8, '2x8-31': 29.4, '2x10-39': 23.1 },   // closed cavity @ 1.8 PCF behind netting
+    thickness: { 11: 4, 13: 4.75, 19: 6.75, 22: 7.75, 26: 9.125, 30: 10.375, 38: 13, 44: 14.875, 49: 16.375, 60: 19.75 },
   },
   l77: {
     attic: { 13: 184.6, 19: 125.0, 22: 106.3, 26: 89.6, 30: 77.0, 38: 59.9, 44: 50.7, 49: 45.0, 60: 35.8 },
@@ -332,23 +339,35 @@ const COVERAGE = {
 
 // Batts: name encodes R, facing, width. coverage = sq ft per bag/pack.
 let BATTS = [
-  ['R-11','K','15',41.14,155],['R-11','K','23',63.09,237.67],['R-11','UF','16',34.08,170.67],['R-11','UF','24',63.20,256],
-  ['R-13','K','15',43.77,116.25],['R-13','K','16',49.36,138.67],['R-13','K','23',61.52,163.4],['R-13','UF','15',34.42,106.56],['R-13','UF','16',38.66,117.34],['R-13','UF','23',55.35,163.4],['R-13','UF','24',59.62,176],
-  ['R-15','RW','15.25',51.70,59.7],['R-15','RW','23',85.20,60.1],['R-15','K','15',41.10,67.81],['R-15','K','16',46.16,74.67],['R-15','K','23',63.02,103.98],['R-15','UF','15',44.35,77.5],['R-15','UF','16',41.90,74.69],['R-15','UF','23',59.50,103.98],['R-15','UF','24',62.83,112],
-  ['R-19','K','15',40.72,97.92],['R-19','K','16',44.36,106.67],['R-19','K','23',56.20,135.13],['R-19','K','24',53.23,128],['R-19','UF','15',30.12,77.5],['R-19','UF','16',41.45,106.67],['R-19','UF','23',46.17,118.83],['R-19','UF','24',49.74,128],
-  ['R-20','K','15',45.54,77.5],['R-20','UF','15',42.56,77.5],
-  ['R-21','K','15',44.01,67.81],['R-21','K','16',54.87,74.67],['R-21','K','23',67.47,103.98],['R-21','UF','15',40.92,67.81],['R-21','UF','16',45.06,74.67],['R-21','UF','23',62.76,103.98],['R-21','UF','24',67.60,112],
-  ['R-23','RW','15.25',64.72,39.8],['R-23','RW','23',80.28,37.5],
-  ['R-25','UF','16',34.24,64],['R-25','UF','24',51.37,96],
-  ['R-30','K','16',49.57,69.33],['R-30','K','24',62.92,88],['R-30','RW','15.25',88.80,29.9],['R-30','RW','23',69.19,30],['R-30','UF','16',46.05,69.33],['R-30','UF','24',49.71,80],
-  ['R-38','K','16',53.63,58.67],['R-38','K','24',58.50,64],['R-38','UF','16',46.94,58.67],['R-38','UF','24',47.91,64],
-  ['R-49','K','16',39.84,32],['R-49','K','24',59.76,48],['R-49','UF','16',40.63,32],['R-49','UF','24',56.80,48],
-  ['S&S','RW','15.25',61.59,59.7],['S&S','RW','23',92.62,60.1],
+  ['R-11','K','15',45.25,155],['R-11','K','23',69.39,237.67],['R-11','UF','16',37.49,170.67],['R-11','UF','24',69.51,256],
+  ['R-13','K','15',48.15,116.25],['R-13','K','16',54.29,138.67],['R-13','K','23',67.68,163.4],['R-13','UF','15',37.86,106.56],['R-13','UF','16',42.53,117.34],['R-13','UF','23',60.89,163.4],['R-13','UF','24',65.58,176],
+  ['R-15','RW','15.25',51.7,59.7],['R-15','RW','23',81.32,60.1],['R-15','K','15',45.21,67.81],['R-15','K','16',50.77,74.67],['R-15','K','23',69.32,103.98],['R-15','UF','15',48.79,77.5],['R-15','UF','16',46.09,74.69],['R-15','UF','23',65.45,103.98],['R-15','UF','24',69.12,112],
+  ['R-19','K','15',44.79,97.92],['R-19','K','16',48.8,106.67],['R-19','K','23',61.82,135.13],['R-19','K','24',58.55,128],['R-19','UF','15',33.13,77.5],['R-19','UF','16',45.59,106.67],['R-19','UF','23',50.78,118.83],['R-19','UF','24',54.72,128],
+  ['R-20','K','15',50.09,77.5],['R-20','UF','15',46.81,77.5],
+  ['R-21','K','15',48.41,67.81],['R-21','K','16',60.35,74.67],['R-21','K','23',74.22,103.98],['R-21','UF','15',45.01,67.81],['R-21','UF','16',49.56,74.67],['R-21','UF','23',69.03,103.98],['R-21','UF','24',74.35,112],
+  ['R-23','RW','15.25',64.72,39.8],['R-23','RW','23',88.33,37.5],
+  ['R-25','UF','16',37.67,64],['R-25','UF','24',56.51,96],
+  ['R-30','K','16',54.52,69.33],['R-30','K','24',69.21,88],['R-30','RW','15.25',80.73,29.9],['R-30','RW','23',69.19,30],['R-30','UF','16',50.65,69.33],['R-30','UF','24',54.68,80],
+  ['R-38','K','16',58.99,58.67],['R-38','K','24',64.35,64],['R-38','UF','16',51.63,58.67],['R-38','UF','24',52.7,64],
+  ['R-49','K','16',43.83,32],['R-49','K','24',65.74,48],['R-49','UF','16',44.7,32],['R-49','UF','24',62.48,48],
+  ['S&S','RW','15.25',61.59,59.7],['S&S','RW','23',88.41,60.1],
 ].map(([r, f, w, price, coverage]) => ({
   r, facing: f, width: w, price, coverage,
   rNum: r === 'S&S' ? 15 : parseInt(r.slice(2)),
   name: (r === 'S&S' ? 'Safe & Sound Rockwool' : r + ' ' + ({ K: 'Kraft', UF: 'Unfaced', RW: 'Rockwool' })[f]) + ' ' + w + '"',
 }));
+
+// TRUE purchase cost per batt bag — "Common Items (Actual Price)" sheet, Oct 2026: key → [price, sq ft per bag].
+// Used for the commercial price book and Actuals. Batts not listed fall back to residential ÷ battMarkup.
+const BATT_TRUE = {'R11X15 K': [37.4, 155], 'R11X23 K': [57.35, 237.67], 'R11X16 UF': [38.3, 170.67], 'R11X24 UF': [57.45, 256], 'R13X15 K': [39.79, 116.25], 'R13X16 K': [43.82, 128], 'R13X23 K': [55.93, 163.4], 'R13X15 UF': [35.8, 116.25], 'R13X16 UF': [39.42, 128], 'R13X23 UF': [50.32, 163.4], 'R13X24 UF': [54.2, 176], 'R15X15.25 Rockwool': [47, 59.7], 'R15X23 Rockwool': [77.45, 60.1], 'R15X15 K': [43.55, 77.5], 'R19X15 K': [37.02, 97.92], 'R19X16 K': [40.33, 106.67], 'R19X23 K': [51.09, 135.13], 'R19X24 K': [48.39, 128], 'R19X16 UF': [37.68, 106.67], 'R19X24 UF': [45.22, 128], 'R21X15 K': [40.01, 67.81], 'R21X23 K': [61.34, 103.98], 'R21X15 UF': [37.2, 67.81], 'R23X15.25 Rockwool': [58.84, 39.8], 'R23X23 Rockwool': [88.33, 37.5], 'R25X16 UF': [50.14, 85.33], 'R25X24 UF': [75.22, 128], 'R30X16 K': [45.06, 69.33], 'R30X24 K': [57.2, 88], 'R30X15.25 Rockwool': [80.73, 29.9], 'R30X23 Rockwool': [62.9, 30], 'R30X16 UF': [41.86, 69.33], 'R30X24 UF': [53.14, 88], 'R38X16 K': [48.75, 58.67], 'R38X24 K': [53.18, 64], 'R38X16 UF': [42.67, 58.67], 'R38X24 UF': [46.55, 64], 'R49X16 K': [36.22, 32], 'R49X24 K': [54.33, 48], 'R49X24 UF': [51.64, 48], 'Safe & Sound Rockwool 15.25"': [55.99, 59.7], 'Safe & Sound Rockwool 23"': [84.2, 60.1]};
+const battKey = b => b.r === 'S&S' ? `Safe & Sound Rockwool ${b.width}"` : b.r.replace('-', '') + 'X' + b.width + ' ' + ({ K: 'K', UF: 'UF', RW: 'Rockwool' })[b.facing];
+// true cost per bag of THIS product (scaled by $/sf when the listed vendor's bag covers a different area)
+function battTrueCost(b, rules) {
+  const t = BATT_TRUE[battKey(b)];
+  if (t && t[1] > 0) return Math.round(t[0] / t[1] * b.coverage * 100) / 100;
+  const k = parseFloat(rules && rules.materialPricing && rules.materialPricing.battMarkup) || 1.21;
+  return Math.round(b.price / k * 100) / 100;
+}
 
 const SPF_PRICE = { oc: 0.17, cc: 0.57 };   // $ per board foot (live: common_items.price_per_sqft)
 
@@ -483,11 +502,14 @@ const MOBILE_HOME_CHECKS = [
 const CRM_STAGES = ['Plans Received', 'Takeoff In Process', 'Estimate Completed', 'Estimate Won', 'Estimate Lost'];
 
 // Actual (true) purchase prices used on the Actuals tab
-const ACTUAL_PRICES = {
-  'Cellulose': 10.94, 'Fiberglass ProPink L77': 33, 'Baffles': 0.90, 'Caulking': 4.50, 'Duct Tape': 2.91, 'Dumpster': 363.59,
-  'Foam Sealant': 5.75, 'FSK Tape (Foil Tape)': 13.49, 'Insulation Netting (cellulose)': 162.50, 'Insulation Netting (fiberglass)': 107.50,
-  'N95 Mask': 1.44, 'Poly Sheeting': 19.90, 'Recessed Light Cover': 8.80, 'Removal Bags': 11.13, 'Scotch Blue Tape': 4.44,
-  'Seam Tape': 11.03, 'Sill Plate Gasket': 3.65, 'Staples': 5.50, 'Trash Bags (1 Box)': 27.96, 'Vapor Barrier 14 Mil': 286.09,
+const ACTUAL_PRICES = {   // "Common Items (Actual Price)" sheet — Oct 2026
+  'Cellulose': 10.94, 'Fiberglass Jet Stream Ultra': 30, 'Fiberglass ProPink L77 (old)': 33, 'Fiberglass ProPink L77': 33,
+  'Attic Fresh': 20, 'Attic Hatch Cover': 65, 'Baffles': 0.90, 'Caulking': 4.50, 'Duct Tape': 2.91, 'Dumpster': 363.59,
+  'Foam Bond Adhesive': 9.51, 'Foam Sealant': 5.75, 'Foam Sealant (Window & Door)': 5.65, 'FSK Tape (Foil Tape)': 11.75,
+  'Insulation Netting (cellulose)': 112.50, 'Insulation Netting (fiberglass)': 78.00,
+  'N95 Mask': 1.44, 'Poly Sheeting': 19.70, 'Recessed Light Cover': 8.36, 'Removal Bags': 9.20, 'Scotch Blue Tape': 5.33,
+  'Seam Tape': 11.54, 'Sill Plate Gasket': 3.37, 'Solar Fan 30 Watt': 325, 'Solar Fan 70 Watt': 639, 'Spray Adhesive': 5.28,
+  'Staples': 5.45, 'Trash Bags (1 Box)': 27.96, 'Vapor Barrier 14 Mil': 286.09,
   'WMP-10 (Black)': 248.87, 'WMP-10 (White)': 248.87, 'SPF Supplies/PPE': 255.43, 'DC-315 Intumescent Coating': 1.31,
 };
 const ACTUAL_UNITS = { 'Insulation Netting (cellulose)': 'roll', 'Insulation Netting (fiberglass)': 'roll', 'Vapor Barrier 14 Mil': 'roll' };
@@ -554,8 +576,7 @@ function spfPrice(type, est, rules) {
   return t && t[type] != null ? num(t[type]) : SPF_PRICE[type];
 }
 function battPrice(b, est, rules) {
-  const k = num(rules.materialPricing && rules.materialPricing.battMarkup) || 1;
-  return priceBook(est) === 'commercial' ? Math.round(b.price / k * 100) / 100 : b.price;
+  return priceBook(est) === 'commercial' ? battTrueCost(b, rules) : b.price;     // commercial = true cost (Actual Price sheet)
 }
 const GAS_EQUIPMENT = ['open_attic', 'tight_attic', 'net_blow', 'dense_pack', 'spf', 'crawl_found_spf', 'crawl_joist_spf', 'attic_removal', 'crawl_removal'];
 
@@ -733,6 +754,7 @@ function computeScope(scope, est, rules) {
         const n = nearestHigherR(COVERAGE[pk].attic, R); cov = n.cov;
         if (n.rUsed < R) { cov = cov * n.rUsed / R; W('warn', `R-${R} is above the ${prod.name} coverage chart (max R-${n.rUsed}) — bags scaled from R-${n.rUsed}; verify with the manufacturer chart.`); }
         note = `R-${n.rUsed}: ${r1(cov)} sf/bag${n.rUsed !== R ? (n.rUsed > R ? ' (nearest ≥ R-' + R + ')' : ' scaled to R-' + R) : ''}`;
+        const th = (COVERAGE[pk].thickness || {})[n.rUsed]; if (th) note += ` · min ${th}″ installed`;
       }
       else W('info', 'Enter target R-value to calculate bags.');
     } else {
@@ -1024,9 +1046,9 @@ function actualMaterialsFromEstimate(est, rules) {
     }
     if (m.name === 'SPF Supplies/PPE') return;                       // recalculated from gallons below
     let price = ACTUAL_PRICES[m.name], qty = m.qty, unit = m.unit;
-    if (m.kind === 'batt') price = r2(m.price / (priceBook(est) === 'commercial' ? 1 : (num(rules.materialPricing.battMarkup) || 1)));
+    if (m.kind === 'batt') { const b = BATTS.find(x => x.name === m.name); price = b ? battTrueCost(b, rules) : m.price; }
     if (m.kind === 'blow') { const bk = (BLOW_IN.find(b => b.name === m.name) || {}).key; const tc = bk && (rules.materialPricing.blow.commercial || {})[bk]; price = tc != null ? num(tc) : m.price; }
-    if (ACTUAL_UNITS[m.name] === 'roll' && m.unit === 'sq ft') { qty = Math.ceil(m.qty / (/Vapor/.test(m.name) ? 1200 : 3500)); unit = 'roll'; }
+    if (ACTUAL_UNITS[m.name] === 'roll' && m.unit === 'sq ft') { qty = Math.ceil(m.qty / (/Vapor/.test(m.name) ? 1200 : 3750)); unit = 'roll'; }   // netting bought as 10'×375' rolls
     out.push({ name: m.name, qty, price: price != null ? price : m.price, unit });
   });
   if (gallons) out.push({ name: 'SPF Supplies/PPE', qty: r2(gallons / rules.spfGallon.gallonsPerSuppliesSet), price: ACTUAL_PRICES['SPF Supplies/PPE'], unit: 'set' });
@@ -1971,7 +1993,7 @@ async function loadPricing() {
     const items = await api('GET', 'common_items?select=category,product_type,product_name,unit_price,coverage_sqft,price_per_sqft,unit_of_measure&order=sort_order');
     items.forEach(ci => {
       const p = num(ci.unit_price), c = num(ci.coverage_sqft), t = ci.product_type || '';
-      if (t.startsWith('Blow-In')) { const b = BLOW_IN.find(x => (t.includes('Cellulose') && x.key === 'cellulose') || (t.includes('Fiberglass') && x.key === 'l77')); if (b && p) b.price = p; return; }
+      if (t.startsWith('Blow-In')) { const b = BLOW_IN.find(x => (t.includes('Cellulose') && x.key === 'cellulose') || (t.includes('Fiberglass') && x.key === 'jetstream')); if (b && p) b.price = p; return; }
       if (t.startsWith('SPF')) { const pp = num(ci.price_per_sqft); if (pp) SPF_PRICE[t.includes('Closed') ? 'cc' : 'oc'] = pp; return; }
       if (ci.category === 'Insulation' && !/\(special order\)|\(hd\)/i.test(t)) {
         const k = normKey(t);
@@ -2170,9 +2192,9 @@ function renderSettings() {
         <tr><td>Bd ft per gallon — CC · OC</td><td>${n('spfGallon.cc.bdFtPerGal', R.spfGallon.cc.bdFtPerGal)} ${n('spfGallon.oc.bdFtPerGal', R.spfGallon.oc.bdFtPerGal)}</td></tr></table></div>
       <div class="settings-sec"><h4>Pricing &amp; price books <span class="muted small">(Sales Estimate Spreadsheet)</span></h4><table class="tbl-edit">
         <tr><td>Default GP % — Residential NC · Commercial</td><td>${n('marginByType.res_nc', R.marginByType.res_nc)} ${n('marginByType.commercial', R.marginByType.commercial)}</td></tr>
-        <tr><td>Residential batt markup (× true cost)</td><td>${n('materialPricing.battMarkup', R.materialPricing.battMarkup, '0.01')}</td></tr>
+        <tr><td>Batt markup fallback (only for batts with no listed true cost)</td><td>${n('materialPricing.battMarkup', R.materialPricing.battMarkup, '0.01')}</td></tr>
         <tr><td>Cellulose $/bag — Res · Commercial</td><td>${n('materialPricing.blow.res.cellulose', R.materialPricing.blow.res.cellulose, '0.01')} ${n('materialPricing.blow.commercial.cellulose', R.materialPricing.blow.commercial.cellulose, '0.01')}</td></tr>
-        <tr><td>Fiberglass L77 $/bag — Res · Commercial</td><td>${n('materialPricing.blow.res.l77', R.materialPricing.blow.res.l77, '0.01')} ${n('materialPricing.blow.commercial.l77', R.materialPricing.blow.commercial.l77, '0.01')}</td></tr>
+        <tr><td>Fiberglass Jet Stream Ultra $/bag — Res · Commercial</td><td>${n('materialPricing.blow.res.jetstream', R.materialPricing.blow.res.jetstream, '0.01')} ${n('materialPricing.blow.commercial.jetstream', R.materialPricing.blow.commercial.jetstream, '0.01')}</td></tr>
         <tr><td>Closed cell $/bd ft — Res · Commercial</td><td>${n('materialPricing.spf.res.cc', R.materialPricing.spf.res.cc, '0.01')} ${n('materialPricing.spf.commercial.cc', R.materialPricing.spf.commercial.cc, '0.01')}</td></tr>
         <tr><td>Open cell $/bd ft — Res · Commercial</td><td>${n('materialPricing.spf.res.oc', R.materialPricing.spf.res.oc, '0.01')} ${n('materialPricing.spf.commercial.oc', R.materialPricing.spf.commercial.oc, '0.01')}</td></tr>
         <tr><td>Markup on crew bonuses % · per diem &amp; lodging %</td><td>${n('additionalMarkup.bonusesPct', R.additionalMarkup.bonusesPct)} ${n('additionalMarkup.travelPct', R.additionalMarkup.travelPct)}</td></tr>
@@ -2632,7 +2654,7 @@ function onActualsBind(el, path) {
   if (mm && el.dataset.r === 'act-mat') {
     const row = S.est.actuals.materials[+mm[1]], name = el.value;
     const b = BATTS.find(x => x.name === name), g = /^SPF (Open|Closed) Cell \(gallons\)$/.exec(name);
-    const price = ACTUAL_PRICES[name] ?? (b ? r2(b.price / (num(RULES.materialPricing.battMarkup) || 1)) : g ? RULES.spfGallon[g[1] === 'Open' ? 'oc' : 'cc'].price : null);
+    const price = ACTUAL_PRICES[name] ?? (b ? battTrueCost(b, RULES) : g ? RULES.spfGallon[g[1] === 'Open' ? 'oc' : 'cc'].price : null);
     if (price != null && !num(row.price)) { row.price = price; row.unit = ACTUAL_UNITS[name] || (g ? 'gal' : b ? 'bag' : 'each'); keepFocus(renderActuals); return true; }
   }
   return false;
@@ -2916,7 +2938,7 @@ function commEditInput(ev) {
     const [i, k] = (el.dataset.cjl || el.dataset.cjm).split('.'), row = (el.dataset.cjl ? d.labor : d.materials)[+i];
     row[k] = el.value;
     if (ev.type === 'change' && el.dataset.cjl && k === 'employee') { const e = (RULES.employees || []).find(x => x.name.toLowerCase() === el.value.trim().toLowerCase()); if (e && !num(row.rate)) { row.rate = e.rate; return commKeep(); } }
-    if (ev.type === 'change' && el.dataset.cjm && k === 'name' && !num(row.price)) { const b = BATTS.find(x => x.name === el.value), g = /^SPF (Open|Closed) Cell/.exec(el.value); const p = ACTUAL_PRICES[el.value] ?? (b ? r2(b.price / (num(RULES.materialPricing.battMarkup) || 1)) : g ? RULES.spfGallon[g[1] === 'Open' ? 'oc' : 'cc'].price : null); if (p != null) { row.price = p; return commKeep(); } }
+    if (ev.type === 'change' && el.dataset.cjm && k === 'name' && !num(row.price)) { const b = BATTS.find(x => x.name === el.value), g = /^SPF (Open|Closed) Cell/.exec(el.value); const p = ACTUAL_PRICES[el.value] ?? (b ? battTrueCost(b, RULES) : g ? RULES.spfGallon[g[1] === 'Open' ? 'oc' : 'cc'].price : null); if (p != null) { row.price = p; return commKeep(); } }
     // update this row's cost + totals in place (a full re-render here would swallow the next click)
     const cell = $((el.dataset.cjl ? 'cjlc-' : 'cjmc-') + i);
     if (cell) cell.textContent = money(el.dataset.cjl ? num(row.hrs) * num(row.rate) + num(row.ot) * num(row.rate) * 1.5 : num(row.qty) * num(row.price));

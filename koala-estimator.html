@@ -1402,9 +1402,10 @@ const KG = (() => {
 
 const BLOW_IN = [
   { name: 'Cellulose (Clean Fiber)', price: 12.03 },
-  { name: 'Fiberglass L77', price: 36.30 },
+  { name: 'Fiberglass Jet Stream Ultra', price: 39.00 },   // default fiberglass (Knauf) since Oct 2026 — price from common_items "Blow-In Fiberglass"
   { name: 'Havelock Wool', price: 0.00 },
-  { name: 'JM Climate Pro B-7700', price: 0.00 }
+  { name: 'JM Climate Pro B-7700', price: 0.00 },
+  { name: 'Fiberglass L77 (old)', price: 39.00 }
 ];
 
 // ─── COVERAGE CHARTS (sq ft per bag) ──────────────────────────────────────
@@ -1421,7 +1422,15 @@ const CELLULOSE_COVERAGE = {
   wallR: { '2x4': 13, '2x6': 21, '2x8': 27, '2x10': 34, '2x12': 42 }
 };
 
-// ProPink L77 Fiberglass (32 lb bag)
+// Knauf Jet Stream ULTRA (32 lb bag) — product data sheet valid from 05/25: max coverage per bag
+const JETSTREAM_COVERAGE = {
+  attic: { 11: 210.8, 13: 175.3, 19: 119.3, 22: 102.2, 26: 85.0, 30: 73.3, 38: 56.2, 44: 47.8, 49: 42.5, 60: 33.6 },
+  wall: { '2x4': 61.0, '2x6': 38.8, '2x8': 29.4, '2x10': 23.1 },          // closed cavity 1.8 PCF: R-15 / R-23 / R-31 / R-39
+  wallR: { '2x4': 15, '2x6': 23, '2x8': 31, '2x10': 39 },
+  thickness: { 11: '4"', 13: '4¾"', 19: '6¾"', 22: '7¾"', 26: '9⅛"', 30: '10⅜"', 38: '13"', 44: '14⅞"', 49: '16⅜"', 60: '19¾"' }
+};
+
+// ProPink L77 Fiberglass (32 lb bag) — kept for older estimates ("Fiberglass L77 (old)")
 const L77_COVERAGE = {
   attic: { 13: 184.6, 19: 125.0, 22: 106.3, 26: 89.6, 30: 77.0, 38: 59.9, 44: 50.7, 49: 45.0, 60: 35.8 },
   wall: {
@@ -2846,7 +2855,15 @@ function getCoverageForSegment(materialIdx, rVal, ctx) {
         if (wallR) note = `Dense pack R-${wallR} in ${ctx.depth} cavity`;
       }
     }
-  } else if (materialIdx === 1) { // L77
+  } else if (materialIdx === 1) { // Jet Stream Ultra
+    if (ctx.isAttic) {
+      const match = findNearestAtticCoverage(JETSTREAM_COVERAGE.attic, rVal);
+      if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; const th = JETSTREAM_COVERAGE.thickness[match.rUsed]; if (th) note = `Min. installed thickness ${th}`; }
+    } else if (ctx.isWall && ctx.depth) {
+      sqftPerBag = JETSTREAM_COVERAGE.wall[ctx.depth] || null;           // one dense-pack value per cavity depth
+      if (sqftPerBag) { rUsed = JETSTREAM_COVERAGE.wallR[ctx.depth]; isExact = rUsed === rVal; note = `Closed cavity R-${rUsed} in ${ctx.depth} (1.8 PCF, netting required)`; }
+    }
+  } else if (materialIdx === 4) { // L77 (old)
     if (ctx.isAttic) {
       const match = findNearestAtticCoverage(L77_COVERAGE.attic, rVal);
       if (match) { sqftPerBag = match.sqftPerBag; rUsed = match.rUsed; isExact = match.isExact; }

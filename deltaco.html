@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.10.01d -->
+<!-- v2026.10.01e -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -828,6 +828,37 @@ body {
   .crm-form-grid { grid-template-columns: 1fr; }
   .crm-modal { max-width: 100%; }
 }
+
+/* === Contacts Tab === */
+.ct-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 14px}
+.ct-bar select{padding:7px 10px;border:1px solid var(--gridline);border-radius:var(--radius-sm);font:inherit;font-size:13px;background:var(--surface-card);color:var(--text-primary)}
+.ct-bar .btn-sm{padding:7px 14px;font-size:12.5px;border-radius:var(--radius-sm);line-height:1.2;box-sizing:border-box;height:34px;display:inline-flex;align-items:center;background:#ED1C2E;color:#fff;border:none;font-weight:700;cursor:pointer}
+.ct-bar .btn-sm:hover{background:#d41828}
+.ct-bar .btn-outline{background:var(--surface-card);color:#ED1C2E;border:1.5px solid #ED1C2E;font-weight:700;cursor:pointer;border-radius:var(--radius-sm);padding:7px 14px;font-size:12.5px;line-height:1.2;box-sizing:border-box;height:34px;display:inline-flex;align-items:center}
+.ct-bar .btn-outline:hover{background:#ED1C2E;color:#fff}
+.ct-sec{margin-bottom:24px}
+.ct-sec h3{font-size:14.5px;font-weight:800;color:var(--text-primary);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.ct-sec h3 .badge{background:#ED1C2E;color:#fff;border-radius:20px;padding:1px 9px;font-size:11px;font-weight:700}
+.ct-tbl{width:100%;border-collapse:collapse;font-size:12.7px}
+.ct-tbl th{background:var(--surface-page);color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;text-align:left;border-bottom:2px solid var(--gridline);position:sticky;top:0}
+.ct-tbl td{padding:7px 10px;border-bottom:1px solid var(--gridline);text-align:left;white-space:normal}
+.ct-tbl tbody tr:hover{background:var(--surface-page)}
+.ct-tbl .act-col{width:70px;text-align:center;white-space:nowrap}
+.ct-act{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px}
+.ct-act:hover{background:var(--surface-page)}
+/* Contact modal */
+.ct-modal-bg{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:900;display:flex;align-items:center;justify-content:center}
+.ct-modal{background:var(--surface-card);border-radius:14px;padding:24px 28px;width:440px;max-width:94vw;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.ct-modal h3{font-size:16px;font-weight:800;color:var(--text-primary);margin-bottom:16px}
+.ct-modal label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;margin-top:12px}
+.ct-modal label:first-of-type{margin-top:0}
+.ct-modal input,.ct-modal select{width:100%;padding:8px 10px;border:1px solid var(--gridline);border-radius:var(--radius-sm);font:inherit;font-size:13.5px;background:var(--surface-card);color:var(--text-primary)}
+.ct-modal input:focus,.ct-modal select:focus{outline:none;border-color:#ED1C2E}
+.ct-modal .btn-row{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+.ct-modal .btn-cancel{background:var(--surface-page);color:var(--text-primary);border:none;border-radius:var(--radius);padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer}
+.ct-modal .btn-save{background:#ED1C2E;color:#fff;border:none;border-radius:var(--radius);padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer}
+.ct-modal .btn-save:hover{background:#d41828}
+.ct-modal .btn-del{background:var(--status-critical);color:#fff;border:none;border-radius:var(--radius);padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -853,6 +884,7 @@ body {
   <button class="tab-btn" data-tab="recap">Weekly Recap</button>
   <button class="tab-btn" data-tab="catering">Catering CRM</button>
   <button class="tab-btn" data-tab="onboard">Onboarding</button>
+  <button class="tab-btn" data-tab="contacts">Contacts</button>
 </nav>
 
 <!-- TAB 1: DAILY OPERATIONS -->
@@ -1530,6 +1562,48 @@ body {
             <tr><td colspan="8" style="padding:20px;text-align:center;color:var(--text-secondary);">Loading...</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 9: CONTACTS -->
+<div class="tab-content" id="tab-contacts">
+  <div class="container">
+    <div class="ct-bar">
+      <select id="ctStoreSelect"></select>
+      <button class="btn-sm" onclick="ctAddStaff()">+ Add Staff</button>
+      <button class="btn-outline" onclick="ctAddVendor()">+ Add Vendor</button>
+      <span class="savemsg" id="ctMsg" style="font-size:13px;font-weight:600;margin-left:8px"></span>
+    </div>
+    <!-- Staff Contacts -->
+    <div class="ct-sec">
+      <h3>Staff Contacts <span class="badge" id="ctStaffCount">0</span></h3>
+      <div style="overflow-x:auto">
+      <table class="ct-tbl" id="ctStaffTbl">
+        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th><th>Anniversary</th><th class="act-col"></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+    </div>
+    <!-- Store Vendor Contacts -->
+    <div class="ct-sec">
+      <h3>Store Vendor Contacts <span class="badge" id="ctVendorCount">0</span></h3>
+      <div style="overflow-x:auto">
+      <table class="ct-tbl" id="ctVendorTbl">
+        <thead><tr><th>Company</th><th>Description</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th><th class="act-col"></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      </div>
+    </div>
+    <!-- Company-Wide Contacts -->
+    <div class="ct-sec" style="margin-top:24px;border-top:2px solid var(--gridline);padding-top:18px">
+      <h3>Company-Wide Contacts <span class="badge" id="ctCompCount">0</span> <button class="btn-outline" style="font-size:11px;padding:4px 10px;height:26px" onclick="ctAddCompany()">+ Add</button></h3>
+      <div style="overflow-x:auto">
+      <table class="ct-tbl" id="ctCompTbl">
+        <thead><tr><th>Company</th><th>Description</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th><th class="act-col"></th></tr></thead>
+        <tbody></tbody>
+      </table>
       </div>
     </div>
   </div>
@@ -8057,6 +8131,313 @@ async function deleteOnboardingSession(id, name) {
 // Load onboarding data when tab is clicked
 document.querySelector('[data-tab="onboard"]').addEventListener('click', () => {
   if (!obDataLoaded) loadOnboardingData();
+});
+
+/* ===== CONTACTS TAB ===== */
+let CT_STAFF=[],CT_VENDORS=[],CT_JUNCTIONS=[],CT_COMPANY=[];
+let ctCurrentStore='726'; // default to Montgomery
+let ctDataLoaded=false;
+
+const CT_STORE_NAMES={};
+STORES.forEach(s=>{CT_STORE_NAMES[s.id]=s.name;});
+
+// Populate store selector
+(function(){
+  const sel=document.getElementById('ctStoreSelect');
+  STORES.forEach(s=>{
+    const opt=document.createElement('option');
+    opt.value=s.id;opt.textContent=s.name+' ('+s.id+')';
+    sel.appendChild(opt);
+  });
+  sel.value=ctCurrentStore;
+  sel.onchange=()=>{ctCurrentStore=sel.value;ctRender();};
+})();
+
+async function ctLoad(){
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY};
+  const[staff,vendors,junctions,company]=await Promise.all([
+    fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts?select=*&order=name",{headers:h}).then(r=>r.json()),
+    fetch(SUPABASE_URL+"/rest/v1/dt_contact_vendors?select=*&order=company",{headers:h}).then(r=>r.json()),
+    fetch(SUPABASE_URL+"/rest/v1/dt_store_vendor_links?select=*",{headers:h}).then(r=>r.json()),
+    fetch(SUPABASE_URL+"/rest/v1/dt_company_contacts?select=*&order=company",{headers:h}).then(r=>r.json())
+  ]);
+  CT_STAFF=staff||[];CT_VENDORS=vendors||[];CT_JUNCTIONS=junctions||[];CT_COMPANY=company||[];
+  ctDataLoaded=true;
+  ctRender();
+}
+
+function ctRender(){
+  const sid=ctCurrentStore;
+  // Staff — sort GM, AGM, Shift Lead to top
+  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('district')||r.includes('area'))return 0;if(r==='gm'||r.includes('general manager'))return 1;if(r==='agm'||r.includes('assistant general'))return 2;if(r.includes('shift lead'))return 3;if(r.includes('crew'))return 9;return 5;};
+  const staff=CT_STAFF.filter(c=>String(c.store_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
+  const sb=document.querySelector("#ctStaffTbl tbody");
+  sb.innerHTML=staff.length?staff.map(c=>`<tr>
+    <td><b>${escapeHtml(c.name)}</b></td><td>${escapeHtml(c.role||'')}</td><td>${escapeHtml(c.phone||'')}</td>
+    <td>${c.email?'<a href="mailto:'+escapeHtml(c.email)+'">'+escapeHtml(c.email)+'</a>':''}</td>
+    <td>${escapeHtml(ctFmtDob(c.dob))}</td>
+    <td>${escapeHtml(c.anniversary||'')}</td>
+    <td class="act-col"><button class="ct-act" title="Edit" onclick="ctEditStaff(${c.id})">&#9998;</button><button class="ct-act" title="Delete" onclick="ctDelStaff(${c.id})">&#128465;</button></td>
+  </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">No staff contacts yet — click + Add Staff</td></tr>';
+  document.getElementById("ctStaffCount").textContent=staff.length;
+
+  // Vendors linked to this store
+  const linkedIds=new Set(CT_JUNCTIONS.filter(j=>String(j.store_id)===sid).map(j=>j.vendor_id));
+  const vendors=CT_VENDORS.filter(v=>linkedIds.has(v.id));
+  const vb=document.querySelector("#ctVendorTbl tbody");
+  vb.innerHTML=vendors.length?vendors.map(v=>`<tr>
+    <td><b>${escapeHtml(v.company)}</b></td><td>${escapeHtml(v.description||'')}</td><td>${escapeHtml(v.contact_name||'')}</td><td>${escapeHtml(v.role||'')}</td>
+    <td>${escapeHtml(v.phone||'')}</td><td>${escapeHtml(v.mobile||'')}</td>
+    <td>${v.email?'<a href="mailto:'+escapeHtml(v.email)+'">'+escapeHtml(v.email)+'</a>':''}</td>
+    <td>${escapeHtml(v.account_num||'')}</td>
+    <td class="act-col"><button class="ct-act" title="Edit" onclick="ctEditVendor(${v.id})">&#9998;</button><button class="ct-act" title="Unlink" onclick="ctUnlinkVendor(${v.id})">&#10060;</button></td>
+  </tr>`).join(''):'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">No vendors yet — click + Add Vendor</td></tr>';
+  document.getElementById("ctVendorCount").textContent=vendors.length;
+
+  // Company-wide contacts
+  const cb=document.querySelector("#ctCompTbl tbody");
+  cb.innerHTML=CT_COMPANY.length?CT_COMPANY.map(v=>`<tr>
+    <td><b>${escapeHtml(v.company)}</b></td><td>${escapeHtml(v.description||'')}</td><td>${escapeHtml(v.contact_name||'')}</td><td>${escapeHtml(v.role||'')}</td>
+    <td>${escapeHtml(v.phone||'')}</td><td>${escapeHtml(v.mobile||'')}</td>
+    <td>${v.email?'<a href="mailto:'+escapeHtml(v.email)+'">'+escapeHtml(v.email)+'</a>':''}</td>
+    <td>${escapeHtml(v.account_num||'')}</td>
+    <td class="act-col"><button class="ct-act" title="Edit" onclick="ctEditCompany(${v.id})">&#9998;</button><button class="ct-act" title="Delete" onclick="ctDelCompany(${v.id})">&#128465;</button></td>
+  </tr>`).join(''):'<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">No company-wide contacts yet — click + Add</td></tr>';
+  document.getElementById("ctCompCount").textContent=CT_COMPANY.length;
+}
+
+// Date formatting helpers
+function ctFmtDob(s){if(!s)return'';const m=s.match(/^(\w+)\s+(\d+)/);if(!m)return s;const d=parseInt(m[2]),sx=d%10===1&&d!==11?'st':d%10===2&&d!==12?'nd':d%10===3&&d!==13?'rd':'th';return m[1]+' '+d+sx;}
+const CT_DOB_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CT_DOB_ABBR={jan:'January',feb:'February',mar:'March',apr:'April',may:'May',jun:'June',jul:'July',aug:'August',sep:'September',oct:'October',nov:'November',dec:'December'};
+function ctNormDob(s){if(!s)return'';s=s.trim().replace(/\s+/g,' ');
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})$/);if(m){const mi=parseInt(m[1]),d=parseInt(m[2]);if(mi>=1&&mi<=12&&d>=1&&d<=31)return CT_DOB_MONTHS[mi-1]+' '+d;}
+  m=s.match(/^([a-zA-Z]+)\s+(\d{1,2})\s*\w*$/);if(m){const k=m[1].toLowerCase().slice(0,3),d=parseInt(m[2]);if(CT_DOB_ABBR[k]&&d>=1&&d<=31)return CT_DOB_ABBR[k]+' '+d;}
+  m=s.match(/^(\d{1,2})\s*\w*\s+([a-zA-Z]+)$/);if(m){const k=m[2].toLowerCase().slice(0,3),d=parseInt(m[1]);if(CT_DOB_ABBR[k]&&d>=1&&d<=31)return CT_DOB_ABBR[k]+' '+d;}
+  return s;}
+function ctNormAnniv(s){if(!s)return'';s=s.trim().replace(/\s+/g,' ');
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(m){const mi=parseInt(m[1]),d=parseInt(m[2]),y=m[3];if(mi>=1&&mi<=12&&d>=1&&d<=31)return CT_DOB_MONTHS[mi-1]+' '+d+', '+y;}
+  m=s.match(/^([a-zA-Z]+)\s+(\d{1,2})\s*\w*[,\s]+(\d{4})$/);if(m){const k=m[1].toLowerCase().slice(0,3),d=parseInt(m[2]),y=m[3];if(CT_DOB_ABBR[k]&&d>=1&&d<=31)return CT_DOB_ABBR[k]+' '+d+', '+y;}
+  m=s.match(/^(\d{1,2})\s*\w*\s+([a-zA-Z]+)[,\s]+(\d{4})$/);if(m){const k=m[2].toLowerCase().slice(0,3),d=parseInt(m[1]),y=m[3];if(CT_DOB_ABBR[k]&&d>=1&&d<=31)return CT_DOB_ABBR[k]+' '+d+', '+y;}
+  return s;}
+
+function ctNormalizePhone(raw){
+  if(!raw)return'';
+  let s=raw.replace(/ext\.?\s*/gi,'x').replace(/extension\s*/gi,'x');
+  let ext='';const xi=s.search(/x\d/i);
+  if(xi>-1){ext=s.slice(xi+1).replace(/\D/g,'');s=s.slice(0,xi);}
+  const digits=s.replace(/\D/g,'');
+  let d10=digits;
+  if(digits.length===11&&digits[0]==='1')d10=digits.slice(1);
+  if(d10.length!==10)return raw;
+  const fmt='('+d10.slice(0,3)+') '+d10.slice(3,6)+'-'+d10.slice(6);
+  return ext?fmt+' x'+ext:fmt;
+}
+
+function ctModal(html){
+  const bg=document.createElement("div");bg.className="ct-modal-bg";bg.innerHTML='<div class="ct-modal">'+html+'</div>';
+  document.body.appendChild(bg);return bg;
+}
+function ctFlash(msg){const m=document.getElementById("ctMsg");m.textContent="✓ "+msg;m.style.color='var(--status-good)';setTimeout(()=>m.textContent="",3000);}
+
+// --- Staff CRUD ---
+function ctAddStaff(){
+  ctModal(`<h3>Add Staff Contact</h3>
+    <label>Name</label><input id="ctfName">
+    <label>Role</label><select id="ctfRole"><option value="">— Select —</option><option>General Manager</option><option>Assistant General Manager</option><option>Shift Lead</option><option>Crew Member</option><option>Cashier</option><option>Cook</option><option>Drive-Thru</option></select>
+    <label>Phone</label><input id="ctfPhone">
+    <label>Email</label><input id="ctfEmail">
+    <label>Birthday</label><input id="ctfDob" placeholder="e.g. June 1 or 6/1">
+    <label>Work Anniversary</label><input id="ctfAnniv" placeholder="e.g. March 15, 2020 or 3/15/2020">
+    <div class="btn-row"><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn-save" onclick="ctSaveStaff(this)">Save</button></div>`);
+}
+
+async function ctSaveStaff(btn){
+  const bg=btn.closest('.ct-modal-bg');
+  const body={store_id:ctCurrentStore,name:bg.querySelector('#ctfName').value.trim(),role:bg.querySelector('#ctfRole').value,
+    phone:ctNormalizePhone(bg.querySelector('#ctfPhone').value.trim()),email:bg.querySelector('#ctfEmail').value.trim(),
+    dob:ctNormDob(bg.querySelector('#ctfDob').value.trim()),anniversary:ctNormAnniv(bg.querySelector('#ctfAnniv').value.trim())};
+  if(!body.name){alert("Name is required");return;}
+  btn.disabled=true;btn.textContent="Saving…";
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts",{method:"POST",headers:h,body:JSON.stringify(body)});
+  if(r.ok){const rows=await r.json();CT_STAFF.push(rows[0]);bg.remove();ctRender();ctFlash("Staff contact added");}
+  else{btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));}
+}
+
+function ctEditStaff(id){
+  const c=CT_STAFF.find(x=>x.id===id);if(!c)return;
+  const roles=['General Manager','Assistant General Manager','Shift Lead','Crew Member','Cashier','Cook','Drive-Thru'];
+  ctModal(`<h3>Edit Staff Contact</h3>
+    <label>Name</label><input id="ctfName" value="${escapeHtml(c.name)}">
+    <label>Role</label><select id="ctfRole">${roles.map(r=>`<option${(c.role||'')===r?' selected':''}>${r}</option>`).join('')}</select>
+    <label>Phone</label><input id="ctfPhone" value="${escapeHtml(c.phone||'')}">
+    <label>Email</label><input id="ctfEmail" value="${escapeHtml(c.email||'')}">
+    <label>Birthday</label><input id="ctfDob" value="${escapeHtml(c.dob||'')}">
+    <label>Work Anniversary</label><input id="ctfAnniv" value="${escapeHtml(c.anniversary||'')}">
+    <div class="btn-row"><button class="btn-del" onclick="ctDelStaff(${id})">Delete</button><span style="flex:1"></span><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn-save" onclick="ctUpdateStaff(${id},this)">Save</button></div>`);
+}
+
+async function ctUpdateStaff(id,btn){
+  const bg=btn.closest('.ct-modal-bg');
+  const body={name:bg.querySelector('#ctfName').value.trim(),role:bg.querySelector('#ctfRole').value,
+    phone:ctNormalizePhone(bg.querySelector('#ctfPhone').value.trim()),email:bg.querySelector('#ctfEmail').value.trim(),
+    dob:ctNormDob(bg.querySelector('#ctfDob').value.trim()),anniversary:ctNormAnniv(bg.querySelector('#ctfAnniv').value.trim())};
+  if(!body.name){alert("Name is required");return;}
+  btn.disabled=true;btn.textContent="Saving…";
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts?id=eq."+id,{method:"PATCH",headers:h,body:JSON.stringify(body)});
+  if(r.ok){const rows=await r.json();const idx=CT_STAFF.findIndex(x=>x.id===id);if(idx>=0)CT_STAFF[idx]=rows[0];bg.remove();ctRender();ctFlash("Staff contact updated");}
+  else{btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));}
+}
+
+async function ctDelStaff(id){
+  if(!confirm("Delete this staff contact?"))return;
+  document.querySelectorAll('.ct-modal-bg').forEach(x=>x.remove());
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts?id=eq."+id,{method:"DELETE",headers:h});
+  if(r.ok){CT_STAFF=CT_STAFF.filter(x=>x.id!==id);ctRender();ctFlash("Staff contact deleted");}
+  else alert("Error deleting contact");
+}
+
+// --- Vendor CRUD ---
+function ctAddVendor(){
+  ctModal(`<h3>Add New Vendor</h3>
+    <label>Company</label><input id="ctfCompany">
+    <label>Description</label><input id="ctfVDesc" placeholder="e.g. Food supplier, HVAC service">
+    <label>Contact Name</label><input id="ctfVContact">
+    <label>Role / Service</label><input id="ctfVRole">
+    <label>Phone</label><input id="ctfVPhone">
+    <label>Mobile</label><input id="ctfVMobile">
+    <label>Email</label><input id="ctfVEmail">
+    <label>Account #</label><input id="ctfVAcct">
+    <div class="btn-row"><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn-save" onclick="ctSaveVendor(this)">Save</button></div>`);
+}
+
+async function ctSaveVendor(btn){
+  const bg=btn.closest('.ct-modal-bg');
+  const body={company:bg.querySelector('#ctfCompany').value.trim(),description:bg.querySelector('#ctfVDesc').value.trim(),contact_name:bg.querySelector('#ctfVContact').value.trim(),
+    role:bg.querySelector('#ctfVRole').value.trim(),phone:ctNormalizePhone(bg.querySelector('#ctfVPhone').value.trim()),
+    mobile:ctNormalizePhone(bg.querySelector('#ctfVMobile').value.trim()),email:bg.querySelector('#ctfVEmail').value.trim(),
+    account_num:bg.querySelector('#ctfVAcct').value.trim()};
+  if(!body.company){alert("Company name is required");return;}
+  btn.disabled=true;btn.textContent="Saving…";
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_contact_vendors",{method:"POST",headers:h,body:JSON.stringify(body)});
+  if(!r.ok){btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));return;}
+  const rows=await r.json();const nv=rows[0];CT_VENDORS.push(nv);
+  // auto-link to current store
+  const jr=await fetch(SUPABASE_URL+"/rest/v1/dt_store_vendor_links",{method:"POST",headers:h,body:JSON.stringify({store_id:ctCurrentStore,vendor_id:nv.id})});
+  if(jr.ok){const jrows=await jr.json();CT_JUNCTIONS.push(jrows[0]);}
+  bg.remove();ctRender();ctFlash("Vendor added & linked");
+}
+
+function ctEditVendor(id){
+  const v=CT_VENDORS.find(x=>x.id===id);if(!v)return;
+  ctModal(`<h3>Edit Vendor</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Changes apply to all stores linked to this vendor</p>
+    <label>Company</label><input id="ctfCompany" value="${escapeHtml(v.company)}">
+    <label>Description</label><input id="ctfVDesc" value="${escapeHtml(v.description||'')}" placeholder="e.g. Food supplier, HVAC service">
+    <label>Contact Name</label><input id="ctfVContact" value="${escapeHtml(v.contact_name||'')}">
+    <label>Role / Service</label><input id="ctfVRole" value="${escapeHtml(v.role||'')}">
+    <label>Phone</label><input id="ctfVPhone" value="${escapeHtml(v.phone||'')}">
+    <label>Mobile</label><input id="ctfVMobile" value="${escapeHtml(v.mobile||'')}">
+    <label>Email</label><input id="ctfVEmail" value="${escapeHtml(v.email||'')}">
+    <label>Account #</label><input id="ctfVAcct" value="${escapeHtml(v.account_num||'')}">
+    <div class="btn-row"><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn-save" onclick="ctUpdateVendor(${id},this)">Save</button></div>`);
+}
+
+async function ctUpdateVendor(id,btn){
+  const bg=btn.closest('.ct-modal-bg');
+  const body={company:bg.querySelector('#ctfCompany').value.trim(),description:bg.querySelector('#ctfVDesc').value.trim(),contact_name:bg.querySelector('#ctfVContact').value.trim(),
+    role:bg.querySelector('#ctfVRole').value.trim(),phone:ctNormalizePhone(bg.querySelector('#ctfVPhone').value.trim()),
+    mobile:ctNormalizePhone(bg.querySelector('#ctfVMobile').value.trim()),email:bg.querySelector('#ctfVEmail').value.trim(),
+    account_num:bg.querySelector('#ctfVAcct').value.trim()};
+  if(!body.company){alert("Company name is required");return;}
+  btn.disabled=true;btn.textContent="Saving…";
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_contact_vendors?id=eq."+id,{method:"PATCH",headers:h,body:JSON.stringify(body)});
+  if(r.ok){const rows=await r.json();const idx=CT_VENDORS.findIndex(x=>x.id===id);if(idx>=0)CT_VENDORS[idx]=rows[0];bg.remove();ctRender();ctFlash("Vendor updated (all linked stores)");}
+  else{btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));}
+}
+
+async function ctUnlinkVendor(vid){
+  if(!confirm("Remove this vendor from store #"+ctCurrentStore+"?\n(The vendor stays available for other stores)"))return;
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_store_vendor_links?store_id=eq."+ctCurrentStore+"&vendor_id=eq."+vid,{method:"DELETE",headers:h});
+  if(r.ok){CT_JUNCTIONS=CT_JUNCTIONS.filter(j=>!(String(j.store_id)===ctCurrentStore&&j.vendor_id===vid));ctRender();ctFlash("Vendor unlinked");}
+  else alert("Error unlinking vendor");
+}
+
+// --- Company-Wide Contacts CRUD ---
+function ctAddCompany(){
+  ctModal(`<h3>Add Company Contact</h3>
+    <label>Company</label><input id="ctfCCCompany">
+    <label>Description</label><input id="ctfCCDesc" placeholder="e.g. Payroll provider, Insurance broker">
+    <label>Contact Name</label><input id="ctfCCName">
+    <label>Role / Title</label><input id="ctfCCRole">
+    <label>Phone</label><input id="ctfCCPhone">
+    <label>Mobile</label><input id="ctfCCMobile">
+    <label>Email</label><input id="ctfCCEmail">
+    <label>Account #</label><input id="ctfCCAcct">
+    <div class="btn-row"><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn-save" onclick="ctSaveCompany(this)">Save</button></div>`);
+}
+
+async function ctSaveCompany(btn){
+  const bg=btn.closest('.ct-modal-bg');
+  const body={company:bg.querySelector('#ctfCCCompany').value.trim(),description:bg.querySelector('#ctfCCDesc').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
+    role:bg.querySelector('#ctfCCRole').value.trim(),phone:ctNormalizePhone(bg.querySelector('#ctfCCPhone').value.trim()),
+    mobile:ctNormalizePhone(bg.querySelector('#ctfCCMobile').value.trim()),email:bg.querySelector('#ctfCCEmail').value.trim(),
+    account_num:bg.querySelector('#ctfCCAcct').value.trim()};
+  if(!body.company){alert("Company name is required");return;}
+  btn.disabled=true;btn.textContent="Saving…";
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_company_contacts",{method:"POST",headers:h,body:JSON.stringify(body)});
+  if(!r.ok){btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));return;}
+  const rows=await r.json();CT_COMPANY.push(rows[0]);
+  bg.remove();ctRender();ctFlash("Company contact added");
+}
+
+function ctEditCompany(id){
+  const v=CT_COMPANY.find(x=>x.id===id);if(!v)return;
+  ctModal(`<h3>Edit Company Contact</h3>
+    <label>Company</label><input id="ctfCCCompany" value="${escapeHtml(v.company)}">
+    <label>Description</label><input id="ctfCCDesc" value="${escapeHtml(v.description||'')}" placeholder="e.g. Payroll provider, Insurance broker">
+    <label>Contact Name</label><input id="ctfCCName" value="${escapeHtml(v.contact_name||'')}">
+    <label>Role / Title</label><input id="ctfCCRole" value="${escapeHtml(v.role||'')}">
+    <label>Phone</label><input id="ctfCCPhone" value="${escapeHtml(v.phone||'')}">
+    <label>Mobile</label><input id="ctfCCMobile" value="${escapeHtml(v.mobile||'')}">
+    <label>Email</label><input id="ctfCCEmail" value="${escapeHtml(v.email||'')}">
+    <label>Account #</label><input id="ctfCCAcct" value="${escapeHtml(v.account_num||'')}">
+    <div class="btn-row"><button class="btn-cancel" onclick="this.closest('.ct-modal-bg').remove()">Cancel</button><button class="btn-save" onclick="ctUpdateCompany(${id},this)">Save</button></div>`);
+}
+
+async function ctUpdateCompany(id,btn){
+  const bg=btn.closest('.ct-modal-bg');
+  const body={company:bg.querySelector('#ctfCCCompany').value.trim(),description:bg.querySelector('#ctfCCDesc').value.trim(),contact_name:bg.querySelector('#ctfCCName').value.trim(),
+    role:bg.querySelector('#ctfCCRole').value.trim(),phone:ctNormalizePhone(bg.querySelector('#ctfCCPhone').value.trim()),
+    mobile:ctNormalizePhone(bg.querySelector('#ctfCCMobile').value.trim()),email:bg.querySelector('#ctfCCEmail').value.trim(),
+    account_num:bg.querySelector('#ctfCCAcct').value.trim()};
+  if(!body.company){alert("Company name is required");return;}
+  btn.disabled=true;btn.textContent="Saving…";
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_company_contacts?id=eq."+id,{method:"PATCH",headers:h,body:JSON.stringify(body)});
+  if(r.ok){const rows=await r.json();const idx=CT_COMPANY.findIndex(x=>x.id===id);if(idx>=0)CT_COMPANY[idx]=rows[0];bg.remove();ctRender();ctFlash("Company contact updated");}
+  else{btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));}
+}
+
+async function ctDelCompany(id){
+  if(!confirm("Delete this company-wide contact?"))return;
+  document.querySelectorAll('.ct-modal-bg').forEach(x=>x.remove());
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_company_contacts?id=eq."+id,{method:"DELETE",headers:h});
+  if(r.ok){CT_COMPANY=CT_COMPANY.filter(x=>x.id!==id);ctRender();ctFlash("Company contact deleted");}
+  else alert("Error deleting contact");
+}
+
+// Load contacts data when tab is clicked
+document.querySelector('[data-tab="contacts"]').addEventListener('click', () => {
+  if (!ctDataLoaded) ctLoad();
 });
 
 

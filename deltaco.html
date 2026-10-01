@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.10.01b -->
+<!-- v2026.10.01d -->
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
 :root {
@@ -725,6 +725,15 @@ body {
   font-size: 13px; font-weight: 600; color: var(--text-primary);
   margin-bottom: 8px; line-height: 1.4;
 }
+.recap-yesno-group { display: flex; gap: 8px; }
+.recap-yesno-btn {
+  padding: 8px 24px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: 1.5px solid var(--border); background: var(--card-bg);
+  color: var(--text-secondary); transition: all 0.15s ease;
+}
+.recap-yesno-btn:hover { border-color: var(--text-muted); }
+.recap-yesno-btn.active.yes { background: #e8f5e9; border-color: #43a047; color: #2e7d32; }
+.recap-yesno-btn.active.no { background: #fce4ec; border-color: #e53935; color: #c62828; }
 .recap-leadership-section {
   background: var(--surface-card); border: 1px solid var(--border);
   border-radius: var(--radius); box-shadow: var(--shadow-sm); margin-bottom: 20px; overflow: hidden;
@@ -7090,6 +7099,7 @@ const RECAP_QUESTIONS = [
   { key: 'servicecheck', text: 'What ServiceCheck measures were reviewed with the GM and what was implemented?' },
   { key: 'compliance', text: 'Are we compliant with all health, safety, and permitted requirements?' },
   { key: 'google', text: 'What is your Google Rating and how many new 5-star reviews did you receive?' },
+  { key: 'terminations', text: 'Have employee terminations been reported to HR and updated in Paychex?', type: 'yesno' },
 ];
 
 // Helper: map a weekEnd date (Tuesday) to fiscal week key and return full LP store data
@@ -7448,10 +7458,19 @@ function renderRecapDetail() {
   let questionItems = '';
   RECAP_QUESTIONS.forEach((q, i) => {
     const existingText = recap.questions[q.key] || '';
+    let inputHtml;
+    if (q.type === 'yesno') {
+      inputHtml = '<div class="recap-yesno-group" data-question-key="' + q.key + '">' +
+        '<button type="button" class="recap-yesno-btn' + (existingText === 'Yes' ? ' active yes' : '') + '" data-value="Yes">Yes</button>' +
+        '<button type="button" class="recap-yesno-btn' + (existingText === 'No' ? ' active no' : '') + '" data-value="No">No</button>' +
+      '</div>';
+    } else {
+      inputHtml = '<textarea class="recap-textarea" data-question-key="' + q.key + '" placeholder="Enter your response...">' + escapeHtml(existingText) + '</textarea>';
+    }
     questionItems += '<div class="recap-question-item">' +
       '<div class="recap-question-number">Question ' + (i + 1) + '</div>' +
       '<div class="recap-question-text">' + q.text + '</div>' +
-      '<textarea class="recap-textarea" data-question-key="' + q.key + '" placeholder="Enter your response...">' + escapeHtml(existingText) + '</textarea>' +
+      inputHtml +
     '</div>';
   });
 
@@ -7508,6 +7527,17 @@ function renderRecapDetail() {
     });
   });
 
+  // Wire up yes/no buttons
+  detailEl.querySelectorAll('.recap-yesno-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const group = btn.closest('.recap-yesno-group');
+      const questionKey = group.dataset.questionKey;
+      group.querySelectorAll('.recap-yesno-btn').forEach(b => b.classList.remove('active', 'yes', 'no'));
+      btn.classList.add('active', btn.dataset.value === 'Yes' ? 'yes' : 'no');
+      recap.questions[questionKey] = btn.dataset.value;
+    });
+  });
+
   window.scrollTo(0, 0);
 }
 
@@ -7529,6 +7559,11 @@ async function saveRecap() {
     if (flagKey) recap.flags[flagKey] = ta.value;
     else if (questionKey) recap.questions[questionKey] = ta.value;
     else if (ta.id === 'recapLeadership') recap.leadership = ta.value;
+  });
+  // Collect yes/no values
+  document.querySelectorAll('#recapDetail .recap-yesno-group').forEach(g => {
+    const active = g.querySelector('.recap-yesno-btn.active');
+    if (active) recap.questions[g.dataset.questionKey] = active.dataset.value;
   });
 
   // Check completion

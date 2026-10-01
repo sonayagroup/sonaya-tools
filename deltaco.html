@@ -1574,6 +1574,7 @@ body {
       <select id="ctStoreSelect"></select>
       <button class="btn-sm" onclick="ctAddStaff()">+ Add Staff</button>
       <button class="btn-outline" onclick="ctAddVendor()">+ Add Vendor</button>
+      <button class="btn-outline" onclick="ctPrint()" style="margin-left:auto">&#128424; Print PDF</button>
       <span class="savemsg" id="ctMsg" style="font-size:13px;font-weight:600;margin-left:8px"></span>
     </div>
     <!-- Staff Contacts -->
@@ -8433,6 +8434,60 @@ async function ctDelCompany(id){
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_company_contacts?id=eq."+id,{method:"DELETE",headers:h});
   if(r.ok){CT_COMPANY=CT_COMPANY.filter(x=>x.id!==id);ctRender();ctFlash("Company contact deleted");}
   else alert("Error deleting contact");
+}
+
+function ctPrint(){
+  const sid=ctCurrentStore;
+  const sname=CT_STORE_NAMES[sid]||sid;
+  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('district')||r.includes('area'))return 0;if(r==='gm'||r.includes('general manager'))return 1;if(r==='agm'||r.includes('assistant general'))return 2;if(r.includes('shift lead'))return 3;if(r.includes('crew'))return 9;return 5;};
+  const staff=CT_STAFF.filter(c=>String(c.store_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
+  const linkedIds=new Set(CT_JUNCTIONS.filter(j=>String(j.store_id)===sid).map(j=>j.vendor_id));
+  const vendors=CT_VENDORS.filter(v=>linkedIds.has(v.id));
+  const today=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+  const e=s=>s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';
+  const logoSrc=document.querySelector('.header-logo').src;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contacts — Store #${e(sid)}</title>
+<style>
+*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:32px 40px;color:#222;font-size:12px;line-height:1.4}
+.hdr{display:flex;align-items:center;gap:16px;margin-bottom:10px;padding-bottom:12px;border-bottom:3px solid #ED1C2E}
+.hdr img{height:48px;width:auto}
+.hdr h1{font-size:19px;font-weight:800;color:#1a1a1a;margin:0}
+.hdr .sub{font-size:11px;color:#888;margin-top:2px}
+.disclaimer{background:#fff3cd;border:1px solid #e6c200;border-radius:5px;padding:8px 16px;margin-bottom:16px;font-size:11px;color:#856404;text-align:center;font-weight:600}
+h2{font-size:14px;color:#1a1a1a;margin:18px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}
+h2 span{font-weight:400;font-size:11px;color:#888;margin-left:6px}
+table{width:100%;border-collapse:collapse;margin-bottom:8px}
+th{background:#f0f3f7;padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#555;text-align:left;border-bottom:2px solid #ddd}
+td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
+a{color:#ED1C2E;text-decoration:none}
+@media print{@page{size:letter landscape;margin:0.5in}}
+.no-print{text-align:center;margin-bottom:20px}
+.no-print button{padding:10px 28px;font-size:14px;background:#ED1C2E;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600}
+.no-print button:hover{background:#d41828}
+@media print{.no-print{display:none}}
+</style></head><body>
+<div class="no-print"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>
+<div class="hdr">
+  <img src="${logoSrc}" alt="Del Taco" style="height:48px">
+  <div><h1>Store #${e(sid)} — ${e(sname)}</h1><div class="sub">Contact Directory · Printed ${e(today)}</div></div>
+</div>
+<div class="disclaimer">***Employee phone numbers are confidential and must not be shared with non-employees.***</div>
+<h2>Staff Contacts<span>(${staff.length})</span></h2>
+<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th><th>Anniversary</th></tr></thead><tbody>
+${staff.map(c=>'<tr><td><b>'+e(c.name)+'</b></td><td>'+e(c.role||'')+'</td><td>'+e(c.phone||'')+'</td><td>'+(c.email?'<a href="mailto:'+e(c.email)+'">'+e(c.email)+'</a>':'')+'</td><td>'+e(ctFmtDob(c.dob))+'</td><td>'+e(c.anniversary||'')+'</td></tr>').join('')}
+</tbody></table>
+${vendors.length?`<h2>Store Vendor Contacts<span>(${vendors.length})</span></h2>
+<table><thead><tr><th>Company</th><th>Description</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th></tr></thead><tbody>
+${vendors.map(v=>'<tr><td><b>'+e(v.company)+'</b></td><td>'+e(v.description||'')+'</td><td>'+e(v.contact_name||'')+'</td><td>'+e(v.role||'')+'</td><td>'+e(v.phone||'')+'</td><td>'+e(v.mobile||'')+'</td><td>'+(v.email?'<a href="mailto:'+e(v.email)+'">'+e(v.email)+'</a>':'')+'</td><td>'+e(v.account_num||'')+'</td></tr>').join('')}
+</tbody></table>`:''}
+${CT_COMPANY.length?`<h2>Company-Wide Contacts<span>(${CT_COMPANY.length})</span></h2>
+<table><thead><tr><th>Company</th><th>Description</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th></tr></thead><tbody>
+${CT_COMPANY.map(v=>'<tr><td><b>'+e(v.company)+'</b></td><td>'+e(v.description||'')+'</td><td>'+e(v.contact_name||'')+'</td><td>'+e(v.role||'')+'</td><td>'+e(v.phone||'')+'</td><td>'+e(v.mobile||'')+'</td><td>'+(v.email?'<a href="mailto:'+e(v.email)+'">'+e(v.email)+'</a>':'')+'</td><td>'+e(v.account_num||'')+'</td></tr>').join('')}
+</tbody></table>`:''}
+</body></html>`);
+  w.document.close();
 }
 
 // Load contacts data when tab is clicked

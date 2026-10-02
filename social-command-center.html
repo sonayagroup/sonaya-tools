@@ -4548,22 +4548,74 @@ async function publishPostNow(existingId) {
           fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/photos?${photoBody}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
         } else if (data.media_url && (data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short')) {
           // Video/Reel post — download video binary first, then upload via FormData
-          // (file_url doesn't work reliably for Google Drive links because FB servers can't access them)
+          const isReel = (data.media_type === 'reel' || data.media_type === 'short');
           showToast('Facebook: Downloading video from source…', 'info');
           const dlResult = await downloadVideoBlob(data.media_url);
           if (!dlResult.ok) { results.push({ platform: 'Facebook', ok: false, msg: dlResult.msg }); continue; }
-          showToast(`Facebook: Uploading ${(dlResult.blob.size/1048576).toFixed(1)} MB video…`, 'info');
-          const fbForm = new FormData();
-          fbForm.append('description', message);
-          fbForm.append('source', dlResult.blob, 'video.mp4');
-          fbForm.append('published', 'true');
-          fbForm.append('access_token', pageToken);
-          // Use Reels endpoint for reels/shorts, regular /videos for standard video
-          const isReel = (data.media_type === 'reel' || data.media_type === 'short');
-          const fbVideoEndpoint = isReel
-            ? `https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/video_reels`
-            : `https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos`;
-          fbResp = await fetch(fbVideoEndpoint, { method: 'POST', body: fbForm });
+          const videoSizeMB = (dlResult.blob.size / 1048576).toFixed(1);
+          showToast(`Facebook: Uploading ${videoSizeMB} MB video…`, 'info');
+
+          if (isReel) {
+            // Facebook Reels: two-phase upload for best quality
+            // Phase 1: Initialize upload session
+            const initResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/video_reels`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ upload_phase: 'start', access_token: pageToken })
+            });
+            const initData = await initResp.json();
+            if (initData.error || !initData.video_id) {
+              results.push({ platform: 'Facebook', ok: false, msg: 'Reel init failed: ' + (initData.error?.message || 'No video_id returned') });
+              continue;
+            }
+            const reelVideoId = initData.video_id;
+            console.log('[FB Publish] Reel init ok, video_id:', reelVideoId);
+
+            // Phase 2: Upload binary to the upload URL
+            const uploadForm = new FormData();
+            uploadForm.append('access_token', pageToken);
+            uploadForm.append('video_id', reelVideoId);
+            uploadForm.append('upload_phase', 'transfer');
+            uploadForm.append('source', dlResult.blob, 'video.mp4');
+            const uploadResp = await fetch(`https://rupload.facebook.com/video-upload/v18.0/${reelVideoId}`, {
+              method: 'POST',
+              headers: {
+                'Authorization': 'OAuth ' + pageToken,
+                'offset': '0',
+                'file_size': String(dlResult.blob.size)
+              },
+              body: dlResult.blob
+            });
+            const uploadData = await uploadResp.json();
+            if (!uploadResp.ok || uploadData.error) {
+              console.error('[FB Publish] Reel upload failed:', uploadData);
+              results.push({ platform: 'Facebook', ok: false, msg: 'Reel upload failed: ' + (uploadData.error?.message || uploadResp.status) });
+              continue;
+            }
+            console.log('[FB Publish] Reel binary uploaded:', uploadData);
+
+            // Phase 3: Publish the reel
+            const publishResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/video_reels`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                access_token: pageToken,
+                video_id: reelVideoId,
+                upload_phase: 'finish',
+                video_state: 'PUBLISHED',
+                description: message
+              })
+            });
+            fbResp = publishResp;
+          } else {
+            // Regular video — single-step FormData upload via /videos
+            const fbForm = new FormData();
+            fbForm.append('description', message);
+            fbForm.append('source', dlResult.blob, 'video.mp4');
+            fbForm.append('published', 'true');
+            fbForm.append('access_token', pageToken);
+            fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos`, { method: 'POST', body: fbForm });
+          }
         } else {
           // Text-only post
           const postBody = `message=${encodeURIComponent(message)}`;
@@ -4734,23 +4786,48 @@ async function republishToSinglePlatform(postId, platformKey) {
           const photoUrl = toDirectMediaUrl(data.media_url);
           fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/photos?message=${encodeURIComponent(message)}&url=${encodeURIComponent(photoUrl)}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });
         } else if (data.media_url && (data.media_type === 'video' || data.media_type === 'reel' || data.media_type === 'short')) {
-          // Download video binary and upload via FormData (file_url fails for Google Drive)
+          const isReel = (data.media_type === 'reel' || data.media_type === 'short');
           showToast('Facebook: Downloading video…', 'info');
           const dlResult = await downloadVideoBlob(data.media_url);
           if (!dlResult.ok) { results.push({ platform: 'Facebook', ok: false, msg: dlResult.msg }); }
           else {
             showToast(`Facebook: Uploading ${(dlResult.blob.size/1048576).toFixed(1)} MB…`, 'info');
-            const fbForm = new FormData();
-            fbForm.append('description', message);
-            fbForm.append('source', dlResult.blob, 'video.mp4');
-            fbForm.append('published', 'true');
-            fbForm.append('access_token', pageToken);
-            // Use Reels endpoint for reels/shorts, regular /videos for standard video
-            const isReel = (data.media_type === 'reel' || data.media_type === 'short');
-            const fbVideoEndpoint = isReel
-              ? `https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/video_reels`
-              : `https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos`;
-            fbResp = await fetch(fbVideoEndpoint, { method: 'POST', body: fbForm });
+            if (isReel) {
+              // Facebook Reels: two-phase upload for best quality
+              const initResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/video_reels`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ upload_phase: 'start', access_token: pageToken })
+              });
+              const initData = await initResp.json();
+              if (initData.error || !initData.video_id) {
+                results.push({ platform: 'Facebook', ok: false, msg: 'Reel init failed: ' + (initData.error?.message || 'No video_id') });
+              } else {
+                const reelVideoId = initData.video_id;
+                const uploadResp = await fetch(`https://rupload.facebook.com/video-upload/v18.0/${reelVideoId}`, {
+                  method: 'POST',
+                  headers: { 'Authorization': 'OAuth ' + pageToken, 'offset': '0', 'file_size': String(dlResult.blob.size) },
+                  body: dlResult.blob
+                });
+                const uploadData = await uploadResp.json();
+                if (!uploadResp.ok || uploadData.error) {
+                  results.push({ platform: 'Facebook', ok: false, msg: 'Reel upload failed: ' + (uploadData.error?.message || uploadResp.status) });
+                } else {
+                  fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/video_reels`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ access_token: pageToken, video_id: reelVideoId, upload_phase: 'finish', video_state: 'PUBLISHED', description: message })
+                  });
+                }
+              }
+            } else {
+              const fbForm = new FormData();
+              fbForm.append('description', message);
+              fbForm.append('source', dlResult.blob, 'video.mp4');
+              fbForm.append('published', 'true');
+              fbForm.append('access_token', pageToken);
+              fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/videos`, { method: 'POST', body: fbForm });
+            }
           }
         } else {
           fbResp = await fetch(`https://graph.facebook.com/v18.0/${pageInfo.id || pageId}/feed?message=${encodeURIComponent(message)}&access_token=${encodeURIComponent(pageToken)}`, { method: 'POST' });

@@ -4726,8 +4726,11 @@ function findSCForWeek(weekEndStr, storeId) {
 function renderStoreDetail(data, storeId) {
   const d = data.find(x => x.storeId === storeId);
   if (!d) return;
-  const laborVar = d.laborPct != null ? Math.abs(+d.laborPct - d.laborTarget) : null;
+  const laborVarRaw = d.laborPct != null ? +d.laborPct - d.laborTarget : null;
+  const laborVar = laborVarRaw != null ? Math.abs(laborVarRaw) : null;
   const laborRating = laborVar != null ? rateKPI('laborVariance', laborVar) : {label:'--',cls:'muted'};
+  // Override color: negative variance (under target) = good/green, positive = over/red
+  if (laborVarRaw != null && laborVarRaw < 0) { laborRating.cls = 'good'; laborRating.label = laborRating.label === 'Great' ? 'Great' : 'Good'; }
   const sosRating = d.sos != null ? rateKPI('speedAtWindow', d.sos) : {label:'--',cls:'muted'};
   const voidsRating = d.voidsPct != null ? rateKPI('voids', d.voidsPct) : {label:'--',cls:'muted'};
   const salesRating = state.opsView === 'weekly' ? rateKPI('weeklySales', d.netSales || 0) : { label: '--', cls: '' };
@@ -4759,7 +4762,7 @@ function renderStoreDetail(data, storeId) {
       <div class="detail-kpi ${laborRating.cls}-border">
         <div class="detail-label">Labor %</div>
         <div class="detail-value">${d.laborPct != null ? (+d.laborPct).toFixed(2) + '%' : '--'}</div>
-        <div class="detail-sub">${laborVar != null ? 'Target: ' + d.laborTarget.toFixed(2) + '% | Var: ' + (laborVar > 0 ? '+' : '') + laborVar.toFixed(2) + '% <span class="status-pill ' + laborRating.cls + '" style="font-size:11px">' + laborRating.label + '</span>' : 'No data'}</div>
+        <div class="detail-sub">${laborVarRaw != null ? 'Target: ' + d.laborTarget.toFixed(2) + '% | Var: ' + (laborVarRaw >= 0 ? '+' : '') + laborVarRaw.toFixed(2) + '% <span class="status-pill ' + laborRating.cls + '" style="font-size:11px">' + laborRating.label + '</span>' : 'No data'}</div>
       </div>
       <div class="detail-kpi ${sosRating.cls}-border">
         <div class="detail-label">Window Speed</div>
@@ -4952,7 +4955,7 @@ function renderOps() {
     const transArrow = d.transChangePct !== undefined && d.transChangePct !== null ? (d.transChangePct >= 0 ? '<span style="color:#0ca30c;font-size:11px"> ▲</span>' : '<span style="color:#d03b3b;font-size:11px"> ▼</span>') : '';
     const checklistClass = d.checklistPct !== null ? (d.checklistPct >= 95 ? 'cell-good' : (d.checklistPct >= 80 ? 'cell-warn' : 'cell-critical')) : '';
     const laborVarStr = laborVar != null ? (laborVar >= 0 ? '+' : '') + laborVar.toFixed(2) + '%' : '--';
-    const laborVarClass = laborVarAbs != null ? (laborVarAbs <= 0.25 ? 'cell-great' : laborVarAbs <= 0.50 ? 'cell-good' : laborVarAbs <= 1.00 ? 'cell-warn' : 'cell-critical') : '';
+    const laborVarClass = laborVar != null ? (laborVar < 0 ? 'cell-good' : laborVar <= 0.25 ? 'cell-great' : laborVar <= 1.00 ? 'cell-warn' : 'cell-critical') : '';
     const overallStatus = getOverallStatus(d);
     const cs = computeCompositeScore(d);
     d.compositeScore = cs.total;
@@ -5005,7 +5008,7 @@ function renderOps() {
   const maxScoreVal = scoreVals.length > 0 ? computeCompositeScore(withData[0]).maxScore : 0;
 
   const avgChangeClass = avgChange >= 0 ? 'cell-good' : (avgChange > -10 ? 'cell-warn' : 'cell-critical');
-  const avgLaborVarClass = avgLaborVar != null ? (Math.abs(avgLaborVar) <= 0.25 ? 'cell-great' : Math.abs(avgLaborVar) <= 0.50 ? 'cell-good' : Math.abs(avgLaborVar) <= 1.00 ? 'cell-warn' : 'cell-critical') : '';
+  const avgLaborVarClass = avgLaborVar != null ? (avgLaborVar < 0 ? 'cell-good' : avgLaborVar <= 0.25 ? 'cell-great' : avgLaborVar <= 1.00 ? 'cell-warn' : 'cell-critical') : '';
   const avgJoltClass = avgJolt != null ? (avgJolt >= 95 ? 'cell-good' : (avgJolt >= 80 ? 'cell-warn' : 'cell-critical')) : '';
   const avgSosR = avgSosRow != null ? rateKPI('speedAtWindow', avgSosRow) : {cls:'muted'};
   const avgVoidsR = footVoids != null ? rateKPI('voids', footVoids) : {cls:'muted'};
@@ -5275,10 +5278,11 @@ function renderBarChart(containerId, data, unit, metric, hasTarget, maxOverride)
     const x = pad.l + gap + i * (barW + gap);
     const h = (d.value / yMax) * plotH;
     const y = pad.t + plotH - h;
-    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="3" fill="var(--cat-1)"><title>${d.label}: ${unit === '$' ? '$' : ''}${d.value}${unit === '%' ? '%' : ''}</title></rect>`;
+    const barFill = (hasTarget && d.target) ? (d.value > d.target ? 'var(--status-critical)' : 'var(--status-good, #0ca30c)') : 'var(--cat-1)';
+    svg += `<rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="3" fill="${barFill}"><title>${d.label}: ${unit === '$' ? '$' : ''}${d.value}${unit === '%' ? '%' : ''}</title></rect>`;
     if (hasTarget && d.target) {
       const ty = pad.t + plotH - (d.target / yMax) * plotH;
-      svg += `<line x1="${x - 4}" y1="${ty}" x2="${x + barW + 4}" y2="${ty}" stroke="var(--status-critical)" stroke-width="1.5"/>`;
+      svg += `<line x1="${x - 4}" y1="${ty}" x2="${x + barW + 4}" y2="${ty}" stroke="var(--text-muted)" stroke-width="1.5" stroke-dasharray="4,2"/>`;
     }
     svg += `<text x="${x + barW/2}" y="${y - 6}" text-anchor="middle" fill="var(--text-secondary)" font-size="10" font-weight="600">${unit === '$' ? '$' + (+d.value).toFixed(2) : Math.round(d.value) + '%'}</text>`;
     svg += `<text x="${x + barW/2}" y="${H - 10}" text-anchor="middle" fill="var(--text-muted)" font-size="10">${d.label}</text>`;

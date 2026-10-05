@@ -86,6 +86,7 @@ table.list tr.click:hover td { background: var(--navy-light); cursor: pointer; }
 .calc-note { font-size: .75rem; color: var(--muted); margin: 2px 0 8px; }
 table.mats { width: 100%; border-collapse: collapse; font-size: .8rem; margin-top: 6px; }
 table.mats td { padding: 3px 4px; border-top: 1px solid #e7ebef; }
+.scope-misc { margin-top: 6px; } table.mats.smisc input { width: 100%; } table.mats.smisc input[data-r="smisc"] { text-align: left; }
 table.mats input { width: 60px; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; text-align: right; font-size: .8rem; }
 table.mats input.ovr { background: var(--amber-light); border-color: #f0c070; }
 .w { display: flex; gap: 6px; font-size: .78rem; padding: 5px 8px; border-radius: 6px; margin-top: 5px; line-height: 1.3; }
@@ -242,6 +243,7 @@ const DEFAULT_RULES = {
   // Spray foam: hours per installer per set
   spf: {
     heightBreak: 12,
+    thicknessStep: 0.5,                                    // spray foam thickness rounds UP to the next ½″
     setYield: { oc: 18000, cc: 4800 },          // board feet per set — from the GM's Sales Estimate Spreadsheet (SPF Supplies/PPE = CC/4,800 + OC/18,000)
     rPerInch: { oc: 3.7, cc: 7.5 },
     hrs: { wood_low: 15, metal_low: 20, wood_high: 18, metal_high: 24, ocWallsShaved: 18, ccShaved: 24 },
@@ -259,7 +261,9 @@ const DEFAULT_RULES = {
     { key: 'adverse',    label: 'Adverse work conditions',             min: 5,  max: 15 },
     { key: 'access',     label: 'Access opening smaller than 2′×2′',  min: 10, max: 20 },
   ],
-  ot: { maxOtPerDay: 2, reviewOver: 10, secondDayOver: 12 },
+  // maxOtPerDay = longest extra time on the last day before adding a day (scheduling). OT PAY: after weeklyThreshold hrs per installer per week.
+  ot: { maxOtPerDay: 2, reviewOver: 10, secondDayOver: 12, weeklyThreshold: 40, workDaysPerWeek: 5, addHrsPerDayAfterThreshold: 1 },
+  laborRounding: 'up',                                     // calculated labor hours in whole hours: 'up' (default) | 'nearest' | 'down'
   travel: { overnightDriveHrs: 2, overnightLaborHrs: 6, perDiem: 40, lodgingPerNight: 140, setupHrs: 0.5 },
   bonuses: { crawl: 100, contamination: 250, tightAttic: 50, crawlSpf: 100 },
   rates: { lead: 28, installer: 25, leadOt: 42, installerOt: 37.5, mobilization: 25, payrollTaxPct: 10, generatorFuel: 4.3 },
@@ -272,12 +276,16 @@ const DEFAULT_RULES = {
   marginByType: { res_nc: 45, commercial: 30 },          // spreadsheet defaults: residential 45% GP, commercial 30% GP
   // Material pricing: residential price book carries a built-in markup; commercial is priced at TRUE cost
   materialPricing: {
-    battMarkup: 1.21,                                       // fallback only: residential ÷ this = true cost when a batt has no listed true cost (Oct-2026 sheet: 1.10 × 1.10)
+    battMarkup: 1.10,                                       // GM: residential batts = cost + 10%. Fallback only — each batt carries both price books.
     blow: { res: { cellulose: 15, jetstream: 39, l77: 39 }, commercial: { cellulose: 10.94, jetstream: 30, l77: 33 } },
     spf:  { res: { cc: 0.57, oc: 0.17 }, commercial: { cc: 0.52, oc: 0.12 } },
   },
   // Commercial mobilization: 1 hr per installer per day for loading/unloading (Arthouse / Avid lessons)
+  // Each installer, each day on site (CEILING((reg+OT hrs) ÷ 8)) gets 1 hr at THAT installer's hourly rate. Commercial only.
   mobilization: { res_nc: false, commercial: true, hrsPerInstallerPerDay: 1 },
+  // Spreadsheet counts masks / mobilization days for up to 4 installers (4 installer rows)
+  maxInstallersCounted: 4,
+  spfSuppliesRoundUpTo: 0.25,                               // SPF Supplies/PPE sets always round UP to the next 0.25
   // Bonuses, per diem & lodging are added AFTER pricing with a small markup (not grossed up by margin)
   additionalMarkup: { bonusesPct: 15, travelPct: 5 },
   // Air-sealing supplies (GM, 2026-09): caulk & sill gasket by linear ft; foam cans by sq ft
@@ -338,34 +346,62 @@ const COVERAGE = {
 };
 
 // Batts: name encodes R, facing, width. coverage = sq ft per bag/pack.
+// Batts — GM price books (Oct 5 2026 workbook). [R, facing, width, RESIDENTIAL $/bag ("Common Items Used" = cost × 1.10;
+// Rockwool set individually), sq ft/bag, COMMERCIAL $/bag ("Common Items (Commercial Use)" = true cost, no markup), note]
+// Live prices are refreshed from common_items.unit_price (residential) and common_items.commercial_unit_price (commercial).
 let BATTS = [
-  ['R-11','K','15',45.25,155],['R-11','K','23',69.39,237.67],['R-11','UF','16',37.49,170.67],['R-11','UF','24',69.51,256],
-  ['R-13','K','15',48.15,116.25],['R-13','K','16',54.29,138.67],['R-13','K','23',67.68,163.4],['R-13','UF','15',37.86,106.56],['R-13','UF','16',42.53,117.34],['R-13','UF','23',60.89,163.4],['R-13','UF','24',65.58,176],
-  ['R-15','RW','15.25',51.7,59.7],['R-15','RW','23',81.32,60.1],['R-15','K','15',45.21,67.81],['R-15','K','16',50.77,74.67],['R-15','K','23',69.32,103.98],['R-15','UF','15',48.79,77.5],['R-15','UF','16',46.09,74.69],['R-15','UF','23',65.45,103.98],['R-15','UF','24',69.12,112],
-  ['R-19','K','15',44.79,97.92],['R-19','K','16',48.8,106.67],['R-19','K','23',61.82,135.13],['R-19','K','24',58.55,128],['R-19','UF','15',33.13,77.5],['R-19','UF','16',45.59,106.67],['R-19','UF','23',50.78,118.83],['R-19','UF','24',54.72,128],
-  ['R-20','K','15',50.09,77.5],['R-20','UF','15',46.81,77.5],
-  ['R-21','K','15',48.41,67.81],['R-21','K','16',60.35,74.67],['R-21','K','23',74.22,103.98],['R-21','UF','15',45.01,67.81],['R-21','UF','16',49.56,74.67],['R-21','UF','23',69.03,103.98],['R-21','UF','24',74.35,112],
-  ['R-23','RW','15.25',64.72,39.8],['R-23','RW','23',88.33,37.5],
-  ['R-25','UF','16',37.67,64],['R-25','UF','24',56.51,96],
-  ['R-30','K','16',54.52,69.33],['R-30','K','24',69.21,88],['R-30','RW','15.25',80.73,29.9],['R-30','RW','23',69.19,30],['R-30','UF','16',50.65,69.33],['R-30','UF','24',54.68,80],
-  ['R-38','K','16',58.99,58.67],['R-38','K','24',64.35,64],['R-38','UF','16',51.63,58.67],['R-38','UF','24',52.7,64],
-  ['R-49','K','16',43.83,32],['R-49','K','24',65.74,48],['R-49','UF','16',44.7,32],['R-49','UF','24',62.48,48],
-  ['S&S','RW','15.25',61.59,59.7],['S&S','RW','23',88.41,60.1],
-].map(([r, f, w, price, coverage]) => ({
-  r, facing: f, width: w, price, coverage,
+  ['R-11','K','15',41.14,155,37.4],
+  ['R-11','K','23',63.085,237.67,57.35],
+  ['R-11','UF','16',42.13,170.67,38.3],
+  ['R-11','UF','24',63.195,256,57.45],
+  ['R-13','K','15',43.769,116.25,39.79],
+  ['R-13','K','16',48.202,128,43.82,'Special Order'],
+  ['R-13','K','23',61.523,163.4,55.93],
+  ['R-13','UF','15',39.38,116.25,35.8],
+  ['R-13','UF','16',43.362,128,39.42],
+  ['R-13','UF','23',55.352,163.4,50.32],
+  ['R-13','UF','24',59.62,176,54.2],
+  ['R-15','RW','15.25',51.7,59.7,47],
+  ['R-15','RW','23',81.32,60.1,77.45],
+  ['R-15','K','15',47.905,77.5,43.55,'HD'],
+  ['R-19','K','15',40.722,97.92,37.02],
+  ['R-19','K','16',44.363,106.67,40.33,'Special Order'],
+  ['R-19','K','23',56.199,135.13,51.09],
+  ['R-19','K','24',53.229,128,48.39],
+  ['R-19','UF','16',41.448,106.67,37.68],
+  ['R-19','UF','24',49.742,128,45.22],
+  ['R-21','K','15',44.011,67.81,40.01,'HD'],
+  ['R-21','K','23',67.474,103.98,61.34,'HD'],
+  ['R-21','UF','15',40.92,67.81,37.2],
+  ['R-23','RW','15.25',64.724,39.8,58.84],
+  ['R-23','RW','23',88.33,37.5,88.33],
+  ['R-25','UF','16',55.154,85.33,50.14],
+  ['R-25','UF','24',82.742,128,75.22],
+  ['R-30','K','16',49.566,69.33,45.06],
+  ['R-30','K','24',62.92,88,57.2],
+  ['R-30','UF','16',46.046,69.33,41.86,'Special Order'],
+  ['R-30','UF','24',58.454,88,53.14],
+  ['R-30','RW','15.25',80.73,29.9,80.73],
+  ['R-30','RW','23',69.19,30,62.9],
+  ['R-38','K','16',53.625,58.67,48.75],
+  ['R-38','K','24',58.498,64,53.18],
+  ['R-38','UF','16',46.937,58.67,42.67],
+  ['R-38','UF','24',51.205,64,46.55],
+  ['R-49','K','16',39.842,32,36.22],
+  ['R-49','K','24',59.763,48,54.33],
+  ['R-49','UF','24',56.804,48,51.64],
+  ['S&S','RW','15.25',61.589,59.7,55.99],
+  ['S&S','RW','23',88.41,60.1,84.2],
+].map(([r, f, w, price, coverage, com, note]) => ({
+  r, facing: f, width: w, price, coverage, com, note: note || '',
   rNum: r === 'S&S' ? 15 : parseInt(r.slice(2)),
   name: (r === 'S&S' ? 'Safe & Sound Rockwool' : r + ' ' + ({ K: 'Kraft', UF: 'Unfaced', RW: 'Rockwool' })[f]) + ' ' + w + '"',
 }));
-
-// TRUE purchase cost per batt bag — "Common Items (Actual Price)" sheet, Oct 2026: key → [price, sq ft per bag].
-// Used for the commercial price book and Actuals. Batts not listed fall back to residential ÷ battMarkup.
-const BATT_TRUE = {'R11X15 K': [37.4, 155], 'R11X23 K': [57.35, 237.67], 'R11X16 UF': [38.3, 170.67], 'R11X24 UF': [57.45, 256], 'R13X15 K': [39.79, 116.25], 'R13X16 K': [43.82, 128], 'R13X23 K': [55.93, 163.4], 'R13X15 UF': [35.8, 116.25], 'R13X16 UF': [39.42, 128], 'R13X23 UF': [50.32, 163.4], 'R13X24 UF': [54.2, 176], 'R15X15.25 Rockwool': [47, 59.7], 'R15X23 Rockwool': [77.45, 60.1], 'R15X15 K': [43.55, 77.5], 'R19X15 K': [37.02, 97.92], 'R19X16 K': [40.33, 106.67], 'R19X23 K': [51.09, 135.13], 'R19X24 K': [48.39, 128], 'R19X16 UF': [37.68, 106.67], 'R19X24 UF': [45.22, 128], 'R21X15 K': [40.01, 67.81], 'R21X23 K': [61.34, 103.98], 'R21X15 UF': [37.2, 67.81], 'R23X15.25 Rockwool': [58.84, 39.8], 'R23X23 Rockwool': [88.33, 37.5], 'R25X16 UF': [50.14, 85.33], 'R25X24 UF': [75.22, 128], 'R30X16 K': [45.06, 69.33], 'R30X24 K': [57.2, 88], 'R30X15.25 Rockwool': [80.73, 29.9], 'R30X23 Rockwool': [62.9, 30], 'R30X16 UF': [41.86, 69.33], 'R30X24 UF': [53.14, 88], 'R38X16 K': [48.75, 58.67], 'R38X24 K': [53.18, 64], 'R38X16 UF': [42.67, 58.67], 'R38X24 UF': [46.55, 64], 'R49X16 K': [36.22, 32], 'R49X24 K': [54.33, 48], 'R49X24 UF': [51.64, 48], 'Safe & Sound Rockwool 15.25"': [55.99, 59.7], 'Safe & Sound Rockwool 23"': [84.2, 60.1]};
 const battKey = b => b.r === 'S&S' ? `Safe & Sound Rockwool ${b.width}"` : b.r.replace('-', '') + 'X' + b.width + ' ' + ({ K: 'K', UF: 'UF', RW: 'Rockwool' })[b.facing];
-// true cost per bag of THIS product (scaled by $/sf when the listed vendor's bag covers a different area)
+// Commercial / true cost per bag: the commercial price book. Fallback (no commercial price listed) = residential ÷ batt markup (1.10).
 function battTrueCost(b, rules) {
-  const t = BATT_TRUE[battKey(b)];
-  if (t && t[1] > 0) return Math.round(t[0] / t[1] * b.coverage * 100) / 100;
-  const k = parseFloat(rules && rules.materialPricing && rules.materialPricing.battMarkup) || 1.21;
+  if (b && b.com != null && b.com !== '' && isFinite(parseFloat(b.com))) return Math.round(parseFloat(b.com) * 100) / 100;
+  const k = parseFloat(rules && rules.materialPricing && rules.materialPricing.battMarkup) || 1.10;
   return Math.round(b.price / k * 100) / 100;
 }
 
@@ -375,7 +411,7 @@ const SPF_PRICE = { oc: 0.17, cc: 0.57 };   // $ per board foot (live: common_it
 let SUPPLIES = [
   { name: 'Baffles', price: 0.90, unit: 'each' },
   { name: 'Caulking', price: 4.50, unit: 'tube' },
-  { name: 'DC-315 Intumescent Coating', price: 1.31, unit: 'sq ft' },
+  { name: 'DC-315 Intumescent Coating', price: 0.7994, unit: 'sq ft', perSf: true },   // $359.72 per 450 sf pail (both price books)
   { name: 'Dumpster', price: 363.59, unit: 'each' },
   { name: 'Foam Sealant', price: 5.75, unit: 'can' },
   { name: 'Insulation Netting (cellulose)', price: 0.04, unit: 'sq ft', perSf: true },
@@ -510,7 +546,7 @@ const ACTUAL_PRICES = {   // "Common Items (Actual Price)" sheet — Oct 2026
   'N95 Mask': 1.44, 'Poly Sheeting': 19.70, 'Recessed Light Cover': 8.36, 'Removal Bags': 9.20, 'Scotch Blue Tape': 5.33,
   'Seam Tape': 11.54, 'Sill Plate Gasket': 3.37, 'Solar Fan 30 Watt': 325, 'Solar Fan 70 Watt': 639, 'Spray Adhesive': 5.28,
   'Staples': 5.45, 'Trash Bags (1 Box)': 27.96, 'Vapor Barrier 14 Mil': 286.09,
-  'WMP-10 (Black)': 248.87, 'WMP-10 (White)': 248.87, 'SPF Supplies/PPE': 255.43, 'DC-315 Intumescent Coating': 1.31,
+  'WMP-10 (Black)': 248.87, 'WMP-10 (White)': 248.87, 'SPF Supplies/PPE': 255.43, 'DC-315 Intumescent Coating': 0.7994,
 };
 const ACTUAL_UNITS = { 'Insulation Netting (cellulose)': 'roll', 'Insulation Netting (fiberglass)': 'roll', 'Vapor Barrier 14 Mil': 'roll' };
 // ════════════════════════════════════════════════════════════════════════════
@@ -520,6 +556,13 @@ const ACTUAL_UNITS = { 'Insulation Netting (cellulose)': 'roll', 'Insulation Net
 const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
 const r2 = n => Math.round(n * 100) / 100;
 const r1 = n => Math.round(n * 10) / 10;
+// GM rule: hours the app calculates are ALWAYS rounded UP to the next whole hour (1.1 → 2). Tiny float noise is ignored.
+const ceilH = n => (n > 0 ? Math.ceil(n - 1e-9) : 0);
+// Labor hours in whole-hour increments. Settings → laborRounding: 'up' (default, GM rule) | 'nearest' | 'down' (never below 1 hr when there is work).
+let LABOR_ROUNDING = 'up';
+const roundLabor = n => !(n > 0) ? 0 : LABOR_ROUNDING === 'nearest' ? Math.max(1, Math.round(n)) : LABOR_ROUNDING === 'down' ? Math.max(1, Math.floor(n + 1e-9)) : ceilH(n);
+// Round UP to the next multiple of `step` (e.g. 0.25): 1.10 → 1.25, 1.25 → 1.25
+const ceilTo = (n, step) => (n > 0 ? Math.ceil(Math.round(n / step * 1e6) / 1e6 - 1e-9) * step : 0);
 const blank = v => v === '' || v == null || (typeof v === 'number' && isNaN(v));
 // Margin / royalty with sane fallbacks: a cleared field means "use the default", never 0%
 const defMargin = (est, rules) => num((rules.marginByType || {})[est && est.projectType] ?? rules.margin);
@@ -598,14 +641,18 @@ function pickBatt(scope) {
   return m.slice().sort((a, b) => a.price / a.coverage - b.price / b.coverage)[0];
 }
 
-function spfThickness(scope, rules) {
+// Spray foam thickness, always rounded UP to the next ½″ (2.1″ → 2.5″, 3.6″ → 4.0″, 5.0″ → 5.0″).
+// Board feet, sets (labor), materials and price all use this rounded thickness.
+function spfThicknessRaw(scope, rules) {
   if (num(scope.thickness) > 0) return num(scope.thickness);
   const t = scope.spfType === 'oc' ? rules.spf.rPerInch.oc : rules.spf.rPerInch.cc;
   return num(scope.rValue) > 0 ? num(scope.rValue) / t : 0;
 }
+function spfThickness(scope, rules) { return ceilTo(spfThicknessRaw(scope, rules), num(rules.spf && rules.spf.thicknessStep) || 0.5); }
 
 // Core: compute one scope → labor, materials, warnings
 function computeScope(scope, est, rules) {
+  LABOR_ROUNDING = rules.laborRounding || 'up';
   const S = rules.stdCrew, mode = rules.production;
   const sf = num(scope.sqft);
   const h = num(scope.height) || 8;
@@ -655,8 +702,9 @@ function computeScope(scope, est, rules) {
     out.note = `${days} full day(s) × ${rules.densePackHrsPerInstallerDay} hrs × ${S} installers (guideline: default to a full day)`;
   } else if (m === 'spf' || m === 'crawl_found_spf' || m === 'crawl_joist_spf') {
     const type = m === 'crawl_found_spf' ? 'cc' : (scope.spfType || 'cc');
-    const th = spfThickness({ ...scope, spfType: type }, rules);
-    const bdft = Math.ceil(sf * th);
+    const th = spfThickness({ ...scope, spfType: type }, rules), thRaw = spfThicknessRaw({ ...scope, spfType: type }, rules);
+    const bdft = Math.ceil(sf * th);                         // board feet at the rounded (½″) thickness
+    out.thickness = th; out.thicknessRaw = thRaw;
     const sets = bdft / rules.spf.setYield[type];
     out.bdft = bdft; out.sets = sets;
     if (m === 'spf') {
@@ -678,7 +726,7 @@ function computeScope(scope, est, rules) {
       out.note = `${bdft.toLocaleString()} bd ft (${r2(sets)} sets); ` + out.note;
       out.bonusFlags.crawl = true;
     }
-    out.materials.unshift({ name: `${type === 'oc' ? 'Open' : 'Closed'} Cell SPF — ${r2(th)}″`, qty: bdft, unit: 'bd ft', price: spfPrice(type, est, rules), kind: 'spf', note: `${r2(sets)} sets` });
+    out.materials.unshift({ name: `${type === 'oc' ? 'Open' : 'Closed'} Cell SPF — ${r2(th)}″`, qty: bdft, unit: 'bd ft', price: spfPrice(type, est, rules), kind: 'spf', note: `${r2(sets)} sets${Math.abs(thRaw - th) > 1e-9 ? ` · ${r2(thRaw)}″ rounded up to ${r2(th)}″` : ''}` });
     out.spfBd = { [type]: bdft };
     out.spf = true;
   } else if (m === 'foam_pack') {
@@ -784,11 +832,20 @@ function computeScope(scope, est, rules) {
     mt.cost = mt.qty * mt.price;
   });
 
+  // Miscellaneous materials added inside this subsection (scope) — counted in the subsection and project totals
+  (Array.isArray(scope.misc) ? scope.misc : []).forEach(x => {
+    if (!x || !String(x.name || '').trim()) return;
+    const qty = num(x.qty), price = num(x.price);
+    out.materials.push({ name: String(x.name).trim(), qty, unit: x.unit || 'each', price, kind: 'smisc', note: 'added to this scope', cost: qty * price });
+  });
+
   // Adjustments
   const adjPct = Object.entries(est.adjust || {}).reduce((s, [k, v]) => s + (v ? num(v) : 0), 0) + num(scope.extraPct);
   out.adjPct = adjPct;
   const f = 1 + adjPct / 100;
-  out.base = base; out.lo = lo * f; out.hi = hi * f; out.hrs = base * f;
+  out.base = base;
+  if (['custom', 'coating'].includes(m) && !adjPct) { out.hrs = out.lo = out.hi = base; }                          // hours typed by the estimator stay as entered
+  else { out.hrs = roundLabor(base * f); out.lo = roundLabor(lo * f); out.hi = Math.max(out.hrs, roundLabor(hi * f)); }   // calculated hours: whole hours
   if (scope.laborOverride !== '' && scope.laborOverride != null && !isNaN(parseFloat(scope.laborOverride))) {
     out.guideHrs = out.hrs; out.hrs = out.lo = out.hi = num(scope.laborOverride); out.overridden = true;
     if (out.guideHrs && Math.abs(out.hrs - out.guideHrs) / out.guideHrs > 0.25) W('warn', `Labor override (${r1(out.hrs)} h) differs from guideline (${r1(out.guideHrs)} h) by more than 25%.`);
@@ -850,19 +907,42 @@ function computeOption(opt, est, rules) {
   // Crew & schedule
   const C = crewOf(est);
   const eff = crewEfficiency(C, rules);
-  const H = L / (C * eff);                          // on-site hours per installer (total job time)
-  let days, ot;
+  LABOR_ROUNDING = rules.laborRounding || 'up';
+  const H = roundLabor(L / (C * eff));             // on-site hours per installer (total job time) — whole hours
+  // Schedule: finish in the same day when the remainder is ≤ maxOtPerDay hrs (a long day beats a second mobilization)
+  let days, longHrs;
   const manualDays = parseInt(est.planDays) || 0;
-  if (manualDays > 0) { days = manualDays; ot = Math.max(0, H - 8 * days); }
-  else if (H <= 8) { days = 1; ot = 0; }
+  if (manualDays > 0) { days = manualDays; longHrs = Math.max(0, H - 8 * days); }
+  else if (H <= 8) { days = 1; longHrs = 0; }
   else {
     const full = Math.floor(H / 8), rem = H - 8 * full;
-    if (rem < 0.01) { days = full; ot = 0; }
-    else if (rem <= rules.ot.maxOtPerDay && full >= 1) { days = full; ot = rem; }
-    else { days = full + 1; ot = 0; }
+    if (rem < 0.01) { days = full; longHrs = 0; }
+    else if (rem <= rules.ot.maxOtPerDay && full >= 1) { days = full; longHrs = rem; }
+    else { days = full + 1; longHrs = 0; }
   }
-  const reg = Math.max(0, H - ot);
-  const installerDays = L > 0 ? C * Math.ceil(H / 8 - 1e-9) : 0;   // spreadsheet: CEILING((hrs+OT)/8) per installer
+  // Overtime pay: OT rate only after an installer passes 40 hrs in a work week (toggle per estimate).
+  // Optional: +1 OT hr per installer for every day worked after the 40-hr threshold is reached that week.
+  // Manual override: "OT hrs per installer" replaces the calculation.
+  const OTR = rules.ot || {}, wkCap = num(OTR.weeklyThreshold) || 40, wkDays = Math.max(1, num(OTR.workDaysPerWeek) || 5);
+  const otOn = est.otEnabled !== false;
+  const perDayHrs = days ? H / days : H;
+  let otWeekly = 0, otAddDays = 0;
+  for (let left = days; left > 0; left -= wkDays) {
+    const dIn = Math.min(wkDays, left), wkHrs = perDayHrs * dIn;
+    otWeekly += Math.max(0, wkHrs - wkCap);
+    const reachDay = perDayHrs > 0 ? Math.ceil(wkCap / perDayHrs - 1e-9) : Infinity;   // day of the week on which 40 hrs is reached
+    otAddDays += Math.max(0, dIn - reachDay);
+  }
+  const otAuto = otOn && est.otAddDaily ? otAddDays * (num(OTR.addHrsPerDayAfterThreshold) || 1) : 0;
+  const otManual = otOn && !blank(est.otHours) ? Math.max(0, num(est.otHours)) : null;
+  const otCalc = otOn ? ceilH(otWeekly) + otAuto : 0;
+  const ot = otManual != null ? otManual : otCalc;
+  const reg = Math.max(0, H + (otManual != null ? 0 : otAuto) - ot);     // paid hrs = H (+ the auto-added OT hrs)
+  // Per installer: CEILING((regular + OT hrs) ÷ 8) = days on the job (a partial day counts as a full day).
+  // Summed over the installers on the job, up to 4 (the spreadsheet's 4 installer rows). Drives N95 masks and mobilization.
+  const daysPerInstaller = L > 0 ? Math.ceil((reg + ot) / 8 - 1e-9) : 0;
+  const countedInstallers = Math.min(C, num(rules.maxInstallersCounted) || 4);
+  const installerDays = countedInstallers * daysPerInstaller;
   const D = num(est.driveHrs);
   const perDayOnsite = days ? H / days : H;
   const setup = num(est.setupHrs ?? rules.travel.setupHrs);
@@ -870,15 +950,16 @@ function computeOption(opt, est, rules) {
   const nights = overnight ? Math.max(1, days - 1) : 0;
   const trips = overnight ? 1 : days;
   const driveHrsPerInstaller = 2 * D * trips;
-  const crewDay = (overnight ? D : 2 * D) + perDayOnsite + setup;
+  const crewDay = ceilH((overnight ? D : 2 * D) + perDayOnsite + setup);
 
   // Materials (scope lines) + automatic job supplies (N95 per installer-day, SPF supplies per set)
   const scopeMats = mergeMaterials(scopes.flatMap(x => x.r.materials));
   const autoMats = [];
-  if (installerDays) autoMats.push(supplyLine('N95 Mask', installerDays * (rules.n95PerInstallerDay || 1), '1 per installer per day'));
+  if (installerDays) autoMats.push(supplyLine('N95 Mask', installerDays * (rules.n95PerInstallerDay || 1), `${countedInstallers} installer${countedInstallers > 1 ? 's' : ''} × ${daysPerInstaller} day${daysPerInstaller > 1 ? 's' : ''} (${H} hrs ÷ 8, rounded up)${C > countedInstallers ? ` — counts the first ${countedInstallers} installers` : ''}`));
   const bd = scopes.reduce((a, x) => { if (x.r.spfBd) { a.cc += x.r.spfBd.cc || 0; a.oc += x.r.spfBd.oc || 0; } return a; }, { cc: 0, oc: 0 });
-  const spfSets = r2(bd.cc / rules.spf.setYield.cc + bd.oc / rules.spf.setYield.oc);
-  if (spfSets > 0) autoMats.push(supplyLine('SPF Supplies/PPE', spfSets, `CC ÷ ${rules.spf.setYield.cc.toLocaleString()} + OC ÷ ${rules.spf.setYield.oc.toLocaleString()} bd ft`));
+  const spfRaw = bd.cc / rules.spf.setYield.cc + bd.oc / rules.spf.setYield.oc;
+  const spfSets = ceilTo(spfRaw, num(rules.spfSuppliesRoundUpTo) || 0.25);       // GM: always round UP to the next .25
+  if (spfSets > 0) autoMats.push(supplyLine('SPF Supplies/PPE', spfSets, `CC ${Math.round(bd.cc).toLocaleString()} ÷ ${rules.spf.setYield.cc.toLocaleString()} + OC ${Math.round(bd.oc).toLocaleString()} ÷ ${rules.spf.setYield.oc.toLocaleString()} bd ft = ${r2(spfRaw)} → rounded up to ${spfSets}`));
   const ao = opt.autoQty || {};
   autoMats.forEach(m => { if (ao[m.name] !== undefined && ao[m.name] !== '') { m.autoQty = m.qty; m.qty = num(ao[m.name]); m.overridden = true; } m.cost = m.qty * m.price; m.auto = true; });
   const misc = (opt.misc || []).filter(m => m.name).map(m => ({ name: m.name, qty: num(m.qty), price: num(m.price), unit: m.unit || 'each', cost: num(m.qty) * num(m.price), kind: 'misc' }));
@@ -890,8 +971,10 @@ function computeOption(opt, est, rules) {
   const R = rules.rates;
   const laborWages = reg * R.lead + ot * R.leadOt + (C - 1) * (reg * R.installer + ot * R.installerOt);
   const mobOn = !!(rules.mobilization && rules.mobilization[est.projectType]);
-  const mobHrs = mobOn ? installerDays * (rules.mobilization.hrsPerInstallerPerDay || 1) : 0;
-  const mobWages = mobHrs * R.mobilization;
+  // Mobilization (loading/unloading), commercial only: each counted installer × days on site × 1 hr at THAT installer's rate
+  const mobPerDay = num(rules.mobilization && rules.mobilization.hrsPerInstallerPerDay) || 1;
+  const mobHrs = mobOn ? installerDays * mobPerDay : 0;
+  const mobWages = mobOn ? daysPerInstaller * mobPerDay * (R.lead + Math.max(0, countedInstallers - 1) * R.installer) : 0;
   const driveWages = 0;                                   // crew travel time is recovered by the trip charge (Trip Charge Data)
   const payrollTax = (laborWages + mobWages) * R.payrollTaxPct / 100;
   const laborTotal = laborWages + mobWages + payrollTax;
@@ -901,7 +984,7 @@ function computeOption(opt, est, rules) {
   const tripInfo = tripPerVisit(est, rules);
   const trip = tripInfo.amount * trips;
   const gasJob = scopes.some(x => GAS_EQUIPMENT.includes(x.scope.method) && x.r.sqft);
-  const genHours = est.genHours === '' || est.genHours == null ? (gasJob ? r1(H) : 0) : num(est.genHours);
+  const genHours = est.genHours === '' || est.genHours == null ? (gasJob ? H : 0) : num(est.genHours);   // auto = job hours (whole)
   const generator = genHours * R.generatorFuel;
   const cost = matCost + miscCost + laborTotal + trip + generator;     // Total Job Cost / OH
 
@@ -930,8 +1013,9 @@ function computeOption(opt, est, rules) {
   // Schedule warnings (guideline rules)
   if (C < 2) warnings.push({ level: 'error', msg: 'All scopes assume a minimum of two experienced installers (a helper/new hire does not count as the second installer).' });
   if (C < 2 && scopes.some(x => x.r.spf)) warnings.push({ level: 'error', msg: 'Spray foam jobs always require 2 installers for safety.' });
-  if (!manualDays && H > 8 && ot > 0) warnings.push({ level: 'info', msg: `${r1(H)} on-site hrs: finish in ${days} day(s) with ${r1(ot)} hrs overtime (guideline: 1–2 hrs OT beats a second mobilization).` });
-  if (manualDays && ot > rules.ot.maxOtPerDay * days) warnings.push({ level: 'warn', msg: `${r1(ot)} OT hrs across ${days} day(s) — more than ${rules.ot.maxOtPerDay} hrs OT/day. Consider another day.` });
+  if (!manualDays && H > 8 && longHrs > 0) warnings.push({ level: 'info', msg: `${r1(H)} on-site hrs: finish in ${days} day(s) with ${r1(longHrs)} extra hr(s) on the last day (guideline: a long day beats a second mobilization).` });
+  if (manualDays && longHrs > rules.ot.maxOtPerDay * days) warnings.push({ level: 'warn', msg: `${r1(longHrs)} hrs over 8/day across ${days} day(s) — more than ${rules.ot.maxOtPerDay} extra hrs/day. Consider another day.` });
+  if (ot > 0) warnings.push({ level: 'info', msg: otManual != null ? `Overtime: ${r1(ot)} hrs per installer (entered manually).` : `Overtime: ${r1(ot)} hrs per installer at OT rates — ${otWeekly ? `${r1(ceilH(otWeekly))} hrs over ${wkCap} hrs/week` : ''}${otWeekly && otAuto ? ' + ' : ''}${otAuto ? `${otAuto} hr(s) added (1/day after ${wkCap} hrs)` : ''}.` });
   if (crewDay > rules.ot.secondDayOver) warnings.push({ level: 'error', msg: `Total crew day ≈ ${r1(crewDay)} hrs (drive + labor + setup). 12+ hrs → overnight stay or multi-day scheduling is required.` });
   else if (crewDay > rules.ot.reviewOver) warnings.push({ level: 'warn', msg: `Total crew day ≈ ${r1(crewDay)} hrs — review overtime vs. overnight/second day.` });
   if (D > rules.travel.overnightDriveHrs && H > rules.travel.overnightLaborHrs && est.overnight === 'no') warnings.push({ level: 'warn', msg: `Job is > ${rules.travel.overnightDriveHrs} hrs away with > ${rules.travel.overnightLaborHrs} hrs on-site labor — guideline says include an overnight stay or get it reviewed.` });
@@ -941,10 +1025,11 @@ function computeOption(opt, est, rules) {
   if (blank(est.margin) && blank(opt.marginOverride)) warnings.push({ level: 'warn', msg: `Margin % is blank — using the default ${r1(margin)}%.`, pricing: true });
   if (blank(est.royalty)) warnings.push({ level: 'warn', msg: `Royalty % is blank — using the default ${r1(royalty)}%.`, pricing: true });
   warnings.push(...pricingWarnings(pr, margin, rules));
+  if (!otOn && H > wkCap) warnings.push({ level: 'warn', msg: `Overtime is turned off but each installer works ${r1(H)} hrs (> ${wkCap}). Turn overtime on or confirm.` });
   if (scopes.length && !L) warnings.push({ level: 'warn', msg: 'No labor hours calculated yet — enter square footage for each scope.' });
 
   return {
-    scopes, sqft, L, Llo, Lhi, H, Hlo: Llo / (C * eff), Hhi: Lhi / (C * eff), C, eff, days, ot, reg, overnight, nights, trips, rooms, crewDay, installerDays,
+    scopes, sqft, L, Llo, Lhi, H, Hlo: ceilH(Llo / (C * eff)), Hhi: ceilH(Lhi / (C * eff)), C, eff, days, ot, reg, longHrs, otOn, otWeekly: ceilH(otWeekly), otAuto, otManual, overnight, nights, trips, rooms, crewDay, installerDays, daysPerInstaller, countedInstallers, spfRaw,
     driveHrsPerInstaller, scopeMats, autoMats, misc, matCost, miscCost, laborWages, mobHrs, mobWages, driveWages, bonuses, payrollTax, laborTotal,
     perDiem, perDiemRate, perDiemDays, lodging, lodgingRate: num(est.lodgingRate || rules.travel.lodgingPerNight), crewBonus, tightBonus, bonusPer, bonusKind, tightEntering, travelPct: AM.travelPct, bonusesPct: AM.bonusesPct, additional, vehicles, tripInfo, trip, genHours, generator, cost, margin, royalty, spfSets, ...pr, warnings,
   };
@@ -1134,7 +1219,7 @@ function newScope(p = {}) {
     id: uid(), location: '', method: 'batt_wall', sqftRaw: '', sqft: '', height: '', rValue: '', spacing: '16', depth: '2x6',
     facing: 'any', product: '', blowProduct: 'cellulose', spfType: 'oc', surface: 'walls', frame: 'wood', thickness: '',
     exposed: false, nettingSqft: '', days: 1, clearance: '', contamination: false, scaffold: false, enteringInstallers: 1,
-    manualHours: '', extraPct: '', laborOverride: '', comment: '', matQty: {}, matPrice: {},
+    manualHours: '', extraPct: '', laborOverride: '', comment: '', matQty: {}, matPrice: {}, misc: [],
   }, d, p, { id: uid() });
 }
 function newOption(name, presets) {
@@ -1160,7 +1245,7 @@ function normalizeEst(est) {
     if (!Array.isArray(o.scopes)) o.scopes = [];
     if (!Array.isArray(o.misc)) o.misc = [];
     if (!o.autoQty || typeof o.autoQty !== 'object') o.autoQty = {};
-    o.scopes.forEach(sc => { sc.id = sc.id || uid(); if (!sc.matQty) sc.matQty = {}; if (!sc.matPrice) sc.matPrice = {}; if (!METHODS[sc.method]) sc.method = 'custom'; });
+    o.scopes.forEach(sc => { sc.id = sc.id || uid(); if (!sc.matQty) sc.matQty = {}; if (!sc.matPrice) sc.matPrice = {}; if (!Array.isArray(sc.misc)) sc.misc = []; if (!METHODS[sc.method]) sc.method = 'custom'; });
   });
   if (!est.adjust || typeof est.adjust !== 'object') est.adjust = {};
   if (!est.checklist) est.checklist = {};
@@ -1307,7 +1392,10 @@ function renderEstimate() {
           ${e.tripTier === 'custom' ? fld('Round-trip miles', 'est.tripMiles', e.tripMiles, { type: 'number' }) : ''}
           ${e.tripTier === 'manual' ? fld('Trip $ per visit', 'est.tripManual', e.tripManual, { type: 'number', hint: '<span id="tripHint"></span>' }) : ''}
           ${e.tripTier !== 'none' && e.tripTier !== 'manual' ? fld('Adjusted trip $ / visit', 'est.tripAdjust', e.tripAdjust ?? '', { type: 'number', ph: 'Standard', hint: '<span id="tripHint"></span>' }) : ''}
-          ${fld('Schedule days', 'est.planDays', e.planDays, { type: 'number', ph: 'Auto', hint: 'Blank = auto (OT vs. extra day)' })}
+          ${fld('Schedule days', 'est.planDays', e.planDays, { type: 'number', ph: 'Auto', hint: 'Blank = auto (long day vs. extra day)' })}
+          <div class="field"><label>Overtime</label>${chk(`OT rate after ${RULES.ot.weeklyThreshold || 40} hrs/week`, 'est.otEnabled', e.otEnabled !== false, 'all')}
+            ${e.otEnabled !== false ? chk(`+${RULES.ot.addHrsPerDayAfterThreshold || 1} OT hr/installer/day after ${RULES.ot.weeklyThreshold || 40} hrs`, 'est.otAddDaily', e.otAddDaily, 'all') : ''}</div>
+          ${e.otEnabled !== false ? fld('OT hrs per installer (override)', 'est.otHours', e.otHours ?? '', { type: 'number', ph: 'Auto', hint: 'Blank = calculated' }) : ''}
           ${fld('Overnight stay', 'est.overnight', e.overnight, { r: 'all', options: [['auto', 'Auto (guideline)'], ['yes', 'Yes'], ['no', 'No']] })}
           ${fld('Lodging $/room/night', 'est.lodgingRate', e.lodgingRate, { type: 'number' })}
           ${fld('Rooms', 'est.rooms', e.rooms, { type: 'number', ph: '= crew' })}
@@ -1472,10 +1560,31 @@ function scopeCard(s, i) {
     <div class="scope-bd" ${s.collapsed ? 'style="display:none"' : ''}>
       <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">${scopeFields(s)}</div>
       <div class="scope-res" id="res-${s.id}"></div>
+      ${scopeMiscHtml(s)}
       <div class="comment"><textarea data-b="scope.${s.id}.comment" data-t="str" placeholder="Comments for this scope (e.g. 'Plan shows R-21 but builder wants R-23 on west wall', 'Garage fire-rated ceiling')">${esc(s.comment)}</textarea></div>
     </div>
   </div>`;
 }
+
+// Miscellaneous materials inside a subsection (scope): name / qty / unit $, totals roll into the scope and the project
+function scopeMiscHtml(s) {
+  const P = 'scope.' + s.id + '.misc.';
+  const rows = (s.misc || []).map((m, i) => `<tr>
+      <td><input list="supList" data-b="${P}${i}.name" data-t="str" data-r="smisc" value="${esc(m.name || '')}" placeholder="Item (e.g. Baffles, FSK tape)"></td>
+      <td style="width:70px"><input type="number" step="any" data-b="${P}${i}.qty" data-t="num" value="${esc(m.qty ?? '')}"></td>
+      <td style="width:84px"><input type="number" step="0.01" data-b="${P}${i}.price" data-t="num" value="${esc(m.price ?? '')}" placeholder="$ each"></td>
+      <td style="width:80px;text-align:right;font-weight:700" id="smc-${s.id}-${i}">${money(num(m.qty) * num(m.price))}</td>
+      <td style="width:28px"><button class="btn sm ghost danger" title="Remove" onclick="removeScopeMisc('${s.id}',${i})">✕</button></td></tr>`).join('');
+  return `<div class="scope-misc">${rows ? `<table class="mats smisc"><tbody>${rows}</tbody></table>` : ''}
+    <button class="btn sm ghost" onclick="addScopeMisc('${s.id}')">+ Misc. material for this scope</button></div>`;
+}
+function addScopeMisc(id) {
+  const sc = findScope(id); if (!sc) return;
+  if (!Array.isArray(sc.misc)) sc.misc = [];
+  sc.misc.push({ name: '', qty: 1, price: '' }); markDirty(); rerenderScope(sc);
+  setTimeout(() => { const el = document.querySelector(`[data-b="scope.${id}.misc.${sc.misc.length - 1}.name"]`); if (el) el.focus(); }, 0);
+}
+function removeScopeMisc(id, i) { const sc = findScope(id); if (!sc || !sc.misc) return; sc.misc.splice(i, 1); markDirty(); rerenderScope(sc); }
 
 function renderScopeResult(s, r) {
   const el = $('res-' + s.id); if (!el) return;
@@ -1485,7 +1594,7 @@ function renderScopeResult(s, r) {
   el.innerHTML = `
     <div class="labor-big"><b>${fmtN(r.hrs, 1)}</b> labor hrs <span>≈ ${fmtN(onsite, 1)} hrs on site w/ ${crewOf(S.est)}${r.adjPct ? ` · incl. +${r.adjPct}% adj.` : ''}${r.overridden ? ' · <b style="color:var(--amber)">override</b>' : ''}</span></div>
     <div class="calc-note">${esc(r.note)}${r.overridden ? ` (guideline ${fmtN(r.guideHrs, 1)} h)` : ''}</div>
-    ${r.materials.length ? `<table class="mats">${r.materials.map(m => `<tr>
+    ${r.materials.some(m => m.kind !== 'smisc') ? `<table class="mats">${r.materials.filter(m => m.kind !== 'smisc').map(m => `<tr>
       <td>${esc(m.name)}${m.note ? `<div class="muted" style="font-size:.7rem">${esc(m.note)}</div>` : ''}</td>
       <td style="white-space:nowrap"><input class="${m.overridden ? 'ovr' : ''}" data-mat="${s.id}" data-matname="${esc(m.name)}" data-field="qty" value="${m.qty}" title="${m.overridden ? 'Auto: ' + m.autoQty + ' — clear to reset' : 'Auto-calculated — type to override'}"> ${esc(m.unit)}</td>
       <td style="text-align:right;white-space:nowrap">@ <input class="${m.priceOverridden ? 'ovr' : ''}" data-mat="${s.id}" data-matname="${esc(m.name)}" data-field="price" value="${m.price}" style="width:64px"></td>
@@ -1507,10 +1616,12 @@ function refreshCalc() {
     }
     const el = $('res-' + x.scope.id);
     if (el && act && el.contains(act)) {
-      el.querySelectorAll('tr').forEach((tr, i) => { const m = x.r.materials[i]; if (m) tr.lastElementChild.textContent = money0(m.cost); });
+      const mm = x.r.materials.filter(m => m.kind !== 'smisc');
+      el.querySelectorAll('tr').forEach((tr, i) => { const m = mm[i]; if (m) tr.lastElementChild.textContent = money0(m.cost); });
     } else renderScopeResult(x.scope, x.r);
   });
   curOpt().misc.forEach((m, i) => { const el = $('misc-cost-' + i); if (el) el.textContent = money(num(m.qty) * num(m.price)); });
+  curOpt().scopes.forEach(sc => (sc.misc || []).forEach((m, i) => { const el = $('smc-' + sc.id + '-' + i); if (el) el.textContent = money(num(m.qty) * num(m.price)); }));
   const ew = estimateWarnings(e, rules);
   const allW = [...ew, ...c.warnings.filter(w => !w.scope)];
   const scopeW = c.warnings.filter(w => w.scope);
@@ -1537,7 +1648,7 @@ function refreshCalc() {
     <div class="sum-row"><span>Insulation materials${e.projectType === 'commercial' ? ' <span class="muted">(true cost)</span>' : ''}</span><span>${money(c.matCost)}</span></div>
     <div class="sum-row"><span>Job supplies &amp; charges</span><span>${money(c.miscCost)}</span></div>
     <div class="sum-row"><span>Labor (wages)</span><span>${money(c.laborWages)}</span></div>
-    ${c.mobWages ? `<div class="sum-row sub"><span>Mobilization ${fmtN(c.mobHrs)} h (1 h/installer/day)</span><span>${money(c.mobWages)}</span></div>` : ''}
+    ${c.mobWages ? `<div class="sum-row sub"><span>Mobilization ${fmtN(c.mobHrs)} h (1 h/installer/day @ each installer's rate)</span><span>${money(c.mobWages)}</span></div>` : ''}
     <div class="sum-row sub"><span>Payroll tax ${RULES.rates.payrollTaxPct}%</span><span>${money(c.payrollTax)}</span></div>
     <div class="sum-row"><span>Labor total</span><span>${money(c.laborTotal)}</span></div>
     <div class="sum-row"><span>Trip ${c.trips > 1 || c.vehicles > 1 ? `(${c.trips} trip${c.trips > 1 ? 's' : ''}${c.vehicles > 1 ? ` × ${c.vehicles} trucks` : ''})` : ''}</span><span>${money(c.trip)}</span></div>
@@ -1579,7 +1690,7 @@ function setHTML(id, html) { const el = $(id); if (el && el._h !== html) { el.in
 
 function customerRange(c) {
   const lo = c.Hlo, hi = Math.max(c.Hhi, c.H);
-  if (hi <= 8) return `${fmtN(Math.max(1, Math.floor(lo * 2) / 2), 1)}–${fmtN(Math.ceil(hi * 2) / 2, 1)} hours on site`;
+  if (hi <= 8) { const a = Math.max(1, ceilH(lo)), b = Math.max(a, ceilH(hi)); return a === b ? `${a} hour${a > 1 ? 's' : ''} on site` : `${a}–${b} hours on site`; }   // whole hours, rounded up
   const dlo = Math.max(1, Math.ceil(lo / 8 - 0.25)), dhi = Math.max(dlo, Math.ceil(hi / 8 - 0.25));
   return dlo === dhi ? `${dlo} day${dlo > 1 ? 's' : ''} on site` : `${dlo}–${dhi} days on site`;
 }
@@ -1624,6 +1735,7 @@ function onBind(ev) {
     if (r === 'all') { if (path === 'est.builderId') onBuilderSelected(prevBuilder); keepFocus(renderEstimate); return; }
     if (r === 'tabs') { refreshCalc(); return; }                // tab label already updated live while typing
     if (r === 'misc') { const i = parseInt(path.split('.')[1]); const it = SUPPLIES.find(x => x.name === el.value); if (it && !num(curOpt().misc[i].price)) { curOpt().misc[i].price = it.price; keepFocus(renderEstimate); return; } }
+    if (r === 'smisc') { const sc = findScope(path.split('.')[1]), i = parseInt(path.split('.')[3]); const it = SUPPLIES.find(x => x.name.toLowerCase() === String(el.value).trim().toLowerCase()); if (sc && it && sc.misc[i] && !num(sc.misc[i].price)) { sc.misc[i].price = it.price; sc.misc[i].unit = it.unit; keepFocus(() => rerenderScope(sc)); return; } }
     if (r === 'loc') { const sc = findScope(path.split('.')[1]); const d = LOCATION_DEFAULTS[sc.location]; if (d && !sc.sqft) Object.assign(sc, d); keepFocus(() => rerenderScope(sc)); return; }
     if (r === 'scope') { const sc = findScope(path.split('.')[1]); if (path.endsWith('.method')) { sc.laborOverride = ''; sc.matQty = {}; sc.matPrice = {}; } if (path.endsWith('.spfType') || path.endsWith('.surface')) delete sc.shaving; keepFocus(() => rerenderScope(sc)); return; }
   }
@@ -1990,18 +2102,19 @@ async function loadSettings() {
 const normKey = s => String(s).toLowerCase().replace(/\(.*?\)/g, '').replace(/["'″]/g, '').replace(/\bkraft\b/g, 'k').replace(/\bunfaced\b/g, 'uf').replace(/\s+/g, '').replace(/[^a-z0-9.&]/g, '');
 async function loadPricing() {
   try {
-    const items = await api('GET', 'common_items?select=category,product_type,product_name,unit_price,coverage_sqft,price_per_sqft,unit_of_measure&order=sort_order');
+    const items = await api('GET', 'common_items?select=category,product_type,product_name,unit_price,commercial_unit_price,coverage_sqft,price_per_sqft,unit_of_measure&order=sort_order');
     items.forEach(ci => {
       const p = num(ci.unit_price), c = num(ci.coverage_sqft), t = ci.product_type || '';
       if (t.startsWith('Blow-In')) { const b = BLOW_IN.find(x => (t.includes('Cellulose') && x.key === 'cellulose') || (t.includes('Fiberglass') && x.key === 'jetstream')); if (b && p) b.price = p; return; }
       if (t.startsWith('SPF')) { const pp = num(ci.price_per_sqft); if (pp) SPF_PRICE[t.includes('Closed') ? 'cc' : 'oc'] = pp; return; }
-      if (ci.category === 'Insulation' && !/\(special order\)|\(hd\)/i.test(t)) {
+      if (ci.category === 'Insulation') {
+        // residential price book = unit_price ("Common Items Used"); commercial = commercial_unit_price ("Common Items (Commercial Use)")
         const k = normKey(t);
-        const b = BATTS.find(x => normKey((x.r === 'S&S' ? 'Safe & Sound Rockwool ' + x.width : x.r.replace('-', '') + 'X' + x.width + ' ' + ({ K: 'K', UF: 'UF', RW: 'Rockwool' })[x.facing])) === k);
-        if (b) { if (p) b.price = p; if (c) b.coverage = c; }
+        const b = BATTS.find(x => normKey(battKey(x)) === k);
+        if (b) { if (p) b.price = p; if (c) b.coverage = c; if (ci.commercial_unit_price != null && ci.commercial_unit_price !== '') b.com = num(ci.commercial_unit_price); }
       }
     });
-    const MAP = { 'Baffles': 'Baffles', 'Removal Bags': 'Removal Bags', 'Foam Sealant': 'Foam Sealant', 'Poly Sheeting': 'Poly', 'Vapor Barrier 14 Mil': 'Vapor Barrier 14 Mil', 'Seam Tape': 'Seam Tape', 'N95 Mask': 'N95 Mask', 'Insulation Netting (cellulose)': 'Insulation Netting 10\' (For cellulose)', 'Insulation Netting (fiberglass)': 'Insulation Netting 10\' (For fiberglass)', 'Caulking': 'Caulking', 'Staples': 'Staples (For Blue Pneumatic Guns)', 'Sill Plate Gasket': 'Sill Plate Gasket' };
+    const MAP = { 'Baffles': 'Baffles', 'Removal Bags': 'Removal Bags', 'Foam Sealant': 'Foam Sealant', 'Poly Sheeting': 'Poly', 'Vapor Barrier 14 Mil': 'Vapor Barrier 14 Mil', 'Seam Tape': 'Seam Tape', 'N95 Mask': 'N95 Mask', 'Insulation Netting (cellulose)': 'Insulation Netting 10\' (For cellulose)', 'Insulation Netting (fiberglass)': 'Insulation Netting 10\' (For fiberglass)', 'Caulking': 'Caulking', 'Staples': 'Staples (For Blue Pneumatic Guns)', 'Sill Plate Gasket': 'Sill Plate Gasket', 'DC-315 Intumescent Coating': 'Intumescent Coating' };
     SUPPLIES.forEach(s => {
       const ci = items.find(i => i.product_type === MAP[s.name]);
       if (!ci) return;
@@ -2192,13 +2305,14 @@ function renderSettings() {
         <tr><td>Bd ft per gallon — CC · OC</td><td>${n('spfGallon.cc.bdFtPerGal', R.spfGallon.cc.bdFtPerGal)} ${n('spfGallon.oc.bdFtPerGal', R.spfGallon.oc.bdFtPerGal)}</td></tr></table></div>
       <div class="settings-sec"><h4>Pricing &amp; price books <span class="muted small">(Sales Estimate Spreadsheet)</span></h4><table class="tbl-edit">
         <tr><td>Default GP % — Residential NC · Commercial</td><td>${n('marginByType.res_nc', R.marginByType.res_nc)} ${n('marginByType.commercial', R.marginByType.commercial)}</td></tr>
-        <tr><td>Batt markup fallback (only for batts with no listed true cost)</td><td>${n('materialPricing.battMarkup', R.materialPricing.battMarkup, '0.01')}</td></tr>
+        <tr><td colspan="2" class="small muted">Batts &amp; Rockwool carry both price books (residential = "Common Items Used", commercial = true cost from "Common Items (Commercial Use)") — edit them in the Pricing tool. Blow-in: residential = true cost + a flat $/bag (cellulose +$${fmtN(R.materialPricing.blow.res.cellulose - R.materialPricing.blow.commercial.cellulose, 2)}, Jet Stream +$${fmtN(R.materialPricing.blow.res.jetstream - R.materialPricing.blow.commercial.jetstream, 2)}).</td></tr>
+        <tr><td>Batt markup fallback (only if a batt has no commercial price)</td><td>${n('materialPricing.battMarkup', R.materialPricing.battMarkup, '0.01')}</td></tr>
         <tr><td>Cellulose $/bag — Res · Commercial</td><td>${n('materialPricing.blow.res.cellulose', R.materialPricing.blow.res.cellulose, '0.01')} ${n('materialPricing.blow.commercial.cellulose', R.materialPricing.blow.commercial.cellulose, '0.01')}</td></tr>
         <tr><td>Fiberglass Jet Stream Ultra $/bag — Res · Commercial</td><td>${n('materialPricing.blow.res.jetstream', R.materialPricing.blow.res.jetstream, '0.01')} ${n('materialPricing.blow.commercial.jetstream', R.materialPricing.blow.commercial.jetstream, '0.01')}</td></tr>
         <tr><td>Closed cell $/bd ft — Res · Commercial</td><td>${n('materialPricing.spf.res.cc', R.materialPricing.spf.res.cc, '0.01')} ${n('materialPricing.spf.commercial.cc', R.materialPricing.spf.commercial.cc, '0.01')}</td></tr>
         <tr><td>Open cell $/bd ft — Res · Commercial</td><td>${n('materialPricing.spf.res.oc', R.materialPricing.spf.res.oc, '0.01')} ${n('materialPricing.spf.commercial.oc', R.materialPricing.spf.commercial.oc, '0.01')}</td></tr>
         <tr><td>Markup on crew bonuses % · per diem &amp; lodging %</td><td>${n('additionalMarkup.bonusesPct', R.additionalMarkup.bonusesPct)} ${n('additionalMarkup.travelPct', R.additionalMarkup.travelPct)}</td></tr>
-        <tr><td>Mobilization hrs per installer per day (commercial)</td><td>${n('mobilization.hrsPerInstallerPerDay', R.mobilization.hrsPerInstallerPerDay, '0.25')}</td></tr>
+        <tr><td>Mobilization hrs per installer per day (commercial — paid at each installer's own rate)</td><td>${n('mobilization.hrsPerInstallerPerDay', R.mobilization.hrsPerInstallerPerDay, '0.25')}</td></tr>
         <tr><td>Equipment fuel $/hr of job time</td><td>${n('rates.generatorFuel', R.rates.generatorFuel, '0.05')}</td></tr>
       </table></div>
       <div class="settings-sec"><h4>Air-sealing supplies (new construction)</h4><table class="tbl-edit">
@@ -2212,7 +2326,12 @@ function renderSettings() {
       <div class="settings-sec"><h4>Crew efficiency (crews larger than 2)</h4><table class="tbl-edit">
         ${Object.entries(R.crewEfficiency).map(([k, v]) => `<tr><td>${k} installers</td><td>${n('crewEfficiency.' + k, v, '0.01')}</td></tr>`).join('')}</table></div>
       <div class="settings-sec"><h4>Overtime, travel &amp; bonuses</h4><table class="tbl-edit">
-        <tr><td>Max OT hrs/day before adding a day</td><td>${n('ot.maxOtPerDay', R.ot.maxOtPerDay, '0.5')}</td></tr>
+        <tr><td>Max extra hrs on the last day before adding a day</td><td>${n('ot.maxOtPerDay', R.ot.maxOtPerDay, '0.5')}</td></tr>
+        <tr><td>Overtime pay after hrs per installer per week</td><td>${n('ot.weeklyThreshold', R.ot.weeklyThreshold)}</td></tr>
+        <tr><td>Work days per week (for the weekly OT count)</td><td>${n('ot.workDaysPerWeek', R.ot.workDaysPerWeek)}</td></tr>
+        <tr><td>Auto OT hrs per installer per day after the weekly threshold (when ticked on the estimate)</td><td>${n('ot.addHrsPerDayAfterThreshold', R.ot.addHrsPerDayAfterThreshold, '0.5')}</td></tr>
+        <tr><td>Labor hour rounding (whole hours)</td><td><select data-set="laborRounding" data-str="1">${[['up', 'Round up (7.2 → 8)'], ['nearest', 'Round to nearest'], ['down', 'Round down']].map(([v, l]) => `<option value="${v}" ${(R.laborRounding || 'up') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td></tr>
+        <tr><td>Spray foam thickness rounds up to the next (in)</td><td>${n('spf.thicknessStep', R.spf.thicknessStep, '0.125')}</td></tr>
         <tr><td>Overnight if drive one-way &gt; hrs</td><td>${n('travel.overnightDriveHrs', R.travel.overnightDriveHrs, '0.5')}</td></tr>
         <tr><td>… and on-site labor &gt; hrs</td><td>${n('travel.overnightLaborHrs', R.travel.overnightLaborHrs, '0.5')}</td></tr>
         <tr><td>Default per diem $/installer/day</td><td>${n('travel.perDiem', R.travel.perDiem)}</td></tr>
@@ -2225,7 +2344,6 @@ function renderSettings() {
       <div class="settings-sec"><h4>Pay rates &amp; pricing defaults</h4><table class="tbl-edit">
         <tr><td>Lead installer $/hr · OT</td><td>${n('rates.lead', R.rates.lead, '0.5')} ${n('rates.leadOt', R.rates.leadOt, '0.5')}</td></tr>
         <tr><td>Installer $/hr · OT</td><td>${n('rates.installer', R.rates.installer, '0.5')} ${n('rates.installerOt', R.rates.installerOt, '0.5')}</td></tr>
-        <tr><td>Drive time (mobilization) $/hr</td><td>${n('rates.mobilization', R.rates.mobilization, '0.5')}</td></tr>
         <tr><td>Payroll tax %</td><td>${n('rates.payrollTaxPct', R.rates.payrollTaxPct, '0.5')}</td></tr>
         <tr><td>Trip tiers $ (50/75/100 mi) · $/mi</td><td>${n('trip.t50', R.trip.t50)} ${n('trip.t75', R.trip.t75)} ${n('trip.t100', R.trip.t100)} ${n('trip.perMile', R.trip.perMile, '0.1')}</td></tr>
         <tr><td>Default margin % · royalty %</td><td>${n('margin', R.margin)} ${n('royalty', R.royalty, '0.5')}</td></tr>

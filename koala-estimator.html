@@ -998,6 +998,7 @@ const KG = (() => {
   const g = id => document.getElementById(id);
   const n = v => { const x = parseFloat(v); return isFinite(x) ? x : 0; };
   const f1 = x => (Math.round(x * 10) / 10).toLocaleString('en-US');
+  const ceilHr = x => (x > 0 ? Math.ceil(x - 1e-9) : 0);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let R = {
@@ -1150,17 +1151,19 @@ const KG = (() => {
 
   function calc(opt) {
     const G = opt.guide, ctx = ctxFor(opt);
-    const lines = G.lines.map(l => ({ l, r: lineCalc(l, ctx) }));
     const adj = Object.values(G.adj).reduce((a, v) => a + n(v), 0), k = 1 + adj / 100;
-    const L = lines.reduce((a, x) => a + x.r.hrs, 0) * k, Llo = lines.reduce((a, x) => a + x.r.lo, 0) * k, Lhi = lines.reduce((a, x) => a + x.r.hi, 0) * k;
+    // GM rule: calculated hours always round UP to the next whole hour (hours typed on a "custom" line stay as entered)
+    const up = (l, v) => (l.method === 'custom' && !adj) ? v : ceilHr(v * k);
+    const lines = G.lines.map(l => { const r = lineCalc(l, ctx); return { l, r, h: up(l, r.hrs), hLo: up(l, r.lo), hHi: Math.max(up(l, r.hrs), up(l, r.hi)) }; });
+    const L = lines.reduce((a, x) => a + x.h, 0), Llo = lines.reduce((a, x) => a + x.hLo, 0), Lhi = lines.reduce((a, x) => a + x.hHi, 0);
     const C = Math.max(1, parseInt(G.crew) || 2), eff = C <= 2 ? 1 : (R.crewEfficiency[C] || 0.78);
-    const H = L / (C * eff);
+    const H = ceilHr(L / (C * eff));
     let days = 1, ot = 0;
     if (H > 8) { const full = Math.floor(H / 8), rem = H - 8 * full; if (rem < 0.01) days = full; else if (rem <= R.ot.maxOtPerDay) { days = full; ot = rem; } else days = full + 1; }
     const D = n(G.driveHrs);
     const overnight = G.overnight === 'yes' || (G.overnight !== 'no' && D > R.travel.overnightDriveHrs && H > R.travel.overnightLaborHrs);
     const nights = overnight ? Math.max(1, days - 1) : 0, trips = overnight ? 1 : days;
-    const crewDay = (overnight ? D : 2 * D) + (days ? H / days : H) + R.travel.setupHrs;
+    const crewDay = ceilHr((overnight ? D : 2 * D) + (days ? H / days : H) + R.travel.setupHrs);
     const anyC = lines.some(x => x.r.bonus.contam), anyCr = lines.some(x => x.r.bonus.crawl);
     const tight = Math.max(0, ...lines.map(x => x.r.bonus.tight || 0));
     const perPerson = anyC ? R.bonuses.contamination : anyCr ? R.bonuses.crawl : 0;
@@ -1249,7 +1252,7 @@ const KG = (() => {
     const G = opt.guide;
     if (G.auto !== false && !busy && !suspended) sync(opt);
     const c = calc(opt);
-    c.lines.forEach(({ l, r }) => { const td = g('kgh-' + l.id); if (td) td.innerHTML = `<b>${f1(r.hrs * (1 + c.adj / 100))}</b> hrs<div class="kg-note">${esc(r.note)}</div>`; });
+    c.lines.forEach(({ l, r, h }) => { const td = g('kgh-' + l.id); if (td) td.innerHTML = `<b>${f1(h)}</b> hrs<div class="kg-note">${esc(r.note)}</div>`; });
     const w = [...c.warn, ...c.lines.flatMap(x => x.r.warn)];
     const cur = laborRowsState(opt), guideTotal = (c.reg + c.ot) * c.C, curTotal = cur.hrs + cur.ot;
     const match = c.L > 0 && Math.abs(curTotal - guideTotal) < 0.51;
@@ -1260,7 +1263,7 @@ const KG = (() => {
         <span><b>${f1(c.L)}</b> labor hrs${c.adj ? ` (incl. +${c.adj}%)` : ''}</span>
         <span><b>${f1(c.H)}</b> hrs/installer × ${c.C}${c.eff < 1 ? ` (${Math.round(c.eff * 100)}% eff.)` : ''}</span>
         <span><b>${c.days}</b> day${c.days > 1 ? 's' : ''}${c.ot ? ` + <b>${f1(c.ot)}</b> OT` : ''}${c.D ? ` · crew day ≈ ${f1(c.crewDay)} h` : ''}${c.overnight ? ` · <b>${c.nights}</b> night${c.nights > 1 ? 's' : ''}` : ''}${bonusTxt}</span>
-        <span class="kg-muted">Customer range: ${rangeHi <= 8 ? `${f1(Math.max(1, Math.floor(rangeLo * 2) / 2))}–${f1(Math.ceil(rangeHi * 2) / 2)} hrs` : `${Math.max(1, Math.ceil(rangeLo / 8 - 0.25))}–${Math.max(1, Math.ceil(rangeHi / 8 - 0.25))} days`} on site</span>
+        <span class="kg-muted">Customer range: ${rangeHi <= 8 ? `${Math.max(1, ceilHr(rangeLo))}–${Math.max(1, ceilHr(rangeLo), ceilHr(rangeHi))} hrs` : `${Math.max(1, Math.ceil(rangeLo / 8 - 0.25))}–${Math.max(1, Math.ceil(rangeHi / 8 - 0.25))} days`} on site</span>
       </div>
       <div class="kg-apply">
         <label class="kg-cb" style="font-weight:700;color:var(--navy)"><input type="checkbox" data-kgauto="1" ${G.auto !== false ? 'checked' : ''}> Auto-fill labor rows</label>
@@ -1282,7 +1285,7 @@ const KG = (() => {
     try {
       const q = (cls, id) => document.querySelector(`.${CSS.escape(p)}${cls}[data-id="${id}"]`);
       const set = (el, v) => { if (el && String(el.value) !== String(v)) { el.value = v; changed = true; } };
-      const round = x => Math.round(x * 4) / 4;
+      const round = x => ceilHr(x);                 // whole hours, rounded up (GM rule)
       const isMob = id => /mobiliz/i.test(q('lb-label', id)?.value || '');
       if (!c.L) {                                   // nothing to calculate: clear only what we filled before
         if (G.synced) opt.rows.labor.filter(id => !isMob(id)).forEach(id => { set(q('lb-hrs', id), 0); set(q('lb-ot', id), 0); set(q('lb-bonus', id), 0); });
@@ -1327,7 +1330,7 @@ const KG = (() => {
       }
     } finally { busy = false; }
     if (changed) recalc();
-    if (announce && typeof showToast === 'function') showToast(`Labor set: ${c.C} installers × ${Math.round(c.reg * 4) / 4} hrs${c.ot ? ' + ' + Math.round(c.ot * 4) / 4 + ' OT' : ''}`, 'success');
+    if (announce && typeof showToast === 'function') showToast(`Labor set: ${c.C} installers × ${ceilHr(c.reg)} hrs${c.ot ? ' + ' + ceilHr(c.ot) + ' OT' : ''}`, 'success');
     return changed;
   }
   function apply(opt) { opt.guide.auto = true; sync(opt, true); render(opt); if (typeof scheduleAutoSave === 'function') scheduleAutoSave(); }
@@ -1466,62 +1469,62 @@ const SPF_R_PER_INCH = { cc: 7.5, oc: 3.7 };
 const INSULATION = [
   { name: 'R-11 Kraft 15"', price: 41.14, coverage: 155 },
   { name: 'R-11 Kraft 23"', price: 63.09, coverage: 237.67 },
-  { name: 'R-11 Unfaced 16"', price: 34.08, coverage: 170.67 },
-  { name: 'R-11 Unfaced 24"', price: 63.20, coverage: 256 },
+  { name: 'R-11 Unfaced 16"', price: 42.13, coverage: 170.67 },
+  { name: 'R-11 Unfaced 24"', price: 63.2, coverage: 256 },
   { name: 'R-13 Kraft 15"', price: 43.77, coverage: 116.25 },
-  { name: 'R-13 Kraft 16"', price: 49.36, coverage: 138.67 },
+  { name: 'R-13 Kraft 16"', price: 48.2, coverage: 128 },
   { name: 'R-13 Kraft 23"', price: 61.52, coverage: 163.4 },
-  { name: 'R-13 Unfaced 15"', price: 34.42, coverage: 106.56 },
-  { name: 'R-13 Unfaced 16"', price: 38.66, coverage: 117.34 },
+  { name: 'R-13 Unfaced 15"', price: 39.38, coverage: 116.25 },
+  { name: 'R-13 Unfaced 16"', price: 43.36, coverage: 128 },
   { name: 'R-13 Unfaced 23"', price: 55.35, coverage: 163.4 },
   { name: 'R-13 Unfaced 24"', price: 59.62, coverage: 176 },
-  { name: 'R-15 Rockwool 15.25"', price: 51.70, coverage: 59.7 },
-  { name: 'R-15 Rockwool 23"', price: 85.20, coverage: 60.1 },
+  { name: 'R-15 Rockwool 15.25"', price: 51.7, coverage: 59.7 },
+  { name: 'R-15 Rockwool 23"', price: 81.32, coverage: 60.1 },
   { name: 'R-15 Kraft HD 15"', price: 47.91, coverage: 77.5 },
-  { name: 'R-15 Kraft 15"', price: 41.10, coverage: 67.81 },
-  { name: 'R-15 Kraft 16"', price: 46.16, coverage: 74.67 },
-  { name: 'R-15 Kraft 23"', price: 63.02, coverage: 103.98 },
-  { name: 'R-15 Unfaced 15"', price: 44.35, coverage: 77.5 },
-  { name: 'R-15 Unfaced 16"', price: 41.90, coverage: 74.69 },
-  { name: 'R-15 Unfaced 23"', price: 59.50, coverage: 103.98 },
-  { name: 'R-15 Unfaced 24"', price: 62.83, coverage: 112 },
+  { name: 'R-15 Kraft 15" — not in current price list', price: 41.10, coverage: 67.81 },
+  { name: 'R-15 Kraft 16" — not in current price list', price: 46.16, coverage: 74.67 },
+  { name: 'R-15 Kraft 23" — not in current price list', price: 63.02, coverage: 103.98 },
+  { name: 'R-15 Unfaced 15" — not in current price list', price: 44.35, coverage: 77.5 },
+  { name: 'R-15 Unfaced 16" — not in current price list', price: 41.90, coverage: 74.69 },
+  { name: 'R-15 Unfaced 23" — not in current price list', price: 59.50, coverage: 103.98 },
+  { name: 'R-15 Unfaced 24" — not in current price list', price: 62.83, coverage: 112 },
   { name: 'R-19 Kraft 15"', price: 40.72, coverage: 97.92 },
   { name: 'R-19 Kraft 16" (Special Order)', price: 44.36, coverage: 106.67 },
-  { name: 'R-19 Kraft 23"', price: 56.20, coverage: 135.13 },
+  { name: 'R-19 Kraft 23"', price: 56.2, coverage: 135.13 },
   { name: 'R-19 Kraft 24"', price: 53.23, coverage: 128 },
-  { name: 'R-19 Unfaced 15"', price: 30.12, coverage: 77.5 },
+  { name: 'R-19 Unfaced 15" — not in current price list', price: 30.12, coverage: 77.5 },
   { name: 'R-19 Unfaced 16"', price: 41.45, coverage: 106.67 },
-  { name: 'R-19 Unfaced 23"', price: 46.17, coverage: 118.83 },
+  { name: 'R-19 Unfaced 23" — not in current price list', price: 46.17, coverage: 118.83 },
   { name: 'R-19 Unfaced 24"', price: 49.74, coverage: 128 },
-  { name: 'R-20 Kraft 15"', price: 45.54, coverage: 77.5 },
-  { name: 'R-20 Unfaced 15"', price: 42.56, coverage: 77.5 },
+  { name: 'R-20 Kraft 15" — not in current price list', price: 45.54, coverage: 77.5 },
+  { name: 'R-20 Unfaced 15" — not in current price list', price: 42.56, coverage: 77.5 },
   { name: 'R-21 Kraft HD 15"', price: 44.01, coverage: 67.81 },
-  { name: 'R-21 Kraft 16"', price: 54.87, coverage: 74.67 },
+  { name: 'R-21 Kraft 16" — not in current price list', price: 54.87, coverage: 74.67 },
   { name: 'R-21 Kraft HD 23"', price: 67.47, coverage: 103.98 },
   { name: 'R-21 Unfaced 15"', price: 40.92, coverage: 67.81 },
-  { name: 'R-21 Unfaced 16"', price: 45.06, coverage: 74.67 },
-  { name: 'R-21 Unfaced 23"', price: 62.76, coverage: 103.98 },
-  { name: 'R-21 Unfaced 24"', price: 67.60, coverage: 112 },
+  { name: 'R-21 Unfaced 16" — not in current price list', price: 45.06, coverage: 74.67 },
+  { name: 'R-21 Unfaced 23" — not in current price list', price: 62.76, coverage: 103.98 },
+  { name: 'R-21 Unfaced 24" — not in current price list', price: 67.60, coverage: 112 },
   { name: 'R-23 Rockwool 15.25"', price: 64.72, coverage: 39.8 },
-  { name: 'R-23 Rockwool 23"', price: 80.28, coverage: 37.5 },
-  { name: 'R-25 Unfaced 16"', price: 34.24, coverage: 64 },
-  { name: 'R-25 Unfaced 24"', price: 51.37, coverage: 96 },
+  { name: 'R-23 Rockwool 23"', price: 88.33, coverage: 37.5 },
+  { name: 'R-25 Unfaced 16"', price: 55.15, coverage: 85.33 },
+  { name: 'R-25 Unfaced 24"', price: 82.74, coverage: 128 },
   { name: 'R-30 Kraft 16"', price: 49.57, coverage: 69.33 },
   { name: 'R-30 Kraft 24"', price: 62.92, coverage: 88 },
-  { name: 'R-30 Rockwool 15.25"', price: 88.80, coverage: 29.9 },
+  { name: 'R-30 Rockwool 15.25"', price: 80.73, coverage: 29.9 },
   { name: 'R-30 Rockwool 23"', price: 69.19, coverage: 30 },
   { name: 'R-30 Unfaced 16" (Special Order)', price: 46.05, coverage: 69.33 },
-  { name: 'R-30 Unfaced 24"', price: 49.71, coverage: 80 },
+  { name: 'R-30 Unfaced 24"', price: 58.45, coverage: 88 },
   { name: 'R-38 Kraft 16"', price: 53.63, coverage: 58.67 },
-  { name: 'R-38 Kraft 24"', price: 58.50, coverage: 64 },
+  { name: 'R-38 Kraft 24"', price: 58.5, coverage: 64 },
   { name: 'R-38 Unfaced 16"', price: 46.94, coverage: 58.67 },
-  { name: 'R-38 Unfaced 24"', price: 47.91, coverage: 64 },
+  { name: 'R-38 Unfaced 24"', price: 51.2, coverage: 64 },
   { name: 'R-49 Kraft 16"', price: 39.84, coverage: 32 },
   { name: 'R-49 Kraft 24"', price: 59.76, coverage: 48 },
-  { name: 'R-49 Unfaced 16"', price: 40.63, coverage: 32 },
-  { name: 'R-49 Unfaced 24"', price: 56.80, coverage: 48 },
+  { name: 'R-49 Unfaced 16" — not in current price list', price: 40.63, coverage: 32 },
+  { name: 'R-49 Unfaced 24"', price: 56.8, coverage: 48 },
   { name: 'Safe & Sound Rockwool 15.25"', price: 61.59, coverage: 59.7 },
-  { name: 'Safe & Sound Rockwool 23"', price: 92.62, coverage: 60.1 },
+  { name: 'Safe & Sound Rockwool 23"', price: 88.41, coverage: 60.1 },
   { name: '2" Foam Board', price: 35.37, coverage: 32 },
 ];
 
@@ -1546,7 +1549,7 @@ const MISC_CATALOG = [
   { name: 'Galvanized Tie Wire', price: 137.36, unit: 'each' },
   { name: 'Insulweb (cellulose)', price: 139.75, unit: 'sq ft', coverage: 3500 },
   { name: 'Insulweb (fiberglass)', price: 105.25, unit: 'sq ft', coverage: 3500 },
-  { name: 'N95 Mask', price: 14.42, unit: 'each' },
+  { name: 'N95 Mask', price: 1.442, unit: 'each' },   // per mask (box of 10 = $14.42)
   { name: 'Permit Fee (Los Alamos)', price: 0, unit: 'each' },
   { name: 'Poly Sheeting', price: 22.31, unit: 'each' },
   { name: 'Recessed Light Cover', price: 8.36, unit: 'each' },
@@ -1588,6 +1591,16 @@ let TRIP_TIERS = { t50: 175, t75: 250, t100: 325, perMile: 2.00 };
 // ─── SUPABASE LIVE PRICING ─────────────────────────────────────────────────
 // Uses SUPABASE_URL and SUPABASE_KEY defined below in the Supabase section
 
+function ciInsKey(t) {
+  t = String(t || '').trim(); const hd = /\(HD\)/i.test(t);
+  return t.replace(/\s*\((HD|Special Order)\)/gi, '').toLowerCase().replace(/[\s"]/g, '') + (hd ? '-hd' : '');
+}
+function v1InsKey(n) {
+  let m = /^R-(\d+) (Kraft|Unfaced|Rockwool)( HD)? ([\d.]+)"/.exec(n);
+  if (m) return `r${m[1]}x${m[4]}${({ Kraft: 'k', Unfaced: 'uf', Rockwool: 'rockwool' })[m[2]]}${m[3] ? '-hd' : ''}`;
+  m = /^Safe & Sound Rockwool ([\d.]+)"/.exec(n);
+  return m ? 'safe&soundrockwool' + m[1] : null;
+}
 function normKey(s) {
   return s.toLowerCase()
     .replace(/[""'']/g, '')
@@ -1628,8 +1641,9 @@ async function loadPricingFromSupabase() {
 
     // Update INSULATION (batt/rigid) prices
     items.filter(i => i.category === 'Insulation' && !i.product_type.startsWith('SPF') && !i.product_type.startsWith('Blow-In')).forEach(ci => {
-      const key = normKey(ci.product_type);
-      const match = INSULATION.find(ins => normKey(ins.name) === key);
+      // Match "R13X16 K (Special Order)" / "R15X15 K (HD)" (price list) to "R-13 Kraft 16"" / "R-15 Kraft HD 15"" (dropdown).
+      const key = ciInsKey(ci.product_type);
+      const match = INSULATION.find(ins => v1InsKey(ins.name) === key);
       if (match) {
         const p = parseFloat(ci.unit_price);
         const c = parseFloat(ci.coverage_sqft);
@@ -1917,6 +1931,10 @@ function switchToOption(idx) {
 }
 
 function duplicateOption() {
+  _restoring = true;                                   // don't auto-add supplies while rows are being copied
+  try { return duplicateOptionInner(); } finally { _restoring = false; recalc(); }
+}
+function duplicateOptionInner() {
   // Close menu
   const m = document.getElementById('tabAddMenu');
   if (m) m.classList.remove('open');
@@ -1978,7 +1996,7 @@ function duplicateOption() {
     const nameInput = document.querySelector(`.${CSS.escape(sp)}ms-name[data-id="${m.id}"]`);
     const qty = document.querySelector(`.${CSS.escape(sp)}ms-qty[data-id="${m.id}"]`);
     const price = document.querySelector(`.${CSS.escape(sp)}ms-price[data-id="${m.id}"]`);
-    srcData.misc.push({ itemName: nameInput?.value||'', qty: qty?.value||'1', price: price?.value||'0', auto: m.auto||false });
+    srcData.misc.push({ itemName: nameInput?.value||'', qty: qty?.value||'1', price: price?.value||'0', auto: m.auto||false, edited: !!document.getElementById(sp + 'ms-' + m.id)?.dataset.userEdited });
   });
 
   // Create new option
@@ -2099,8 +2117,9 @@ function duplicateOption() {
 
   // Misc
   srcData.misc.forEach(row => {
-    addMisc(row.itemName || undefined, parseInt(row.qty) || 1, row.auto);
+    addMisc(row.itemName || undefined, parseFloat(row.qty) || 1, row.auto);
     const lastMisc = newOpt.rows.misc[newOpt.rows.misc.length - 1];
+    if (row.edited) { const tr = document.getElementById(p + 'ms-' + lastMisc.id); if (tr) tr.dataset.userEdited = '1'; }
     const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${lastMisc.id}"]`);
     if (priceInput && row.price) priceInput.value = row.price;
   });
@@ -3244,8 +3263,58 @@ document.addEventListener('input', ev => {
   if (ev.isTrusted && el.className && /ms-qty\b/.test(el.className)) { const tr = el.closest('tr'); if (tr && tr.dataset.auto === '1') tr.dataset.userEdited = '1'; }
 }, true);
 
+// ─── Auto job supplies (GM rules, every job) ─────────────────────────────────
+// N95 masks: for each installer (first 4 installer rows), CEILING((regular hrs + OT hrs) ÷ 8) = days on the job; one mask per installer-day.
+// SPF Supplies/PPE: closed-cell bd ft ÷ 4,800 + open-cell bd ft ÷ 18,000, always rounded UP to the next 0.25.
+// Rows are added automatically on new estimates; once someone types a quantity it is left alone. Estimates saved before this rule
+// (no autoJobSupplies flag) keep their supplies exactly as saved.
+let autoSuppliesOn = true, _restoring = false;
+function autoN95Count(o) {
+  const p = optPrefixFor(o); let total = 0, k = 0;
+  o.rows.labor.forEach(id => {
+    const lab = document.querySelector(`.${CSS.escape(p)}lb-label[data-id="${id}"]`)?.value || '';
+    if (/mobiliz/i.test(lab) || k >= 4) return;
+    const h = (parseFloat(document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${id}"]`)?.value) || 0) + (parseFloat(document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${id}"]`)?.value) || 0);
+    if (h <= 0) return;
+    k++; total += Math.ceil(h / 8 - 1e-9);
+  });
+  return total;
+}
+function autoSpfSets(o) {
+  const p = optPrefixFor(o); let cc = 0, oc = 0;
+  o.rows.spf.forEach(id => {
+    const t = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${id}"]`)?.value, q = parseFloat(document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${id}"]`)?.value) || 0;
+    if (t === '0') cc += q; else if (t === '1') oc += q;
+  });
+  const raw = cc / 4800 + oc / 18000;
+  return { raw, sets: raw > 0 ? Math.ceil(Math.round(raw * 4 * 1e6) / 1e6 - 1e-9) / 4 : 0, cc, oc };
+}
+function updateAutoJobSupplies() {
+  if (!autoSuppliesOn || _restoring) return;
+  options.forEach(o => {
+    const p = optPrefixFor(o);
+    const want = [['N95 Mask', autoN95Count(o), 'masks = each installer’s (hrs + OT) ÷ 8, rounded up, summed for up to 4 installers'],
+      ['SPF Supplies/PPE', autoSpfSets(o).sets, 'sets = CC bd ft ÷ 4,800 + OC bd ft ÷ 18,000, rounded up to the next 0.25']];
+    want.forEach(([name, qty, why]) => {
+      const rows = o.rows.misc.map(m => ({ m, tr: document.getElementById(p + 'ms-' + m.id) })).filter(x => x.tr && (x.tr.querySelector(`.${CSS.escape(p)}ms-name`)?.value || '') === name);
+      if (rows.some(x => x.tr.dataset.auto !== '1' || x.tr.dataset.userEdited)) return;     // a hand-entered / edited row wins
+      let row = rows[0];
+      if (!row) {
+        if (!qty) return;
+        const was = activeOptionIdx; activeOptionIdx = options.indexOf(o);                   // addMisc targets the active option
+        try { addMisc(name, qty, true); } finally { activeOptionIdx = was; }
+        const m = o.rows.misc[o.rows.misc.length - 1]; row = { m, tr: document.getElementById(p + 'ms-' + m.id) };
+      }
+      const q = row.tr.querySelector(`.${CSS.escape(p)}ms-qty`);
+      if (q && String(q.value) !== String(qty)) q.value = qty;
+      if (q) q.title = `Auto: ${why}`;
+    });
+  });
+}
+
 function recalc() {
   updateAutoFoam();
+  updateAutoJobSupplies();
   const opt = getOpt();
   const c = calcOption(opt);
   const margin = getOptionMargin(opt);
@@ -3419,6 +3488,7 @@ function showToast(msg, type) {
 
 function serializeForm() {
   const data = {
+    autoJobSupplies: autoSuppliesOn,
     custName: $('custName').value,
     estimator: $('estimator').value,
     address: $('address').value,
@@ -3525,6 +3595,8 @@ function serializeForm() {
 
 function deserializeForm(data) {
   KG.suspend(true);
+  _restoring = true;
+  autoSuppliesOn = !!data.autoJobSupplies;            // estimates saved before the N95 / SPF-supplies rule keep their supplies as saved
   // Clear existing options
   while (options.length > 0) {
     const opt = options[0];
@@ -3702,7 +3774,7 @@ function deserializeForm(data) {
         const idx = parseInt(row.item);
         if (!isNaN(idx) && MISC_CATALOG[idx]) itemName = MISC_CATALOG[idx].name;
       }
-      addMisc(itemName || undefined, parseInt(row.qty) || 1, row.auto);
+      addMisc(itemName || undefined, parseFloat(row.qty) || 1, row.auto);   // parseFloat: SPF supplies come in 0.25 sets
       const lastMisc = opt.rows.misc[opt.rows.misc.length - 1];
       if (row.edited || (row.auto && itemName === 'Foam Sealant' && row.edited === undefined)) { const tr = document.getElementById(p + 'ms-' + lastMisc.id); if (tr) tr.dataset.userEdited = '1'; }   // older saves: keep their foam count
       const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${lastMisc.id}"]`);
@@ -3712,6 +3784,7 @@ function deserializeForm(data) {
   });
 
   KG.suspend(false);
+  _restoring = false;
   switchToOption(0);
   recalc();
 }

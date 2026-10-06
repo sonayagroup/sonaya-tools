@@ -658,6 +658,13 @@ body.customer-mode .customer-total-box { display: block; }
 .kg-w { font-size: .76rem; padding: 3px 7px; border-radius: 4px; margin-top: 3px; }
 .kg-w.error { background: #fdecea; color: #c62828; } .kg-w.warn { background: #fff4e0; color: #b26a00; } .kg-w.info { background: #e8f1fb; color: #1d5fa8; }
 body.customer-mode .kg { display: none; }
+.quote-banner { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; font-size: .88rem; line-height: 1.4; background: #eef6e2; border: 1px solid #b9d98a; color: #2f4a10; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.quote-banner.locked { background: #e8eef7; border-color: #9fb4d6; color: #1d3557; }
+.quote-banner.expired { background: #fff4e0; border-color: #f0c070; color: #6b4300; }
+.quote-banner button { margin-left: auto; padding: 6px 12px; border-radius: 6px; border: 0; background: #1d3557; color: #fff; font-weight: 700; cursor: pointer; }
+body.quote-locked .app .main input, body.quote-locked .app .main select, body.quote-locked .app .main textarea { background: #f4f5f7; }
+body.customer-mode .quote-banner { display: none !important; }
+body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab-add-wrap { display: none !important; }
 </style>
 </head>
 <body>
@@ -799,6 +806,8 @@ body.customer-mode .kg { display: none; }
 
 <div class="app">
   <div class="main">
+
+    <div id="quoteBanner" class="quote-banner" style="display:none"></div>
 
     <!-- Customer Info -->
     <div class="card">
@@ -1207,7 +1216,7 @@ const KG = (() => {
       <div class="kg-hd"><b>📐 Labor Guidelines</b><span class="kg-sub">Install Time &amp; Service Guidelines — labor hours below are filled in automatically</span></div>
       <div class="kg-row">
         <label>Crew <input type="number" data-kg="crew" value="${esc(G.crew)}" min="1" style="width:48px"></label>
-        <label>Drive one-way (hrs) <input type="number" data-kg="driveHrs" value="${esc(G.driveHrs)}" step="0.25" placeholder="0" style="width:58px"></label>
+        <label title="Only used for the overnight check and crew-day warnings — drive time is covered by the trip charge, never billed as labor">Drive one-way (hrs) <input type="number" data-kg="driveHrs" value="${esc(G.driveHrs)}" step="0.25" placeholder="0" style="width:58px"></label>
         <label>Overnight <select data-kg="overnight">${[['auto', 'Auto'], ['yes', 'Yes'], ['no', 'No']].map(([v, t]) => `<option value="${v}" ${G.overnight === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       </div>
       <div class="kg-adj">${R.adjustments.map(a => { const on = G.adj[a.key] != null && G.adj[a.key] !== ''; return `<label class="kg-cb"><input type="checkbox" data-adj="${a.key}" ${on ? 'checked' : ''}>${esc(a.label)}${on ? ` <input type="number" data-adjv="${a.key}" value="${esc(G.adj[a.key])}" style="width:44px">%` : ` <span class="kg-muted">${a.min}–${a.max}%</span>`}</label>`; }).join('')}</div>
@@ -1250,7 +1259,7 @@ const KG = (() => {
     const ctx = ctxFor(opt);
     if (syncJobType(opt, ctx)) return render(opt);
     const G = opt.guide;
-    if (G.auto !== false && !busy && !suspended) sync(opt);
+    if (G.auto !== false && !busy && !suspended && !opt.hold) sync(opt);
     const c = calc(opt);
     c.lines.forEach(({ l, r, h }) => { const td = g('kgh-' + l.id); if (td) td.innerHTML = `<b>${f1(h)}</b> hrs<div class="kg-note">${esc(r.note)}</div>`; });
     const w = [...c.warn, ...c.lines.flatMap(x => x.r.warn)];
@@ -1267,7 +1276,7 @@ const KG = (() => {
       </div>
       <div class="kg-apply">
         <label class="kg-cb" style="font-weight:700;color:var(--navy)"><input type="checkbox" data-kgauto="1" ${G.auto !== false ? 'checked' : ''}> Auto-fill labor rows</label>
-        ${G.auto !== false ? `<span class="kg-ok">✓ Labor rows are calculated automatically</span>`
+        ${G.auto !== false ? (opt.hold ? `<span class="kg-ok">✓ Labor kept as saved — recalculates when you change this option</span>` : `<span class="kg-ok">✓ Labor rows are calculated automatically</span>`)
           : `<button type="button" class="kg-btn" data-kgapply="1">Re-sync to guideline ↓</button>
              <span class="${match ? 'kg-ok' : 'kg-diff'}">${match ? '✓ Labor rows match the guideline' : `Manual labor: ${f1(curTotal)} hrs entered vs. ${f1(guideTotal)} guideline`}</span>`}
       </div>
@@ -1311,12 +1320,7 @@ const KG = (() => {
         });
         { const mobId = opt.rows.labor.find(isMob), mobTr = mobId && g(p + 'lb-' + mobId);   // Mobilization row stays last
           if (mobTr && mobTr.nextElementSibling) mobTr.parentNode.appendChild(mobTr); }
-        // Drive time → Mobilization row (only when a drive time is entered in the panel)
-        if (G.driveHrs !== '' && G.driveHrs != null) {
-          let mob = opt.rows.labor.find(isMob);
-          if (!mob && c.D) { if (options[activeOptionIdx] !== opt) activeOptionIdx = options.indexOf(opt); addMobilization(); mob = opt.rows.labor[opt.rows.labor.length - 1]; activeOptionIdx = options.indexOf(wasActive); changed = true; }
-          if (mob) set(q('lb-hrs', mob), round(2 * c.D * c.trips * c.C));
-        }
+        // Residential: no mobilization and no drive-time labor (drive time is covered by the trip charge — GM, Oct 6 2026)
         set(g(p + 'tripDays'), c.trips);
         if (c.overnight) {
           [['Lodging (hotel)', c.nights * c.C, R.travel.lodgingPerNight], ['Per Diem', c.nights * c.C, R.travel.perDiem]].forEach(([name, qty, price]) => {
@@ -1624,7 +1628,7 @@ let pricingLoaded = false;
 async function loadPricingFromSupabase() {
   try {
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/common_items?select=category,product_type,product_name,unit_price,coverage_sqft,price_per_sqft,unit_of_measure&order=sort_order`,
+      `${SUPABASE_URL}/rest/v1/common_items?select=category,product_type,product_name,product_info,unit_price,coverage_sqft,price_per_sqft,unit_of_measure&order=sort_order`,
       { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
     );
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1702,6 +1706,12 @@ async function loadPricingFromSupabase() {
     MISC_CATALOG.forEach(mc => { miscByDK[dedupKey(mc.name)] = mc.name; });
     const addedDK = new Set();
     items.forEach(ci => {
+      if (ci.product_type === 'Intumescent Coating') {   // DC-315: one entry per color, priced per sq ft (275 sf per bucket real yield)
+        const nm = 'DC-315 Intumescent Coating (' + (ci.product_info || ci.product_name) + ')';
+        const pp = parseFloat(ci.price_per_sqft) || (parseFloat(ci.coverage_sqft) ? parseFloat(ci.unit_price) / parseFloat(ci.coverage_sqft) : 0);
+        if (!seen.has(nm.toLowerCase())) { seen.add(nm.toLowerCase()); allPricingItems.push({ name: nm, price: Math.round(pp * 100) / 100, unit: 'sq ft', coverage: 0 }); }
+        return;
+      }
       const rawName = typeCount[ci.product_type] > 1 ? ci.product_name : ci.product_type;
       const dk = dedupKey(rawName);
       // Prefer the friendly MISC_CATALOG name if it matches
@@ -2141,7 +2151,6 @@ function createCustomOption() {
   if (cb) { cb.checked = true; toggleJobDetailsOverride(p, true); }
 
   addLabor();
-  addMobilization();
   recalc();
   showToast('Created custom option with its own job details', 'success');
 }
@@ -2329,7 +2338,7 @@ function buildOptionContainer(opt) {
       </table>
       <div style="display:flex;gap:8px;margin-top:6px">
         <button class="btn-add" onclick="addLabor()">+ Add Crew</button>
-        <button class="btn-add" onclick="addMobilization()">+ Add Mobilization</button>
+
       </div>
     </div>
 
@@ -3241,6 +3250,7 @@ function calcOption(opt) {
 // insulation. Always round UP to a whole can. Only the auto-added row is sized; once someone types a quantity it is left alone.
 function updateAutoFoam() {
   options.forEach(o => {
+    if (o.hold) return;                                  // saved quote opened as-is
     const p = optPrefixFor(o), ctx = getOptionJobContext(o);
     if (!['attic', 'removal'].includes(ctx.jobType)) return;
     const area = ctx.ceilingArea || ctx.wallArea;
@@ -3263,8 +3273,86 @@ document.addEventListener('input', ev => {
   if (ev.isTrusted && el.className && /ms-qty\b/.test(el.className)) { const tr = el.closest('tr'); if (tr && tr.dataset.auto === '1') tr.dataset.userEdited = '1'; }
 }, true);
 
+// ─── Quote lock (GM, Oct 6 2026) ─────────────────────────────────────────────
+// Won jobs (Accepted / Completed) stay locked exactly as sold. Other saved quotes open exactly as saved: prices are the
+// saved row prices and nothing recalculates until someone changes that option. Quotes are good for 30 days; after that
+// they can be repriced with current prices & rules (button in the banner).
+const QUOTE_VALID_DAYS = 30;
+let quoteInfo = { pricedAt: null, loaded: false };
+const isWonStatus = s => s === 'accepted' || s === 'completed';
+function quoteLocked() { return !!currentEstimateId && isWonStatus($('saveStatus')?.value); }
+function quoteAgeDays() { const t = Date.parse(quoteInfo.pricedAt || ''); return isFinite(t) ? (Date.now() - t) / 864e5 : 0; }
+function fmtQDate(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+function lockInputs(on) {
+  document.querySelectorAll('.app .main input, .app .main select, .app .main textarea, .app .main button').forEach(el => {
+    if (el.closest('#quoteBanner') || el.closest('#optionTabBar') && !el.closest('.tab-add-wrap, .tab-close, [onclick*="remove"], [onclick*="delete"]')) return;   // can still switch between options
+    if (on) { if (!el.disabled) { el.disabled = true; el.dataset.qlock = '1'; } }
+    else if (el.dataset.qlock) { el.disabled = false; delete el.dataset.qlock; }
+  });
+}
+function applyQuoteLock() {
+  const locked = quoteLocked();
+  document.body.classList.toggle('quote-locked', locked);
+  lockInputs(locked);
+  renderQuoteBanner();
+}
+function renderQuoteBanner() {
+  const b = $('quoteBanner'); if (!b) return;
+  const held = options.some(o => o.hold), t = Date.parse(quoteInfo.pricedAt || '');
+  const priced = isFinite(t) ? fmtQDate(new Date(t)) : '', until = isFinite(t) ? fmtQDate(new Date(t + QUOTE_VALID_DAYS * 864e5)) : '';
+  let cls = '', html = '';
+  if (quoteLocked()) { cls = 'locked'; html = `🔒 <b>Won job — locked exactly as sold</b>${priced ? ' (priced ' + priced + ')' : ''}. To change it, set the status in Save back from Accepted / Completed.`; }
+  else if (currentEstimateId && quoteInfo.loaded && quoteAgeDays() > QUOTE_VALID_DAYS) { cls = 'expired'; html = `⏱ This quote was priced ${priced} — over ${QUOTE_VALID_DAYS} days ago.${held ? ' It is shown exactly as saved.' : ''} <button type="button" onclick="repriceQuote()">Reprice with current prices &amp; rules</button>`; }
+  else if (currentEstimateId && quoteInfo.loaded && held) { html = `📄 <b>Opened as saved</b> — prices and labor are kept as quoted${priced ? ' on ' + priced : ''} (good until ${until}). Anything you change recalculates that option; saved prices stay.`; }
+  b.className = 'quote-banner ' + cls; b.innerHTML = html; b.style.display = html ? '' : 'none';
+}
+// The first real change inside an option releases that option; a change to job details releases all options.
+function releaseQuoteHold(ev) {
+  if (!ev.isTrusted || _restoring || quoteLocked()) return;
+  const el = ev.target; if (!el || !el.closest || !el.closest('.app .main') || el.closest('#quoteBanner')) return;
+  if (ev.type === 'click' && !el.closest('button')) return;
+  if (['custName', 'estimator', 'address', 'custPhone', 'custEmail', 'leadSource', 'notes'].includes(el.id)) return;
+  if (ev.type === 'click' && el.closest('#optionTabBar')) return;   // switching options is not a change
+  const cont = el.closest('.option-container');
+  const targets = cont ? options.filter(o => 'opt-' + o.id === cont.id) : options;
+  const rel = targets.filter(o => o.hold); if (!rel.length) return;
+  rel.forEach(o => { o.hold = false; });
+  setTimeout(() => { rel.forEach(o => KG.render(o)); recalc(); renderQuoteBanner(); }, 0);
+}
+['input', 'change', 'click'].forEach(t => document.addEventListener(t, releaseQuoteHold, true));
+function repriceQuote() {
+  if (quoteLocked()) return;
+  const missing = new Set();
+  const wasActive = activeOptionIdx;
+  options.forEach((o, oi) => {
+    const p = optPrefixFor(o), q = (cls, id) => document.querySelector(`.${CSS.escape(p)}${cls}[data-id="${id}"]`);
+    o.rows.blowIn.forEach(id => onBlowInSelect(p, id));
+    o.rows.batt.forEach(id => { onBattSelect(p, id); const s = q('bt-sel', id); const it = s && s.value !== '' ? INSULATION[parseInt(s.value)] : null; if (it && /not in current price list/.test(it.name)) missing.add(it.name.replace(/ — not in current price list/, '')); });
+    o.rows.spf.forEach(id => onSpfSelect(p, id));
+    o.rows.misc.forEach(m => {
+      const nm = q('ms-name', m.id)?.value || '', it = allPricingItems.find(i => i.name === nm) || MISC_CATALOG.find(i => i.name === nm);
+      if (it) { const pi = q('ms-price', m.id); if (pi) pi.value = it.price; }
+    });
+    // labor: current rates; residential has no mobilization row
+    let k = 0;
+    o.rows.labor.slice().forEach(id => {
+      const lab = q('lb-label', id)?.value || '';
+      if (/mobiliz/i.test(lab)) { const tr = document.getElementById(p + 'lb-' + id); if (tr) tr.remove(); o.rows.labor = o.rows.labor.filter(x => x !== id); return; }
+      const first = k++ === 0, r = q('lb-rate', id), ro = q('lb-otrate', id);
+      if (r) r.value = first ? DEFAULT_LABOR_RATE_1 : DEFAULT_LABOR_RATE; if (ro) ro.value = first ? DEFAULT_OT_RATE_1 : DEFAULT_OT_RATE;
+    });
+    o.hold = false;
+  });
+  activeOptionIdx = wasActive;
+  autoSuppliesOn = true;
+  quoteInfo.pricedAt = new Date().toISOString();
+  options.forEach(o => KG.render(o));
+  recalc(); renderQuoteBanner(); scheduleAutoSave();
+  showToast('Repriced with current prices & rules' + (missing.size ? ' — not in the current price list (kept old price): ' + [...missing].join(', ') : ''), missing.size ? 'info' : 'success');
+}
+
 // ─── Auto job supplies (GM rules, every job) ─────────────────────────────────
-// N95 masks: for each installer (first 4 installer rows), CEILING((regular hrs + OT hrs) ÷ 8) = days on the job; one mask per installer-day.
+// N95 masks: for every installer row, CEILING((regular hrs + OT hrs) ÷ 8) = days on the job; one mask per installer-day.
 // SPF Supplies/PPE: closed-cell bd ft ÷ 4,800 + open-cell bd ft ÷ 18,000, always rounded UP to the next 0.25.
 // Rows are added automatically on new estimates; once someone types a quantity it is left alone. Estimates saved before this rule
 // (no autoJobSupplies flag) keep their supplies exactly as saved.
@@ -3273,7 +3361,7 @@ function autoN95Count(o) {
   const p = optPrefixFor(o); let total = 0, k = 0;
   o.rows.labor.forEach(id => {
     const lab = document.querySelector(`.${CSS.escape(p)}lb-label[data-id="${id}"]`)?.value || '';
-    if (/mobiliz/i.test(lab) || k >= 4) return;
+    if (/mobiliz/i.test(lab)) return;
     const h = (parseFloat(document.querySelector(`.${CSS.escape(p)}lb-hrs[data-id="${id}"]`)?.value) || 0) + (parseFloat(document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${id}"]`)?.value) || 0);
     if (h <= 0) return;
     k++; total += Math.ceil(h / 8 - 1e-9);
@@ -3292,8 +3380,9 @@ function autoSpfSets(o) {
 function updateAutoJobSupplies() {
   if (!autoSuppliesOn || _restoring) return;
   options.forEach(o => {
+    if (o.hold) return;                                  // saved quote opened as-is
     const p = optPrefixFor(o);
-    const want = [['N95 Mask', autoN95Count(o), 'masks = each installer’s (hrs + OT) ÷ 8, rounded up, summed for up to 4 installers'],
+    const want = [['N95 Mask', autoN95Count(o), 'masks = each installer’s (hrs + OT) ÷ 8, rounded up, summed for every installer'],
       ['SPF Supplies/PPE', autoSpfSets(o).sets, 'sets = CC bd ft ÷ 4,800 + OC bd ft ÷ 18,000, rounded up to the next 0.25']];
     want.forEach(([name, qty, why]) => {
       const rows = o.rows.misc.map(m => ({ m, tr: document.getElementById(p + 'ms-' + m.id) })).filter(x => x.tr && (x.tr.querySelector(`.${CSS.escape(p)}ms-name`)?.value || '') === name);
@@ -3313,6 +3402,7 @@ function updateAutoJobSupplies() {
 }
 
 function recalc() {
+  if (document.body.classList.contains('quote-locked')) lockInputs(true);
   updateAutoFoam();
   updateAutoJobSupplies();
   const opt = getOpt();
@@ -3489,6 +3579,7 @@ function showToast(msg, type) {
 function serializeForm() {
   const data = {
     autoJobSupplies: autoSuppliesOn,
+    pricedAt: quoteInfo.pricedAt || (quoteInfo.pricedAt = new Date().toISOString()),
     custName: $('custName').value,
     estimator: $('estimator').value,
     address: $('address').value,
@@ -3596,7 +3687,8 @@ function serializeForm() {
 function deserializeForm(data) {
   KG.suspend(true);
   _restoring = true;
-  autoSuppliesOn = !!data.autoJobSupplies;            // estimates saved before the N95 / SPF-supplies rule keep their supplies as saved
+  autoSuppliesOn = !!data.autoJobSupplies;
+  quoteInfo.pricedAt = data.pricedAt || null;            // estimates saved before the N95 / SPF-supplies rule keep their supplies as saved
   // Clear existing options
   while (options.length > 0) {
     const opt = options[0];
@@ -3644,6 +3736,7 @@ function deserializeForm(data) {
   // Rebuild options
   (data.options || []).forEach((optData, idx) => {
     const opt = createOption(optData.name || ('Option ' + (idx + 1)));
+    opt.hold = true;                                   // opened as saved: nothing recalculates until someone changes this option
     const p = optPrefixFor(opt);
     if (optData.guide) { opt.guide = optData.guide; }
     else if ((optData.labor || []).some(l => parseFloat(l.hrs) > 0 || parseFloat(l.ot) > 0)) opt.guide.auto = false;   // older estimate with hand-entered labor: keep it
@@ -3877,6 +3970,7 @@ async function saveEstimate() {
     }
 
     // Update badge & auto-save status
+    quoteInfo.loaded = true; applyQuoteLock();
     updateEstimateBadge(record.customer_name);
     setAutoSaveStatus('saved', 'Saved');
     closeSaveModal();
@@ -3918,6 +4012,9 @@ async function loadEstimateFromUrl() {
     $('saveEmail').value = est.customer_email || '';
     $('saveStatus').value = est.status || 'draft';
     $('saveNotes').value = est.notes || '';
+    if (!quoteInfo.pricedAt) quoteInfo.pricedAt = est.created_at || null;   // older saves: quote date = when it was created
+    quoteInfo.loaded = true;
+    applyQuoteLock();
 
     updateEstimateBadge(est.customer_name);
     setAutoSaveStatus('saved', 'Saved');
@@ -4525,7 +4622,6 @@ _suppressAutoSave = true; // suppress during init
 initAreaRows();
 createOption('Option 1');
 addLabor();
-addMobilization();
 recalc();
 
 // Load live pricing and GM settings from Supabase (updates in background)

@@ -184,6 +184,12 @@ body.est-view .mob-bar:not(:empty) { }
   main { padding: 12px 12px 80px; } header { padding: 8px 12px; } nav { margin-left: 0; order: 3; width: 100%; overflow-x: auto; flex-wrap: nowrap; } nav button, nav .nav-link { white-space: nowrap; flex-shrink: 0; } .hdr-right { font-size: .75rem; }
   .scope-bd { grid-template-columns: 1fr; } .field.span2 { grid-column: auto; } .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 }
+.qbanner{margin:0 0 12px;padding:10px 14px;border-radius:10px;font-size:.88rem;background:#eef6e2;border:1px solid #b9d98a;color:#2f4a10;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.qbanner.locked{background:#e8eef7;border-color:#9fb4d6;color:#1d3557}
+.qbanner.expired{background:#fff4e0;border-color:#f0c070;color:#6b4300}
+.qbanner.subtle{background:transparent;border:0;padding:0 2px;color:var(--muted,#667);font-size:.78rem}
+.qbanner .qb-acts{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+body.est-locked .est-layout input:disabled,body.est-locked .est-layout select:disabled,body.est-locked .est-layout textarea:disabled{background:#f4f5f7;color:#333}
 </style>
 </head>
 <body>
@@ -261,8 +267,8 @@ const DEFAULT_RULES = {
     { key: 'adverse',    label: 'Adverse work conditions',             min: 5,  max: 15 },
     { key: 'access',     label: 'Access opening smaller than 2′×2′',  min: 10, max: 20 },
   ],
-  // maxOtPerDay = longest extra time on the last day before adding a day (scheduling). OT PAY: after weeklyThreshold hrs per installer per week.
-  ot: { maxOtPerDay: 2, reviewOver: 10, secondDayOver: 12, weeklyThreshold: 40, workDaysPerWeek: 5, addHrsPerDayAfterThreshold: 1 },
+  // maxOtPerDay = longest extra time on the last day before adding a day (auto scheduling). OT pay = hrs over 8 in a day at 1.5×.
+  ot: { maxOtPerDay: 2, reviewOver: 10, secondDayOver: 12 },
   laborRounding: 'up',                                     // calculated labor hours in whole hours: 'up' (default) | 'nearest' | 'down'
   travel: { overnightDriveHrs: 2, overnightLaborHrs: 6, perDiem: 40, lodgingPerNight: 140, setupHrs: 0.5 },
   bonuses: { crawl: 100, contamination: 250, tightAttic: 50, crawlSpf: 100 },
@@ -283,8 +289,6 @@ const DEFAULT_RULES = {
   // Commercial mobilization: 1 hr per installer per day for loading/unloading (Arthouse / Avid lessons)
   // Each installer, each day on site (CEILING((reg+OT hrs) ÷ 8)) gets 1 hr at THAT installer's hourly rate. Commercial only.
   mobilization: { res_nc: false, commercial: true, hrsPerInstallerPerDay: 1 },
-  // Spreadsheet counts masks / mobilization days for up to 4 installers (4 installer rows)
-  maxInstallersCounted: 4,
   spfSuppliesRoundUpTo: 0.25,                               // SPF Supplies/PPE sets always round UP to the next 0.25
   // Bonuses, per diem & lodging are added AFTER pricing with a small markup (not grossed up by margin)
   additionalMarkup: { bonusesPct: 15, travelPct: 5 },
@@ -411,7 +415,11 @@ const SPF_PRICE = { oc: 0.17, cc: 0.57 };   // $ per board foot (live: common_it
 let SUPPLIES = [
   { name: 'Baffles', price: 0.90, unit: 'each' },
   { name: 'Caulking', price: 4.50, unit: 'tube' },
-  { name: 'DC-315 Intumescent Coating', price: 0.7994, unit: 'sq ft', perSf: true },   // $359.72 per 450 sf pail (both price books)
+  // DC-315: priced per sq ft at the REAL yield of ~55 sf/gal = 275 sf per 5-gal bucket (GM, Oct 6 2026); price differs by color
+  { name: 'DC-315 Intumescent Coating (White)', price: 1.31, unit: 'sq ft', perSf: true, dc: 'White' },
+  { name: 'DC-315 Intumescent Coating (Ice Gray)', price: 1.28, unit: 'sq ft', perSf: true, dc: 'Ice Gray' },
+  { name: 'DC-315 Intumescent Coating (Black)', price: 1.38, unit: 'sq ft', perSf: true, dc: 'Black' },
+  { name: 'DC-315 Intumescent Coating', price: 1.31, unit: 'sq ft', perSf: true, dc: 'White' },   // older estimates (no color) = White
   { name: 'Dumpster', price: 363.59, unit: 'each' },
   { name: 'Foam Sealant', price: 5.75, unit: 'can' },
   { name: 'Insulation Netting (cellulose)', price: 0.04, unit: 'sq ft', perSf: true },
@@ -495,7 +503,7 @@ const METHODS = {
   crawl_found_spf:{ label: 'Crawlspace — Foundation Wall SPF (CC)', group: 'Crawlspace', fields: ['sqft', 'rValue', 'clearance'] },
   encapsulation:  { label: 'Crawlspace — Encapsulation', group: 'Crawlspace', fields: ['sqft', 'clearance'] },
   crawl_joist_spf:{ label: 'Crawlspace — Floor Joist SPF', group: 'Crawlspace', fields: ['sqft', 'spfType', 'rValue', 'clearance'] },
-  coating:        { label: 'Intumescent Coating (DC-315)', group: 'Spray Foam', fields: ['sqft', 'manualHours'] },
+  coating:        { label: 'Intumescent Coating (DC-315)', group: 'Spray Foam', fields: ['sqft', 'dcColor', 'manualHours'] },
   custom:         { label: 'Custom / Other', group: 'Other', fields: ['sqft', 'manualHours'] },
 };
 
@@ -546,8 +554,11 @@ const ACTUAL_PRICES = {   // "Common Items (Actual Price)" sheet — Oct 2026
   'N95 Mask': 1.44, 'Poly Sheeting': 19.70, 'Recessed Light Cover': 8.36, 'Removal Bags': 9.20, 'Scotch Blue Tape': 5.33,
   'Seam Tape': 11.54, 'Sill Plate Gasket': 3.37, 'Solar Fan 30 Watt': 325, 'Solar Fan 70 Watt': 639, 'Spray Adhesive': 5.28,
   'Staples': 5.45, 'Trash Bags (1 Box)': 27.96, 'Vapor Barrier 14 Mil': 286.09,
-  'WMP-10 (Black)': 248.87, 'WMP-10 (White)': 248.87, 'SPF Supplies/PPE': 255.43, 'DC-315 Intumescent Coating': 0.7994,
+  'WMP-10 (Black)': 248.87, 'WMP-10 (White)': 248.87, 'SPF Supplies/PPE': 255.43,
+  // DC-315 actual cost is per 5-gal bucket (Actual Price tab coverage = 1); the Actuals prefill converts sq ft → buckets at 275 sf each
+  'DC-315 Intumescent Coating (White)': 359.72, 'DC-315 Intumescent Coating (Ice Gray)': 350.66, 'DC-315 Intumescent Coating (Black)': 379.00, 'DC-315 Intumescent Coating': 359.72,
 };
+const DC315_BUCKET_SF = 275;
 const ACTUAL_UNITS = { 'Insulation Netting (cellulose)': 'roll', 'Insulation Netting (fiberglass)': 'roll', 'Vapor Barrier 14 Mil': 'roll' };
 // ════════════════════════════════════════════════════════════════════════════
 // LABOR + MATERIAL + PRICING ENGINE  (pure functions — no DOM access)
@@ -760,7 +771,7 @@ function computeScope(scope, est, rules) {
     base = lo = hi = num(scope.manualHours);
     out.note = base ? `${base} labor hrs (entered)` : 'Enter labor hours';
     if (!base && sf) W('warn', 'No guideline exists for this scope — enter labor hours manually.');
-    if (m === 'coating' && sf) out.materials.push(supplyLine('DC-315 Intumescent Coating', sf, 'priced per sq ft'));
+    if (m === 'coating' && sf) { const col = ['White', 'Ice Gray', 'Black'].includes(scope.dcColor) ? scope.dcColor : 'White'; out.materials.push(supplyLine(`DC-315 Intumescent Coating (${col})`, sf, `${col} — priced per sq ft (≈${DC315_BUCKET_SF} sf per 5-gal bucket)`)); }
   }
 
   // Clearance rules (crawlspaces)
@@ -920,28 +931,18 @@ function computeOption(opt, est, rules) {
     else if (rem <= rules.ot.maxOtPerDay && full >= 1) { days = full; longHrs = rem; }
     else { days = full + 1; longHrs = 0; }
   }
-  // Overtime pay: OT rate only after an installer passes 40 hrs in a work week (toggle per estimate).
-  // Optional: +1 OT hr per installer for every day worked after the 40-hr threshold is reached that week.
-  // Manual override: "OT hrs per installer" replaces the calculation.
-  const OTR = rules.ot || {}, wkCap = num(OTR.weeklyThreshold) || 40, wkDays = Math.max(1, num(OTR.workDaysPerWeek) || 5);
+  // Overtime (GM / Install Time & Service Guidelines): standard estimates are an 8-hr day. Any installer hours over 8 in a day
+  // are OT at 1.5× and are accounted for on THIS job. The estimator decides long day + OT vs. a second day (Schedule days):
+  // a second day = second trip charge and no OT. Toggle per estimate; "OT hrs per installer" overrides the calculation.
   const otOn = est.otEnabled !== false;
-  const perDayHrs = days ? H / days : H;
-  let otWeekly = 0, otAddDays = 0;
-  for (let left = days; left > 0; left -= wkDays) {
-    const dIn = Math.min(wkDays, left), wkHrs = perDayHrs * dIn;
-    otWeekly += Math.max(0, wkHrs - wkCap);
-    const reachDay = perDayHrs > 0 ? Math.ceil(wkCap / perDayHrs - 1e-9) : Infinity;   // day of the week on which 40 hrs is reached
-    otAddDays += Math.max(0, dIn - reachDay);
-  }
-  const otAuto = otOn && est.otAddDaily ? otAddDays * (num(OTR.addHrsPerDayAfterThreshold) || 1) : 0;
+  const otDaily = ceilH(longHrs);                                        // hrs over 8/day, per installer
   const otManual = otOn && !blank(est.otHours) ? Math.max(0, num(est.otHours)) : null;
-  const otCalc = otOn ? ceilH(otWeekly) + otAuto : 0;
-  const ot = otManual != null ? otManual : otCalc;
-  const reg = Math.max(0, H + (otManual != null ? 0 : otAuto) - ot);     // paid hrs = H (+ the auto-added OT hrs)
-  // Per installer: CEILING((regular + OT hrs) ÷ 8) = days on the job (a partial day counts as a full day).
-  // Summed over the installers on the job, up to 4 (the spreadsheet's 4 installer rows). Drives N95 masks and mobilization.
+  const ot = !otOn ? 0 : otManual != null ? otManual : otDaily;
+  const reg = Math.max(0, H - ot);
+  // Per installer: CEILING((regular + OT hrs) ÷ 8) — an 8-hr day is a full shift (new mask / 1 hr mobilization each).
+  // Counted for EVERY installer on the job (no cap). Drives N95 masks and commercial mobilization.
   const daysPerInstaller = L > 0 ? Math.ceil((reg + ot) / 8 - 1e-9) : 0;
-  const countedInstallers = Math.min(C, num(rules.maxInstallersCounted) || 4);
+  const countedInstallers = C;
   const installerDays = countedInstallers * daysPerInstaller;
   const D = num(est.driveHrs);
   const perDayOnsite = days ? H / days : H;
@@ -955,7 +956,7 @@ function computeOption(opt, est, rules) {
   // Materials (scope lines) + automatic job supplies (N95 per installer-day, SPF supplies per set)
   const scopeMats = mergeMaterials(scopes.flatMap(x => x.r.materials));
   const autoMats = [];
-  if (installerDays) autoMats.push(supplyLine('N95 Mask', installerDays * (rules.n95PerInstallerDay || 1), `${countedInstallers} installer${countedInstallers > 1 ? 's' : ''} × ${daysPerInstaller} day${daysPerInstaller > 1 ? 's' : ''} (${H} hrs ÷ 8, rounded up)${C > countedInstallers ? ` — counts the first ${countedInstallers} installers` : ''}`));
+  if (installerDays) autoMats.push(supplyLine('N95 Mask', installerDays * (rules.n95PerInstallerDay || 1), `${countedInstallers} installer${countedInstallers > 1 ? 's' : ''} × ${daysPerInstaller} (${reg + ot} hrs ÷ 8, rounded up)`));
   const bd = scopes.reduce((a, x) => { if (x.r.spfBd) { a.cc += x.r.spfBd.cc || 0; a.oc += x.r.spfBd.oc || 0; } return a; }, { cc: 0, oc: 0 });
   const spfRaw = bd.cc / rules.spf.setYield.cc + bd.oc / rules.spf.setYield.oc;
   const spfSets = ceilTo(spfRaw, num(rules.spfSuppliesRoundUpTo) || 0.25);       // GM: always round UP to the next .25
@@ -971,10 +972,11 @@ function computeOption(opt, est, rules) {
   const R = rules.rates;
   const laborWages = reg * R.lead + ot * R.leadOt + (C - 1) * (reg * R.installer + ot * R.installerOt);
   const mobOn = !!(rules.mobilization && rules.mobilization[est.projectType]);
-  // Mobilization (loading/unloading), commercial only: each counted installer × days on site × 1 hr at THAT installer's rate
+  // Mobilization (staging / unloading material), commercial only: 1 hr per installer per day on the job, flat $25/hr (rates.mobilization)
   const mobPerDay = num(rules.mobilization && rules.mobilization.hrsPerInstallerPerDay) || 1;
+  const mobRate = num(R.mobilization) || 25;
   const mobHrs = mobOn ? installerDays * mobPerDay : 0;
-  const mobWages = mobOn ? daysPerInstaller * mobPerDay * (R.lead + Math.max(0, countedInstallers - 1) * R.installer) : 0;
+  const mobWages = mobHrs * mobRate;
   const driveWages = 0;                                   // crew travel time is recovered by the trip charge (Trip Charge Data)
   const payrollTax = (laborWages + mobWages) * R.payrollTaxPct / 100;
   const laborTotal = laborWages + mobWages + payrollTax;
@@ -1013,9 +1015,9 @@ function computeOption(opt, est, rules) {
   // Schedule warnings (guideline rules)
   if (C < 2) warnings.push({ level: 'error', msg: 'All scopes assume a minimum of two experienced installers (a helper/new hire does not count as the second installer).' });
   if (C < 2 && scopes.some(x => x.r.spf)) warnings.push({ level: 'error', msg: 'Spray foam jobs always require 2 installers for safety.' });
-  if (!manualDays && H > 8 && longHrs > 0) warnings.push({ level: 'info', msg: `${r1(H)} on-site hrs: finish in ${days} day(s) with ${r1(longHrs)} extra hr(s) on the last day (guideline: a long day beats a second mobilization).` });
-  if (manualDays && longHrs > rules.ot.maxOtPerDay * days) warnings.push({ level: 'warn', msg: `${r1(longHrs)} hrs over 8/day across ${days} day(s) — more than ${rules.ot.maxOtPerDay} extra hrs/day. Consider another day.` });
-  if (ot > 0) warnings.push({ level: 'info', msg: otManual != null ? `Overtime: ${r1(ot)} hrs per installer (entered manually).` : `Overtime: ${r1(ot)} hrs per installer at OT rates — ${otWeekly ? `${r1(ceilH(otWeekly))} hrs over ${wkCap} hrs/week` : ''}${otWeekly && otAuto ? ' + ' : ''}${otAuto ? `${otAuto} hr(s) added (1/day after ${wkCap} hrs)` : ''}.` });
+  if (!manualDays && H > 8 && longHrs > 0) warnings.push({ level: 'info', msg: `${r1(H)} on-site hrs: finish in ${days} day(s) with ${r1(longHrs)} hr(s) over 8 on the last day (OT). Set Schedule days to plan another day with a second trip instead.` });
+  if (ot > 0) warnings.push({ level: 'info', msg: otManual != null ? `Overtime: ${r1(ot)} hrs per installer (entered manually) at 1.5×.` : `Overtime: ${r1(ot)} hrs per installer over 8 hrs/day at 1.5×.` });
+  if (days && H / days > (rules.ot.reviewOver || 10)) warnings.push({ level: 'warn', msg: `${r1(H / days)} on-site hrs per installer per day (> ${rules.ot.reviewOver || 10}). Consider planning it as ${days + 1} days (Schedule days) with another trip charge and no OT — the estimator's call based on what the customer/GC wants.` });
   if (crewDay > rules.ot.secondDayOver) warnings.push({ level: 'error', msg: `Total crew day ≈ ${r1(crewDay)} hrs (drive + labor + setup). 12+ hrs → overnight stay or multi-day scheduling is required.` });
   else if (crewDay > rules.ot.reviewOver) warnings.push({ level: 'warn', msg: `Total crew day ≈ ${r1(crewDay)} hrs — review overtime vs. overnight/second day.` });
   if (D > rules.travel.overnightDriveHrs && H > rules.travel.overnightLaborHrs && est.overnight === 'no') warnings.push({ level: 'warn', msg: `Job is > ${rules.travel.overnightDriveHrs} hrs away with > ${rules.travel.overnightLaborHrs} hrs on-site labor — guideline says include an overnight stay or get it reviewed.` });
@@ -1025,11 +1027,11 @@ function computeOption(opt, est, rules) {
   if (blank(est.margin) && blank(opt.marginOverride)) warnings.push({ level: 'warn', msg: `Margin % is blank — using the default ${r1(margin)}%.`, pricing: true });
   if (blank(est.royalty)) warnings.push({ level: 'warn', msg: `Royalty % is blank — using the default ${r1(royalty)}%.`, pricing: true });
   warnings.push(...pricingWarnings(pr, margin, rules));
-  if (!otOn && H > wkCap) warnings.push({ level: 'warn', msg: `Overtime is turned off but each installer works ${r1(H)} hrs (> ${wkCap}). Turn overtime on or confirm.` });
+  if (!otOn && longHrs > 0) warnings.push({ level: 'warn', msg: `Overtime is turned off but each installer works ${r1(longHrs)} hrs over 8 hrs/day — guideline: OT must be accounted for, or plan another day.` });
   if (scopes.length && !L) warnings.push({ level: 'warn', msg: 'No labor hours calculated yet — enter square footage for each scope.' });
 
   return {
-    scopes, sqft, L, Llo, Lhi, H, Hlo: ceilH(Llo / (C * eff)), Hhi: ceilH(Lhi / (C * eff)), C, eff, days, ot, reg, longHrs, otOn, otWeekly: ceilH(otWeekly), otAuto, otManual, overnight, nights, trips, rooms, crewDay, installerDays, daysPerInstaller, countedInstallers, spfRaw,
+    scopes, sqft, L, Llo, Lhi, H, Hlo: ceilH(Llo / (C * eff)), Hhi: ceilH(Lhi / (C * eff)), C, eff, days, ot, reg, longHrs, otOn, otManual, mobRate, overnight, nights, trips, rooms, crewDay, installerDays, daysPerInstaller, countedInstallers, spfRaw,
     driveHrsPerInstaller, scopeMats, autoMats, misc, matCost, miscCost, laborWages, mobHrs, mobWages, driveWages, bonuses, payrollTax, laborTotal,
     perDiem, perDiemRate, perDiemDays, lodging, lodgingRate: num(est.lodgingRate || rules.travel.lodgingPerNight), crewBonus, tightBonus, bonusPer, bonusKind, tightEntering, travelPct: AM.travelPct, bonusesPct: AM.bonusesPct, additional, vehicles, tripInfo, trip, genHours, generator, cost, margin, royalty, spfSets, ...pr, warnings,
   };
@@ -1084,8 +1086,32 @@ function computeFinal(est, rules, results) {
 // the trip charge is taken back OUT of the trip cost to avoid counting travel time twice.
 function quotedBasis(est, rules) {
   if (!est.options || !est.options.length) est.options = [{ id: 'o1', name: 'Option 1', scopes: [], misc: [], autoQty: {} }];
+  if (typeof estResults === 'function') { const x = estResults(est); return x.fin || x.res[0]; }   // the quote as sold (saved prices / snapshot)
   const res = est.options.map(o => computeOption(o, est, rules));
   return (est.options.length > 1 ? computeFinal(est, rules, res) : null) || res[0];
+}
+
+// ─── QUOTE PRICE BOOK (GM, Oct 6 2026) ──────────────────────────────────────
+// Each saved estimate keeps the prices & rules it was priced with (est.quote). Opening it never reprices it;
+// won jobs stay exactly as sold; quotes older than 30 days can be repriced with the current book.
+function priceBookNow() {
+  return { batts: BATTS.map(b => [b.name, b.price, b.com ?? null, b.coverage]), blow: BLOW_IN.map(b => [b.key, b.price]),
+    spf: { ...SPF_PRICE }, supplies: SUPPLIES.map(s => [s.name, s.price, s.unit, !!s.perSf]) };
+}
+function applyBook(bk, added) {
+  (bk.batts || []).forEach(([n, p, c, cov]) => { const b = BATTS.find(x => x.name === n); if (b) { b.price = p; b.com = c == null ? undefined : c; b.coverage = cov; } });
+  (bk.blow || []).forEach(([k, p]) => { const b = BLOW_IN.find(x => x.key === k); if (b) b.price = p; });
+  Object.assign(SPF_PRICE, bk.spf || {});
+  (bk.supplies || []).forEach(([n, p, u, ps]) => { const s = SUPPLIES.find(x => x.name === n); if (s) s.price = p; else if (added) { const o = { name: n, price: p, unit: u, perSf: ps }; SUPPLIES.push(o); added.push(o); } });
+}
+// Run fn with an estimate's saved price book swapped in (synchronous), then put the current book back.
+let _bookDepth = 0;
+function withBook(book, fn) {
+  if (!book || _bookDepth) return fn();
+  const cur = priceBookNow(), added = [];
+  _bookDepth++;
+  try { applyBook(book, added); return fn(); }
+  finally { added.forEach(o => { const i = SUPPLIES.indexOf(o); if (i >= 0) SUPPLIES.splice(i, 1); }); applyBook(cur); _bookDepth--; }
 }
 function computeActuals(est, rules) {
   const A = est.actuals || {}, q = quotedBasis(est, rules);
@@ -1133,6 +1159,7 @@ function actualMaterialsFromEstimate(est, rules) {
     let price = ACTUAL_PRICES[m.name], qty = m.qty, unit = m.unit;
     if (m.kind === 'batt') { const b = BATTS.find(x => x.name === m.name); price = b ? battTrueCost(b, rules) : m.price; }
     if (m.kind === 'blow') { const bk = (BLOW_IN.find(b => b.name === m.name) || {}).key; const tc = bk && (rules.materialPricing.blow.commercial || {})[bk]; price = tc != null ? num(tc) : m.price; }
+    if (/^DC-315/.test(m.name) && m.unit === 'sq ft') { qty = Math.ceil(m.qty / DC315_BUCKET_SF - 1e-9); unit = 'bucket'; }   // actual cost is per bucket
     if (ACTUAL_UNITS[m.name] === 'roll' && m.unit === 'sq ft') { qty = Math.ceil(m.qty / (/Vapor/.test(m.name) ? 1200 : 3750)); unit = 'roll'; }   // netting bought as 10'×375' rolls
     out.push({ name: m.name, qty, price: price != null ? price : m.price, unit });
   });
@@ -1197,8 +1224,9 @@ function deepMerge(base, over) {
 
 // Rules for a specific estimate (prevailing wage overrides)
 function effRules(est) {
-  if (!est || !est.wageScale) return RULES;
-  const r = clone(RULES);
+  const frozen = est && est.quote && est.quote.rules;
+  if (!est || (!est.wageScale && !frozen)) return RULES;
+  const r = frozen ? deepMerge(clone(RULES), clone(frozen)) : clone(RULES);      // the rules this quote was priced with
   if (num(est.wageLead)) { r.rates.lead = num(est.wageLead); r.rates.leadOt = num(est.wageLead) * 1.5; }
   if (num(est.wageInstaller)) { r.rates.installer = num(est.wageInstaller); r.rates.installerOt = num(est.wageInstaller) * 1.5; }
   return r;
@@ -1358,6 +1386,7 @@ function renderEstimate() {
   const builderOpts = [['', `— Select ${pt.clientLabel.toLowerCase()} —`], ...S.builders.filter(b => b.is_active !== false || b.id === e.builderId).map(b => [b.id, b.name + (b.client_type && b.client_type !== pt.clientLabel ? ` (${b.client_type})` : '')])];
   $('app').innerHTML = `
   ${estTabsHtml()}
+  <div id="quoteBanner"></div>
   <div class="est-layout">
     <div>
       <div class="card">
@@ -1392,9 +1421,8 @@ function renderEstimate() {
           ${e.tripTier === 'custom' ? fld('Round-trip miles', 'est.tripMiles', e.tripMiles, { type: 'number' }) : ''}
           ${e.tripTier === 'manual' ? fld('Trip $ per visit', 'est.tripManual', e.tripManual, { type: 'number', hint: '<span id="tripHint"></span>' }) : ''}
           ${e.tripTier !== 'none' && e.tripTier !== 'manual' ? fld('Adjusted trip $ / visit', 'est.tripAdjust', e.tripAdjust ?? '', { type: 'number', ph: 'Standard', hint: '<span id="tripHint"></span>' }) : ''}
-          ${fld('Schedule days', 'est.planDays', e.planDays, { type: 'number', ph: 'Auto', hint: 'Blank = auto (long day vs. extra day)' })}
-          <div class="field"><label>Overtime</label>${chk(`OT rate after ${RULES.ot.weeklyThreshold || 40} hrs/week`, 'est.otEnabled', e.otEnabled !== false, 'all')}
-            ${e.otEnabled !== false ? chk(`+${RULES.ot.addHrsPerDayAfterThreshold || 1} OT hr/installer/day after ${RULES.ot.weeklyThreshold || 40} hrs`, 'est.otAddDaily', e.otAddDaily, 'all') : ''}</div>
+          ${fld('Schedule days', 'est.planDays', e.planDays, { type: 'number', ph: 'Auto', hint: 'Blank = auto. More days = more trips, no OT' })}
+          <div class="field"><label>Overtime</label>${chk('OT (1.5×) for hrs over 8/day', 'est.otEnabled', e.otEnabled !== false, 'all')}</div>
           ${e.otEnabled !== false ? fld('OT hrs per installer (override)', 'est.otHours', e.otHours ?? '', { type: 'number', ph: 'Auto', hint: 'Blank = calculated' }) : ''}
           ${fld('Overnight stay', 'est.overnight', e.overnight, { r: 'all', options: [['auto', 'Auto (guideline)'], ['yes', 'Yes'], ['no', 'No']] })}
           ${fld('Lodging $/room/night', 'est.lodgingRate', e.lodgingRate, { type: 'number' })}
@@ -1488,6 +1516,7 @@ function renderEstimate() {
   </div>`;
   renderBuilderPanel();
   refreshCalc();
+  applyEstLock();
 }
 
 function estHdrActs(e) { return e.id ? `<button class="btn sm ghost" title="Duplicate this estimate" onclick="duplicateEstimate('${e.id}')">⧉</button><button class="btn sm ghost danger" title="Delete estimate" onclick="confirmDeleteEstimate()">🗑</button>` : ''; }
@@ -1523,6 +1552,7 @@ function scopeFields(s) {
     if (k === 'rValue' && ['spf', 'crawl_joist_spf', 'crawl_found_spf'].includes(s.method)) add(fld('or thickness (in)', P + 'thickness', s.thickness, { type: 'number', step: '0.25', ph: 'from R' }));
     if (k === 'clearance') add(fld('Clearance (in)', P + 'clearance', s.clearance, { type: 'number' }));
     if (k === 'enteringInstallers') add(fld('Installers entering attic', P + 'enteringInstallers', s.enteringInstallers, { type: 'number', hint: '$' + RULES.bonuses.tightAttic + ' bonus each' }));
+    if (k === 'dcColor') add(fld('Color', P + 'dcColor', s.dcColor || 'White', { r: 'scope', options: ['White', 'Ice Gray', 'Black'].map(c => [c, `${c} ($${(SUPPLIES.find(x => x.dc === c && /\(/.test(x.name)) || {}).price ?? ''}/sf)`]) }));
     if (k === 'manualHours') add(fld('Labor hours (total)', P + 'manualHours', s.manualHours, { type: 'number' }));
     if (k === 'plateLf' && !(S.est.projectType === 'commercial' && S.est.construction === 'retrofit')) add(fld('Linear ft', P + 'plateLf', s.plateLf ?? (Math.max(num(s.sillLf), num(s.caulkLf)) || ''), { type: 'number', hint: 'Caulk & sill gasket: 1 per 50 LF' }));
   });
@@ -1604,8 +1634,8 @@ function renderScopeResult(s, r) {
 
 function refreshCalc() {
   const e = S.est; if (!e) return;
-  const rules = effRules(e);
-  const res = e.options.map(o => computeOption(o, e, rules));
+  const QR = estResults(e), rules = QR.rules;
+  const res = QR.res;
   const c = res[S.activeOpt] || res[0];
   const act = document.activeElement;
   c.scopes.forEach(x => {
@@ -1633,7 +1663,7 @@ function refreshCalc() {
       <td>${esc(m.name)} <span class="pill" style="font-size:.62rem">auto</span><div class="muted" style="font-size:.7rem">${esc(m.note)}</div></td>
       <td><input data-autoq="${esc(m.name)}" value="${m.qty}" class="${m.overridden ? 'ovr' : ''}" title="${m.overridden ? 'Auto: ' + m.autoQty + ' — clear to reset' : 'Auto-calculated — type to override'}" style="width:100%;padding:5px;border:1px solid var(--border);border-radius:5px"></td>
       <td>${money(m.price)}</td><td style="text-align:right">${money(m.cost)}</td><td></td></tr>`).join(''));
-  const fin = e.options.length > 1 ? computeFinal(e, rules, res) : null;
+  const fin = QR.fin;
   const th = $('tripHint'), ti = c.tripInfo;
   if (th && ti && ti.fl) th.innerHTML = `Standard ${money0(ti.standard)} · <b>cost floor ${money(ti.floor)}</b> (${ti.fl.crew} workers, ${ti.fl.vehicles} truck${ti.fl.vehicles > 1 ? 's' : ''}) · recommended min ${money0(Math.ceil(ti.floor / 5) * 5)}${ti.raised ? ' · <b style="color:var(--red)">raised to floor</b>' : ''}`;
   setHTML('sumA', `
@@ -1648,7 +1678,7 @@ function refreshCalc() {
     <div class="sum-row"><span>Insulation materials${e.projectType === 'commercial' ? ' <span class="muted">(true cost)</span>' : ''}</span><span>${money(c.matCost)}</span></div>
     <div class="sum-row"><span>Job supplies &amp; charges</span><span>${money(c.miscCost)}</span></div>
     <div class="sum-row"><span>Labor (wages)</span><span>${money(c.laborWages)}</span></div>
-    ${c.mobWages ? `<div class="sum-row sub"><span>Mobilization ${fmtN(c.mobHrs)} h (1 h/installer/day @ each installer's rate)</span><span>${money(c.mobWages)}</span></div>` : ''}
+    ${c.mobWages ? `<div class="sum-row sub"><span>Mobilization ${fmtN(c.mobHrs)} h (1 h/installer/day @ $${fmtN(c.mobRate, 2)}/h)</span><span>${money(c.mobWages)}</span></div>` : ''}
     <div class="sum-row sub"><span>Payroll tax ${RULES.rates.payrollTaxPct}%</span><span>${money(c.payrollTax)}</span></div>
     <div class="sum-row"><span>Labor total</span><span>${money(c.laborTotal)}</span></div>
     <div class="sum-row"><span>Trip ${c.trips > 1 || c.vehicles > 1 ? `(${c.trips} trip${c.trips > 1 ? 's' : ''}${c.vehicles > 1 ? ` × ${c.vehicles} trucks` : ''})` : ''}</span><span>${money(c.trip)}</span></div>
@@ -1684,6 +1714,7 @@ function refreshCalc() {
     <button class="btn primary sm" onclick="saveEstimate()">Save</button>`;
   const sc = $('sumC'); if (sc) sc.innerHTML = e.crmDealId ? '<div class="small muted" style="margin-top:6px">✓ Linked to a CRM deal</div>' : '';
   renderSaveStatus();
+  if (estLocked(e) || document.body.classList.contains('est-locked')) applyEstLock();
 }
 
 function setHTML(id, html) { const el = $(id); if (el && el._h !== html) { el.innerHTML = html; el._h = html; } }
@@ -1917,6 +1948,75 @@ document.addEventListener('keydown', ev => {
   if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 's' && S.view === 'estimate') { ev.preventDefault(); saveEstimate(); }
   if (ev.key === 'Escape' && $('modalRoot').innerHTML) closeModal();
 });
+
+
+// ─── QUOTE LOCK (GM, Oct 6 2026) ─────────────────────────────────────────────
+// • Won jobs stay locked exactly as sold (read-only; set the status back from Won to change them).
+// • Other saved quotes open exactly as saved (the saved results are shown, read-only) — opening never reprices them.
+//   "Edit quote" recalculates with the prices & rules the quote was priced with.
+// • Quotes are good for 30 days; after that "Reprice" switches them to the current prices & rules.
+const QUOTE_VALID_DAYS = 30;
+const SNAP_VIEW = new WeakSet();
+function frozenRules() { const r = clone(RULES); delete r.employees; delete r.crewLeads; delete r.franchiseName; delete r.estimators; return r; }
+function newQuote() { return { pricedAt: new Date().toISOString(), rules: frozenRules(), book: priceBookNow() }; }
+// The saved snapshot is the quote: used while it is shown as saved, and by any other screen (Job Costing, Commissions)
+// that reads an estimate not open for editing. 'live' forces a fresh calculation (with the quote's saved prices & rules).
+function estResults(e, mode) {
+  if (e && e.quote && e.quote.snap && mode !== 'live' && (SNAP_VIEW.has(e) || e !== S.est)) return { rules: effRules(e), res: e.quote.snap.res, fin: e.quote.snap.fin, snap: true };
+  const rules = effRules(e);
+  return withBook(e && e.quote && e.quote.book, () => {
+    const res = e.options.map(o => computeOption(o, e, rules));
+    return { rules, res, fin: e.options.length > 1 ? computeFinal(e, rules, res) : null };
+  });
+}
+// Called on every save: the quote keeps its book; the snapshot is what the customer was quoted.
+function stampQuote(est) {
+  if (!est.quote) est.quote = newQuote();
+  if (SNAP_VIEW.has(est) && est.quote.snap) return estResults(est);
+  const x = estResults(est, 'live');
+  est.quote.snap = JSON.parse(JSON.stringify({ res: x.res, fin: x.fin }));
+  est.quote.snapAt = new Date().toISOString();
+  return x;
+}
+const quoteAgeDays = e => { const t = Date.parse((e.quote && e.quote.pricedAt) || ''); return isFinite(t) ? (Date.now() - t) / 864e5 : 0; };
+const isWon = e => !!(e && e.id && e.status === 'Won');
+const estLocked = e => !!e && (isWon(e) || SNAP_VIEW.has(e));
+const qDate = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function quoteBannerHtml(e) {
+  if (!e || !e.id || !e.quote) return '';
+  const t = Date.parse(e.quote.pricedAt), priced = isFinite(t) ? qDate(t) : '—', until = isFinite(t) ? qDate(t + QUOTE_VALID_DAYS * 864e5) : '—';
+  const old = quoteAgeDays(e) > QUOTE_VALID_DAYS;
+  if (isWon(e)) return `<div class="qbanner locked">🔒 <b>Won — locked exactly as sold</b> (priced ${priced}). To change it, set the status back from Won.</div>`;
+  if (SNAP_VIEW.has(e)) return `<div class="qbanner ${old ? 'expired' : ''}">${old ? `⏱ <b>Priced ${priced} — over ${QUOTE_VALID_DAYS} days ago.</b> Shown exactly as saved.` : `📄 <b>Showing this quote exactly as saved</b> (priced ${priced}, good until ${until}).`}
+    <span class="qb-acts">${old ? `<button class="btn sm primary" onclick="quoteReprice()">Reprice with current prices &amp; rules</button>` : ''}<button class="btn sm" onclick="quoteEdit()">Edit quote${old ? ' at saved prices' : ''}</button></span></div>`;
+  if (old) return `<div class="qbanner expired">⏱ <b>Priced ${priced} — over ${QUOTE_VALID_DAYS} days ago</b> (still using the prices &amp; rules from then). <span class="qb-acts"><button class="btn sm primary" onclick="quoteReprice()">Reprice with current prices &amp; rules</button></span></div>`;
+  return `<div class="qbanner subtle">Using the prices &amp; rules this quote was priced with on ${priced} (good until ${until}).</div>`;
+}
+const LOCK_OK_CLICK = /^\s*(switchOpt|duplicateEstimate|confirmDeleteEstimate|saveEstimate|_propMode|openProposal|openCrmModal|openSaveTemplate|setAllCollapsed|toggleCollapse|toggleScope|setEstTab|quoteEdit|quoteReprice)\b/;
+function applyEstLock() {
+  const e = S.est, qb = $('quoteBanner');
+  if (qb) qb.innerHTML = quoteBannerHtml(e);
+  const lock = S.view === 'estimate' && S.estTab !== 'actuals' && estLocked(e);
+  document.body.classList.toggle('est-locked', lock);
+  const root = document.querySelector('.est-layout'); if (!root) return;
+  root.querySelectorAll('input, select, textarea, button').forEach(el => {
+    let keep = !lock || el.dataset.b === 'est.status' || el.dataset.b === 'est.notes' || el.closest('#quoteBanner, #estHdrActs, .sb-actions');
+    if (!keep && el.tagName === 'BUTTON' && LOCK_OK_CLICK.test(el.getAttribute('onclick') || '')) keep = true;
+    if (!keep && el.classList.contains('opt-tab') && /^switchOpt/.test(el.getAttribute('onclick') || '')) keep = true;
+    if (keep) { if (el.dataset.qlock) { el.disabled = false; delete el.dataset.qlock; } }
+    else if (!el.disabled) { el.disabled = true; el.dataset.qlock = '1'; }
+  });
+  document.querySelectorAll('.est-layout [onclick*="Adj"], .est-layout .adj-item input').forEach(el => { if (lock && !el.disabled) { el.disabled = true; el.dataset.qlock = '1'; } });
+}
+function quoteEdit() { const e = S.est; if (!e || isWon(e)) return; SNAP_VIEW.delete(e); render(); toast('Editing — using the prices & rules this quote was priced with', 'ok'); }
+function quoteReprice() {
+  const e = S.est; if (!e || isWon(e)) return;
+  const before = estResults(e), b = (before.fin || before.res[0] || {}).price || 0;
+  SNAP_VIEW.delete(e); e.quote = newQuote(); delete e.quote.snap;
+  const after = estResults(e), a = (after.fin || after.res[0] || {}).price || 0;
+  markDirty(); render();
+  toast(`Repriced with current prices & rules: ${money0(b)} → ${money0(a)}`, 'ok');
+}
 // ════════════════════════════════════════════════════════════════════════════
 // PERSISTENCE, BUILDERS, SETTINGS, CRM, PROPOSAL
 // ════════════════════════════════════════════════════════════════════════════
@@ -1957,9 +2057,8 @@ function renderSaveStatus() {
 }
 
 function summaryCols(est) {
-  const rules = effRules(est);
-  const res = est.options.map(o => computeOption(o, est, rules));
-  const best = (est.options.length > 1 ? computeFinal(est, rules, res) : null) || res[0] || {};
+  const QR = stampQuote(est), rules = QR.rules, res = QR.res;   // keeps the quote's price book + a snapshot of what was quoted
+  const best = QR.fin || res[0] || {};
   return {
     franchise_id: FRANCHISE_ID, project_type: est.projectType, status: est.status, builder_id: est.builderId || null,
     project_name: est.projectName || null, customer_name: est.clientName || (curBuilderFor(est)?.name) || null,
@@ -2035,7 +2134,8 @@ async function openEstimate(id, tab) {
     if (!r) return toast('Estimate not found', 'error');
     flushAutosave(); clearUndo();
     const est = normalizeEst(Object.assign(newEstimate(r.project_type), r.data || {}));
-    est.id = r.id; S.est = est; S.activeOpt = 0; S.dirty = false; S.builderHist = null; S.estTab = tab || 'estimate';
+    est.id = r.id; if (est.quote && est.quote.snap) SNAP_VIEW.add(est);   // opens exactly as saved
+    S.est = est; S.activeOpt = 0; S.dirty = false; S.builderHist = null; S.estTab = tab || 'estimate';
     history.replaceState(null, '', '?id=' + r.id);
     S.view = 'estimate'; render(); window.scrollTo(0, 0);
     if (est.builderId) { S.builderHist = await loadBuilderHistory(est.builderId); renderBuilderPanel(); }
@@ -2048,7 +2148,7 @@ async function duplicateEstimate(id) {
   if (!r) return toast('Estimate not found', 'error');
   flushAutosave(); clearUndo();
   const est = normalizeEst(Object.assign(newEstimate(r.project_type), clone(r.data || {})));
-  est.id = null; est.status = 'Draft'; est.date = today(); est.crmDealId = null; est.projectName = (est.projectName || '') + ' (copy)';
+  est.id = null; est.status = 'Draft'; est.date = today(); est.crmDealId = null; delete est.quote;   // a copy is a new quote at today's prices est.projectName = (est.projectName || '') + ' (copy)';
   est.options.forEach(o => { o.id = uid(); o.scopes.forEach(s => s.id = uid()); });
   S.est = est; S.activeOpt = 0; S.estTab = 'estimate'; delete est.actuals; S.view = 'estimate'; history.replaceState(null, '', location.pathname);
   S.dirty = true; lsSet('koalaV2Draft', { est, at: Date.now() }); render();    // not auto-saved until you edit it or click Save
@@ -2102,7 +2202,7 @@ async function loadSettings() {
 const normKey = s => String(s).toLowerCase().replace(/\(.*?\)/g, '').replace(/["'″]/g, '').replace(/\bkraft\b/g, 'k').replace(/\bunfaced\b/g, 'uf').replace(/\s+/g, '').replace(/[^a-z0-9.&]/g, '');
 async function loadPricing() {
   try {
-    const items = await api('GET', 'common_items?select=category,product_type,product_name,unit_price,commercial_unit_price,coverage_sqft,price_per_sqft,unit_of_measure&order=sort_order');
+    const items = await api('GET', 'common_items?select=category,product_type,product_name,product_info,unit_price,commercial_unit_price,coverage_sqft,price_per_sqft,unit_of_measure&order=sort_order');
     items.forEach(ci => {
       const p = num(ci.unit_price), c = num(ci.coverage_sqft), t = ci.product_type || '';
       if (t.startsWith('Blow-In')) { const b = BLOW_IN.find(x => (t.includes('Cellulose') && x.key === 'cellulose') || (t.includes('Fiberglass') && x.key === 'jetstream')); if (b && p) b.price = p; return; }
@@ -2114,16 +2214,16 @@ async function loadPricing() {
         if (b) { if (p) b.price = p; if (c) b.coverage = c; if (ci.commercial_unit_price != null && ci.commercial_unit_price !== '') b.com = num(ci.commercial_unit_price); }
       }
     });
-    const MAP = { 'Baffles': 'Baffles', 'Removal Bags': 'Removal Bags', 'Foam Sealant': 'Foam Sealant', 'Poly Sheeting': 'Poly', 'Vapor Barrier 14 Mil': 'Vapor Barrier 14 Mil', 'Seam Tape': 'Seam Tape', 'N95 Mask': 'N95 Mask', 'Insulation Netting (cellulose)': 'Insulation Netting 10\' (For cellulose)', 'Insulation Netting (fiberglass)': 'Insulation Netting 10\' (For fiberglass)', 'Caulking': 'Caulking', 'Staples': 'Staples (For Blue Pneumatic Guns)', 'Sill Plate Gasket': 'Sill Plate Gasket', 'DC-315 Intumescent Coating': 'Intumescent Coating' };
+    const MAP = { 'Baffles': 'Baffles', 'Removal Bags': 'Removal Bags', 'Foam Sealant': 'Foam Sealant', 'Poly Sheeting': 'Poly', 'Vapor Barrier 14 Mil': 'Vapor Barrier 14 Mil', 'Seam Tape': 'Seam Tape', 'N95 Mask': 'N95 Mask', 'Insulation Netting (cellulose)': 'Insulation Netting 10\' (For cellulose)', 'Insulation Netting (fiberglass)': 'Insulation Netting 10\' (For fiberglass)', 'Caulking': 'Caulking', 'Staples': 'Staples (For Blue Pneumatic Guns)', 'Sill Plate Gasket': 'Sill Plate Gasket', };
     SUPPLIES.forEach(s => {
-      const ci = items.find(i => i.product_type === MAP[s.name]);
+      const ci = s.dc ? items.find(i => i.product_type === 'Intumescent Coating' && (i.product_info || '').toLowerCase() === s.dc.toLowerCase()) : items.find(i => i.product_type === MAP[s.name]);
       if (!ci) return;
       const cov = num(ci.coverage_sqft);
       if (s.perSf) { s.price = num(ci.price_per_sqft) || (cov ? num(ci.unit_price) / cov : s.price); return; }
       s.price = s.name === 'N95 Mask' && cov > 1 && num(ci.price_per_sqft) > 0 ? num(ci.price_per_sqft) : num(ci.unit_price) || s.price;   // N95 is sold in boxes of 10; everything else is priced per unit (e.g. a 50 LF gasket roll)
     });
     const have = new Set(SUPPLIES.map(s => s.name.toLowerCase()));
-    items.filter(i => ['Material', 'SPF Supplies', 'Tools/PPE'].includes(i.category)).forEach(ci => {
+    items.filter(i => ['Material', 'SPF Supplies', 'Tools/PPE'].includes(i.category) && i.product_type !== 'Intumescent Coating').forEach(ci => {   // DC-315 colors handled above
       const cov = num(ci.coverage_sqft);
       const name = ci.product_type + (items.filter(x => x.product_type === ci.product_type).length > 1 ? ' — ' + ci.product_name : '');
       if (have.has(name.toLowerCase())) return; have.add(name.toLowerCase());
@@ -2312,7 +2412,7 @@ function renderSettings() {
         <tr><td>Closed cell $/bd ft — Res · Commercial</td><td>${n('materialPricing.spf.res.cc', R.materialPricing.spf.res.cc, '0.01')} ${n('materialPricing.spf.commercial.cc', R.materialPricing.spf.commercial.cc, '0.01')}</td></tr>
         <tr><td>Open cell $/bd ft — Res · Commercial</td><td>${n('materialPricing.spf.res.oc', R.materialPricing.spf.res.oc, '0.01')} ${n('materialPricing.spf.commercial.oc', R.materialPricing.spf.commercial.oc, '0.01')}</td></tr>
         <tr><td>Markup on crew bonuses % · per diem &amp; lodging %</td><td>${n('additionalMarkup.bonusesPct', R.additionalMarkup.bonusesPct)} ${n('additionalMarkup.travelPct', R.additionalMarkup.travelPct)}</td></tr>
-        <tr><td>Mobilization hrs per installer per day (commercial — paid at each installer's own rate)</td><td>${n('mobilization.hrsPerInstallerPerDay', R.mobilization.hrsPerInstallerPerDay, '0.25')}</td></tr>
+        <tr><td>Mobilization hrs per installer per day (commercial only) · flat $/hr</td><td>${n('mobilization.hrsPerInstallerPerDay', R.mobilization.hrsPerInstallerPerDay, '0.25')} ${n('rates.mobilization', R.rates.mobilization, '0.25')}</td></tr>
         <tr><td>Equipment fuel $/hr of job time</td><td>${n('rates.generatorFuel', R.rates.generatorFuel, '0.05')}</td></tr>
       </table></div>
       <div class="settings-sec"><h4>Air-sealing supplies (new construction)</h4><table class="tbl-edit">
@@ -2326,10 +2426,7 @@ function renderSettings() {
       <div class="settings-sec"><h4>Crew efficiency (crews larger than 2)</h4><table class="tbl-edit">
         ${Object.entries(R.crewEfficiency).map(([k, v]) => `<tr><td>${k} installers</td><td>${n('crewEfficiency.' + k, v, '0.01')}</td></tr>`).join('')}</table></div>
       <div class="settings-sec"><h4>Overtime, travel &amp; bonuses</h4><table class="tbl-edit">
-        <tr><td>Max extra hrs on the last day before adding a day</td><td>${n('ot.maxOtPerDay', R.ot.maxOtPerDay, '0.5')}</td></tr>
-        <tr><td>Overtime pay after hrs per installer per week</td><td>${n('ot.weeklyThreshold', R.ot.weeklyThreshold)}</td></tr>
-        <tr><td>Work days per week (for the weekly OT count)</td><td>${n('ot.workDaysPerWeek', R.ot.workDaysPerWeek)}</td></tr>
-        <tr><td>Auto OT hrs per installer per day after the weekly threshold (when ticked on the estimate)</td><td>${n('ot.addHrsPerDayAfterThreshold', R.ot.addHrsPerDayAfterThreshold, '0.5')}</td></tr>
+        <tr><td>Auto schedule: max hrs over 8 on the last day (paid as OT) before adding a day</td><td>${n('ot.maxOtPerDay', R.ot.maxOtPerDay, '0.5')}</td></tr>
         <tr><td>Labor hour rounding (whole hours)</td><td><select data-set="laborRounding" data-str="1">${[['up', 'Round up (7.2 → 8)'], ['nearest', 'Round to nearest'], ['down', 'Round down']].map(([v, l]) => `<option value="${v}" ${(R.laborRounding || 'up') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td></tr>
         <tr><td>Spray foam thickness rounds up to the next (in)</td><td>${n('spf.thicknessStep', R.spf.thicknessStep, '0.125')}</td></tr>
         <tr><td>Overnight if drive one-way &gt; hrs</td><td>${n('travel.overnightDriveHrs', R.travel.overnightDriveHrs, '0.5')}</td></tr>
@@ -2406,8 +2503,8 @@ let CRM = { deals: [], sel: null, mode: 'new' };
 async function openCrmModal() {
   if (!S.est) return;
   await refreshSession();
-  const e = S.est, rules = effRules(e);
-  const res = e.options.map(o => computeOption(o, e, rules));
+  const e = S.est, QR = estResults(e), rules = QR.rules;
+  const res = QR.res;
   CRM.sel = e.crmDealId || null; CRM.mode = e.crmDealId ? 'link' : 'new'; CRM.q = undefined;
   try { CRM.deals = await api('GET', 'crm_deals?archived=eq.false&select=id,name,stage,value,reps,position&order=updated_at.desc&limit=400'); } catch { CRM.deals = []; }
   const b = curBuilder();
@@ -2427,7 +2524,7 @@ async function openCrmModal() {
       <div class="grid" style="margin-top:12px">
         <div class="field span2" id="crmNameWrap"><label>Deal name</label><input id="crmName" value="${esc(defName)}"></div>
         <div class="field"><label>Stage</label><select id="crmStage">${CRM_STAGES.map(s => `<option ${s === ({ Won: 'Estimate Won', Lost: 'Estimate Lost' }[e.status] || 'Estimate Completed') ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
-        <div class="field"><label>Value from</label><select id="crmOpt">${res.length > 1 ? (() => { const f = computeFinal(e, rules, res); return f ? `<option value="final">Final (Combined) — ${money0(f.price)}</option>` : ''; })() : ''}${res.map((r, i) => `<option value="${i}">${esc(e.options[i].name)} — ${money0(r.price)}</option>`).join('')}${res.length > 1 ? `<option value="max">Highest option</option>` : ''}</select></div>
+        <div class="field"><label>Value from</label><select id="crmOpt">${res.length > 1 ? (() => { const f = QR.fin; return f ? `<option value="final">Final (Combined) — ${money0(f.price)}</option>` : ''; })() : ''}${res.map((r, i) => `<option value="${i}">${esc(e.options[i].name)} — ${money0(r.price)}</option>`).join('')}${res.length > 1 ? `<option value="max">Highest option</option>` : ''}</select></div>
         <div class="field"><label>Follow-up date</label><input id="crmDue" type="date" value="${due}"></div>
         <div class="field"><label>Rep</label><input id="crmRep" value="${esc(e.estimator)}"></div>
       </div>
@@ -2470,9 +2567,9 @@ async function crmPush() {
   const s = await refreshSession(); if (!s) return toast('Sign in first', 'error');
   if (CRM.mode === 'link' && !CRM.sel) return toast('Pick the deal to update', 'error');
   if (!S.est.id) await saveEstimate(true);
-  const e = S.est, rules = effRules(e), res = e.options.map(o => computeOption(o, e, rules));
+  const e = S.est, QR = estResults(e), rules = QR.rules, res = QR.res;
   const ov = $('crmOpt').value;
-  const value = r2(ov === 'final' ? computeFinal(e, rules, res).price : ov === 'max' ? Math.max(...res.map(r => r.price)) : res[parseInt(ov)].price);
+  const value = r2(ov === 'final' ? QR.fin.price : ov === 'max' ? Math.max(...res.map(r => r.price)) : res[parseInt(ov)].price);
   const summary = estimateSummaryText(e, res);
   const stage = $('crmStage').value, due = $('crmDue').value || null, rep = $('crmRep').value.trim();
   const hdr = { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + s.access_token, 'Content-Type': 'application/json', Prefer: 'return=representation' };
@@ -2558,8 +2655,8 @@ let _propMode = null;
 let _propItemized = lsGet('koalaV2PropItemized'); if (_propItemized === null) _propItemized = true;
 function setPropItemized(v) { _propItemized = !!v; lsSet('koalaV2PropItemized', _propItemized); openProposal(); }
 function openProposal(mode) {
-  const e = S.est, rules = effRules(e), allRes = e.options.map(o => computeOption(o, e, rules)), b = curBuilder(), pt = PROJECT_TYPES[e.projectType];
-  const fin = e.options.length > 1 ? computeFinal(e, rules, allRes) : null;
+  const e = S.est, QR = estResults(e), rules = QR.rules, allRes = QR.res, b = curBuilder(), pt = PROJECT_TYPES[e.projectType];
+  const fin = QR.fin;
   mode = mode || _propMode || (fin && fin.count > 1 ? 'final' : 'options'); _propMode = mode;
   const useFinal = mode === 'final' && fin;
   const idx = e.options.map((o, i) => i).filter(i => !useFinal || (e.options[i].includeInFinal ?? i === 0));

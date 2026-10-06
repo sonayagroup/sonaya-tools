@@ -582,11 +582,11 @@ body.customer-mode .customer-total-box { display: block; }
   padding: 12px 20px; border-radius: 8px;
   font-size: .88rem; font-weight: 600;
   box-shadow: 0 4px 16px rgba(0,0,0,.25);
-  z-index: 9999; opacity: 0; transform: translateY(10px);
+  z-index: 9999; opacity: 0; transform: translateY(10px); pointer-events: none;
   transition: opacity .3s, transform .3s;
   max-width: 400px;
 }
-.toast.show { opacity: 1; transform: translateY(0); }
+.toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
 .toast.error { background: var(--red); }
 .toast.success { background: #2e7d32; }
 
@@ -629,6 +629,18 @@ body.customer-mode .customer-total-box { display: block; }
 .estimate-badge .badge-label { font-weight: 600; color: var(--green); }
 
 /* ── Print ───────────────────────────── */
+/* Phones: nothing wider than the screen (tables scroll inside their card) */
+@media (max-width: 640px) {
+  header { flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
+  header h1 { font-size: 1rem; }
+  .header-actions { flex-wrap: wrap; gap: 6px; }
+  .area-row { flex-wrap: wrap; }
+  .row { flex-wrap: wrap; }
+  .main { padding: 12px; min-width: 0; }
+  .card { min-width: 0; }
+  table.line-items, .kg table { display: block; overflow-x: auto; max-width: 100%; }
+  .option-tabs { flex-wrap: wrap; }
+}
 @media print {
   header { position: static; }
   .sidebar { position: static; height: auto; }
@@ -1232,6 +1244,7 @@ const KG = (() => {
       <button class="btn-add" data-kgadd="1" style="margin-top:4px">+ Add labor scope</button>
       <div class="kg-res" id="${p}kg-res"></div>`;
     refresh(opt);
+    if (document.body.classList.contains('quote-locked') && typeof lockInputs === 'function') lockInputs(true);
   }
 
   function syncJobType(opt, ctx) {
@@ -1287,7 +1300,7 @@ const KG = (() => {
   // Write guideline labor into the Labor table rows. Only touches fields whose value differs,
   // so it is safe to run on every recalc (no loops). Returns true if anything changed.
   function sync(opt, announce) {
-    if (busy) return false;
+    if (busy || opt.hold || (typeof quoteLocked === 'function' && quoteLocked())) return false;   // saved quote shown as saved / won job: never rewrite labor
     const c = calc(opt), p = optPrefixFor(opt), G = opt.guide;
     if (!g(p + 'laborBody')) return false;
     busy = true; let changed = false;
@@ -1325,9 +1338,14 @@ const KG = (() => {
         if (c.overnight) {
           [['Lodging (hotel)', c.nights * c.C, R.travel.lodgingPerNight], ['Per Diem', c.nights * c.C, R.travel.perDiem]].forEach(([name, qty, price]) => {
             let m = opt.rows.misc.find(x => (document.querySelector(`.${CSS.escape(p)}ms-name[data-id="${x.id}"]`)?.value || '') === name);
-            if (!m) { if (options[activeOptionIdx] !== opt) activeOptionIdx = options.indexOf(opt); addMisc(name, qty); m = opt.rows.misc[opt.rows.misc.length - 1]; activeOptionIdx = options.indexOf(wasActive); changed = true; }
+            if (!m) { if (options[activeOptionIdx] !== opt) activeOptionIdx = options.indexOf(opt); addMisc(name, qty, true); m = opt.rows.misc[opt.rows.misc.length - 1]; activeOptionIdx = options.indexOf(wasActive); changed = true; }
             set(document.querySelector(`.${CSS.escape(p)}ms-qty[data-id="${m.id}"]`), qty);
             const pi = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${m.id}"]`); if (pi && !n(pi.value)) set(pi, price);
+          });
+        } else {                                    // no longer overnight: drop the lodging / per diem rows this panel added
+          opt.rows.misc.slice().forEach(m => {
+            const tr = g(p + 'ms-' + m.id), nm = tr?.querySelector(`.${CSS.escape(p)}ms-name`)?.value || '';
+            if (tr && tr.dataset.auto === '1' && !tr.dataset.userEdited && (nm === 'Lodging (hotel)' || nm === 'Per Diem')) { tr.remove(); opt.rows.misc = opt.rows.misc.filter(x => x !== m); changed = true; }
           });
         }
         G.synced = true;
@@ -1344,6 +1362,7 @@ const KG = (() => {
   function onEvt(ev) {
     const el = ev.target; if (!el.closest || !el.closest('.kg')) return;
     const opt = optFromEl(el); if (!opt) return;
+    if ((typeof quoteLocked === 'function' && quoteLocked())) { render(opt); return; }          // won job: nothing changes
     const G = opt.guide;
     const val = el.type === 'checkbox' ? el.checked : el.value;
     if (el.dataset.kgauto) { G.auto = el.checked; render(opt); if (G.auto) sync(opt); }
@@ -1374,7 +1393,7 @@ const KG = (() => {
     const tr = b.classList.contains('btn-remove') ? b.closest('tr[id*="lb-"]') : null;
     if (!isAdd && !tr) return;
     if (tr && /mobiliz/i.test(tr.querySelector('input[class*="lb-label"]')?.value || '')) return;
-    const opt = options[activeOptionIdx]; if (!opt || !opt.guide || opt.guide.auto === false) return;
+    const opt = options[activeOptionIdx]; if (!opt || !opt.guide || opt.guide.auto === false || opt.hold || (typeof quoteLocked === 'function' && quoteLocked())) return;
     opt.guide.crew = Math.max(1, (parseInt(opt.guide.crew) || 2) + (isAdd ? 1 : -1));   // set before the row handler's recalc runs
     setTimeout(() => { render(opt); sync(opt); scheduleAutoSave(); }, 0);
   }, true);
@@ -1382,6 +1401,7 @@ const KG = (() => {
   document.addEventListener('click', ev => {
     const el = ev.target; if (!el.closest || !el.closest('.kg')) return;
     const opt = optFromEl(el); if (!opt) return;
+    if ((typeof quoteLocked === 'function' && quoteLocked())) return;
     if (el.dataset.kgadd) { opt.guide.lines.push({ ...newLine('open_attic', opt.guide.jobType), auto: false }); opt.guide.lines.forEach(l => l.auto = false); render(opt); scheduleAutoSave(); }
     else if (el.dataset.kgdel) { opt.guide.lines = opt.guide.lines.filter(l => l.id !== el.dataset.kgdel); opt.guide.lines.forEach(l => l.auto = false); render(opt); scheduleAutoSave(); }
     else if (el.dataset.kgapply) apply(opt);
@@ -1572,7 +1592,7 @@ const JOB_AUTO_SUPPLIES = {
   attic:     [{ name: 'Foam Sealant', qty: 2 }, { name: 'Poly Sheeting', qty: 1 }, { name: 'Baffles', qty: 20 }],
   densepack: [{ name: 'Insulweb (cellulose)', qty: 1 }],
   netblow:   [{ name: 'Insulweb (cellulose)', qty: 1 }],
-  removal:   [{ name: 'Dumpster', qty: 1 }, { name: 'Removal Bags', qty: 10 }, { name: 'N95 Mask', qty: 4 }, { name: 'Foam Sealant', qty: 2 }],
+  removal:   [{ name: 'Dumpster', qty: 1 }, { name: 'Removal Bags', qty: 10 }, { name: 'Foam Sealant', qty: 2 }],   // N95 masks come from the automatic job-supplies rule
   metal:     [],
   shed:        [],
   mobilehome:  [],
@@ -1618,9 +1638,10 @@ function normKey(s) {
 // Starts with MISC_CATALOG; augmented with Supabase common_items after load
 let allPricingItems = MISC_CATALOG.map(m => ({ name: m.name, price: m.price }));
 
+const numOr = (v, d) => { const x = parseFloat(v); return isFinite(x) ? x : d; };   // 0 is a real value; blank → default
 function escHtml(s) {
-  if (!s) return '';
-  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if (s == null || s === '') return '';
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 let pricingLoaded = false;
@@ -1852,16 +1873,18 @@ function createOption(name) {
   opt.guide = KG.newGuide();
   KG.render(opt);
   renderTabs();
+  if (typeof updateTripDropdowns === 'function') updateTripDropdowns();   // live tier prices on new options too
   switchToOption(options.length - 1);
   return opt;
 }
 
 function removeOption(idx) {
-  if (options.length <= 1) return;
+  if (options.length <= 1 || (typeof quoteLocked === 'function' && quoteLocked())) return;
   const opt = options[idx];
   const container = $('opt-' + opt.id);
   if (container) container.remove();
   options.splice(idx, 1);
+  if (idx < activeOptionIdx) activeOptionIdx--;           // keep the same option selected
   if (activeOptionIdx >= options.length) activeOptionIdx = options.length - 1;
   renderTabs();
   switchToOption(activeOptionIdx);
@@ -1873,9 +1896,9 @@ function renderTabs() {
   options.forEach((opt, i) => {
     const btn = document.createElement('button');
     btn.className = 'option-tab' + (i === activeOptionIdx ? ' active' : '');
-    btn.innerHTML = opt.name;
+    btn.textContent = opt.name;
     if (options.length > 1) {
-      btn.innerHTML += ` <span class="tab-close" onclick="event.stopPropagation(); removeOption(${i})">&#10005;</span>`;
+      btn.insertAdjacentHTML('beforeend', ` <span class="tab-close" onclick="event.stopPropagation(); removeOption(${i})">&#10005;</span>`);
     }
     let clickTimer = null;
     let editing = false;
@@ -1885,6 +1908,7 @@ function renderTabs() {
       clickTimer = setTimeout(() => { clickTimer = null; switchToOption(i); }, 250);
     };
     btn.ondblclick = (e) => {
+      if (typeof quoteLocked === 'function' && quoteLocked()) return;   // won job: names stay as sold
       if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
       e.stopPropagation();
       e.preventDefault();
@@ -2127,7 +2151,7 @@ function duplicateOptionInner() {
 
   // Misc
   srcData.misc.forEach(row => {
-    addMisc(row.itemName || undefined, parseFloat(row.qty) || 1, row.auto);
+    addMisc(row.itemName || undefined, row.qty === '' || row.qty == null || isNaN(parseFloat(row.qty)) ? 1 : parseFloat(row.qty), row.auto);
     const lastMisc = newOpt.rows.misc[newOpt.rows.misc.length - 1];
     if (row.edited) { const tr = document.getElementById(p + 'ms-' + lastMisc.id); if (tr) tr.dataset.userEdited = '1'; }
     const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${lastMisc.id}"]`);
@@ -2162,7 +2186,7 @@ function buildOptionContainer(opt) {
   const p = optPrefixFor(opt);
   div.innerHTML = `
     <!-- Margin Override -->
-    <div class="margin-override-row" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 12px;background:var(--surface-2,#f0f4f8);border-radius:6px;font-size:.85rem">
+    <div class="margin-override-row internal-only" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 12px;background:var(--surface-2,#f0f4f8);border-radius:6px;font-size:.85rem">
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--navy);font-weight:600">
         <input type="checkbox" id="${p}marginOverrideCheck" onchange="toggleMarginOverride('${p}',this.checked); recalc()">
         Custom Margin
@@ -2309,7 +2333,7 @@ function buildOptionContainer(opt) {
     <!-- Batt / Rigid -->
     <div class="card">
       <h2><span class="icon">&#129521;</span> Batt &amp; Rigid Insulation</h2>
-      <div id="${p}battSuggestions"></div>
+      <div id="${p}battSuggestions" class="internal-only"></div>
       <table class="line-items">
         <thead><tr><th style="width:35%">Product</th><th>Qty</th><th class="cost-col">$/Unit</th><th>Sq Ft</th><th class="num cost-col">Cost</th><th></th></tr></thead>
         <tbody id="${p}battBody"></tbody>
@@ -2373,9 +2397,9 @@ function getOptionMargin(opt) {
   const p = optPrefixFor(opt);
   const cb = $(p + 'marginOverrideCheck');
   if (cb && cb.checked) {
-    return parseFloat($(p + 'marginOverride').value) || 50;
+    return numOr($(p + 'marginOverride').value, 50);
   }
-  return parseFloat($('marginInput').value) || 50;
+  return numOr($('marginInput').value, 50);
 }
 
 function toggleJobDetailsOverride(p, checked) {
@@ -2554,7 +2578,7 @@ function addLabor(labelOverride, rateOverride, otRateOverride) {
   opt.rows.labor.push(id);
   const tr = document.createElement('tr'); tr.id = p + 'lb-' + id;
   tr.innerHTML = `
-    <td><input type="text" value="${label}" class="${p}lb-label" data-id="${id}" style="width:110px;font-size:.8rem"></td>
+    <td><input type="text" value="${escHtml(label)}" class="${p}lb-label" data-id="${id}" style="width:110px;font-size:.8rem"></td>
     <td><input type="number" value="0" min="0" step="0.5" class="${p}lb-hrs" data-id="${id}" oninput="recalc()" style="width:60px"></td>
     <td><input type="number" value="${defaultRate}" min="0" step="0.5" class="${p}lb-rate" data-id="${id}" oninput="recalc()" style="width:60px"></td>
     <td><input type="number" value="0" min="0" step="0.5" class="${p}lb-ot" data-id="${id}" oninput="recalc()" style="width:60px"></td>
@@ -2579,7 +2603,7 @@ function addMisc(presetName, presetQty, autoTag) {
     <td><div class="misc-ac-wrap"><input type="text" class="${p}ms-name" data-id="${id}" placeholder="Type to search..."
          oninput="filterMiscAC('${p}',${id})" onfocus="filterMiscAC('${p}',${id})" autocomplete="off">
       <div class="misc-ac-dropdown" data-id="${id}"></div></div>${autoTag ? '<span class="auto-badge">Auto</span>' : ''}</td>
-    <td><input type="number" value="${presetQty || 1}" min="0" class="${p}ms-qty" data-id="${id}" oninput="recalc()"></td>
+    <td><input type="number" value="${presetQty == null || presetQty === '' ? 1 : presetQty}" min="0" class="${p}ms-qty" data-id="${id}" oninput="recalc()"></td>
     <td class="cost-col"><input type="number" value="0" min="0" step="0.01" class="${p}ms-price" data-id="${id}" oninput="recalc()" style="width:80px;text-align:right;font-size:.85rem"></td>
     <td class="num cost ${p}ms-cost cost-col" data-id="${id}">$0.00</td>
     <td><button class="btn-remove" onclick="removeRow('misc','${p}ms-${id}',${id})">&#10005;</button></td>`;
@@ -2699,26 +2723,24 @@ function onJobTypeChange() {
   // Show/hide "Other" text input
   const otherInput = $('jobTypeOther');
   if (otherInput) otherInput.style.display = jobType === 'other' ? '' : 'none';
-  // Auto-fill misc supplies for every option
+  // Auto-fill the job type's supplies on every option that follows the main job details
+  // (options with their own Custom Job Details keep theirs; N95 / SPF supplies / lodging are managed elsewhere)
+  const jobNames = new Set(Object.values(JOB_AUTO_SUPPLIES).flat().map(x => x.name));
+  const wasActive = activeOptionIdx;
   options.forEach((opt, idx) => {
     const p = optPrefixFor(opt);
-    // Remove existing auto-filled rows
+    if ($(p + 'jobDetailsCheck')?.checked) return;
     opt.rows.misc = opt.rows.misc.filter(m => {
-      if (m.auto) {
-        const tr = document.getElementById(p + 'ms-' + m.id);
-        if (tr) tr.remove();
-        return false;
-      }
+      const tr = document.getElementById(p + 'ms-' + m.id);
+      const nm = tr?.querySelector(`.${CSS.escape(p)}ms-name`)?.value || '';
+      if (m.auto && jobNames.has(nm)) { if (tr) tr.remove(); return false; }
       return true;
     });
+    if (jobType && JOB_AUTO_SUPPLIES[jobType]) {
+      activeOptionIdx = idx;                                 // addMisc targets the active option
+      try { JOB_AUTO_SUPPLIES[jobType].forEach(x => addMisc(x.name, x.qty, true)); } finally { activeOptionIdx = wasActive; }
+    }
   });
-
-  // Add new auto supplies to active option
-  if (jobType && JOB_AUTO_SUPPLIES[jobType]) {
-    JOB_AUTO_SUPPLIES[jobType].forEach(s => {
-      addMisc(s.name, s.qty, true);
-    });
-  }
   recalc();
 }
 
@@ -3280,11 +3302,12 @@ document.addEventListener('input', ev => {
 const QUOTE_VALID_DAYS = 30;
 let quoteInfo = { pricedAt: null, loaded: false };
 const isWonStatus = s => s === 'accepted' || s === 'completed';
-function quoteLocked() { return !!currentEstimateId && isWonStatus($('saveStatus')?.value); }
+let savedStatus = 'draft';                              // status as saved (the Save dialog's select may hold an unsaved choice)
+function quoteLocked() { return !!currentEstimateId && isWonStatus(savedStatus); }
 function quoteAgeDays() { const t = Date.parse(quoteInfo.pricedAt || ''); return isFinite(t) ? (Date.now() - t) / 864e5 : 0; }
 function fmtQDate(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
 function lockInputs(on) {
-  document.querySelectorAll('.app .main input, .app .main select, .app .main textarea, .app .main button').forEach(el => {
+  document.querySelectorAll('.app input, .app select, .app textarea, .app button').forEach(el => {
     if (el.closest('#quoteBanner') || el.closest('#optionTabBar') && !el.closest('.tab-add-wrap, .tab-close, [onclick*="remove"], [onclick*="delete"]')) return;   // can still switch between options
     if (on) { if (!el.disabled) { el.disabled = true; el.dataset.qlock = '1'; } }
     else if (el.dataset.qlock) { el.disabled = false; delete el.dataset.qlock; }
@@ -3344,6 +3367,8 @@ function repriceQuote() {
     o.hold = false;
   });
   activeOptionIdx = wasActive;
+  updateTripDropdowns();                                // current trip tiers
+  options.forEach(o => { const p = optPrefixFor(o), t = $(p + 'tripTier'); if (t && t.value !== 'custom' && t.value !== '0') onTripTierChange(p); });
   autoSuppliesOn = true;
   quoteInfo.pricedAt = new Date().toISOString();
   options.forEach(o => KG.render(o));
@@ -3388,6 +3413,7 @@ function updateAutoJobSupplies() {
       const rows = o.rows.misc.map(m => ({ m, tr: document.getElementById(p + 'ms-' + m.id) })).filter(x => x.tr && (x.tr.querySelector(`.${CSS.escape(p)}ms-name`)?.value || '') === name);
       if (rows.some(x => x.tr.dataset.auto !== '1' || x.tr.dataset.userEdited)) return;     // a hand-entered / edited row wins
       let row = rows[0];
+      rows.slice(1).forEach(x => { x.tr.remove(); o.rows.misc = o.rows.misc.filter(m => m !== x.m); });   // one auto row per item (older removal jobs had two N95 rows)
       if (!row) {
         if (!qty) return;
         const was = activeOptionIdx; activeOptionIdx = options.indexOf(o);                   // addMisc targets the active option
@@ -3402,7 +3428,7 @@ function updateAutoJobSupplies() {
 }
 
 function recalc() {
-  if (document.body.classList.contains('quote-locked')) lockInputs(true);
+  if (document.body.classList.contains('quote-locked')) { lockInputs(true); setTimeout(() => lockInputs(true), 0); }
   updateAutoFoam();
   updateAutoJobSupplies();
   const opt = getOpt();
@@ -3412,7 +3438,7 @@ function recalc() {
   const divisor = 1 - (margin / 100) - (royalty / 100);
 
   // Update margin display for all options
-  const globalMargin = parseFloat($('marginInput').value) || 50;
+  const globalMargin = numOr($('marginInput').value, 50);
   options.forEach(o => {
     const pr = optPrefixFor(o);
     const dispVal = $(pr + 'marginDisplayVal');
@@ -3458,7 +3484,7 @@ function recalc() {
     const cp = getOptionCustomerPrice(o);
     const row = document.createElement('div');
     row.className = 'option-price-row';
-    row.innerHTML = `<span class="opt-label">${o.name}</span><span class="opt-price">${fmt(cp)}</span>`;
+    row.innerHTML = `<span class="opt-label">${escHtml(o.name)}</span><span class="opt-price">${fmt(cp)}</span>`;
     custPrices.appendChild(row);
   });
 
@@ -3494,13 +3520,17 @@ function setAutoSaveStatus(state, label) {
   $('autosaveLabel').textContent = label;
 }
 
+let _lastSavedForm = null;                              // what is in the database now (form + status) — autosave only writes real changes
 async function doAutoSave() {
   if (_autoSaving || _suppressAutoSave) return;
+  if (quoteLocked()) { setAutoSaveStatus('saved', 'Saved'); return; }          // won job: never rewritten
+  const formData0 = serializeForm(), sig = JSON.stringify(formData0) + '|' + (currentEstimateId ? savedStatus : 'draft');
+  if (currentEstimateId && sig === _lastSavedForm) { setAutoSaveStatus('saved', 'Saved'); return; }   // e.g. only switched tabs
   _autoSaving = true;
   setAutoSaveStatus('saving', 'Saving…');
 
   try {
-    const formData = serializeForm();
+    const formData = formData0;
     const c = calcOption(getOpt());
     const margin = getOptionMargin(getOpt());
     const royalty = parseFloat($('royaltyInput').value) || 0;
@@ -3513,7 +3543,7 @@ async function doAutoSave() {
       customer_phone: $('savePhone')?.value || '',
       customer_email: $('saveEmail')?.value || '',
       estimator_name: $('estimator').value || '',
-      status: currentEstimateId ? ($('saveStatus')?.value || 'draft') : 'draft',
+      status: currentEstimateId ? savedStatus : 'draft',
       notes: $('saveNotes')?.value || '',
       total_cost: parseFloat(c.totalJobCost.toFixed(2)),
       customer_price: parseFloat(customerPrice.toFixed(2)),
@@ -3537,6 +3567,7 @@ async function doAutoSave() {
       window.history.replaceState({}, '', url);
       updateEstimateBadge(record.customer_name);
     }
+    _lastSavedForm = sig;
     setAutoSaveStatus('saved', 'Saved');
   } catch (err) {
     console.error('Auto-save error:', err);
@@ -3867,7 +3898,7 @@ function deserializeForm(data) {
         const idx = parseInt(row.item);
         if (!isNaN(idx) && MISC_CATALOG[idx]) itemName = MISC_CATALOG[idx].name;
       }
-      addMisc(itemName || undefined, parseFloat(row.qty) || 1, row.auto);   // parseFloat: SPF supplies come in 0.25 sets
+      addMisc(itemName || undefined, row.qty === '' || row.qty == null || isNaN(parseFloat(row.qty)) ? 1 : parseFloat(row.qty), row.auto);   // parseFloat: SPF supplies come in 0.25 sets; a saved 0 stays 0
       const lastMisc = opt.rows.misc[opt.rows.misc.length - 1];
       if (row.edited || (row.auto && itemName === 'Foam Sealant' && row.edited === undefined)) { const tr = document.getElementById(p + 'ms-' + lastMisc.id); if (tr) tr.dataset.userEdited = '1'; }   // older saves: keep their foam count
       const priceInput = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${lastMisc.id}"]`);
@@ -3970,6 +4001,7 @@ async function saveEstimate() {
     }
 
     // Update badge & auto-save status
+    savedStatus = record.status; _lastSavedForm = JSON.stringify(record.form_data) + '|' + record.status;
     quoteInfo.loaded = true; applyQuoteLock();
     updateEstimateBadge(record.customer_name);
     setAutoSaveStatus('saved', 'Saved');
@@ -4011,6 +4043,9 @@ async function loadEstimateFromUrl() {
     $('savePhone').value = est.customer_phone || '';
     $('saveEmail').value = est.customer_email || '';
     $('saveStatus').value = est.status || 'draft';
+    savedStatus = est.status || 'draft';
+    if (!quoteInfo.pricedAt) quoteInfo.pricedAt = est.created_at || null;
+    _lastSavedForm = JSON.stringify(serializeForm()) + '|' + savedStatus;
     $('saveNotes').value = est.notes || '';
     if (!quoteInfo.pricedAt) quoteInfo.pricedAt = est.created_at || null;   // older saves: quote date = when it was created
     quoteInfo.loaded = true;
@@ -4153,7 +4188,7 @@ function getSelectedEmailOptions() {
 
 function getOptionCustomerPrice(opt) {
   const margin = getOptionMargin(opt);
-  const royalty = parseFloat($('royaltyInput').value) || 5;
+  const royalty = numOr($('royaltyInput').value, 5);
   const divisor = 1 - (margin / 100) - (royalty / 100);
   const c = calcOption(opt);
   return divisor > 0 ? c.totalJobCost / divisor : 0;
@@ -4168,7 +4203,7 @@ function getMarginPercent() {
   const selectedIdxs = getSelectedEmailOptions();
   if (selectedIdxs.length === 0) {
     // No options selected — fall back to global margin
-    return (parseFloat($('marginInput').value) || 50) + '%';
+    return numOr($('marginInput').value, 50) + '%';
   }
   // Collect margins for each selected option
   const margins = selectedIdxs.map(i => getOptionMargin(options[i]));
@@ -4300,11 +4335,6 @@ function detailRow(label, value) {
   return '<div class="ep-detail-row"><span class="ep-detail-label">' + label + '</span><span class="ep-detail-value">' + escHtml(value || '') + '</span></div>';
 }
 
-function escHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
 
 function copyEmailPlainText() {
   const custName = $('custName').value || '—';
@@ -4503,6 +4533,9 @@ function createFinalCombined() {
   // Create new Final / Combined option
   const combined = createOption('Final / Combined');
   const cp = optPrefixFor(combined);
+  combined.guide.auto = false;                         // labor is copied from the accepted options, not recalculated
+  _restoring = true;                                   // no auto rows while copying
+  try {
 
   // Make it the active option (createOption already does switchToOption)
   // Remove the default labor row that createOption + addLabor added
@@ -4570,9 +4603,10 @@ function createFinalCombined() {
     if (bonus) bonus.value = row.bonus || '0';
   });
 
-  // Populate misc
+  // Populate misc (automatic N95 / SPF supplies are recalculated from the combined rows)
   combinedData.misc.forEach(row => {
-    addMisc(row.itemName, parseInt(row.qty) || 1, row.auto);
+    if (row.auto && autoSuppliesOn && (row.itemName === 'N95 Mask' || row.itemName === 'SPF Supplies/PPE')) return;
+    addMisc(row.itemName, row.qty === '' || isNaN(parseFloat(row.qty)) ? 1 : parseFloat(row.qty), row.auto);
     const lastMisc = combined.rows.misc[combined.rows.misc.length - 1];
     const priceInput = document.querySelector(`.${CSS.escape(cp)}ms-price[data-id="${lastMisc.id}"]`);
     if (priceInput && row.price) priceInput.value = row.price;
@@ -4600,6 +4634,8 @@ function createFinalCombined() {
     $(cp + 'genHours').value = totalGenHours;
     $(cp + 'fuelRate').value = bestFuelRate;
   }
+  } finally { _restoring = false; }
+  KG.render(combined);
 
   // Close email panel
   closeEmailPanel();

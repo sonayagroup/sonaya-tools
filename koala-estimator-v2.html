@@ -284,10 +284,10 @@ const DEFAULT_RULES = {
   materialPricing: {
     battMarkup: 1.10,                                       // GM: residential batts = cost + 10%. Fallback only — each batt carries both price books.
     blow: { res: { cellulose: 15, jetstream: 39, l77: 39 }, commercial: { cellulose: 10.94, jetstream: 30, l77: 33 } },
-    spf:  { res: { cc: 0.57, oc: 0.17 }, commercial: { cc: 0.52, oc: 0.12 } },
+    spf:  { res: { cc: 0.54, oc: 0.16 }, commercial: { cc: 0.49, oc: 0.11 } },   // Oct 7 2026 sheets (live: common_items SPF rows)
   },
   // Commercial mobilization: 1 hr per installer per day for loading/unloading (Arthouse / Avid lessons)
-  // Each installer, each day on site (CEILING((reg+OT hrs) ÷ 8)) gets 1 hr at THAT installer's hourly rate. Commercial only.
+  // Each installer, each day on site (CEILING((reg+OT hrs) ÷ 8)) gets 1 hr at a flat $25/hr (rates.mobilization). Commercial only.
   mobilization: { res_nc: false, commercial: true, hrsPerInstallerPerDay: 1 },
   spfSuppliesRoundUpTo: 0.25,                               // SPF Supplies/PPE sets always round UP to the next 0.25
   // Bonuses, per diem & lodging are added AFTER pricing with a small markup (not grossed up by margin)
@@ -304,7 +304,7 @@ const DEFAULT_RULES = {
   ],
   crewLeads: ['Jorge', 'Ricardo', 'Javier', 'No Crew Lead'],
   crewLeadBonus: { minMarginBeatPct: 5, sharePct: 5 },   // bonus = 5% of total savings when actual margin beats quoted by ≥ 5 pts and there was no callback
-  spfGallon: { cc: { bdFtPerGal: 48, price: 25.53 }, oc: { bdFtPerGal: 180, price: 20.80 }, gallonsPerSuppliesSet: 192 },
+  spfGallon: { cc: { bdFtPerGal: 48, price: 24.50 }, oc: { bdFtPerGal: 180, price: 20.50 }, gallonsPerSuppliesSet: 192 },   // actual $/gal (Oct 7 2026)
   n95PerInstallerDay: 1,
   royalty: 5,
   wastePct: 0,
@@ -409,7 +409,7 @@ function battTrueCost(b, rules) {
   return Math.round(b.price / k * 100) / 100;
 }
 
-const SPF_PRICE = { oc: 0.17, cc: 0.57 };   // $ per board foot (live: common_items.price_per_sqft)
+const SPF_PRICE = { oc: 0.16, cc: 0.54 };   // $ per board foot (live: common_items.price_per_sqft)
 
 // Supplies catalog (live-merged from common_items for autocomplete & prices)
 let SUPPLIES = [
@@ -2229,7 +2229,16 @@ async function loadPricing() {
     items.forEach(ci => {
       const p = num(ci.unit_price), c = num(ci.coverage_sqft), t = ci.product_type || '';
       if (t.startsWith('Blow-In')) { const b = BLOW_IN.find(x => (t.includes('Cellulose') && x.key === 'cellulose') || (t.includes('Fiberglass') && x.key === 'jetstream')); if (b && p) b.price = p; return; }
-      if (t.startsWith('SPF')) { const pp = num(ci.price_per_sqft); if (pp) SPF_PRICE[t.includes('Closed') ? 'cc' : 'oc'] = pp; return; }
+      if (t.startsWith('SPF')) {
+        const k = t.includes('Closed') ? 'cc' : 'oc', pp = num(ci.price_per_sqft), com = num(ci.commercial_unit_price);
+        if (pp) SPF_PRICE[k] = pp;
+        // Residential $/bd ft comes from the price list unless Settings pins it. Commercial $/bd ft (0.49 / 0.11) is set in Settings —
+        // the sheet's commercial $/bd ft is typed, not $/gal ÷ bd ft per gal, so it can't be derived from the gallon price.
+        const pinned = (_storedSettings.materialPricing || {}).spf || {};
+        if (pp && !(pinned.res && pinned.res[k] != null)) RULES.materialPricing.spf.res[k] = pp;
+        if (com && !((_storedSettings.spfGallon || {})[k] || {}).price) RULES.spfGallon[k].price = com;   // actual $/gal (Actuals)
+        return;
+      }
       if (ci.category === 'Insulation') {
         // residential price book = unit_price ("Common Items Used"); commercial = commercial_unit_price ("Common Items (Commercial Use)")
         const k = normKey(t);

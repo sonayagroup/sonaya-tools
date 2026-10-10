@@ -895,6 +895,7 @@ body {
       <div class="view-toggle" id="opsViewToggle">
         <button class="active" data-view="daily">Daily</button>
         <button data-view="weekly">Weekly</button>
+        <button data-view="monthly">Monthly</button>
       </div>
       <div class="control-group" id="datePicker">
         <label for="opsDate">Date</label>
@@ -903,6 +904,10 @@ body {
       <div class="control-group" id="weekPicker" style="display:none;">
         <label for="opsWeek">Week ending</label>
         <select id="opsWeek" class="control-select"></select>
+      </div>
+      <div class="control-group" id="monthPicker" style="display:none;">
+        <label for="opsMonth">Month</label>
+        <input type="month" id="opsMonth" class="control-input">
       </div>
       <div class="control-group">
         <label for="opsStoreFilter">Store</label>
@@ -4893,6 +4898,7 @@ const state = {
   opsView: 'daily',
   opsDate: getLatestRealDate(),
   opsWeek: null,
+  opsMonth: null,
   opsStoreFilter: 'all',
   opsSort: { col: 'changePct', dir: 'desc' },
   scView: 'weekly',
@@ -5084,6 +5090,170 @@ function getWeeklyOpsData(weekEndStr) {
   });
 }
 
+function getMonthlyOpsData(monthStr) {
+  // monthStr is 'YYYY-MM' format
+  if (!monthStr) return STORES.map(s => ({ storeId: s.id, storeName: s.name, _noData: true, _real: false }));
+  const [year, month] = monthStr.split('-').map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  // Collect all dates in this month that have data
+  const dates = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    if (dataStore.realSalesDaily[dateStr]) dates.push(dateStr);
+  }
+
+  if (dates.length === 0) return STORES.map(s => ({ storeId: s.id, storeName: s.name, _noData: true, _real: false }));
+
+  const dailyByStore = {};
+  STORES.forEach(s => { dailyByStore[s.id] = []; });
+  dates.forEach(dateStr => {
+    STORES.forEach(s => {
+      const sale = dataStore.realSalesDaily[dateStr][s.id];
+      if (sale) dailyByStore[s.id].push(sale);
+    });
+  });
+
+  // Aggregate labor across all weeks in the month
+  const laborByStore = {};
+  STORES.forEach(s => { laborByStore[s.id] = { sum: 0, count: 0 }; });
+  dates.forEach(dateStr => {
+    const labor = findLaborForDate(dateStr);
+    if (labor) {
+      STORES.forEach(s => {
+        if (labor[s.id] && labor[s.id].laborPct != null) {
+          laborByStore[s.id].sum += labor[s.id].laborPct;
+          laborByStore[s.id].count++;
+        }
+      });
+    }
+  });
+
+  // Aggregate Jolt
+  const joltByStore = {};
+  STORES.forEach(s => { joltByStore[s.id] = { sum: 0, count: 0 }; });
+  dates.forEach(dateStr => {
+    STORES.forEach(s => {
+      const j = getJoltForStore(s.id, dateStr);
+      if (j !== null && j !== undefined) {
+        joltByStore[s.id].sum += j;
+        joltByStore[s.id].count++;
+      }
+    });
+  });
+
+  // Aggregate SOS
+  const sosByStore = {};
+  STORES.forEach(s => { sosByStore[s.id] = { sum: 0, count: 0 }; });
+  dates.forEach(dateStr => {
+    const day = REAL_SOS_DAILY[dateStr];
+    if (day) {
+      STORES.forEach(s => {
+        if (day[s.id] !== undefined) {
+          sosByStore[s.id].sum += day[s.id];
+          sosByStore[s.id].count++;
+        }
+      });
+    }
+  });
+
+  // Aggregate service checks across weeks in the month
+  const scByStore = {};
+  STORES.forEach(s => { scByStore[s.id] = 0; });
+  // Find all week-end dates that fall within this month and sum SC
+  const seenWeeks = new Set();
+  dates.forEach(dateStr => {
+    // Find the week-end (Tuesday) for this date
+    const dt = new Date(dateStr + 'T12:00:00');
+    const dayOfWeek = dt.getDay(); // 0=Sun
+    const daysToTue = (2 - dayOfWeek + 7) % 7;
+    const weekEnd = new Date(dt);
+    weekEnd.setDate(weekEnd.getDate() + daysToTue);
+    const weStr = weekEnd.toISOString().slice(0, 10);
+    if (!seenWeeks.has(weStr)) {
+      seenWeeks.add(weStr);
+      STORES.forEach(s => {
+        const sc = findSCForWeek(weStr, s.id);
+        if (sc != null) scByStore[s.id] += sc;
+      });
+    }
+  });
+
+  // Aggregate voids and refunds across weeks
+  const voidsByStore = {};
+  const refundsByStore = {};
+  STORES.forEach(s => { voidsByStore[s.id] = { sum: 0, count: 0 }; refundsByStore[s.id] = 0; });
+  seenWeeks.forEach(weStr => {
+    STORES.forEach(s => {
+      const lp = findLPWeeklyForStore(weStr, s.id);
+      if (lp) {
+        voidsByStore[s.id].sum += lp.voidsPct;
+        voidsByStore[s.id].count++;
+        refundsByStore[s.id] += (lp.refunds || 0);
+      }
+    });
+  });
+
+  return STORES.map((s, i) => {
+    const storeDays = dailyByStore[s.id];
+    if (storeDays.length === 0) return { storeId: s.id, storeName: s.name, _noData: true, _real: false };
+
+    const totalGross = storeDays.reduce((sum, d) => sum + (d.grossSales || 0), 0);
+    const totalNet = storeDays.reduce((sum, d) => sum + (d.netSales || 0), 0);
+    const totalTrans = storeDays.reduce((sum, d) => sum + (d.trans || 0), 0);
+    const avgChangePct = (() => {
+      let curSum = 0, priorSum = 0;
+      storeDays.forEach(d => {
+        if (d.changePct !== undefined && d.changePct !== null) {
+          const ns = d.netSales || 0;
+          curSum += ns;
+          priorSum += ns / (1 + d.changePct / 100);
+        }
+      });
+      return priorSum > 0 ? +((curSum / priorSum - 1) * 100).toFixed(2) : 0;
+    })();
+    const avgTransChangePct = (() => {
+      let curSum = 0, priorSum = 0;
+      storeDays.forEach(d => {
+        if (d.transChangePct !== undefined && d.transChangePct !== null) {
+          const t = d.trans || 0;
+          curSum += t;
+          priorSum += t / (1 + d.transChangePct / 100);
+        }
+      });
+      return priorSum > 0 ? +((curSum / priorSum - 1) * 100).toFixed(1) : null;
+    })();
+    const gcaVal = totalTrans > 0 ? +(totalNet / totalTrans).toFixed(2) : 0;
+    const labor = laborByStore[s.id];
+    const laborPct = labor.count > 0 ? +(labor.sum / labor.count).toFixed(1) : null;
+    const jolt = joltByStore[s.id];
+    const joltPct = jolt.count > 0 ? +(jolt.sum / jolt.count).toFixed(1) : null;
+    const sos = sosByStore[s.id];
+    const sosVal = sos.count > 0 ? Math.round(sos.sum / sos.count) : null;
+    const voids = voidsByStore[s.id];
+    const voidsPct = voids.count > 0 ? +(voids.sum / voids.count).toFixed(2) : null;
+    const reviewData = findReviewsForStore(s.id);
+
+    return {
+      storeId: s.id, storeName: s.name, date: monthStr,
+      grossSales: totalGross, netSales: totalNet, changePct: avgChangePct,
+      transChangePct: avgTransChangePct,
+      gca: gcaVal, gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
+      trans: totalTrans,
+      laborPct: laborPct,
+      laborTarget: LABOR_TARGETS[s.id],
+      googleRating: reviewData ? reviewData.rating : null,
+      totalReviews: reviewData ? reviewData.totalReviews : null,
+      serviceChecks: scByStore[s.id],
+      sos: sosVal,
+      checklistPct: joltPct,
+      voidsPct: voidsPct,
+      refunds: refundsByStore[s.id],
+      _real: true, _days: storeDays.length, _totalDaysInMonth: daysInMonth,
+    };
+  });
+}
+
 function findSCForWeek(weekEndStr, storeId) {
   for (const [key, week] of Object.entries(dataStore.realServiceCheck || {})) {
     if (key === 'execSummary' || key === 'fulfillment') continue;
@@ -5108,7 +5278,7 @@ function renderStoreDetail(data, storeId) {
   if (laborVarRaw != null && laborVarRaw < 0) { laborRating.cls = 'good'; laborRating.label = laborRating.label === 'Great' ? 'Great' : 'Good'; }
   const sosRating = d.sos != null ? rateKPI('speedAtWindow', d.sos) : {label:'--',cls:'muted'};
   const voidsRating = d.voidsPct != null ? rateKPI('voids', d.voidsPct) : {label:'--',cls:'muted'};
-  const salesRating = state.opsView === 'weekly' ? rateKPI('weeklySales', d.netSales || 0) : { label: '--', cls: '' };
+  const salesRating = (state.opsView === 'weekly' || state.opsView === 'monthly') ? rateKPI('weeklySales', d.netSales || 0) : { label: '--', cls: '' };
   const container = document.getElementById('storeDetailView');
   container.style.display = 'block';
   const changeColor = d.changePct != null ? (+d.changePct >= 0 ? '#0ca30c' : '#d03b3b') : 'var(--text-muted)';
@@ -5209,7 +5379,7 @@ function computeCompositeScore(d) {
     voids: rateKPI('voids', d.voidsPct != null ? d.voidsPct : 0),
     labor: rateKPI('laborVariance', laborVar),
   };
-  if (state.opsView === 'weekly') scores.sales = rateKPI('weeklySales', d.netSales || 0);
+  if (state.opsView === 'weekly' || state.opsView === 'monthly') scores.sales = rateKPI('weeklySales', d.netSales || 0);
   const total = Object.values(scores).reduce((s, r) => s + r.score, 0);
   const maxScore = Object.keys(scores).length * 4;
   return { total, maxScore, scores };
@@ -5217,7 +5387,7 @@ function computeCompositeScore(d) {
 
 /* ===== RENDER: OPERATIONS ===== */
 function renderOps() {
-  let data = state.opsView === 'weekly' ? getWeeklyOpsData(state.opsWeek) : getOpsData(state.opsDate);
+  let data = state.opsView === 'monthly' ? getMonthlyOpsData(state.opsMonth) : (state.opsView === 'weekly' ? getWeeklyOpsData(state.opsWeek) : getOpsData(state.opsDate));
   const hasRealData = data.some(d => d._real);
   const allNoData = data.every(d => d._noData);
 
@@ -5228,7 +5398,7 @@ function renderOps() {
     banner.style.display = '';
     banner.className = 'connection-banner';
     banner.innerHTML = `<span class="banner-icon">&#9888;</span>
-      <span>No sales data has been pulled for this date. Latest available data is from ${new Date(latestDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}.</span>`;
+      <span>No sales data available for this ${state.opsView === 'monthly' ? 'month' : 'date'}. Latest available data is from ${new Date(latestDate + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}.</span>`;
     // Clear KPI, table, and charts — no data to render
     document.getElementById('opsKpiRow').innerHTML = '';
     document.getElementById('opsTableHead').innerHTML = '';
@@ -5241,7 +5411,21 @@ function renderOps() {
     if (tableWrap) tableWrap.style.display = '';
     return;
   } else if (hasRealData) {
-    banner.style.display = 'none';
+    // For monthly view, show how many days of data are included
+    if (state.opsView === 'monthly' && data[0] && data[0]._totalDaysInMonth) {
+      const daysWithData = Math.max(...data.map(d => d._days || 0));
+      const totalDays = data[0]._totalDaysInMonth;
+      if (daysWithData < totalDays) {
+        banner.style.display = '';
+        banner.className = 'connection-banner connection-banner--info';
+        banner.innerHTML = `<span class="banner-icon">ℹ</span>
+          <span>Showing ${daysWithData} of ${totalDays} days for this month.</span>`;
+      } else {
+        banner.style.display = 'none';
+      }
+    } else {
+      banner.style.display = 'none';
+    }
   }
 
   // Store detail view
@@ -6949,6 +7133,19 @@ async function init() {
     }).join('');
   });
 
+  // Initialize month picker with the month of the latest available data
+  const latestDateForMonth = getLatestRealDate();
+  if (latestDateForMonth) {
+    state.opsMonth = latestDateForMonth.slice(0, 7); // 'YYYY-MM'
+    document.getElementById('opsMonth').value = state.opsMonth;
+    // Set min/max based on available data range
+    const allDates = Object.keys(dataStore.realSalesDaily).sort();
+    if (allDates.length > 0) {
+      document.getElementById('opsMonth').min = allDates[0].slice(0, 7);
+      document.getElementById('opsMonth').max = allDates[allDates.length - 1].slice(0, 7);
+    }
+  }
+
   const periods = generatePeriodOptions();
   // Default to most recent period with food cost data, fallback to last period
   const periodsWithData = periods.filter(p => {
@@ -7016,6 +7213,7 @@ async function init() {
       state.opsView = btn.dataset.view;
       document.getElementById('datePicker').style.display = state.opsView === 'daily' ? '' : 'none';
       document.getElementById('weekPicker').style.display = state.opsView === 'weekly' ? '' : 'none';
+      document.getElementById('monthPicker').style.display = state.opsView === 'monthly' ? '' : 'none';
       renderOps();
     });
   });
@@ -7034,6 +7232,7 @@ async function init() {
 
   document.getElementById('opsDate').addEventListener('change', e => { state.opsDate = e.target.value; renderOps(); });
   document.getElementById('opsWeek').addEventListener('change', e => { state.opsWeek = e.target.value; renderOps(); });
+  document.getElementById('opsMonth').addEventListener('change', e => { state.opsMonth = e.target.value; renderOps(); });
   document.getElementById('foodWeek').addEventListener('change', e => { state.foodWeek = e.target.value; renderFood(); });
   document.getElementById('foodPeriod').addEventListener('change', e => { state.foodPeriod = e.target.value; renderFood(); });
   document.getElementById('foodStore').addEventListener('change', e => { state.foodStore = e.target.value; renderFood(); });

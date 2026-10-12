@@ -4467,8 +4467,16 @@ function findLPWeeklyForStore(dateStr, storeId) {
     const endMap = { '2026-08-05': 'FY2026-P09-W1', '2026-08-12': 'FY2026-P09-W2', '2026-08-19': 'FY2026-P09-W3', '2026-08-26': 'FY2026-P09-W4', '2026-09-02': 'FY2026-P10-W1', '2026-09-09': 'FY2026-P10-W2', '2026-09-16': 'FY2026-P10-W3', '2026-09-23': 'FY2026-P10-W4', '2026-09-30': 'FY2027-P01-W1', '2026-10-07': 'FY2027-P01-W2', '2026-10-14': 'FY2027-P01-W3' };
     wk = endMap[dateStr];
   }
-  if (!wk || !lpw[wk]) return null;
-  const storeData = lpw[wk].stores ? lpw[wk].stores[storeId] : null;
+  // If no data for this week, fall back to the most recent available week
+  let effectiveWk = wk;
+  if (!effectiveWk || !lpw[effectiveWk]) {
+    // Find the most recent week that has data by checking weekBounds in reverse
+    for (let i = weekBounds.length - 1; i >= 0; i--) {
+      if (lpw[weekBounds[i].key]) { effectiveWk = weekBounds[i].key; break; }
+    }
+  }
+  if (!effectiveWk || !lpw[effectiveWk]) return null;
+  const storeData = lpw[effectiveWk].stores ? lpw[effectiveWk].stores[storeId] : null;
   if (!storeData) return null;
   const gs = storeData.grossSales || 0;
   return {

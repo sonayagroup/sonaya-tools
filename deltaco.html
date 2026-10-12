@@ -2619,6 +2619,20 @@ const dataStore = {
       },
     },
   },
+  realLaborDaily: {
+    '2026-10-11': {
+      '726':  { laborPct: 0.83, laborTarget: 20.55, laborCost: 34 },
+      '898':  { laborPct: 29.52, laborTarget: 21.14, laborCost: 849 },
+      '1029': { laborPct: 27.38, laborTarget: 21.10, laborCost: 793 },
+      '1056': { laborPct: 21.48, laborTarget: 22.00 },
+      '1153': { laborPct: 21.64, laborTarget: 21.00 },
+      '1187': { laborPct: 21.68, laborTarget: 22.40 },
+      '1205': { laborPct: 21.73, laborTarget: 27.00 },
+      '1357': { laborPct: 23.05, laborTarget: 28.00 },
+      '1364': { laborPct: 37.50, laborTarget: 27.50 },
+      '1391': { laborPct: 6.03, laborTarget: 22.80, laborCost: 243 },
+    },
+  },
   realQboPL: {
     '2026-P10-W1': {
       periodStart: '2026-08-19', periodEnd: '2026-08-25',
@@ -4776,6 +4790,7 @@ async function loadExternalData() {
       if (ext.sources) Object.assign(dataStore.sources, ext.sources);
       if (ext.salesDaily) Object.assign(dataStore.realSalesDaily, ext.salesDaily);
       if (ext.laborWeekly) Object.assign(dataStore.realLaborWeekly, ext.laborWeekly);
+      if (ext.laborDaily) Object.assign(dataStore.realLaborDaily, ext.laborDaily);
       if (ext.qboPL) Object.assign(dataStore.realQboPL, ext.qboPL);
       if (ext.foodCost) Object.assign(dataStore.realFoodCost, ext.foodCost);
       if (ext.varianceItems) Object.assign(dataStore.realVarianceItems, ext.varianceItems);
@@ -4811,7 +4826,7 @@ function getOpsData(dateStr) {
         gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
         trans: tr,
         laborPct: labor ? +labor.laborPct.toFixed(1) : +sampleVal(20, 28, dateStr, i, 4).toFixed(1),
-        laborTarget: LABOR_TARGETS[s.id],
+        laborTarget: (labor && labor.laborTarget) ? labor.laborTarget : LABOR_TARGETS[s.id],
         checklistPct: getJoltForStore(s.id, dateStr),
         googleRating: reviewData ? reviewData.rating : null,
         totalReviews: reviewData ? reviewData.totalReviews : null,
@@ -4827,7 +4842,7 @@ function getOpsData(dateStr) {
         grossSales: null, netSales: null, changePct: null,
         transChangePct: null, gca: null, gcaPrior: null,
         trans: null, laborPct: labor ? +labor.laborPct.toFixed(1) : null,
-        laborTarget: LABOR_TARGETS[s.id],
+        laborTarget: (labor && labor.laborTarget) ? labor.laborTarget : LABOR_TARGETS[s.id],
         checklistPct: getJoltForStore(s.id, dateStr),
         googleRating: null, totalReviews: null,
         serviceChecks: null, sos: null,
@@ -4839,6 +4854,11 @@ function getOpsData(dateStr) {
 }
 
 function findLaborForDate(dateStr) {
+  // Check daily data first — gives actual per-day labor % instead of weekly average
+  if (dataStore.realLaborDaily && dataStore.realLaborDaily[dateStr]) {
+    return dataStore.realLaborDaily[dateStr];
+  }
+  // Fall back to weekly data
   for (const [key, period] of Object.entries(dataStore.realLaborWeekly)) {
     const weekEnd = new Date(period.weekEnd + 'T12:00:00');
     const weekStart = new Date(weekEnd); weekStart.setDate(weekStart.getDate() - 6);

@@ -4754,7 +4754,37 @@ const REAL_LOSS_PREVENTION_WEEKLY = {
       },
     };
 
-// REAL_LOSS_PREVENTION daily structure removed — voids/refunds now always use weekly LP data via findLPWeeklyForStore()
+// Daily Loss Prevention data — keyed by date, per-store voids/refunds/grossSales
+const REAL_LP_DAILY = {
+  '2026-10-11': {
+    stores: {
+      '726':  { grossSales: 4234.19, voids: 1.99, refunds: -7.94 },
+      '898':  { grossSales: 3008.65, voids: 15.45, refunds: 0.00 },
+      '1029': { grossSales: 2922.81, voids: 20.73, refunds: 0.00 },
+      '1056': { grossSales: 4366.55, voids: 0.00, refunds: -3.46 },
+      '1153': { grossSales: 2752.17, voids: 0.00, refunds: 0.00 },
+      '1187': { grossSales: 2812.28, voids: 50.36, refunds: 0.00 },
+      '1205': { grossSales: 2273.57, voids: 23.14, refunds: 0.00 },
+      '1357': { grossSales: 1504.09, voids: 0.00, refunds: 0.00 },
+      '1364': { grossSales: 1828.42, voids: 13.05, refunds: 0.00 },
+      '1391': { grossSales: 4105.44, voids: 0.00, refunds: 0.00 },
+    },
+  },
+};
+
+// Look up daily LP data for a specific date and store
+function findLPDailyForStore(dateStr, storeId) {
+  const day = REAL_LP_DAILY[dateStr];
+  if (!day || !day.stores || !day.stores[storeId]) return null;
+  const sd = day.stores[storeId];
+  const gs = sd.grossSales || 0;
+  return {
+    voidsPct: gs > 0 ? +((sd.voids / gs) * 100).toFixed(2) : 0,
+    refunds: Math.abs(sd.refunds || 0),
+    voidsDollar: sd.voids || 0,
+    grossSales: gs,
+  };
+}
 // Helper: get the latest REAL_MITIGATION period key
 function getLatestMitigationPeriod() {
   const keys = Object.keys(REAL_MITIGATION).sort();
@@ -4831,8 +4861,8 @@ function getOpsData(dateStr) {
         totalReviews: reviewData ? reviewData.totalReviews : null,
         serviceChecks: findSCForStore(dateStr, s.id) ?? 0,
         sos: findSosForDate(dateStr, s.id),
-        voidsPct: (() => { const lp = findLPWeeklyForStore(dateStr, s.id); return lp ? lp.voidsPct : (SAMPLE_VOIDS[s.id] || 0.5); })(),
-        refunds: (() => { const lp = findLPWeeklyForStore(dateStr, s.id); return lp ? lp.refunds : (SAMPLE_REFUNDS[s.id] || 0); })(),
+        voidsPct: (() => { const lp = findLPDailyForStore(dateStr, s.id) || findLPWeeklyForStore(dateStr, s.id); return lp ? lp.voidsPct : (SAMPLE_VOIDS[s.id] || 0.5); })(),
+        refunds: (() => { const lp = findLPDailyForStore(dateStr, s.id) || findLPWeeklyForStore(dateStr, s.id); return lp ? lp.refunds : (SAMPLE_REFUNDS[s.id] || 0); })(),
         _real: true,
       };
     } else {

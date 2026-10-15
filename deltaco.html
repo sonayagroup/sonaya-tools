@@ -819,6 +819,38 @@ body {
 .gmcl-progress-bar { flex:1; height:6px; background:var(--border-color); border-radius:3px; overflow:hidden; }
 .gmcl-progress-fill { height:100%; background:var(--brand-green); border-radius:3px; transition:width .3s; }
 .gmcl-progress-text { font-size:12px; color:var(--text-secondary); font-weight:600; min-width:40px; text-align:right; }
+.gmcl-overview { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; margin-bottom:24px; }
+.gmcl-store-card { display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 8px; border-radius:var(--radius,8px); border:1px solid var(--border-color,var(--border)); background:var(--card-bg,var(--surface-card)); cursor:pointer; transition:box-shadow .15s,border-color .15s; position:relative; }
+.gmcl-store-card:hover { box-shadow:var(--shadow-md); border-color:var(--brand-green); }
+.gmcl-store-card.active { border-color:var(--brand-green); box-shadow:0 0 0 2px rgba(178,187,31,.25); }
+.gmcl-ring-wrap { position:relative; width:56px; height:56px; }
+.gmcl-ring-wrap svg { transform:rotate(-90deg); }
+.gmcl-ring-pct { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:var(--text-primary); }
+.gmcl-store-label { font-size:13px; font-weight:600; color:var(--text-primary); text-align:center; line-height:1.2; }
+.gmcl-store-sub { font-size:11px; color:var(--text-secondary); }
+.gmcl-streak { display:inline-flex; align-items:center; gap:2px; font-size:11px; font-weight:600; color:var(--brand-orange,#F8971D); margin-top:2px; }
+.gmcl-due-tag { display:inline-block; font-size:10px; font-weight:600; padding:1px 6px; border-radius:3px; margin-left:8px; vertical-align:middle; }
+.gmcl-due-tag.upcoming { background:var(--status-ok-bg,rgba(10,124,66,.1)); color:var(--status-ok,#0a7c42); }
+.gmcl-due-tag.overdue { background:var(--status-critical-bg,rgba(220,38,38,.1)); color:var(--status-critical,#dc2626); }
+.gmcl-overdue-badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.5px; background:var(--status-critical-bg,rgba(220,38,38,.1)); color:var(--status-critical,#dc2626); border:1px solid var(--status-critical,#dc2626); border-radius:3px; padding:1px 6px; margin-left:8px; vertical-align:middle; line-height:1.6; }
+.gmcl-section-hdr { cursor:pointer; user-select:none; display:flex; align-items:center; justify-content:space-between; }
+.gmcl-section-hdr .gmcl-hdr-left { display:flex; align-items:center; gap:8px; }
+.gmcl-section-hdr .gmcl-chevron { transition:transform .2s; font-size:12px; }
+.gmcl-section-hdr .gmcl-chevron.collapsed { transform:rotate(-90deg); }
+.gmcl-section-hdr .gmcl-hdr-count { font-size:12px; opacity:.85; font-weight:400; }
+.gmcl-items.collapsed { display:none; }
+.gmcl-detail-back { display:inline-flex; align-items:center; gap:4px; font-size:13px; color:var(--text-secondary); cursor:pointer; margin-bottom:12px; border:none; background:none; padding:4px 0; }
+.gmcl-detail-back:hover { color:var(--text-primary); }
+.gmcl-banner { background:var(--status-warn-bg,rgba(179,122,0,.1)); border:1px solid rgba(179,122,0,0.2); border-radius:var(--radius,8px); padding:10px 16px; margin-bottom:16px; display:flex; align-items:center; gap:10px; font-size:13px; color:var(--status-warn,#b37a00); }
+.gmcl-banner .gmcl-banner-close { margin-left:auto; background:none; border:none; cursor:pointer; font-size:16px; color:var(--text-muted); padding:0 4px; line-height:1; }
+.gmcl-banner .gmcl-banner-close:hover { color:var(--text-primary); }
+.gmcl-banner .gmcl-banner-stores { font-weight:600; }
+@media(max-width:600px){
+  .gmcl-overview { grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; }
+  .gmcl-store-card { padding:10px 6px; }
+  .gmcl-ring-wrap { width:48px; height:48px; }
+  .gmcl-ring-pct { font-size:11px; }
+}
 .crm-add-btn { padding: 6px 14px; background: #0a7c42; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .crm-add-btn:hover { background: #086835; }
 .crm-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 16px; }
@@ -907,6 +939,11 @@ body {
 <div class="tab-content active" id="tab-ops">
   <div class="container">
     <div class="connection-banner" id="opsBanner" style="display:none"></div>
+    <div class="gmcl-banner" id="gmclIncompleteBanner" style="display:none">
+      <span>&#9888;&#65039;</span>
+      <span id="gmclBannerText"></span>
+      <button class="gmcl-banner-close" onclick="document.getElementById('gmclIncompleteBanner').style.display='none'" aria-label="Dismiss">&times;</button>
+    </div>
     <div class="controls">
       <div class="view-toggle" id="opsViewToggle">
         <button class="active" data-view="daily">Daily</button>
@@ -1651,7 +1688,10 @@ body {
       </div>
     </div>
 
+    <div id="gmclOverview" class="gmcl-overview"></div>
+
     <div id="gmclContent">
+      <button class="gmcl-detail-back" id="gmclBackBtn" onclick="gmclShowOverview()" style="display:none;">&#9664; All Stores</button>
       <!-- Daily Section -->
       <div class="gmcl-section">
         <div class="gmcl-section-hdr" style="background:var(--brand-green); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Daily Tasks</div>
@@ -9518,23 +9558,184 @@ const GMCL_ITEMS = {
 
 let gmclState = {};  // { 'storeId|itemKey|date': true/false }
 let gmclLoaded = false;
+let gmclStreaks = {};
+let gmclCollapsed = { daily: false, weekly: false, monthly: false };
 
-function gmclInit() {
-  const sel = document.getElementById('gmclStore');
-  sel.innerHTML = STORES.map(s => `<option value="${s.id}">${s.id} - ${s.name}</option>`).join('');
-  const dateInput = document.getElementById('gmclDate');
+const GMCL_WEEKLY_DUE = {
+  variance_rpt:  { day: 3, label: 'Wednesday' },
+  jolt_cleaning: { day: 4, label: 'Thursday' },
+  jolt_visit:    { day: 5, label: 'Friday' },
+  taco_talks_5:  { day: 6, label: 'Saturday' }
+};
+
+/* ---- SVG progress ring ---- */
+function gmclRingSVG(pct, color, size) {
+  size = size || 56;
+  const r = (size - 6) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - pct / 100);
+  const bg = 'var(--border-color, var(--border))';
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'"><circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+bg+'" stroke-width="5"/><circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="5" stroke-dasharray="'+circ+'" stroke-dashoffset="'+offset+'" stroke-linecap="round"/></svg>';
+}
+function gmclPctColor(pct) {
+  if (pct >= 100) return 'var(--brand-green)';
+  if (pct >= 50) return 'var(--brand-gold)';
+  return 'var(--brand-red)';
+}
+function gmclDailyPct(storeId, dateStr) {
+  const items = GMCL_ITEMS.daily;
+  let done = 0;
+  items.forEach(it => { if (gmclState[storeId + '|' + it.key + '|' + dateStr] === true) done++; });
+  return items.length > 0 ? Math.round((done / items.length) * 100) : 0;
+}
+
+/* ---- Overdue detection ---- */
+function gmclIsOverdue(type, itemKey, isChecked, selectedDate) {
+  if (isChecked) return false;
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  if (type === 'daily') {
+    if (selectedDate < today) return true;
+    if (selectedDate === today && now.getHours() >= 22) return true;
+    return false;
+  }
+  if (type === 'weekly') {
+    const due = GMCL_WEEKLY_DUE[itemKey];
+    if (!due) return false;
+    const sel = new Date(selectedDate + 'T12:00:00');
+    const day = sel.getDay();
+    const mondayOff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(sel);
+    monday.setDate(sel.getDate() + mondayOff);
+    const dueDate = new Date(monday);
+    dueDate.setDate(monday.getDate() + (due.day - 1));
+    const dueDateStr = dueDate.toISOString().slice(0, 10);
+    if (today > dueDateStr) return true;
+    if (today === dueDateStr && now.getHours() >= 22) return true;
+    return false;
+  }
+  if (type === 'monthly') {
+    const periodMonth = selectedDate.slice(0, 7);
+    const currentMonth = today.slice(0, 7);
+    if (currentMonth > periodMonth) return true;
+    if (currentMonth === periodMonth && now.getDate() > 28) return true;
+    return false;
+  }
+  return false;
+}
+
+/* ---- Due tag for weekly items ---- */
+function gmclDueTag(itemKey) {
+  const due = GMCL_WEEKLY_DUE[itemKey];
+  if (!due) return '';
+  const dateVal = document.getElementById('gmclDate').value;
+  const selected = new Date(dateVal + 'T12:00:00');
+  const today = new Date(); today.setHours(12,0,0,0);
+  const dayOfWeek = selected.getDay();
+  const mondayDiff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(selected);
+  monday.setDate(monday.getDate() + mondayDiff);
+  const dueDate = new Date(monday);
+  dueDate.setDate(dueDate.getDate() + (due.day - 1));
+  const isPast = today > dueDate;
+  const storeId = document.getElementById('gmclStore').value;
+  const periodDate = gmclGetPeriodDate('weekly');
+  const isChecked = gmclState[storeId + '|' + itemKey + '|' + periodDate] === true;
+  if (isChecked) return '';
+  if (isPast) return '<span class="gmcl-due-tag overdue">OVERDUE</span>';
+  return '<span class="gmcl-due-tag upcoming">Due by ' + due.label + '</span>';
+}
+
+/* ---- Toggle section collapse ---- */
+function gmclToggleSection(type) {
+  gmclCollapsed[type] = !gmclCollapsed[type];
+  const items = document.getElementById('gmcl' + type.charAt(0).toUpperCase() + type.slice(1));
+  const chevron = document.getElementById('gmclChevron_' + type);
+  if (items) items.classList.toggle('collapsed', gmclCollapsed[type]);
+  if (chevron) chevron.classList.toggle('collapsed', gmclCollapsed[type]);
+}
+
+/* ---- Load all stores for overview + streaks ---- */
+async function gmclLoadAllStores() {
   const today = new Date();
-  dateInput.value = today.toISOString().slice(0, 10);
-  sel.addEventListener('change', gmclRender);
-  dateInput.addEventListener('change', () => { gmclLoadData().then(gmclRender); });
-  gmclLoadData().then(gmclRender);
+  const todayStr = today.toISOString().slice(0, 10);
+  const d7 = new Date(today); d7.setDate(d7.getDate() - 6);
+  const startStr = d7.toISOString().slice(0, 10);
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_type=eq.daily&period_date=gte.' + startStr + '&period_date=lte.' + todayStr + '&select=store_id,item_key,period_date,completed', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const data = await res.json();
+    (data || []).forEach(r => { gmclState[r.store_id + '|' + r.item_key + '|' + r.period_date] = r.completed; });
+  } catch (e) { console.error('GMCL overview load error:', e); }
+  gmclStreaks = {};
+  const dailyKeys = GMCL_ITEMS.daily.map(it => it.key);
+  STORES.forEach(store => {
+    let streak = 0;
+    for (let i = 0; i < 7; i++) {
+      const dd = new Date(today); dd.setDate(dd.getDate() - i);
+      const ds = dd.toISOString().slice(0, 10);
+      if (dailyKeys.every(k => gmclState[store.id + '|' + k + '|' + ds] === true)) streak++;
+      else break;
+    }
+    gmclStreaks[store.id] = streak;
+  });
+}
+
+/* ---- Render All-Stores Overview Grid ---- */
+function gmclRenderOverview() {
+  const container = document.getElementById('gmclOverview');
+  if (!container) return;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const selStore = document.getElementById('gmclStore').value;
+  let html = '';
+  STORES.forEach(store => {
+    const pct = gmclDailyPct(store.id, todayStr);
+    const color = gmclPctColor(pct);
+    const active = store.id === selStore ? ' active' : '';
+    const streak = gmclStreaks[store.id] || 0;
+    const streakHtml = streak >= 2 ? '<span class="gmcl-streak">🔥 ' + streak + '-day streak</span>' : '';
+    html += '<div class="gmcl-store-card' + active + '" onclick="gmclSelectStore(\'' + store.id + '\')">' +
+      '<div class="gmcl-ring-wrap">' + gmclRingSVG(pct, color, 56) + '<div class="gmcl-ring-pct">' + pct + '%</div></div>' +
+      '<div class="gmcl-store-label">#' + store.id + '</div>' +
+      '<div class="gmcl-store-sub">' + store.name + '</div>' +
+      streakHtml + '</div>';
+  });
+  container.innerHTML = html;
+}
+
+/* ---- Select store from overview ---- */
+function gmclSelectStore(storeId) {
+  document.getElementById('gmclStore').value = storeId;
+  document.getElementById('gmclContent').style.display = '';
+  var backBtn = document.getElementById('gmclBackBtn');
+  if (backBtn) backBtn.style.display = '';
+  gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); });
+}
+function gmclShowOverview() {
+  var ov = document.getElementById('gmclOverview');
+  if (ov) ov.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ---- Init ---- */
+async function gmclInit() {
+  const sel = document.getElementById('gmclStore');
+  sel.innerHTML = STORES.map(s => '<option value="' + s.id + '">' + s.id + ' - ' + s.name + '</option>').join('');
+  const dateInput = document.getElementById('gmclDate');
+  dateInput.value = new Date().toISOString().slice(0, 10);
+  sel.addEventListener('change', function() { gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
+  dateInput.addEventListener('change', function() { gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
+  await gmclLoadAllStores();
+  await gmclLoadData();
+  gmclRenderOverview();
+  gmclRender();
+  var backBtn = document.getElementById('gmclBackBtn');
+  if (backBtn) backBtn.style.display = '';
 }
 
 async function gmclLoadData() {
   const dateVal = document.getElementById('gmclDate').value;
   if (!dateVal) return;
-  // For weekly items, load the full week; for monthly, the full month; for daily, just the date
-  // Simplify: load all records for this store for the month containing the date
   const storeId = document.getElementById('gmclStore').value;
   const monthStart = dateVal.slice(0, 7) + '-01';
   const monthEnd = dateVal.slice(0, 7) + '-31';
@@ -9543,51 +9744,61 @@ async function gmclLoadData() {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     const data = await res.json();
-    // Clear state for this store
     Object.keys(gmclState).forEach(k => { if (k.startsWith(storeId + '|')) delete gmclState[k]; });
-    (data || []).forEach(r => {
-      gmclState[storeId + '|' + r.item_key + '|' + r.period_date] = r.completed;
-    });
+    (data || []).forEach(r => { gmclState[storeId + '|' + r.item_key + '|' + r.period_date] = r.completed; });
     gmclLoaded = true;
-  } catch (e) {
-    console.error('GM Checklist load error:', e);
-  }
+  } catch (e) { console.error('GM Checklist load error:', e); }
 }
 
 function gmclGetPeriodDate(type) {
   const dateVal = document.getElementById('gmclDate').value;
   if (type === 'daily') return dateVal;
   if (type === 'weekly') {
-    // Use the Monday of the selected date's week
     const d = new Date(dateVal + 'T12:00:00');
     const day = d.getDay();
     const diff = day === 0 ? -6 : 1 - day;
     d.setDate(d.getDate() + diff);
     return d.toISOString().slice(0, 10);
   }
-  // monthly: first of the month
   return dateVal.slice(0, 7) + '-01';
 }
 
+/* ---- Unified gmclRender: collapsible sections + overdue badges + due tags ---- */
 function gmclRender() {
   const storeId = document.getElementById('gmclStore').value;
-  ['daily', 'weekly', 'monthly'].forEach(type => {
-    const container = document.getElementById('gmcl' + type.charAt(0).toUpperCase() + type.slice(1));
-    const items = GMCL_ITEMS[type];
-    const periodDate = gmclGetPeriodDate(type);
+  const selectedDate = document.getElementById('gmclDate').value;
+  const sectionConfigs = [
+    { type: 'daily',   color: 'var(--brand-green)', textColor: '#fff',    label: 'Daily Tasks' },
+    { type: 'weekly',  color: 'var(--brand-red)',    textColor: '#fff',    label: 'Weekly Tasks' },
+    { type: 'monthly', color: 'var(--brand-gold)',   textColor: '#1a1a2e', label: 'Monthly Tasks' }
+  ];
+  sectionConfigs.forEach(function(cfg) {
+    const container = document.getElementById('gmcl' + cfg.type.charAt(0).toUpperCase() + cfg.type.slice(1));
+    const items = GMCL_ITEMS[cfg.type];
+    const periodDate = gmclGetPeriodDate(cfg.type);
     const checked = items.filter(it => gmclState[storeId + '|' + it.key + '|' + periodDate]);
     const pct = items.length > 0 ? Math.round((checked.length / items.length) * 100) : 0;
-
-    let html = `<div class="gmcl-progress"><div class="gmcl-progress-bar"><div class="gmcl-progress-fill" style="width:${pct}%"></div></div><div class="gmcl-progress-text">${checked.length}/${items.length}</div></div>`;
-    items.forEach(it => {
+    const isCollapsed = gmclCollapsed[cfg.type];
+    // Update header with chevron + count
+    const hdr = container.closest('.gmcl-section').querySelector('.gmcl-section-hdr');
+    if (hdr) {
+      hdr.setAttribute('onclick', "gmclToggleSection('" + cfg.type + "')");
+      hdr.innerHTML = '<span class="gmcl-hdr-left"><span class="gmcl-chevron' + (isCollapsed ? ' collapsed' : '') + '" id="gmclChevron_' + cfg.type + '">▼</span>' + cfg.label + '</span><span class="gmcl-hdr-count">' + checked.length + '/' + items.length + '</span>';
+    }
+    // Build items
+    let html = '<div class="gmcl-progress"><div class="gmcl-progress-bar"><div class="gmcl-progress-fill" style="width:' + pct + '%"></div></div><div class="gmcl-progress-text">' + checked.length + '/' + items.length + '</div></div>';
+    items.forEach(function(it) {
       const k = storeId + '|' + it.key + '|' + periodDate;
       const isChecked = gmclState[k] === true;
-      html += `<div class="gmcl-item${isChecked ? ' checked' : ''}">
-        <input type="checkbox" id="gmcl_${it.key}" ${isChecked ? 'checked' : ''} onchange="gmclToggle('${storeId}','${it.key}','${periodDate}','${type}',this.checked)">
-        <label for="gmcl_${it.key}">${it.text}${it.note ? '<br><span class="gmcl-note">' + it.note + '</span>' : ''}</label>
-      </div>`;
+      const overdue = gmclIsOverdue(cfg.type, it.key, isChecked, selectedDate);
+      const badge = overdue ? '<span class="gmcl-overdue-badge">OVERDUE</span>' : '';
+      const dueTag = cfg.type === 'weekly' ? gmclDueTag(it.key) : '';
+      html += '<div class="gmcl-item' + (isChecked ? ' checked' : '') + '">' +
+        '<input type="checkbox" id="gmcl_' + it.key + '" ' + (isChecked ? 'checked' : '') + ' onchange="gmclToggle(\'' + storeId + '\',\'' + it.key + '\',\'' + periodDate + '\',\'' + cfg.type + '\',this.checked)">' +
+        '<label for="gmcl_' + it.key + '">' + it.text + badge + dueTag + (it.note ? '<br><span class="gmcl-note">' + it.note + '</span>' : '') + '</label></div>';
     });
     container.innerHTML = html;
+    container.classList.toggle('collapsed', isCollapsed);
   });
 }
 
@@ -9595,30 +9806,72 @@ async function gmclToggle(storeId, itemKey, periodDate, periodType, completed) {
   const k = storeId + '|' + itemKey + '|' + periodDate;
   gmclState[k] = completed;
   gmclRender();
+  gmclRenderOverview();
   const statusEl = document.getElementById('gmclSaveStatus');
   statusEl.textContent = 'Saving...';
   try {
-    // Upsert
     const body = { store_id: storeId, item_key: itemKey, period_type: periodType, period_date: periodDate, completed: completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() };
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?on_conflict=store_id,item_key,period_date', {
       method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates'
-      },
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(body)
     });
     statusEl.textContent = res.ok ? 'Saved' : 'Save failed';
-  } catch (e) {
-    statusEl.textContent = 'Save failed';
-    console.error('GM Checklist save error:', e);
-  }
-  setTimeout(() => { statusEl.textContent = ''; }, 2000);
+  } catch (e) { statusEl.textContent = 'Save failed'; console.error('GM Checklist save error:', e); }
+  setTimeout(function() { statusEl.textContent = ''; }, 2000);
 }
 
-document.querySelector('[data-tab="gmchecklist"]').addEventListener('click', () => {
+/* ---- Incomplete Store Banner (Daily Ops tab) ---- */
+async function gmclShowIncompleteBanner() {
+  const banner = document.getElementById('gmclIncompleteBanner');
+  if (!banner) return;
+  try {
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    const yStr = yesterday.toISOString().slice(0, 10);
+    const dailyKeys = GMCL_ITEMS.daily.map(it => it.key);
+    const totalDaily = dailyKeys.length;
+    const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_date=eq.' + yStr + '&period_type=eq.daily&completed=eq.true&select=store_id,item_key', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const rows = await res.json();
+    const counts = {};
+    (rows || []).forEach(r => { if (dailyKeys.includes(r.item_key)) counts[r.store_id] = (counts[r.store_id] || 0) + 1; });
+    const incomplete = STORES.filter(s => (counts[s.id] || 0) < totalDaily);
+    if (incomplete.length === 0) { banner.style.display = 'none'; return; }
+    document.getElementById('gmclBannerText').innerHTML = '<strong>' + incomplete.length + ' store' + (incomplete.length > 1 ? 's' : '') + '</strong> had incomplete GM checklists for <strong>' + yStr + '</strong>: <span class="gmcl-banner-stores">' + incomplete.map(s => s.name).join(', ') + '</span>';
+    banner.style.display = 'flex';
+  } catch (e) { console.error('GMCL banner error:', e); banner.style.display = 'none'; }
+}
+
+/* ---- GM Checklist Summary (for daily update emails) ---- */
+async function getGMChecklistSummary(dateStr) {
+  const dailyKeys = GMCL_ITEMS.daily.map(it => it.key);
+  const totalDaily = dailyKeys.length;
+  const h = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+  const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_date=eq.' + dateStr + '&period_type=eq.daily&completed=eq.true&select=store_id,item_key', { headers: h });
+  const rows = await res.json();
+  const counts = {};
+  (rows || []).forEach(r => { if (dailyKeys.includes(r.item_key)) counts[r.store_id] = (counts[r.store_id] || 0) + 1; });
+  let allComplete = 0, partial = 0, none = 0;
+  const storesIncomplete = [];
+  const areaStores = {};
+  STORES.forEach(s => {
+    const done = counts[s.id] || 0;
+    if (done >= totalDaily) allComplete++;
+    else if (done > 0) { partial++; storesIncomplete.push(s.name); }
+    else { none++; storesIncomplete.push(s.name); }
+    if (!areaStores[s.area]) areaStores[s.area] = { done: 0, total: 0 };
+    areaStores[s.area].total++;
+    if (done >= totalDaily) areaStores[s.area].done++;
+  });
+  const areaCompletion = {};
+  Object.keys(areaStores).forEach(a => { areaCompletion[a] = areaStores[a].done + '/' + areaStores[a].total; });
+  return { date: dateStr, totalStores: STORES.length, allComplete, partial, none, storesIncomplete, areaCompletion };
+}
+
+document.addEventListener('DOMContentLoaded', function() { gmclShowIncompleteBanner(); });
+
+document.querySelector('[data-tab="gmchecklist"]').addEventListener('click', function() {
   if (!gmclLoaded) gmclInit();
 });
 

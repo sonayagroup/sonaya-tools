@@ -269,6 +269,8 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
 }
 .summary-row .label { color: var(--text-secondary); }
 .summary-row .value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.summary-row.sub { padding-left: 12px; font-size: .82rem; }
+.summary-row.sub .label { color: var(--text-muted, #777); }
 .divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 
 .total-box {
@@ -696,6 +698,7 @@ body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab
     <span class="autosave-status saved" id="autosaveStatus"><span class="autosave-dot"></span> <span id="autosaveLabel">Saved</span></span>
     <button class="header-btn header-btn-save" onclick="openSaveModal()">&#128190; Save</button>
     <button class="header-btn header-btn-email" onclick="openEmailPanel()">&#9993; Generate Email</button>
+    <a class="header-btn header-btn-browse" href="koala-estimator-v2.html" title="Koala Estimator App home">&#8962; Estimator App</a>
     <a class="header-btn header-btn-browse" href="koala-estimates.html">&#128269; Browse Estimates</a>
     <a class="header-btn header-btn-pricing" href="koala-pricing.html">&#128176; Pricing</a>
   </div>
@@ -922,6 +925,10 @@ body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab
           <div class="area-total" id="wallAreaTotal"></div>
         </div>
       </div>
+      <div class="field" style="margin-top:8px">
+        <label>&#128221; Notes</label>
+        <textarea id="notes" placeholder="Job notes, special instructions, access info..."></textarea>
+      </div>
     </div>
 
     <!-- Option Tabs -->
@@ -932,12 +939,6 @@ body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab
     <!-- Option Containers -->
     <div id="optionContainers">
       <!-- built by JS -->
-    </div>
-
-    <!-- Notes -->
-    <div class="card">
-      <h2><span class="icon">&#128221;</span> Notes</h2>
-      <textarea id="notes" placeholder="Job notes, special instructions, access info..."></textarea>
     </div>
 
   </div><!-- .main -->
@@ -959,43 +960,51 @@ body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab
       </div>
     </div>
 
-    <!-- Cost Breakdown (internal only) -->
+    <!-- Cost Breakdown (internal only) — same order as the bottom of the Sales Estimate Spreadsheet -->
     <div class="summary-section internal-only" id="costBreakdown">
       <h3>Cost Breakdown — <span id="breakdownLabel">Option 1</span></h3>
-      <div class="summary-row"><span class="label">Blow-In Material</span><span class="value" id="sumBlowIn">$0.00</span></div>
-      <div class="summary-row"><span class="label">Batt / Rigid</span><span class="value" id="sumBatt">$0.00</span></div>
-      <div class="summary-row"><span class="label">Spray Foam</span><span class="value" id="sumSpf">$0.00</span></div>
-      <div class="summary-row"><span class="label">Total Materials</span><span class="value" id="sumMaterials" style="font-weight:700">$0.00</span></div>
+      <div class="summary-row"><span class="label" style="font-weight:700;color:var(--navy)">Total Labor Cost</span><span class="value" id="sumLaborTotal" style="font-weight:700">$0.00</span></div>
+      <div class="summary-row sub"><span class="label">Labor</span><span class="value" id="sumLabor">$0.00</span></div>
+      <div class="summary-row sub"><span class="label">Payroll Tax (10%)</span><span class="value" id="sumTax">$0.00</span></div>
       <hr class="divider">
-      <div class="summary-row"><span class="label">Labor</span><span class="value" id="sumLabor">$0.00</span></div>
-      <div class="summary-row"><span class="label">Payroll Tax (10%)</span><span class="value" id="sumTax">$0.00</span></div>
-      <div class="summary-row"><span class="label">Total Labor</span><span class="value" id="sumLaborTotal" style="font-weight:700">$0.00</span></div>
-      <hr class="divider">
-      <div class="summary-row"><span class="label">Misc Supplies</span><span class="value" id="sumMisc">$0.00</span></div>
-      <div class="summary-row"><span class="label">Trip / Fuel</span><span class="value" id="sumTrip">$0.00</span></div>
+      <div class="summary-row"><span class="label" style="font-weight:700;color:var(--navy)">Total Material Cost</span><span class="value" id="sumMaterials" style="font-weight:700">$0.00</span></div>
+      <div class="summary-row sub"><span class="label">Blow-In Material</span><span class="value" id="sumBlowIn">$0.00</span></div>
+      <div class="summary-row sub"><span class="label">Spray Foam</span><span class="value" id="sumSpf">$0.00</span></div>
+      <div class="summary-row sub"><span class="label">Batt / Rigid</span><span class="value" id="sumBatt">$0.00</span></div>
+      <div class="summary-row sub"><span class="label">Misc Supplies</span><span class="value" id="sumMisc">$0.00</span></div>
+      <div class="summary-row sub"><span class="label">Trip / Fuel</span><span class="value" id="sumTrip">$0.00</span></div>
       <hr class="divider total-job-cost-row">
       <div class="summary-row total-job-cost-row" style="font-size:.95rem"><span class="label" style="font-weight:700">Total Job Cost</span><span class="value" id="sumTotal" style="color:var(--navy)">$0.00</span></div>
-      <hr class="divider total-job-cost-row">
+      <div class="summary-row total-job-cost-row"><span class="label">Gross Profit %</span><span class="value" id="sumGpPct">—</span></div>
+      <div class="summary-row total-job-cost-row"><span class="label">Revenue Before Fees</span><span class="value" id="sumRevBefore">$0.00</span></div>
       <div class="summary-row total-job-cost-row"><span class="label">Royalty (<span id="royaltyPctLabel">5</span>%)</span><span class="value" id="sumRoyalty">$0.00</span></div>
+      <div class="summary-row total-job-cost-row"><span class="label">Revenue After Fees</span><span class="value" id="sumRevAfter">$0.00</span></div>
       <div class="summary-row total-job-cost-row"><span class="label">Gross Profit</span><span class="value" id="sumGrossProfit" style="color:var(--green-dark)">$0.00</span></div>
-    </div>
-
-    <!-- Per Sq Ft (internal only) -->
-    <div class="summary-section internal-only">
-      <h3>Per Sq Ft</h3>
-      <div class="summary-row"><span class="label">Cost / Sq Ft</span><span class="value" id="costPerSqft">—</span></div>
-      <div class="summary-row"><span class="label">Sell Price / Sq Ft</span><span class="value" id="sellPerSqft">—</span></div>
+      <div id="additionalBlock">
+        <hr class="divider">
+        <div class="summary-row sub"><span class="label">Crew Bonuses <small>(+15%)</small></span><span class="value" id="sumBonus">$0.00</span></div>
+        <div class="summary-row sub"><span class="label">Crew Per Diem <small>(+5%)</small></span><span class="value" id="sumPerDiem">$0.00</span></div>
+        <div class="summary-row sub"><span class="label">Crew Lodging <small>(+5%)</small></span><span class="value" id="sumLodging">$0.00</span></div>
+        <div class="summary-row"><span class="label" style="font-weight:700;color:var(--navy)">Total Additional Cost</span><span class="value" id="sumAdditional" style="font-weight:700">$0.00</span></div>
+      </div>
     </div>
 
     <!-- Total (internal view) -->
     <div class="total-box internal-only">
-      <div class="total-label">Customer Price — <span id="priceLabel">Option 1</span></div>
+      <div class="total-label">Total Customer Pricing With Additional Cost — <span id="priceLabel">Option 1</span></div>
       <div class="total-price" id="customerPrice">$0.00</div>
       <div class="total-sub" style="display:none">at <span id="marginNote">50%</span> margin + <span id="royaltyNote">5%</span> royalty</div>
       <div class="profit-indicator" style="display:none">
         <span>Gross Profit</span>
         <span class="val" id="grossProfit">$0.00</span>
       </div>
+    </div>
+
+    <!-- Per Sq Ft (internal only) -->
+    <div class="summary-section internal-only" style="margin-top:14px">
+      <h3>Per Sq Ft</h3>
+      <div class="summary-row"><span class="label">Cost / Sq Ft</span><span class="value" id="costPerSqft">—</span></div>
+      <div class="summary-row"><span class="label">Sell Price / Sq Ft</span><span class="value" id="sellPerSqft">—</span></div>
     </div>
 
     <!-- Customer view totals -->
@@ -1578,7 +1587,7 @@ const MISC_CATALOG = [
   { name: 'Poly Sheeting', price: 22.31, unit: 'each' },
   { name: 'Recessed Light Cover', price: 8.36, unit: 'each' },
   { name: 'Removal Bags', price: 11.41, unit: 'each' },
-  { name: 'Rolflex', price: 44.75, unit: 'ft.', coverage: 24 },
+  { name: 'Rolflex', price: 1.86, unit: 'ft.' },                 // $44.75 per 24 ft roll → priced per linear foot
   { name: 'Sill Plate Gasket', price: 4.73, unit: 'each' },
   { name: 'SPF Supplies/PPE', price: 255.43, unit: 'each' },
   { name: 'Staples', price: 5.45, unit: 'each' },
@@ -1601,7 +1610,7 @@ const JOB_AUTO_SUPPLIES = {
 };
 
 const TRIP_RATE_PER_MILE = 2.00;
-const GENERATOR_FUEL_RATE = 4.00;
+let GENERATOR_FUEL_RATE = 4.30;   // $/hr of generator/equipment time (live: app_settings.generator_fuel_rate)
 const PAYROLL_TAX_RATE = 0.10;
 
 // Default labor rates (loaded from Supabase app_settings, overridable by GM)
@@ -1703,14 +1712,16 @@ async function loadPricingFromSupabase() {
       if (ci) {
         const cov = parseFloat(ci.coverage_sqft) || 0;
         // For "each" items with coverage > 1 (e.g. box of 10 masks), use price_per_sqft as per-unit price
-        if (ci.unit_of_measure === 'each' && cov > 1 && parseFloat(ci.price_per_sqft) > 0) {
-          mc.price = parseFloat(ci.price_per_sqft);
+        if ((ci.unit_of_measure === 'each' || /^ft\.?$/.test(ci.unit_of_measure || '')) && cov > 1 && parseFloat(ci.price_per_sqft) > 0) {
+          mc.price = parseFloat(ci.price_per_sqft);          // boxes priced per piece; rolls sold by the foot (Rolflex) priced per ft
+          if (ci.unit_of_measure !== 'each') mc.price = Math.round(mc.price * 100) / 100;
+          if (ci.unit_of_measure !== 'each') { mc.unit = ci.unit_of_measure; mc.coverage = 0; mc._perFt = true; }
         } else {
           const p = parseFloat(ci.unit_price);
           if (p > 0) mc.price = p;
         }
-        if (ci.unit_of_measure) mc.unit = ci.unit_of_measure;
-        if (cov > 1) mc.coverage = cov;
+        if (ci.unit_of_measure && !mc._perFt) mc.unit = ci.unit_of_measure;
+        if (cov > 1 && !mc._perFt) mc.coverage = cov;
       }
     });
 
@@ -1744,14 +1755,17 @@ async function loadPricingFromSupabase() {
         const covVal = parseFloat(ci.coverage_sqft) || 0;
         // For "each" items with coverage > 1 (box pricing), use price_per_sqft as per-unit price
         let itemPrice = parseFloat(ci.unit_price) || 0;
+        let perFt = false;
         if (ci.unit_of_measure === 'each' && covVal > 1 && parseFloat(ci.price_per_sqft) > 0) {
           itemPrice = parseFloat(ci.price_per_sqft);
+        } else if (/^ft\.?$/.test(ci.unit_of_measure || '') && covVal > 1 && parseFloat(ci.price_per_sqft) > 0) {
+          itemPrice = Math.round(parseFloat(ci.price_per_sqft) * 100) / 100; perFt = true;   // e.g. Rolflex $44.75 / 24 ft = $1.86 per ft
         }
         allPricingItems.push({
           name: friendlyName,
           price: itemPrice,
           unit: ci.unit_of_measure || 'each',
-          coverage: covVal
+          coverage: perFt ? 0 : covVal
         });
       }
     });
@@ -1790,6 +1804,7 @@ async function loadAppSettings() {
     if (s.ot_rate_1) DEFAULT_OT_RATE_1 = parseFloat(s.ot_rate_1);
     if (s.ot_rate) DEFAULT_OT_RATE = parseFloat(s.ot_rate);
     if (s.mobilization_rate) DEFAULT_MOBILIZATION_RATE = parseFloat(s.mobilization_rate);
+    if (s.generator_fuel_rate) { GENERATOR_FUEL_RATE = parseFloat(s.generator_fuel_rate) || GENERATOR_FUEL_RATE; if (!currentEstimateId && !new URLSearchParams(location.search).get('id')) document.querySelectorAll('input[id$="fuelRate"]').forEach(i => { if (i.value === '4.30' || i.value === '4.00') i.value = GENERATOR_FUEL_RATE.toFixed(2); }); recalc(); }
     if (s.trip_tier_50) TRIP_TIERS.t50 = parseFloat(s.trip_tier_50);
     if (s.trip_tier_75) TRIP_TIERS.t75 = parseFloat(s.trip_tier_75);
     if (s.trip_tier_100) TRIP_TIERS.t100 = parseFloat(s.trip_tier_100);
@@ -1965,6 +1980,7 @@ function switchToOption(idx) {
 }
 
 function duplicateOption() {
+  if (typeof quoteLocked === 'function' && quoteLocked()) return;
   _restoring = true;                                   // don't auto-add supplies while rows are being copied
   try { return duplicateOptionInner(); } finally { _restoring = false; recalc(); }
 }
@@ -1986,7 +2002,8 @@ function duplicateOptionInner() {
       framingDepth: $(sp + 'framingDepth')?.value || '',
       studSpacing: $(sp + 'studSpacing')?.value || '',
       ceilingAreas: getOptAreaData(sp, 'ceiling'),
-      wallAreas: getOptAreaData(sp, 'wall')
+      wallAreas: getOptAreaData(sp, 'wall'),
+      notes: $(sp + 'jobDetailsNotes')?.value || ''
     } : null,
     trip: {
       tier: $(sp + 'tripTier')?.value || '0',
@@ -1994,7 +2011,7 @@ function duplicateOptionInner() {
       chargeAmt: $(sp + 'tripChargeAmt')?.value || '0',
       days: $(sp + 'tripDays')?.value || '1',
       genHours: $(sp + 'genHours')?.value || '0',
-      fuelRate: $(sp + 'fuelRate')?.value || '4.00'
+      fuelRate: $(sp + 'fuelRate')?.value || String(GENERATOR_FUEL_RATE)
     },
     blowIn: [], batt: [], spf: [], labor: [], misc: []
   };
@@ -2067,6 +2084,7 @@ function duplicateOptionInner() {
     (jd.wallAreas || []).forEach(a => addOptAreaRow(p, 'wall', a.sqft || 0, a.location, a.rValue || ''));
     if (cContainer && !cContainer.children.length) addOptAreaRow(p, 'ceiling');
     if (wContainer && !wContainer.children.length) addOptAreaRow(p, 'wall');
+    if ($(p + 'jobDetailsNotes')) $(p + 'jobDetailsNotes').value = jd.notes || '';
   }
 
   // Apply trip
@@ -2077,7 +2095,7 @@ function duplicateOptionInner() {
     $(p + 'tripChargeAmt').value = srcData.trip.chargeAmt || '0';
     $(p + 'tripDays').value = srcData.trip.days || '1';
     $(p + 'genHours').value = srcData.trip.genHours || '0';
-    $(p + 'fuelRate').value = srcData.trip.fuelRate || '4.00';
+    $(p + 'fuelRate').value = srcData.trip.fuelRate || GENERATOR_FUEL_RATE.toFixed(2);
   }
 
   // Blow-in
@@ -2272,8 +2290,68 @@ function buildOptionContainer(opt) {
             <div class="area-total" id="${p}wallAreaTotal"></div>
           </div>
         </div>
+        <div class="field" style="margin-top:6px">
+          <label style="font-size:.8rem">Notes for this option's job details</label>
+          <textarea id="${p}jobDetailsNotes" rows="2" placeholder="What is different about this option (areas, access, scope)…" style="font-size:.85rem"></textarea>
+        </div>
       </div>
     </div>
+    <!-- Blow-In -->
+    <div class="card">
+      <h2><span class="icon">&#127968;</span> Blow-In Material</h2>
+      <div id="${p}blowCalcInfo"></div>
+      <table class="line-items">
+        <thead><tr><th style="width:40%">Material</th><th>Bags</th><th class="cost-col">$/Bag</th><th class="num cost-col">Cost</th><th></th></tr></thead>
+        <tbody id="${p}blowInBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addBlowIn()">+ Add Blow-In</button>
+    </div>
+
+    <!-- Batt / Rigid -->
+    <div class="card">
+      <h2><span class="icon">&#129521;</span> Batt &amp; Rigid Insulation</h2>
+      <div id="${p}battSuggestions" class="internal-only"></div>
+      <table class="line-items">
+        <thead><tr><th style="width:35%">Product</th><th>Qty</th><th class="cost-col">$/Unit</th><th>Sq Ft</th><th class="num cost-col">Cost</th><th></th></tr></thead>
+        <tbody id="${p}battBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addBatt()">+ Add Insulation</button>
+    </div>
+
+    <!-- Spray Foam -->
+    <div class="card">
+      <h2><span class="icon">&#128167;</span> Spray Foam</h2>
+      <div id="${p}spfCalcInfo"></div>
+      <table class="line-items">
+        <thead><tr><th style="width:40%">Type</th><th>Board Ft</th><th class="cost-col">$/Bd Ft</th><th class="num cost-col">Cost</th><th></th></tr></thead>
+        <tbody id="${p}spfBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addSpf()">+ Add Spray Foam</button>
+    </div>
+
+    <!-- Misc Supplies -->
+    <div class="card">
+      <h2><span class="icon">&#128230;</span> Misc Supplies</h2>
+      <table class="line-items">
+        <thead><tr><th style="width:40%">Item</th><th>Qty</th><th class="cost-col">$/Item</th><th class="num cost-col">Cost</th><th></th></tr></thead>
+        <tbody id="${p}miscBody"></tbody>
+      </table>
+      <button class="btn-add" onclick="addMisc()">+ Add Supply</button>
+    </div>
+    <!-- Labor -->
+    <div class="card internal-only">
+      <h2><span class="icon">&#128119;</span> Labor</h2>
+      <div class="kg" id="${p}kg"></div>
+      <table class="line-items">
+        <thead><tr><th style="width:120px"></th><th>Hours</th><th>Rate</th><th>OT Hrs</th><th>OT Rate</th><th>Bonus</th><th class="num">Cost</th><th></th></tr></thead>
+        <tbody id="${p}laborBody"></tbody>
+      </table>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn-add" onclick="addLabor()">+ Add Crew</button>
+
+      </div>
+    </div>
+
     <!-- Trip Charge -->
     <div class="card">
       <h2><span class="icon">&#128663;</span> Trip Charge</h2>
@@ -2308,7 +2386,7 @@ function buildOptionContainer(opt) {
         </div>
         <div class="field" style="flex:1; max-width:160px">
           <label>Fuel Rate ($/hr)</label>
-          <input type="number" id="${p}fuelRate" value="4.00" min="0" step="0.25" oninput="recalc()" style="text-align:right">
+          <input type="number" id="${p}fuelRate" value="${GENERATOR_FUEL_RATE.toFixed(2)}" min="0" step="0.25" oninput="recalc()" style="text-align:right">
         </div>
         <div class="field" style="flex:1; max-width:160px; display:flex; align-items:flex-end">
           <span style="font-size:.85rem; color:var(--green-dark); font-weight:600; padding-bottom:8px" id="${p}fuelCalc">Fuel: $0.00</span>
@@ -2319,62 +2397,6 @@ function buildOptionContainer(opt) {
       </div>
     </div>
 
-    <!-- Blow-In -->
-    <div class="card">
-      <h2><span class="icon">&#127968;</span> Blow-In Material</h2>
-      <div id="${p}blowCalcInfo"></div>
-      <table class="line-items">
-        <thead><tr><th style="width:40%">Material</th><th>Bags</th><th class="cost-col">$/Bag</th><th class="num cost-col">Cost</th><th></th></tr></thead>
-        <tbody id="${p}blowInBody"></tbody>
-      </table>
-      <button class="btn-add" onclick="addBlowIn()">+ Add Blow-In</button>
-    </div>
-
-    <!-- Batt / Rigid -->
-    <div class="card">
-      <h2><span class="icon">&#129521;</span> Batt &amp; Rigid Insulation</h2>
-      <div id="${p}battSuggestions" class="internal-only"></div>
-      <table class="line-items">
-        <thead><tr><th style="width:35%">Product</th><th>Qty</th><th class="cost-col">$/Unit</th><th>Sq Ft</th><th class="num cost-col">Cost</th><th></th></tr></thead>
-        <tbody id="${p}battBody"></tbody>
-      </table>
-      <button class="btn-add" onclick="addBatt()">+ Add Insulation</button>
-    </div>
-
-    <!-- Spray Foam -->
-    <div class="card">
-      <h2><span class="icon">&#128167;</span> Spray Foam</h2>
-      <div id="${p}spfCalcInfo"></div>
-      <table class="line-items">
-        <thead><tr><th style="width:40%">Type</th><th>Board Ft</th><th class="cost-col">$/Bd Ft</th><th class="num cost-col">Cost</th><th></th></tr></thead>
-        <tbody id="${p}spfBody"></tbody>
-      </table>
-      <button class="btn-add" onclick="addSpf()">+ Add Spray Foam</button>
-    </div>
-
-    <!-- Labor -->
-    <div class="card internal-only">
-      <h2><span class="icon">&#128119;</span> Labor</h2>
-      <div class="kg" id="${p}kg"></div>
-      <table class="line-items">
-        <thead><tr><th style="width:120px"></th><th>Hours</th><th>Rate</th><th>OT Hrs</th><th>OT Rate</th><th>Bonus</th><th class="num">Cost</th><th></th></tr></thead>
-        <tbody id="${p}laborBody"></tbody>
-      </table>
-      <div style="display:flex;gap:8px;margin-top:6px">
-        <button class="btn-add" onclick="addLabor()">+ Add Crew</button>
-
-      </div>
-    </div>
-
-    <!-- Misc Supplies -->
-    <div class="card">
-      <h2><span class="icon">&#128230;</span> Misc Supplies</h2>
-      <table class="line-items">
-        <thead><tr><th style="width:40%">Item</th><th>Qty</th><th class="cost-col">$/Item</th><th class="num cost-col">Cost</th><th></th></tr></thead>
-        <tbody id="${p}miscBody"></tbody>
-      </table>
-      <button class="btn-add" onclick="addMisc()">+ Add Supply</button>
-    </div>
   `;
   $('optionContainers').appendChild(div);
 }
@@ -3147,7 +3169,8 @@ function setSpfQty(prefix, rowId, qty) {
 
 function calcOption(opt) {
   const p = optPrefixFor(opt);
-  let totalBlowIn = 0, totalBatt = 0, totalSpf = 0, totalLabor = 0, totalMisc = 0;
+  let totalBlowIn = 0, totalBatt = 0, totalSpf = 0, totalLabor = 0, totalMisc = 0, crewBonus = 0, perDiem = 0, lodging = 0;
+  const v2 = pricingV >= 2;      // spreadsheet pricing: bonuses / per diem / lodging are added AFTER the price (Total Additional Cost)
 
   // Blow-in
   opt.rows.blowIn.forEach(id => {
@@ -3209,10 +3232,10 @@ function calcOption(opt) {
     const ot = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${id}"]`)?.value) || 0;
     const otRate = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-otrate[data-id="${id}"]`)?.value) || 0;
     const bonus = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-bonus[data-id="${id}"]`)?.value) || 0;
-    const cost = (hrs * rate) + (ot * otRate) + bonus;
+    const cost = (hrs * rate) + (ot * otRate) + (v2 ? 0 : bonus);
     const costEl = document.querySelector(`.${CSS.escape(p)}lb-cost[data-id="${id}"]`);
-    if (costEl) costEl.textContent = fmt(cost);
-    totalLabor += cost;
+    if (costEl) costEl.textContent = fmt(cost);              // wages only — bonuses are shown under Total Additional Cost
+    totalLabor += cost; if (v2) crewBonus += bonus;
   });
 
   // Misc — use the editable price input (may be overridden by user)
@@ -3226,7 +3249,11 @@ function calcOption(opt) {
     if (nameInput && nameInput.value.trim() !== '') {
       const cost = qty * unitPrice;
       if (costEl) costEl.textContent = fmt(cost);
-      totalMisc += cost;
+      const nm = nameInput.value.trim();
+      { const tr = nameInput.closest('tr'); if (tr) tr.classList.toggle('internal-only', /per[\s-]*diem|lodging|hotel/i.test(nm)); }   // crew costs: not shown in customer view
+      if (v2 && /per[\s-]*diem/i.test(nm)) perDiem += cost;
+      else if (v2 && /lodging|hotel/i.test(nm)) lodging += cost;
+      else totalMisc += cost;
     } else {
       if (costEl) costEl.textContent = '$0.00';
     }
@@ -3263,9 +3290,12 @@ function calcOption(opt) {
   const totalMaterials = totalBlowIn + totalBatt + totalSpf;
   const payrollTax = totalLabor * PAYROLL_TAX_RATE;
   const totalLaborWithTax = totalLabor + payrollTax;
-  const totalJobCost = totalMaterials + totalLaborWithTax + totalMisc + tripCharge;
+  const totalMaterialCost = totalMaterials + totalMisc + tripCharge;          // spreadsheet "Total Material Cost" (incl. trip / fuel)
+  const totalJobCost = totalMaterialCost + totalLaborWithTax;
+  // Spreadsheet: Total Additional Cost = bonuses + 15% + (per diem + lodging) + 5%, added after pricing
+  const additional = crewBonus * 1.15 + (perDiem + lodging) * 1.05;
 
-  return { totalBlowIn, totalBatt, totalSpf, totalMaterials, totalLabor, payrollTax, totalLaborWithTax, totalMisc, tripCharge, totalJobCost };
+  return { totalBlowIn, totalBatt, totalSpf, totalMaterials, totalLabor, payrollTax, totalLaborWithTax, totalMisc, tripCharge, totalMaterialCost, totalJobCost, crewBonus, perDiem, lodging, additional };
 }
 
 // Foam cans (GM rule, retrofit): 1 can per 1,000 sf; 2 per 1,000 sf on removal jobs or when there is no existing
@@ -3301,6 +3331,7 @@ document.addEventListener('input', ev => {
 // they can be repriced with current prices & rules (button in the banner).
 const QUOTE_VALID_DAYS = 30;
 let quoteInfo = { pricedAt: null, loaded: false };
+let pricingV = 2;      // 2 = spreadsheet layout (additional costs after the price). Estimates saved before Oct 15 2026 keep 1.
 const isWonStatus = s => s === 'accepted' || s === 'completed';
 let savedStatus = 'draft';                              // status as saved (the Save dialog's select may hold an unsaved choice)
 function quoteLocked() { return !!currentEstimateId && isWonStatus(savedStatus); }
@@ -3334,7 +3365,7 @@ function releaseQuoteHold(ev) {
   if (!ev.isTrusted || _restoring || quoteLocked()) return;
   const el = ev.target; if (!el || !el.closest || !el.closest('.app .main') || el.closest('#quoteBanner')) return;
   if (ev.type === 'click' && !el.closest('button')) return;
-  if (['custName', 'estimator', 'address', 'custPhone', 'custEmail', 'leadSource', 'notes'].includes(el.id)) return;
+  if (['custName', 'estimator', 'address', 'custPhone', 'custEmail', 'leadSource', 'notes'].includes(el.id) || /jobDetailsNotes$/.test(el.id || '')) return;   // notes are not pricing changes
   if (ev.type === 'click' && el.closest('#optionTabBar')) return;   // switching options is not a change
   const cont = el.closest('.option-container');
   const targets = cont ? options.filter(o => 'opt-' + o.id === cont.id) : options;
@@ -3354,7 +3385,12 @@ function repriceQuote() {
     o.rows.spf.forEach(id => onSpfSelect(p, id));
     o.rows.misc.forEach(m => {
       const nm = q('ms-name', m.id)?.value || '', it = allPricingItems.find(i => i.name === nm) || MISC_CATALOG.find(i => i.name === nm);
-      if (it) { const pi = q('ms-price', m.id); if (pi) pi.value = it.price; }
+      if (it) {
+        const pi = q('ms-price', m.id), qi = q('ms-qty', m.id), old = parseFloat(pi?.value) || 0;
+        // Items now priced per foot (Rolflex: was $44.75 per 24-ft roll) — convert the saved roll count to feet
+        if (/^ft\.?$/.test(it.unit || '') && it.price > 0 && old > it.price * 5 && qi) qi.value = Math.round((parseFloat(qi.value) || 0) * Math.round(old / it.price) * 100) / 100;
+        if (pi) pi.value = it.price;
+      }
     });
     // labor: current rates; residential has no mobilization row
     let k = 0;
@@ -3364,12 +3400,14 @@ function repriceQuote() {
       const first = k++ === 0, r = q('lb-rate', id), ro = q('lb-otrate', id);
       if (r) r.value = first ? DEFAULT_LABOR_RATE_1 : DEFAULT_LABOR_RATE; if (ro) ro.value = first ? DEFAULT_OT_RATE_1 : DEFAULT_OT_RATE;
     });
+    { const fr = $(p + 'fuelRate'); if (fr) fr.value = GENERATOR_FUEL_RATE.toFixed(2); }   // current fuel rate
     o.hold = false;
   });
   activeOptionIdx = wasActive;
   updateTripDropdowns();                                // current trip tiers
   options.forEach(o => { const p = optPrefixFor(o), t = $(p + 'tripTier'); if (t && t.value !== 'custom' && t.value !== '0') onTripTierChange(p); });
   autoSuppliesOn = true;
+  pricingV = 2;                                         // current spreadsheet pricing
   quoteInfo.pricedAt = new Date().toISOString();
   options.forEach(o => KG.render(o));
   recalc(); renderQuoteBanner(); scheduleAutoSave();
@@ -3432,10 +3470,7 @@ function recalc() {
   updateAutoFoam();
   updateAutoJobSupplies();
   const opt = getOpt();
-  const c = calcOption(opt);
-  const margin = getOptionMargin(opt);
-  const royalty = parseFloat($('royaltyInput').value) || 0;
-  const divisor = 1 - (margin / 100) - (royalty / 100);
+  const pr = optionPricing(opt), c = pr.c, margin = pr.margin, royalty = pr.royalty;
 
   // Update margin display for all options
   const globalMargin = numOr($('marginInput').value, 50);
@@ -3451,7 +3486,7 @@ function recalc() {
   $('sumBlowIn').textContent = fmt(c.totalBlowIn);
   $('sumBatt').textContent = fmt(c.totalBatt);
   $('sumSpf').textContent = fmt(c.totalSpf);
-  $('sumMaterials').textContent = fmt(c.totalMaterials);
+  $('sumMaterials').textContent = fmt(c.totalMaterialCost);
   $('sumLabor').textContent = fmt(c.totalLabor);
   $('sumTax').textContent = fmt(c.payrollTax);
   $('sumLaborTotal').textContent = fmt(c.totalLaborWithTax);
@@ -3462,14 +3497,22 @@ function recalc() {
   $('royaltyNote').textContent = royalty + '%';
   $('royaltyPctLabel').textContent = royalty;
 
-  // Formula: Customer Price = Total Cost / (1 - margin% - royalty%)
-  const customerPrice = divisor > 0 ? c.totalJobCost / divisor : 0;
-  const royaltyAmt = customerPrice * (royalty / 100);
-  const grossProfit = customerPrice - c.totalJobCost - royaltyAmt;
+  // Spreadsheet: Revenue After Fees = Total Job Cost ÷ (1 − GP − royalty); customer price adds the Total Additional Cost
+  const customerPrice = pr.total, royaltyAmt = pr.royaltyAmt, grossProfit = pr.grossProfit;
   $('customerPrice').textContent = fmt(customerPrice);
   $('grossProfit').textContent = fmt(grossProfit);
   $('sumRoyalty').textContent = fmt(royaltyAmt);
   $('sumGrossProfit').textContent = fmt(grossProfit);
+  $('sumGpPct').textContent = margin + '%';
+  $('sumRevBefore').textContent = fmt(pr.revBeforeFees);
+  $('sumRevAfter').textContent = fmt(pr.revAfterFees);
+  $('sumBonus').textContent = fmt(c.crewBonus);
+  $('sumPerDiem').textContent = fmt(c.perDiem);
+  $('sumLodging').textContent = fmt(c.lodging);
+  $('sumAdditional').textContent = fmt(c.additional);
+  $('additionalBlock').style.display = pricingV >= 2 ? '' : 'none';
+  { const tl = document.querySelector('.total-box .total-label'); if (tl && tl.firstChild) tl.firstChild.nodeValue = pricingV >= 2 ? 'Total Customer Pricing With Additional Cost — ' : 'Customer Price — '; }
+  if (pr.invalid) $('customerPrice').textContent = 'GM + royalty ≥ 100%';
 
   // Per sq ft (uses option-level or global area totals)
   const optCtx = getOptionJobContext(opt);
@@ -3531,11 +3574,7 @@ async function doAutoSave() {
 
   try {
     const formData = formData0;
-    const c = calcOption(getOpt());
-    const margin = getOptionMargin(getOpt());
-    const royalty = parseFloat($('royaltyInput').value) || 0;
-    const divisor = 1 - (margin / 100) - (royalty / 100);
-    const customerPrice = divisor > 0 ? c.totalJobCost / divisor : 0;
+    const pr = optionPricing(getOpt()), c = pr.c, margin = pr.margin, royalty = pr.royalty, customerPrice = pr.total;
 
     const record = {
       customer_name: $('custName').value || 'Untitled',
@@ -3611,6 +3650,7 @@ function serializeForm() {
   const data = {
     autoJobSupplies: autoSuppliesOn,
     pricedAt: quoteInfo.pricedAt || (quoteInfo.pricedAt = new Date().toISOString()),
+    pricingV,
     custName: $('custName').value,
     estimator: $('estimator').value,
     address: $('address').value,
@@ -3645,7 +3685,8 @@ function serializeForm() {
         framingDepth: $(p + 'framingDepth')?.value || '',
         studSpacing: $(p + 'studSpacing')?.value || '',
         ceilingAreas: getOptAreaData(p, 'ceiling'),
-        wallAreas: getOptAreaData(p, 'wall')
+        wallAreas: getOptAreaData(p, 'wall'),
+        notes: $(p + 'jobDetailsNotes')?.value || ''
       } : null,
       trip: {
         tier: $(p + 'tripTier')?.value || '0',
@@ -3653,7 +3694,7 @@ function serializeForm() {
         chargeAmt: $(p + 'tripChargeAmt')?.value || '0',
         days: $(p + 'tripDays')?.value || '1',
         genHours: $(p + 'genHours')?.value || '0',
-        fuelRate: $(p + 'fuelRate')?.value || '4.00'
+        fuelRate: $(p + 'fuelRate')?.value || String(GENERATOR_FUEL_RATE)
       },
       guide: opt.guide || null,
       blowIn: [],
@@ -3719,7 +3760,8 @@ function deserializeForm(data) {
   KG.suspend(true);
   _restoring = true;
   autoSuppliesOn = !!data.autoJobSupplies;
-  quoteInfo.pricedAt = data.pricedAt || null;            // estimates saved before the N95 / SPF-supplies rule keep their supplies as saved
+  quoteInfo.pricedAt = data.pricedAt || null;
+  pricingV = data.pricingV || 1;                        // older saves keep the pricing they were sold with            // estimates saved before the N95 / SPF-supplies rule keep their supplies as saved
   // Clear existing options
   while (options.length > 0) {
     const opt = options[0];
@@ -3802,6 +3844,7 @@ function deserializeForm(data) {
       (jd.wallAreas || []).forEach(a => addOptAreaRow(p, 'wall', a.sqft || 0, a.location, a.rValue || ''));
       if (cContainer && !cContainer.children.length) addOptAreaRow(p, 'ceiling');
       if (wContainer && !wContainer.children.length) addOptAreaRow(p, 'wall');
+      if ($(p + 'jobDetailsNotes')) $(p + 'jobDetailsNotes').value = jd.notes || '';
     }
 
     // Trip
@@ -3960,11 +4003,7 @@ async function saveEstimate() {
 
   try {
     const formData = serializeForm();
-    const c = calcOption(getOpt());
-    const margin = getOptionMargin(getOpt());
-    const royalty = parseFloat($('royaltyInput').value) || 0;
-    const divisor = 1 - (margin / 100) - (royalty / 100);
-    const customerPrice = divisor > 0 ? c.totalJobCost / divisor : 0;
+    const pr = optionPricing(getOpt()), c = pr.c, margin = pr.margin, royalty = pr.royalty, customerPrice = pr.total;
 
     const record = {
       customer_name: $('saveCustomerName').value || '',
@@ -4186,13 +4225,19 @@ function getSelectedEmailOptions() {
   return Array.from(checks).map(cb => parseInt(cb.value)).filter(i => i < options.length);
 }
 
-function getOptionCustomerPrice(opt) {
-  const margin = getOptionMargin(opt);
-  const royalty = numOr($('royaltyInput').value, 5);
-  const divisor = 1 - (margin / 100) - (royalty / 100);
-  const c = calcOption(opt);
-  return divisor > 0 ? c.totalJobCost / divisor : 0;
+// Spreadsheet pricing: Revenue Before Fees = cost ÷ (1 − GP); Revenue After Fees = cost ÷ (1 − GP − royalty);
+// Total Customer Pricing = Revenue After Fees + Total Additional Cost
+function optionPricing(opt, c) {
+  c = c || calcOption(opt);
+  const margin = getOptionMargin(opt), royalty = numOr($('royaltyInput').value, 5);
+  const divisor = (100 - margin - royalty) / 100;
+  const revBeforeFees = margin < 100 ? c.totalJobCost / (1 - margin / 100) : 0;
+  const revAfterFees = divisor > 1e-9 ? c.totalJobCost / divisor : 0;
+  const royaltyAmt = revAfterFees * royalty / 100;
+  const invalid = divisor <= 1e-9;                      // GP + royalty ≥ 100%: no valid price
+  return { c, margin, royalty, revBeforeFees, revAfterFees, royaltyAmt, grossProfit: revAfterFees - c.totalJobCost - royaltyAmt, additional: c.additional, invalid, total: invalid ? 0 : revAfterFees + c.additional };
 }
+function getOptionCustomerPrice(opt) { return optionPricing(opt).total; }
 
 function getCustomerPrice() {
   const el = document.getElementById('totalPrice');
@@ -4519,7 +4564,7 @@ function createFinalCombined() {
         chargeAmt: $(sp + 'tripChargeAmt')?.value || '0',
         days: $(sp + 'tripDays')?.value || '1',
         genHours: $(sp + 'genHours')?.value || '0',
-        fuelRate: $(sp + 'fuelRate')?.value || '4.00'
+        fuelRate: $(sp + 'fuelRate')?.value || String(GENERATOR_FUEL_RATE)
       });
     }
   });
@@ -4614,7 +4659,7 @@ function createFinalCombined() {
 
   // Trip: use the highest charge amount, sum days and gen hours
   if (combinedData.trips.length > 0) {
-    let maxCharge = 0, totalDays = 0, totalGenHours = 0, bestTier = '0', bestMiles = '0', bestFuelRate = '4.00';
+    let maxCharge = 0, totalDays = 0, totalGenHours = 0, bestTier = '0', bestMiles = '0', bestFuelRate = String(GENERATOR_FUEL_RATE);
     combinedData.trips.forEach(t => {
       const amt = parseFloat(t.chargeAmt) || 0;
       if (amt > maxCharge) {

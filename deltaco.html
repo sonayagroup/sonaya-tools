@@ -804,6 +804,18 @@ body {
   .crm-controls select, .crm-controls input { width: 100%; }
   .crm-stats { flex-direction: column; }
 }
+.gmcl-section { border:1px solid var(--border-color); border-radius:8px; overflow:hidden; }
+.gmcl-item { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid var(--border-color); background:var(--card-bg); transition:background .15s; }
+.gmcl-item:last-child { border-bottom:none; }
+.gmcl-item:hover { background:var(--hover-bg, rgba(0,0,0,.03)); }
+.gmcl-item input[type="checkbox"] { width:18px; height:18px; accent-color:var(--brand-green); cursor:pointer; flex-shrink:0; }
+.gmcl-item label { flex:1; font-size:14px; color:var(--text-primary); cursor:pointer; line-height:1.4; }
+.gmcl-item.checked label { text-decoration:line-through; color:var(--text-secondary); }
+.gmcl-item .gmcl-note { font-size:11px; color:var(--text-secondary); font-style:italic; }
+.gmcl-progress { display:flex; align-items:center; gap:8px; padding:8px 16px; background:var(--surface-bg, var(--card-bg)); border-bottom:1px solid var(--border-color); }
+.gmcl-progress-bar { flex:1; height:6px; background:var(--border-color); border-radius:3px; overflow:hidden; }
+.gmcl-progress-fill { height:100%; background:var(--brand-green); border-radius:3px; transition:width .3s; }
+.gmcl-progress-text { font-size:12px; color:var(--text-secondary); font-weight:600; min-width:40px; text-align:right; }
 .crm-add-btn { padding: 6px 14px; background: #0a7c42; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .crm-add-btn:hover { background: #086835; }
 .crm-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 16px; }
@@ -885,6 +897,7 @@ body {
   <button class="tab-btn" data-tab="catering">Catering CRM</button>
   <button class="tab-btn" data-tab="onboard">Onboarding</button>
   <button class="tab-btn" data-tab="contacts">Contacts</button>
+  <button class="tab-btn" data-tab="gmchecklist">GM Checklist</button>
 </nav>
 
 <!-- TAB 1: DAILY OPERATIONS -->
@@ -1611,6 +1624,52 @@ body {
         <tbody></tbody>
       </table>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 10: GM CHECKLIST -->
+<div class="tab-content" id="tab-gmchecklist">
+  <div class="container" style="max-width:900px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+      <div>
+        <h2 style="margin:0; font-size:20px; color:var(--text-primary);">GM Daily / Weekly / Monthly Checklist</h2>
+        <p style="margin:4px 0 0; font-size:13px; color:var(--text-secondary);">Track completion of required tasks for each store.</p>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:20px;">
+      <div class="control-group">
+        <label>Store:</label>
+        <select class="control-select" id="gmclStore"></select>
+      </div>
+      <div class="control-group">
+        <label>Date:</label>
+        <input type="date" class="control-input" id="gmclDate" />
+      </div>
+    </div>
+
+    <div id="gmclContent">
+      <!-- Daily Section -->
+      <div class="gmcl-section">
+        <div class="gmcl-section-hdr" style="background:var(--brand-green); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Daily Tasks</div>
+        <div class="gmcl-items" id="gmclDaily"></div>
+      </div>
+
+      <!-- Weekly Section -->
+      <div class="gmcl-section" style="margin-top:18px;">
+        <div class="gmcl-section-hdr" style="background:var(--brand-red); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Weekly Tasks</div>
+        <div class="gmcl-items" id="gmclWeekly"></div>
+      </div>
+
+      <!-- Monthly Section -->
+      <div class="gmcl-section" style="margin-top:18px;">
+        <div class="gmcl-section-hdr" style="background:var(--brand-gold); color:#1a1a2e; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Monthly Tasks</div>
+        <div class="gmcl-items" id="gmclMonthly"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px; text-align:right;">
+      <span id="gmclSaveStatus" style="font-size:12px; color:var(--text-secondary); margin-right:12px;"></span>
     </div>
   </div>
 </div>
@@ -4505,19 +4564,19 @@ const dataStore = {
   breakevenPL: {
     corpOverheadPerStore: 4278.27,
     periods: {
-      'Jan–Aug 2026': {
-        months: 8,
+      'Jan–Sep 2026': {
+        months: 9,
         stores: {
-          '726':  { revPerMonth: 136197.48, varCostPct: 45.14, fixedPerMonth: 61780.00 },
-          '898':  { revPerMonth: 103541.97, varCostPct: 45.77, fixedPerMonth: 50192.10 },
-          '1029': { revPerMonth: 98323.03,  varCostPct: 45.13, fixedPerMonth: 49482.51 },
-          '1056': { revPerMonth: 116314.23, varCostPct: 43.27, fixedPerMonth: 56606.27 },
-          '1153': { revPerMonth: 78863.86,  varCostPct: 50.93, fixedPerMonth: 45282.72 },
-          '1187': { revPerMonth: 87553.28,  varCostPct: 50.52, fixedPerMonth: 51150.82 },
-          '1205': { revPerMonth: 66350.93,  varCostPct: 48.63, fixedPerMonth: 44988.47 },
-          '1357': { revPerMonth: 49023.84,  varCostPct: 47.05, fixedPerMonth: 29543.50 },
-          '1364': { revPerMonth: 61992.36,  varCostPct: 47.51, fixedPerMonth: 42672.63 },
-          '1391': { revPerMonth: 85810.24,  varCostPct: 48.15, fixedPerMonth: 46279.25 },
+          '726':  { revPerMonth: 135743.30, varCostPct: 45.63, fixedPerMonth: 61611.89 },
+          '898':  { revPerMonth: 102988.19, varCostPct: 46.32, fixedPerMonth: 50246.76 },
+          '1029': { revPerMonth: 97131.66,  varCostPct: 45.29, fixedPerMonth: 48261.82 },
+          '1056': { revPerMonth: 116024.81, varCostPct: 43.38, fixedPerMonth: 55843.15 },
+          '1153': { revPerMonth: 78572.70,  varCostPct: 50.73, fixedPerMonth: 44766.83 },
+          '1187': { revPerMonth: 86653.87,  varCostPct: 50.71, fixedPerMonth: 50466.57 },
+          '1205': { revPerMonth: 65287.22,  varCostPct: 48.90, fixedPerMonth: 43997.81 },
+          '1357': { revPerMonth: 48596.34,  varCostPct: 47.51, fixedPerMonth: 29419.76 },
+          '1364': { revPerMonth: 61605.62,  varCostPct: 47.36, fixedPerMonth: 42618.26 },
+          '1391': { revPerMonth: 86706.83,  varCostPct: 48.04, fixedPerMonth: 45504.85 },
         },
       },
     },
@@ -6454,48 +6513,49 @@ const QBO_MONTHLY = [
   { month:'Jun 2026', monthShort:'Jun', sales:925725.31, food:287376.48, paper:19288.33, totalCOGS:306664.81, grossProfit:619060.50, payroll:298769.59, crewWages:177062.71, gmWages:41884.62, agmWages:32634.88, utilities:34583.43, electric:21401.27, gas:2154.10, water:6593.96, maintenance:23816.24, storeSupport:10828.23, delivery:34239.42, adFee:35551.61, royalty:44439.50, franchise:7301.57, ccFees:15449.49, rent:84977.67, insurance:7352.37, noi:2914.02 },
   { month:'Jul 2026', monthShort:'Jul', sales:902896.33, food:283612.52, paper:20761.90, totalCOGS:304374.42, grossProfit:598521.91, payroll:305530.70, crewWages:186695.46, gmWages:39388.46, agmWages:34078.73, utilities:42744.49, electric:28125.22, gas:2592.46, water:6887.93, maintenance:28144.45, storeSupport:10952.84, delivery:36695.96, adFee:36124.55, royalty:45155.70, franchise:6625.44, ccFees:15104.98, rent:87977.67, insurance:9976.13, noi:-49967.22 },
   { month:'Aug 2026', monthShort:'Aug', sales:1060273.31, food:267062.71, paper:21885.88, totalCOGS:288948.59, grossProfit:771324.72, payroll:441401.28, crewWages:268395.21, gmWages:60288.46, agmWages:47647.97, utilities:30979.46, electric:16917.02, gas:3054.38, water:7048.90, maintenance:21813.20, storeSupport:10470.66, delivery:28558.16, adFee:35157.04, royalty:43946.28, franchise:10013.05, ccFees:15524.50, rent:122652.49, insurance:15049.37, noi:-27519.12 },
+  { month:'Sep 2026', monthShort:'Sep', sales:852362.95, food:252526.57, paper:18872.01, totalCOGS:271398.58, grossProfit:580964.37, payroll:287614.37, crewWages:172687.85, gmWages:43413.57, agmWages:30334.39, utilities:34770.96, electric:18987.45, gas:3428.20, water:7911.60, maintenance:24471.96, storeSupport:10923.21, delivery:42706.85, adFee:33560.74, royalty:41950.94, franchise:5628.25, ccFees:15005.26, rent:88082.52, insurance:7098.84, noi:-34192.48 },
 ];
 
-// Per-store YTD data (Jan–Aug 2026)
+// Per-store YTD data (Jan–Sep 2026)
 const QBO_STORE_YTD = {
-  '1029': { name:'Central',     ns:786584.21, food:215826.76, payroll:260332.22, utilities:28768.01, maintenance:25966.99, delivery:33756.75, rent:60000.00, noi:35770.94 },
-  '1056': { name:'Los Lunas',   ns:930513.86, food:257838.34, payroll:312854.27, utilities:27033.17, maintenance:18416.40, delivery:18315.37, rent:81723.09, noi:74992.70 },
-  '1153': { name:'Rio Rancho',  ns:630910.85, food:190223.28, payroll:227951.32, utilities:17049.76, maintenance:17788.80, delivery:38191.93, rent:87486.65, noi:-52677.30 },
-  '1187': { name:'Alamogordo',  ns:700426.23, food:210674.13, payroll:255912.34, utilities:31342.82, maintenance:16395.56, delivery:43629.74, rent:90748.02, noi:-62610.01 },
-  '1205': { name:'Gallup',      ns:530807.47, food:171819.62, payroll:222074.17, utilities:45099.21, maintenance:18142.79, delivery:8217.76,  rent:61310.44, noi:-87251.64 },
-  '1357': { name:'T or C',      ns:392190.75, food:118072.36, payroll:173461.48, utilities:10717.15, maintenance:12999.37, delivery:6685.52,  rent:28000.00, noi:-28666.69 },
-  '1364': { name:'Bernalillo',  ns:495938.87, food:152544.80, payroll:217385.97, utilities:25334.80, maintenance:16861.85, delivery:7848.27,  rent:71302.74, noi:-81059.33 },
-  '1391': { name:'Gibson',      ns:686481.95, food:209302.00, payroll:238715.14, utilities:27320.50, maintenance:15595.51, delivery:22130.91, rent:78060.35, noi:-14313.36 },
-  '726':  { name:'Montgomery',  ns:1089579.80, food:300036.16, payroll:337563.35, utilities:33690.85, maintenance:20436.26, delivery:44272.89, rent:84053.65, noi:103540.09 },
-  '898':  { name:'Coors',       ns:828335.74, food:232835.27, payroll:267819.26, utilities:25086.32, maintenance:18070.30, delivery:34441.07, rent:77811.24, noi:47675.52 },
+  '1029': { name:'Central',     ns:874184.97, food:239760.50, payroll:286915.65, utilities:30041.48, maintenance:27880.55, delivery:39087.97, rent:67500.00, noi:43670.75 },
+  '1056': { name:'Los Lunas',   ns:1044223.25, food:289398.95, payroll:347012.70, utilities:30748.63, maintenance:19452.22, delivery:21512.08, rent:91098.09, noi:89185.15 },
+  '1153': { name:'Rio Rancho',  ns:707154.27, food:210936.38, payroll:253693.89, utilities:17325.08, maintenance:20170.00, delivery:44321.40, rent:98520.79, noi:-54364.84 },
+  '1187': { name:'Alamogordo',  ns:779884.81, food:235803.50, payroll:283711.44, utilities:35181.54, maintenance:17650.06, delivery:49313.60, rent:101496.40, noi:-69951.57 },
+  '1205': { name:'Gallup',      ns:587584.98, food:192470.26, payroll:243794.21, utilities:49504.61, maintenance:20080.92, delivery:9079.44,  rent:68310.44, noi:-96270.15 },
+  '1357': { name:'T or C',      ns:437367.09, food:133898.93, payroll:190861.18, utilities:12152.91, maintenance:18201.67, delivery:7906.37,  rent:31500.00, noi:-35891.85 },
+  '1364': { name:'Bernalillo',  ns:554450.58, food:170424.66, payroll:242047.90, utilities:32399.17, maintenance:18234.32, delivery:8838.59,  rent:79811.07, noi:-91827.88 },
+  '1391': { name:'Gibson',      ns:780361.47, food:235729.48, payroll:265928.73, utilities:28734.18, maintenance:16124.30, delivery:27421.94, rent:87227.02, noi:-4058.30 },
+  '726':  { name:'Montgomery',  ns:1221689.69, food:339514.49, payroll:373720.21, utilities:38444.11, maintenance:26762.88, delivery:52467.20, rent:96136.98, noi:109285.47 },
+  '898':  { name:'Coors',       ns:926893.69, food:263762.14, payroll:299148.04, utilities:31481.84, maintenance:20588.87, delivery:40248.47, rent:86977.91, noi:44693.17 },
 };
 
-// Monthly sales by store (Jan–Aug 2026)
+// Monthly sales by store (Jan–Sep 2026)
 const QBO_STORE_MONTHLY_SALES = {
-  '1029': [82703.36, 89323.65, 102078.82, 133205.42, 97226.89, 94972.73, 93221.05, 93852.29],
-  '1056': [98506.76, 101168.42, 117296.40, 148425.78, 117967.82, 114398.92, 116427.96, 116321.80],
-  '1153': [68985.72, 67788.28, 81722.92, 79000.24, 84303.69, 82907.34, 82240.71, 83961.95],
-  '1187': [80232.75, 79235.47, 98019.62, 88782.28, 93008.33, 87301.90, 88976.15, 84869.73],
-  '1205': [53287.02, 56959.83, 74750.46, 65047.61, 69748.29, 74220.69, 74777.08, 62016.49],
-  '1357': [42328.57, 45950.12, 55487.38, 50601.90, 53641.23, 48713.44, 49819.50, 45648.61],
-  '1364': [53247.76, 55865.06, 64182.74, 61935.22, 66351.16, 68163.08, 64614.29, 61579.56],
-  '1391': [73757.18, 73609.44, 87340.31, 89138.46, 90866.39, 86809.64, 91995.79, 92964.74],
-  '726':  [116232.04, 123053.25, 138026.59, 168655.39, 138172.91, 134754.18, 135245.04, 135440.40],
-  '898':  [85808.37, 89578.92, 103354.36, 134133.73, 104391.68, 101900.96, 105578.76, 103588.96],
+  '1029': [82703.36, 89323.65, 102078.82, 133205.42, 97226.89, 94972.73, 93221.05, 93852.29, 87600.76],
+  '1056': [98506.76, 101168.42, 117296.40, 148425.78, 117967.82, 114398.92, 116427.96, 116321.80, 113709.39],
+  '1153': [68985.72, 67788.28, 81722.92, 79000.24, 84303.69, 82907.34, 82240.71, 83961.95, 76243.42],
+  '1187': [80232.75, 79235.47, 98019.62, 88782.28, 93008.33, 87301.90, 88976.15, 84869.73, 79458.58],
+  '1205': [53287.02, 56959.83, 74750.46, 65047.61, 69748.29, 74220.69, 74777.08, 62016.49, 56777.51],
+  '1357': [42328.57, 45950.12, 55487.38, 50601.90, 53641.23, 48713.44, 49819.50, 45648.61, 45176.34],
+  '1364': [53247.76, 55865.06, 64182.74, 61935.22, 66351.16, 68163.08, 64614.29, 61579.56, 58511.71],
+  '1391': [73757.18, 73609.44, 87340.31, 89138.46, 90866.39, 86809.64, 91995.79, 92964.74, 93879.52],
+  '726':  [116232.04, 123053.25, 138026.59, 168655.39, 138172.91, 134754.18, 135245.04, 135440.40, 132109.89],
+  '898':  [85808.37, 89578.92, 103354.36, 134133.73, 104391.68, 101900.96, 105578.76, 103588.96, 98557.95],
 };
 
-// Real per-store monthly P&L data from QuickBooks (Jan–Aug 2026)
+// Real per-store monthly P&L data from QuickBooks (Jan–Sep 2026)
 const QBO_STORE_MONTHLY = {
-  '1029': [{month:'Jan 2026',monthShort:'Jan',sales:82703.36,food:21696.49,payroll:30092.09},{month:'Feb 2026',monthShort:'Feb',sales:89323.65,food:24489.02,payroll:28416.04},{month:'Mar 2026',monthShort:'Mar',sales:102078.82,food:27287.80,payroll:46539.35},{month:'Apr 2026',monthShort:'Apr',sales:133205.42,food:28708.67,payroll:29774.25},{month:'May 2026',monthShort:'May',sales:97226.89,food:25856.21,payroll:28729.88},{month:'Jun 2026',monthShort:'Jun',sales:94972.73,food:30200.13,payroll:30356.18},{month:'Jul 2026',monthShort:'Jul',sales:93221.05,food:29677.37,payroll:27060.77},{month:'Aug 2026',monthShort:'Aug',sales:93852.29,food:27911.07,payroll:39363.66}],
-  '1056': [{month:'Jan 2026',monthShort:'Jan',sales:98506.76,food:25305.87,payroll:35625.47},{month:'Feb 2026',monthShort:'Feb',sales:101168.42,food:26424.15,payroll:32042.00},{month:'Mar 2026',monthShort:'Mar',sales:117296.40,food:33096.89,payroll:52492.22},{month:'Apr 2026',monthShort:'Apr',sales:148425.78,food:34246.48,payroll:35182.50},{month:'May 2026',monthShort:'May',sales:117967.82,food:32169.68,payroll:34386.78},{month:'Jun 2026',monthShort:'Jun',sales:114398.92,food:37239.54,payroll:35476.16},{month:'Jul 2026',monthShort:'Jul',sales:116427.96,food:34645.27,payroll:35639.35},{month:'Aug 2026',monthShort:'Aug',sales:116321.80,food:34710.46,payroll:52009.79}],
-  '1153': [{month:'Jan 2026',monthShort:'Jan',sales:68985.72,food:19732.84,payroll:26881.75},{month:'Feb 2026',monthShort:'Feb',sales:67788.28,food:19489.38,payroll:24088.98},{month:'Mar 2026',monthShort:'Mar',sales:81722.92,food:22761.40,payroll:36326.54},{month:'Apr 2026',monthShort:'Apr',sales:79000.24,food:22094.92,payroll:26627.23},{month:'May 2026',monthShort:'May',sales:84303.69,food:27064.91,payroll:26187.84},{month:'Jun 2026',monthShort:'Jun',sales:82907.34,food:26394.20,payroll:24640.43},{month:'Jul 2026',monthShort:'Jul',sales:82240.71,food:27070.42,payroll:25887.82},{month:'Aug 2026',monthShort:'Aug',sales:83961.95,food:25615.21,payroll:37310.73}],
-  '1187': [{month:'Jan 2026',monthShort:'Jan',sales:80232.75,food:23311.90,payroll:28117.99},{month:'Feb 2026',monthShort:'Feb',sales:79235.47,food:22531.29,payroll:26044.37},{month:'Mar 2026',monthShort:'Mar',sales:98019.62,food:25686.41,payroll:42805.49},{month:'Apr 2026',monthShort:'Apr',sales:88782.28,food:27864.72,payroll:28201.32},{month:'May 2026',monthShort:'May',sales:93008.33,food:30754.97,payroll:29551.09},{month:'Jun 2026',monthShort:'Jun',sales:87301.90,food:29151.10,payroll:28399.01},{month:'Jul 2026',monthShort:'Jul',sales:88976.15,food:27125.03,payroll:30521.27},{month:'Aug 2026',monthShort:'Aug',sales:84869.73,food:24248.71,payroll:42271.80}],
-  '1205': [{month:'Jan 2026',monthShort:'Jan',sales:53287.02,food:14484.22,payroll:24100.15},{month:'Feb 2026',monthShort:'Feb',sales:56959.83,food:16375.40,payroll:22473.64},{month:'Mar 2026',monthShort:'Mar',sales:74750.46,food:26848.20,payroll:34314.34},{month:'Apr 2026',monthShort:'Apr',sales:65047.61,food:18486.78,payroll:27930.72},{month:'May 2026',monthShort:'May',sales:69748.29,food:22406.25,payroll:23259.06},{month:'Jun 2026',monthShort:'Jun',sales:74220.69,food:29344.35,payroll:25190.96},{month:'Jul 2026',monthShort:'Jul',sales:74777.08,food:21764.56,payroll:27994.60},{month:'Aug 2026',monthShort:'Aug',sales:62016.49,food:22109.86,payroll:36810.70}],
-  '1357': [{month:'Jan 2026',monthShort:'Jan',sales:42328.57,food:13905.22,payroll:17279.03},{month:'Feb 2026',monthShort:'Feb',sales:45950.12,food:11781.91,payroll:17050.57},{month:'Mar 2026',monthShort:'Mar',sales:55487.38,food:14442.01,payroll:29003.44},{month:'Apr 2026',monthShort:'Apr',sales:50601.90,food:17791.62,payroll:20850.64},{month:'May 2026',monthShort:'May',sales:53641.23,food:14691.44,payroll:20172.14},{month:'Jun 2026',monthShort:'Jun',sales:48713.44,food:16210.15,payroll:19850.74},{month:'Jul 2026',monthShort:'Jul',sales:49819.50,food:16320.93,payroll:22060.35},{month:'Aug 2026',monthShort:'Aug',sales:45648.61,food:12929.08,payroll:27194.57}],
-  '1364': [{month:'Jan 2026',monthShort:'Jan',sales:53247.76,food:14163.08,payroll:23782.86},{month:'Feb 2026',monthShort:'Feb',sales:55865.06,food:16063.21,payroll:22384.06},{month:'Mar 2026',monthShort:'Mar',sales:64182.74,food:18132.73,payroll:34393.02},{month:'Apr 2026',monthShort:'Apr',sales:61935.22,food:20048.47,payroll:23715.21},{month:'May 2026',monthShort:'May',sales:66351.16,food:20949.90,payroll:24185.27},{month:'Jun 2026',monthShort:'Jun',sales:68163.08,food:21893.61,payroll:25576.24},{month:'Jul 2026',monthShort:'Jul',sales:64614.29,food:20971.58,payroll:24806.83},{month:'Aug 2026',monthShort:'Aug',sales:61579.56,food:20322.22,payroll:38542.48}],
-  '1391': [{month:'Jan 2026',monthShort:'Jan',sales:73757.18,food:20953.17,payroll:27127.17},{month:'Feb 2026',monthShort:'Feb',sales:73609.44,food:20928.70,payroll:24770.52},{month:'Mar 2026',monthShort:'Mar',sales:87340.31,food:26111.07,payroll:35742.44},{month:'Apr 2026',monthShort:'Apr',sales:89138.46,food:26048.47,payroll:25966.29},{month:'May 2026',monthShort:'May',sales:90866.39,food:26448.85,payroll:27498.39},{month:'Jun 2026',monthShort:'Jun',sales:86809.64,food:27861.14,payroll:26883.33},{month:'Jul 2026',monthShort:'Jul',sales:91995.79,food:31715.99,payroll:27471.99},{month:'Aug 2026',monthShort:'Aug',sales:92964.74,food:29234.61,payroll:43255.01}],
-  '726':  [{month:'Jan 2026',monthShort:'Jan',sales:116232.04,food:33381.95,payroll:38551.67},{month:'Feb 2026',monthShort:'Feb',sales:123053.25,food:33825.69,payroll:36458.80},{month:'Mar 2026',monthShort:'Mar',sales:138026.59,food:38453.17,payroll:54988.01},{month:'Apr 2026',monthShort:'Apr',sales:168655.39,food:33511.77,payroll:38568.36},{month:'May 2026',monthShort:'May',sales:138172.91,food:42891.24,payroll:38834.96},{month:'Jun 2026',monthShort:'Jun',sales:134754.18,food:39541.76,payroll:37030.77},{month:'Jul 2026',monthShort:'Jul',sales:135245.04,food:43321.84,payroll:37753.62},{month:'Aug 2026',monthShort:'Aug',sales:135440.40,food:35108.74,payroll:55377.16}],
-  '898':  [{month:'Jan 2026',monthShort:'Jan',sales:85808.37,food:22050.18,payroll:30460.96},{month:'Feb 2026',monthShort:'Feb',sales:89578.92,food:25903.06,payroll:27662.31},{month:'Mar 2026',monthShort:'Mar',sales:103354.36,food:27158.63,payroll:42944.20},{month:'Apr 2026',monthShort:'Apr',sales:134133.73,food:30139.15,payroll:30762.94},{month:'May 2026',monthShort:'May',sales:104391.68,food:32171.48,payroll:28667.17},{month:'Jun 2026',monthShort:'Jun',sales:101900.96,food:32475.15,payroll:30435.09},{month:'Jul 2026',monthShort:'Jul',sales:105578.76,food:30999.53,payroll:31073.06},{month:'Aug 2026',monthShort:'Aug',sales:103588.96,food:31938.09,payroll:45813.53}],
+  '1029': [{month:'Jan 2026',monthShort:'Jan',sales:82703.36,food:21696.49,payroll:30092.09},{month:'Feb 2026',monthShort:'Feb',sales:89323.65,food:24489.02,payroll:28416.04},{month:'Mar 2026',monthShort:'Mar',sales:102078.82,food:27287.80,payroll:46539.35},{month:'Apr 2026',monthShort:'Apr',sales:133205.42,food:28708.67,payroll:29774.25},{month:'May 2026',monthShort:'May',sales:97226.89,food:25856.21,payroll:28729.88},{month:'Jun 2026',monthShort:'Jun',sales:94972.73,food:30200.13,payroll:30356.18},{month:'Jul 2026',monthShort:'Jul',sales:93221.05,food:29677.37,payroll:27060.77},{month:'Aug 2026',monthShort:'Aug',sales:93852.29,food:27911.07,payroll:39363.66},{month:'Sep 2026',monthShort:'Sep',sales:87600.76,food:23933.74,payroll:26583.43}],
+  '1056': [{month:'Jan 2026',monthShort:'Jan',sales:98506.76,food:25305.87,payroll:35625.47},{month:'Feb 2026',monthShort:'Feb',sales:101168.42,food:26424.15,payroll:32042.00},{month:'Mar 2026',monthShort:'Mar',sales:117296.40,food:33096.89,payroll:52492.22},{month:'Apr 2026',monthShort:'Apr',sales:148425.78,food:34246.48,payroll:35182.50},{month:'May 2026',monthShort:'May',sales:117967.82,food:32169.68,payroll:34386.78},{month:'Jun 2026',monthShort:'Jun',sales:114398.92,food:37239.54,payroll:35476.16},{month:'Jul 2026',monthShort:'Jul',sales:116427.96,food:34645.27,payroll:35639.35},{month:'Aug 2026',monthShort:'Aug',sales:116321.80,food:34710.46,payroll:52009.79},{month:'Sep 2026',monthShort:'Sep',sales:113709.39,food:31560.61,payroll:34158.43}],
+  '1153': [{month:'Jan 2026',monthShort:'Jan',sales:68985.72,food:19732.84,payroll:26881.75},{month:'Feb 2026',monthShort:'Feb',sales:67788.28,food:19489.38,payroll:24088.98},{month:'Mar 2026',monthShort:'Mar',sales:81722.92,food:22761.40,payroll:36326.54},{month:'Apr 2026',monthShort:'Apr',sales:79000.24,food:22094.92,payroll:26627.23},{month:'May 2026',monthShort:'May',sales:84303.69,food:27064.91,payroll:26187.84},{month:'Jun 2026',monthShort:'Jun',sales:82907.34,food:26394.20,payroll:24640.43},{month:'Jul 2026',monthShort:'Jul',sales:82240.71,food:27070.42,payroll:25887.82},{month:'Aug 2026',monthShort:'Aug',sales:83961.95,food:25615.21,payroll:37310.73},{month:'Sep 2026',monthShort:'Sep',sales:76243.42,food:20713.10,payroll:25742.57}],
+  '1187': [{month:'Jan 2026',monthShort:'Jan',sales:80232.75,food:23311.90,payroll:28117.99},{month:'Feb 2026',monthShort:'Feb',sales:79235.47,food:22531.29,payroll:26044.37},{month:'Mar 2026',monthShort:'Mar',sales:98019.62,food:25686.41,payroll:42805.49},{month:'Apr 2026',monthShort:'Apr',sales:88782.28,food:27864.72,payroll:28201.32},{month:'May 2026',monthShort:'May',sales:93008.33,food:30754.97,payroll:29551.09},{month:'Jun 2026',monthShort:'Jun',sales:87301.90,food:29151.10,payroll:28399.01},{month:'Jul 2026',monthShort:'Jul',sales:88976.15,food:27125.03,payroll:30521.27},{month:'Aug 2026',monthShort:'Aug',sales:84869.73,food:24248.71,payroll:42271.80},{month:'Sep 2026',monthShort:'Sep',sales:79458.58,food:25129.37,payroll:27799.10}],
+  '1205': [{month:'Jan 2026',monthShort:'Jan',sales:53287.02,food:14484.22,payroll:24100.15},{month:'Feb 2026',monthShort:'Feb',sales:56959.83,food:16375.40,payroll:22473.64},{month:'Mar 2026',monthShort:'Mar',sales:74750.46,food:26848.20,payroll:34314.34},{month:'Apr 2026',monthShort:'Apr',sales:65047.61,food:18486.78,payroll:27930.72},{month:'May 2026',monthShort:'May',sales:69748.29,food:22406.25,payroll:23259.06},{month:'Jun 2026',monthShort:'Jun',sales:74220.69,food:29344.35,payroll:25190.96},{month:'Jul 2026',monthShort:'Jul',sales:74777.08,food:21764.56,payroll:27994.60},{month:'Aug 2026',monthShort:'Aug',sales:62016.49,food:22109.86,payroll:36810.70},{month:'Sep 2026',monthShort:'Sep',sales:56777.51,food:20650.64,payroll:21720.04}],
+  '1357': [{month:'Jan 2026',monthShort:'Jan',sales:42328.57,food:13905.22,payroll:17279.03},{month:'Feb 2026',monthShort:'Feb',sales:45950.12,food:11781.91,payroll:17050.57},{month:'Mar 2026',monthShort:'Mar',sales:55487.38,food:14442.01,payroll:29003.44},{month:'Apr 2026',monthShort:'Apr',sales:50601.90,food:17791.62,payroll:20850.64},{month:'May 2026',monthShort:'May',sales:53641.23,food:14691.44,payroll:20172.14},{month:'Jun 2026',monthShort:'Jun',sales:48713.44,food:16210.15,payroll:19850.74},{month:'Jul 2026',monthShort:'Jul',sales:49819.50,food:16320.93,payroll:22060.35},{month:'Aug 2026',monthShort:'Aug',sales:45648.61,food:12929.08,payroll:27194.57},{month:'Sep 2026',monthShort:'Sep',sales:45176.34,food:15826.57,payroll:17399.70}],
+  '1364': [{month:'Jan 2026',monthShort:'Jan',sales:53247.76,food:14163.08,payroll:23782.86},{month:'Feb 2026',monthShort:'Feb',sales:55865.06,food:16063.21,payroll:22384.06},{month:'Mar 2026',monthShort:'Mar',sales:64182.74,food:18132.73,payroll:34393.02},{month:'Apr 2026',monthShort:'Apr',sales:61935.22,food:20048.47,payroll:23715.21},{month:'May 2026',monthShort:'May',sales:66351.16,food:20949.90,payroll:24185.27},{month:'Jun 2026',monthShort:'Jun',sales:68163.08,food:21893.61,payroll:25576.24},{month:'Jul 2026',monthShort:'Jul',sales:64614.29,food:20971.58,payroll:24806.83},{month:'Aug 2026',monthShort:'Aug',sales:61579.56,food:20322.22,payroll:38542.48},{month:'Sep 2026',monthShort:'Sep',sales:58511.71,food:17879.86,payroll:24661.93}],
+  '1391': [{month:'Jan 2026',monthShort:'Jan',sales:73757.18,food:20953.17,payroll:27127.17},{month:'Feb 2026',monthShort:'Feb',sales:73609.44,food:20928.70,payroll:24770.52},{month:'Mar 2026',monthShort:'Mar',sales:87340.31,food:26111.07,payroll:35742.44},{month:'Apr 2026',monthShort:'Apr',sales:89138.46,food:26048.47,payroll:25966.29},{month:'May 2026',monthShort:'May',sales:90866.39,food:26448.85,payroll:27498.39},{month:'Jun 2026',monthShort:'Jun',sales:86809.64,food:27861.14,payroll:26883.33},{month:'Jul 2026',monthShort:'Jul',sales:91995.79,food:31715.99,payroll:27471.99},{month:'Aug 2026',monthShort:'Aug',sales:92964.74,food:29234.61,payroll:43255.01},{month:'Sep 2026',monthShort:'Sep',sales:93879.52,food:26427.48,payroll:27213.59}],
+  '726':  [{month:'Jan 2026',monthShort:'Jan',sales:116232.04,food:33381.95,payroll:38551.67},{month:'Feb 2026',monthShort:'Feb',sales:123053.25,food:33825.69,payroll:36458.80},{month:'Mar 2026',monthShort:'Mar',sales:138026.59,food:38453.17,payroll:54988.01},{month:'Apr 2026',monthShort:'Apr',sales:168655.39,food:33511.77,payroll:38568.36},{month:'May 2026',monthShort:'May',sales:138172.91,food:42891.24,payroll:38834.96},{month:'Jun 2026',monthShort:'Jun',sales:134754.18,food:39541.76,payroll:37030.77},{month:'Jul 2026',monthShort:'Jul',sales:135245.04,food:43321.84,payroll:37753.62},{month:'Aug 2026',monthShort:'Aug',sales:135440.40,food:35108.74,payroll:55377.16},{month:'Sep 2026',monthShort:'Sep',sales:132109.89,food:39478.33,payroll:36156.86}],
+  '898':  [{month:'Jan 2026',monthShort:'Jan',sales:85808.37,food:22050.18,payroll:30460.96},{month:'Feb 2026',monthShort:'Feb',sales:89578.92,food:25903.06,payroll:27662.31},{month:'Mar 2026',monthShort:'Mar',sales:103354.36,food:27158.63,payroll:42944.20},{month:'Apr 2026',monthShort:'Apr',sales:134133.73,food:30139.15,payroll:30762.94},{month:'May 2026',monthShort:'May',sales:104391.68,food:32171.48,payroll:28667.17},{month:'Jun 2026',monthShort:'Jun',sales:101900.96,food:32475.15,payroll:30435.09},{month:'Jul 2026',monthShort:'Jul',sales:105578.76,food:30999.53,payroll:31073.06},{month:'Aug 2026',monthShort:'Aug',sales:103588.96,food:31938.09,payroll:45813.53},{month:'Sep 2026',monthShort:'Sep',sales:98557.95,food:30926.87,payroll:31328.78}],
 };
 
 // Financial flag thresholds (from RUNBOOK)
@@ -6519,7 +6579,7 @@ function getFinMonths() {
   }
   if (period === 'quarter') {
     const q = state.finQuarter || 'Q3';
-    const qMap = { Q1: [0,1,2], Q2: [3,4,5], Q3: [6,7] };
+    const qMap = { Q1: [0,1,2], Q2: [3,4,5], Q3: [6,7,8] };
     return (qMap[q] || []).map(i => QBO_MONTHLY[i]).filter(Boolean);
   }
   return QBO_MONTHLY;
@@ -6560,7 +6620,7 @@ function renderFinancial() {
       const mi = state.finMonth != null ? state.finMonth : storeMonths.length - 1;
       months = [storeMonths[mi]].filter(Boolean);
     } else if (period === 'quarter') {
-      const qMap = { Q1: [0,1,2], Q2: [3,4,5], Q3: [6,7] };
+      const qMap = { Q1: [0,1,2], Q2: [3,4,5], Q3: [6,7,8] };
       months = (qMap[state.finQuarter || 'Q3'] || []).map(i => storeMonths[i]).filter(Boolean);
     } else { months = storeMonths; }
   } else {
@@ -8108,6 +8168,7 @@ const RECAP_QUESTIONS = [
   { key: 'compliance', text: 'Are we compliant with all health, safety, and permitted requirements?' },
   { key: 'google', text: 'What is your Google Rating, how many new 5-star reviews did you receive, and what are you doing to drive more 5-star reviews?' },
   { key: 'terminations', text: 'Have employee terminations been reported to HR and updated in Paychex?', type: 'yesno' },
+  { key: 'voidsReviewed', text: 'Have voids been reviewed and filed?', type: 'yesno' },
 ];
 
 // Helper: map a weekEnd date (Tuesday) to fiscal week key and return full LP store data
@@ -9101,8 +9162,8 @@ async function ctLoad(){
 
 function ctRender(){
   const sid=ctCurrentStore;
-  // Staff — sort GM, AGM, Shift Lead to top
-  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('district')||r.includes('area'))return 0;if(r==='gm'||r.includes('general manager'))return 1;if(r==='agm'||r.includes('assistant general'))return 2;if(r.includes('shift lead'))return 3;if(r.includes('crew'))return 9;return 5;};
+  // Staff — sort GM, AGM, Shift Lead/Manager to top
+  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('district')||r.includes('area'))return 0;if(r==='gm'||r.includes('general manager')||r==='restaurant manager')return 1;if(r==='agm'||r.includes('assistant general')||r==='assistant manager')return 2;if(r.includes('shift lead')||r.includes('shift manager'))return 3;if(r.includes('team member')||r.includes('crew'))return 9;return 5;};
   const staff=CT_STAFF.filter(c=>String(c.store_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
   const sb=document.querySelector("#ctStaffTbl tbody");
   sb.innerHTML=staff.length?staff.map(c=>`<tr>
@@ -9177,7 +9238,7 @@ function ctFlash(msg){const m=document.getElementById("ctMsg");m.textContent="�
 function ctAddStaff(){
   ctModal(`<h3>Add Staff Contact</h3>
     <label>Name</label><input id="ctfName">
-    <label>Role</label><select id="ctfRole"><option value="">— Select —</option><option>General Manager</option><option>Assistant General Manager</option><option>Shift Lead</option><option>Crew Member</option><option>Cashier</option><option>Cook</option><option>Drive-Thru</option></select>
+    <label>Role</label><select id="ctfRole"><option value="">— Select —</option><option>General Manager</option><option>Assistant General Manager</option><option>Shift Manager</option><option>Crew Member</option><option>Cashier</option><option>Cook</option><option>Drive-Thru</option></select>
     <label>Phone</label><input id="ctfPhone">
     <label>Email</label><input id="ctfEmail">
     <label>Birthday</label><input id="ctfDob" placeholder="e.g. June 1 or 6/1">
@@ -9200,7 +9261,7 @@ async function ctSaveStaff(btn){
 
 function ctEditStaff(id){
   const c=CT_STAFF.find(x=>x.id===id);if(!c)return;
-  const roles=['General Manager','Assistant General Manager','Shift Lead','Crew Member','Cashier','Cook','Drive-Thru'];
+  const roles=['General Manager','Assistant General Manager','Shift Manager','Crew Member','Cashier','Cook','Drive-Thru'];
   ctModal(`<h3>Edit Staff Contact</h3>
     <label>Name</label><input id="ctfName" value="${escapeHtml(c.name)}">
     <label>Role</label><select id="ctfRole">${roles.map(r=>`<option${(c.role||'')===r?' selected':''}>${r}</option>`).join('')}</select>
@@ -9371,7 +9432,7 @@ async function ctDelCompany(id){
 function ctPrint(){
   const sid=ctCurrentStore;
   const sname=CT_STORE_NAMES[sid]||sid;
-  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('district')||r.includes('area'))return 0;if(r==='gm'||r.includes('general manager'))return 1;if(r==='agm'||r.includes('assistant general'))return 2;if(r.includes('shift lead'))return 3;if(r.includes('crew'))return 9;return 5;};
+  const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('district')||r.includes('area'))return 0;if(r==='gm'||r.includes('general manager')||r==='restaurant manager')return 1;if(r==='agm'||r.includes('assistant general')||r==='assistant manager')return 2;if(r.includes('shift lead')||r.includes('shift manager'))return 3;if(r.includes('team member')||r.includes('crew'))return 9;return 5;};
   const staff=CT_STAFF.filter(c=>String(c.store_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
   const linkedIds=new Set(CT_JUNCTIONS.filter(j=>String(j.store_id)===sid).map(j=>j.vendor_id));
   const vendors=CT_VENDORS.filter(v=>linkedIds.has(v.id));
@@ -9427,6 +9488,136 @@ document.querySelector('[data-tab="contacts"]').addEventListener('click', () => 
   if (!ctDataLoaded) ctLoad();
 });
 
+/* ===== GM CHECKLIST ===== */
+const GMCL_ITEMS = {
+  daily: [
+    { key: 'eod_ipos',       text: 'End of day & Push Ipos' },
+    { key: 'deposit',        text: 'Deposit to bank', note: 'Email Liza & Alejandra if over/short' },
+    { key: 'jolt_temps',     text: 'Jolt temperatures' },
+    { key: 'red_times',      text: 'Check red times' },
+    { key: 'taco_talk_1',    text: '1 Taco Talk per day' },
+    { key: 'reps',           text: 'REPS' },
+  ],
+  weekly: [
+    { key: 'variance_rpt',   text: 'Send in Weekly Inventory Variance report' },
+    { key: 'jolt_cleaning',  text: 'Jolt cleaning checklist' },
+    { key: 'jolt_visit',     text: 'Jolt Restaurant visit list' },
+    { key: 'taco_talks_5',   text: '5 Taco Talks complete' },
+  ],
+  monthly: [
+    { key: 'taco_talks_all', text: 'All Taco Talks complete' },
+    { key: 'plv_period',     text: 'Send in PLV at period end' },
+    { key: 'brix_soda',      text: 'Brix soda machines' },
+    { key: 'jolt_fsa',       text: 'Jolt practice FSA' },
+    { key: 'fire_extinguisher', text: 'Fire extinguisher inspections' },
+  ]
+};
+
+let gmclState = {};  // { 'storeId|itemKey|date': true/false }
+let gmclLoaded = false;
+
+function gmclInit() {
+  const sel = document.getElementById('gmclStore');
+  sel.innerHTML = STORES.map(s => `<option value="${s.id}">${s.id} - ${s.name}</option>`).join('');
+  const dateInput = document.getElementById('gmclDate');
+  const today = new Date();
+  dateInput.value = today.toISOString().slice(0, 10);
+  sel.addEventListener('change', gmclRender);
+  dateInput.addEventListener('change', () => { gmclLoadData().then(gmclRender); });
+  gmclLoadData().then(gmclRender);
+}
+
+async function gmclLoadData() {
+  const dateVal = document.getElementById('gmclDate').value;
+  if (!dateVal) return;
+  // For weekly items, load the full week; for monthly, the full month; for daily, just the date
+  // Simplify: load all records for this store for the month containing the date
+  const storeId = document.getElementById('gmclStore').value;
+  const monthStart = dateVal.slice(0, 7) + '-01';
+  const monthEnd = dateVal.slice(0, 7) + '-31';
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?store_id=eq.' + storeId + '&period_date=gte.' + monthStart + '&period_date=lte.' + monthEnd + '&select=item_key,period_date,completed', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const data = await res.json();
+    // Clear state for this store
+    Object.keys(gmclState).forEach(k => { if (k.startsWith(storeId + '|')) delete gmclState[k]; });
+    (data || []).forEach(r => {
+      gmclState[storeId + '|' + r.item_key + '|' + r.period_date] = r.completed;
+    });
+    gmclLoaded = true;
+  } catch (e) {
+    console.error('GM Checklist load error:', e);
+  }
+}
+
+function gmclGetPeriodDate(type) {
+  const dateVal = document.getElementById('gmclDate').value;
+  if (type === 'daily') return dateVal;
+  if (type === 'weekly') {
+    // Use the Monday of the selected date's week
+    const d = new Date(dateVal + 'T12:00:00');
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return d.toISOString().slice(0, 10);
+  }
+  // monthly: first of the month
+  return dateVal.slice(0, 7) + '-01';
+}
+
+function gmclRender() {
+  const storeId = document.getElementById('gmclStore').value;
+  ['daily', 'weekly', 'monthly'].forEach(type => {
+    const container = document.getElementById('gmcl' + type.charAt(0).toUpperCase() + type.slice(1));
+    const items = GMCL_ITEMS[type];
+    const periodDate = gmclGetPeriodDate(type);
+    const checked = items.filter(it => gmclState[storeId + '|' + it.key + '|' + periodDate]);
+    const pct = items.length > 0 ? Math.round((checked.length / items.length) * 100) : 0;
+
+    let html = `<div class="gmcl-progress"><div class="gmcl-progress-bar"><div class="gmcl-progress-fill" style="width:${pct}%"></div></div><div class="gmcl-progress-text">${checked.length}/${items.length}</div></div>`;
+    items.forEach(it => {
+      const k = storeId + '|' + it.key + '|' + periodDate;
+      const isChecked = gmclState[k] === true;
+      html += `<div class="gmcl-item${isChecked ? ' checked' : ''}">
+        <input type="checkbox" id="gmcl_${it.key}" ${isChecked ? 'checked' : ''} onchange="gmclToggle('${storeId}','${it.key}','${periodDate}','${type}',this.checked)">
+        <label for="gmcl_${it.key}">${it.text}${it.note ? '<br><span class="gmcl-note">' + it.note + '</span>' : ''}</label>
+      </div>`;
+    });
+    container.innerHTML = html;
+  });
+}
+
+async function gmclToggle(storeId, itemKey, periodDate, periodType, completed) {
+  const k = storeId + '|' + itemKey + '|' + periodDate;
+  gmclState[k] = completed;
+  gmclRender();
+  const statusEl = document.getElementById('gmclSaveStatus');
+  statusEl.textContent = 'Saving...';
+  try {
+    // Upsert
+    const body = { store_id: storeId, item_key: itemKey, period_type: periodType, period_date: periodDate, completed: completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() };
+    const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?on_conflict=store_id,item_key,period_date', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify(body)
+    });
+    statusEl.textContent = res.ok ? 'Saved' : 'Save failed';
+  } catch (e) {
+    statusEl.textContent = 'Save failed';
+    console.error('GM Checklist save error:', e);
+  }
+  setTimeout(() => { statusEl.textContent = ''; }, 2000);
+}
+
+document.querySelector('[data-tab="gmchecklist"]').addEventListener('click', () => {
+  if (!gmclLoaded) gmclInit();
+});
 
 </script>
 </body>

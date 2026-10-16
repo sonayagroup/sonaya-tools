@@ -1972,28 +1972,37 @@ function renderRecapOverview(){
   // Compute AM cards
   const allFridays=(WEEKS.length?WEEKS:allFridaysYTD().reverse()).filter(w=>w>=RECAP_START);
   const amHtml=[];
+  // Build YTD weekly salon data: all weeks from RECAP_START onward
+  const ytdWeeks=allFridays.filter(w=>DATA.weeklies&&DATA.weeklies[w]&&DATA.weeklies[w].WSAL);
+
   Object.entries(AM_DEF).forEach(([amName,salons])=>{
-    // Ops Score: average KPI health across their salons for this week
-    let kpiPts=0,kpiN=0;
+    // YTD Salon Score: average each salon's raw metrics across all weeks, then score
+    // Also compute YTD avg payroll & CPH
+    let kpiPts=0,kpiN=0,paySum=0,payN=0,cphSum=0,cphN=0;
     salons.forEach(sid=>{
-      const ws=wsData[sid];if(!ws)return;
-      // ws is an array matching WS index
+      // Accumulate raw metrics across all YTD weeks for this salon
+      let pS=0,pN=0,cS=0,cN=0,hS=0,hN=0,wS=0,wN=0,cgS=0,cgN=0,sgS=0,sgN=0;
+      ytdWeeks.forEach(w=>{
+        const ws=DATA.weeklies[w].WSAL[sid];if(!ws)return;
+        if(ws[WS.payrollPct]!=null){pS+=Number(ws[WS.payrollPct]);pN++;}
+        if(ws[WS.cutsHr]!=null){cS+=Number(ws[WS.cutsHr]);cN++;}
+        if(ws[WS.avgHC]!=null){hS+=Number(ws[WS.avgHC]);hN++;}
+        if(ws[WS.waitOver15Pct]!=null){wS+=Number(ws[WS.waitOver15Pct]);wN++;}
+        if(ws[WS.custGrowthPct]!=null){cgS+=Number(ws[WS.custGrowthPct]);cgN++;}
+        if(ws[WS.salesGrowthPct]!=null){sgS+=Number(ws[WS.salesGrowthPct]);sgN++;}
+      });
+      // Score the YTD averages
       const checks=[
-        kpi('payroll',ws[WS.payrollPct]),kpi('cuts',ws[WS.cutsHr]),
-        kpi('avghc',ws[WS.avgHC]),kpi('wait15',ws[WS.waitOver15Pct]),
-        kpi('custgrowth',ws[WS.custGrowthPct]),kpi('salesgrowth',ws[WS.salesGrowthPct])
+        pN?kpi('payroll',pS/pN):'',cN?kpi('cuts',cS/cN):'',
+        hN?kpi('avghc',hS/hN):'',wN?kpi('wait15',wS/wN):'',
+        cgN?kpi('custgrowth',cgS/cgN):'',sgN?kpi('salesgrowth',sgS/sgN):''
       ];
       checks.forEach(c=>{if(!c)return;kpiN++;kpiPts+=(c==='kg'?1:(c==='ky'?0.5:0));});
+      // Accumulate for portfolio avg payroll & CPH
+      if(pN){paySum+=pS/pN;payN++;}
+      if(cN){cphSum+=cS/cN;cphN++;}
     });
     const opsScore=kpiN?Math.round((kpiPts/kpiN)*100):null;
-
-    // Portfolio avg payroll & CPH
-    let paySum=0,payN=0,cphSum=0,cphN=0;
-    salons.forEach(sid=>{
-      const ws=wsData[sid];if(!ws)return;
-      if(ws[WS.payrollPct]!=null){paySum+=Number(ws[WS.payrollPct]);payN++;}
-      if(ws[WS.cutsHr]!=null){cphSum+=Number(ws[WS.cutsHr]);cphN++;}
-    });
     const avgPayroll=payN?(paySum/payN):null;
     const avgCPH=cphN?(cphSum/cphN):null;
 

@@ -61,6 +61,7 @@ tbody tr.clickrow{cursor:pointer}
 .recap-q textarea:focus{outline:none;border-color:var(--blue);background:#fff}
 .recap-missing{border-color:var(--red)!important;box-shadow:0 0 0 2px rgba(220,53,69,.18)!important}
 .recap-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:6px 0 14px}
+.recap-bar-sticky{position:sticky;top:48px;z-index:15;background:var(--bg);padding:10px 0 8px;border-bottom:1px solid var(--line);margin-bottom:14px}
 .recap-bar input{border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px}
 /* AM Overview in Recap */
 .am-overview{margin-bottom:20px}
@@ -443,10 +444,10 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
   </div>
   <hr class="recap-divider" id="recapDivider">
   <!-- Per-salon recap form (existing) -->
-  <div class="sec-title" id="recapTitle"></div>
   <div id="recapBanner"></div>
-  <div class="recap-bar">
-    <span style="font-size:12.5px;color:var(--muted)">Week ending</span>
+  <div class="recap-bar recap-bar-sticky" id="recapBar">
+    <select id="recapSalonSel" style="font-size:13.5px;font-weight:700;max-width:260px"></select>
+    <span style="font-size:12.5px;color:var(--muted);margin-left:8px">Week ending</span>
     <select id="recapWeek"></select>
     <button class="btn" id="recapDraft" style="background:#6b7280">Save Draft</button>
     <button class="btn" id="recapSave">Submit Final</button>
@@ -2087,7 +2088,7 @@ function amJumpToSalon(sid,wk){
   $("#recapWeek").value=wk;
   renderRecap();
   // scroll to the per-salon form
-  const el=$("#recapTitle");if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
+  const el=$("#recapBar");if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
 }
 $("#amWeekSel").onchange=()=>{renderRecapOverview();};
 
@@ -2105,11 +2106,20 @@ function populateRecapWeek(){
   if(prev&&wks.includes(prev))sel.value=prev;
   else if(curWeek&&wks.includes(curWeek))sel.value=curWeek;
 }
+function populateRecapSalonSel(){
+  const sel=$("#recapSalonSel");if(!sel)return;
+  const prev=sel.value;
+  if(sel.options.length===0){
+    Object.keys(SALONS).sort().forEach(id=>{const o=document.createElement("option");o.value=id;o.textContent=id+" — "+SALONS[id];sel.appendChild(o);});
+  }
+  const id=current||Object.keys(SALONS).sort()[0];
+  sel.value=id;
+}
 function renderRecap(){
   renderRecapOverview();
   populateRecapWeek();
+  populateRecapSalonSel();
   const id=current||Object.keys(SALONS).sort()[0];
-  $("#recapTitle").textContent=(id||"")+" — "+sName(id)+" · Salon Recap Form";
   const wk=$("#recapWeek").value||curWeek||lastFriday();$("#recapWeek").value=wk;
   const r=recaps.find(x=>String(x.salonId)===String(id)&&String(x.weekEnding)===String(wk))||{};
   ["actions","floorhours","schedules"].forEach(k=>{const el=$("#q_"+k);if(el)el.value=r[k]||"";});
@@ -2120,6 +2130,7 @@ function renderRecap(){
   buildOOS(id,wk);
 }
 $("#recapWeek").onchange=renderRecap;
+$("#recapSalonSel").onchange=function(){current=this.value;$("#salonSel").value=current;renderRecap();};
 function doRecapSave(status){
   const id=current,wk=$("#recapWeek").value;if(!wk){alert("Pick a week-ending date");return;}
   if(status==='final'){

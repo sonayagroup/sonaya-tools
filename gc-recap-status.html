@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Great Clips — Weekly Recap Status</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --teal: #048667;
+  --teal-dk: #073b3a;
+  --teal-lt: #e6f5f0;
+  --red: #e4002b;
+  --green: #089f45;
+  --amber: #e9a049;
+  --bg: #f5f7f6;
+  --card: #fff;
+  --ink: #1a1a1a;
+  --ink2: #555;
+  --ink3: #888;
+  --border: #e0e5e3;
+  --radius: 10px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Poppins', system-ui, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+a { color: var(--teal); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Header */
+.hdr { background: linear-gradient(135deg, var(--teal-dk), var(--teal)); color: #fff; padding: 24px 24px 20px; }
+.hdr-top { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.hdr h1 { font-size: 22px; font-weight: 700; }
+.hdr .sub { font-size: 13px; opacity: .85; }
+.hdr a.back { color: rgba(255,255,255,.8); font-size: 13px; }
+.hdr a.back:hover { color: #fff; }
+
+/* Layout */
+.wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
+
+/* AM Scorecards */
+.scorecards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.sc-card { background: var(--card); border-radius: var(--radius); padding: 20px; border: 1px solid var(--border); position: relative; overflow: hidden; }
+.sc-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--teal); }
+.sc-card.grade-a::before { background: var(--green); }
+.sc-card.grade-b::before { background: var(--teal); }
+.sc-card.grade-c::before { background: var(--amber); }
+.sc-card.grade-d::before, .sc-card.grade-f::before { background: var(--red); }
+.sc-name { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+.sc-salons { font-size: 12px; color: var(--ink3); margin-bottom: 12px; }
+.sc-metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.sc-metric { text-align: center; }
+.sc-metric .val { font-size: 22px; font-weight: 700; line-height: 1.2; }
+.sc-metric .lbl { font-size: 11px; color: var(--ink3); text-transform: uppercase; letter-spacing: .3px; }
+.sc-metric .val.green { color: var(--green); }
+.sc-metric .val.amber { color: var(--amber); }
+.sc-metric .val.red { color: var(--red); }
+
+/* Week selector bar */
+.week-bar { background: var(--card); border-radius: var(--radius); padding: 16px 20px; border: 1px solid var(--border); margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.week-bar label { font-size: 14px; font-weight: 500; color: var(--ink2); }
+.week-bar select { font-family: inherit; font-size: 14px; padding: 8px 32px 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: #fff; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%23555' stroke-width='1.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+.counter { font-size: 15px; font-weight: 600; }
+.counter .num { color: var(--teal); }
+
+/* Table */
+.recap-section { margin-bottom: 24px; }
+.am-group { margin-bottom: 20px; }
+.am-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--teal-lt); border-radius: 8px 8px 0 0; border: 1px solid var(--border); border-bottom: none; }
+.am-header .am-name { font-weight: 600; font-size: 14px; color: var(--teal-dk); }
+.am-header .am-count { font-size: 12px; color: var(--ink3); margin-left: auto; }
+.rtable { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border: 1px solid var(--border); border-radius: 0 0 8px 8px; overflow: hidden; }
+.rtable th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--ink3); padding: 10px 14px; border-bottom: 1px solid var(--border); background: #fafbfa; }
+.rtable td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid #f0f2f1; vertical-align: middle; }
+.rtable tr:last-child td { border-bottom: none; }
+.rtable tr:hover td { background: #f8faf9; }
+.store-id { font-weight: 600; color: var(--ink); }
+.store-city { color: var(--ink3); font-size: 12px; }
+
+/* Status badges */
+.badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+.badge-complete { background: #e6f7ed; color: #0a7a3a; }
+.badge-draft { background: #fef3e0; color: #b37400; }
+.badge-notstarted { background: #f5f5f5; color: #888; }
+.badge-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.badge-complete .badge-dot { background: var(--green); }
+.badge-draft .badge-dot { background: var(--amber); }
+.badge-notstarted .badge-dot { background: #ccc; }
+
+/* Flag pills */
+.flag-count { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; }
+.flag-count.has-flags { color: var(--red); }
+.flag-count.no-flags { color: var(--green); }
+.flag-icon { width: 14px; height: 14px; }
+
+/* Score bar mini */
+.score-bar-wrap { width: 100%; height: 6px; background: #eee; border-radius: 3px; margin-top: 4px; }
+.score-bar-fill { height: 100%; border-radius: 3px; transition: width .4s ease; }
+.score-bar-fill.green { background: var(--green); }
+.score-bar-fill.amber { background: var(--amber); }
+.score-bar-fill.red { background: var(--red); }
+
+/* YTD table */
+.ytd-section { margin-top: 32px; }
+.ytd-section h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--teal-dk); }
+.ytd-table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.ytd-table th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--ink3); padding: 10px 14px; border-bottom: 1px solid var(--border); background: #fafbfa; }
+.ytd-table td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #f0f2f1; }
+.ytd-table tr:last-child td { border-bottom: none; }
+.ytd-bar { display: flex; align-items: center; gap: 8px; }
+.ytd-bar-track { flex: 1; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
+.ytd-bar-fill { height: 100%; border-radius: 4px; }
+.ytd-pct { font-weight: 600; font-size: 13px; min-width: 40px; text-align: right; }
+
+/* Loading / empty */
+.loading { text-align: center; padding: 60px 20px; color: var(--ink3); font-size: 14px; }
+.spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--teal); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 640px) {
+  .hdr h1 { font-size: 18px; }
+  .scorecards { grid-template-columns: 1fr; }
+  .week-bar { flex-direction: column; align-items: stretch; }
+  .rtable th, .rtable td { padding: 8px 10px; }
+  .sc-metrics { grid-template-columns: 1fr 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <a href="https://tools.sonayagroup.com/greatclips.html" class="back">← Main Dashboard</a>
+  <div class="hdr-top">
+    <h1>Weekly Recap Status</h1>
+  </div>
+  <div class="sub">Area Manager Accountability Tracker</div>
+</div>
+
+<div class="wrap">
+  <div id="loading" class="loading"><div class="spinner"></div>Loading data…</div>
+  <div id="content" style="display:none;">
+    <!-- AM Scorecards -->
+    <div class="scorecards" id="scorecards"></div>
+
+    <!-- Week selector -->
+    <div class="week-bar">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <label for="weekSelect">Week ending:</label>
+        <select id="weekSelect"></select>
+      </div>
+      <div class="counter" id="counter"></div>
+    </div>
+
+    <!-- Recap status table -->
+    <div class="recap-section" id="recapSection"></div>
+
+    <!-- YTD Completion by AM -->
+    <div class="ytd-section">
+      <h2>YTD Recap Completion by Area Manager</h2>
+      <table class="ytd-table" id="ytdTable">
+        <thead><tr><th>Area Manager</th><th>Completed</th><th>Possible</th><th style="width:40%">Completion Rate</th></tr></thead>
+        <tbody id="ytdBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const SB_URL = 'https://vcukhvjwsuaqxgqzotwb.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjdWtodmp3c3VhcXhncXpvdHdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxODM0MzcsImV4cCI6MjEwMTc1OTQzN30.Ae-OUd1ZF9kxficp2U17flloRZ43xkcrbP_QqufhVXE';
+const SALONS = ['0200','0646','0933','2092','2850','3781','3999','5809','6101','6110','6116','6117','7700','7741','8914'];
+const DASHBOARD_URL = 'https://tools.sonayagroup.com/greatclips.html';
+
+// KPI thresholds from main dashboard
+const KPI = {
+  cph:        { green: v => v >= 2.4, yellow: v => v >= 2.0, label: 'CPH' },
+  payroll_pct:{ green: v => v < 40,  yellow: v => v < 41,   label: 'Payroll %', invert: true },
+  avg_wait:   { green: v => v < 15,  yellow: v => v < 19,   label: 'Avg Wait' },
+  wait_over15:{ green: v => v < 15,  yellow: v => v < 19,   label: 'Wait >15%', invert: true },
+  cust_growth:{ green: v => v >= 5,  yellow: v => v >= 0,   label: 'Cust Growth' },
+  sales_growth:{ green: v => v >= 5, yellow: v => v >= 0,   label: 'Sales Growth' },
+};
+
+function kpiColor(key, val) {
+  if (val == null) return 'gray';
+  const k = KPI[key];
+  if (!k) return 'gray';
+  if (k.green(val)) return 'green';
+  if (k.yellow(val)) return 'amber';
+  return 'red';
+}
+
+// Score a single metric: green=2, yellow=1, red=0
+function kpiScore(key, val) {
+  if (val == null) return null;
+  const c = kpiColor(key, val);
+  return c === 'green' ? 2 : c === 'amber' ? 1 : 0;
+}
+
+async function sbFetch(table, params = '') {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${params}`, {
+    headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` }
+  });
+  return r.json();
+}
+
+// Data stores
+let recaps = [], contacts = [], locations = [], weeklySalon = [], allWeeks = [];
+let amMap = {}; // salon_id -> AM name
+let locMap = {}; // salon_id -> { city, plaza }
+
+async function loadData() {
+  const [r, c, l, ws] = await Promise.all([
+    sbFetch('recaps', 'select=salon_id,week_ending,status,updated_at&week_ending=gte.2026-01-01&order=week_ending.desc'),
+    sbFetch('salon_contacts', 'select=salon_id,name,role&role=eq.Area Manager'),
+    sbFetch('salon_locations', 'select=salon_id,city,plaza_name'),
+    sbFetch('weekly_salon', 'select=*&week_ending=gte.2026-01-01&order=week_ending.desc'),
+  ]);
+  recaps = r; contacts = c; locations = l; weeklySalon = ws;
+
+  // Build AM mapping
+  contacts.forEach(ct => { amMap[ct.salon_id] = ct.name; });
+  // Ensure all 15 salons have an AM; fallback = "Unassigned"
+  SALONS.forEach(s => { if (!amMap[s]) amMap[s] = 'Unassigned'; });
+
+  // Build location mapping
+  locations.forEach(lo => {
+    locMap[lo.salon_id] = { city: lo.city || '', plaza: lo.plaza_name || '' };
+  });
+
+  // Build unique weeks from weekly_salon (Fridays)
+  const weekSet = new Set();
+  weeklySalon.forEach(w => weekSet.add(w.week_ending));
+  allWeeks = Array.from(weekSet).sort().reverse();
+}
+
+function getAMGroups() {
+  const groups = {};
+  SALONS.forEach(s => {
+    const am = amMap[s];
+    if (!groups[am]) groups[am] = [];
+    groups[am].push(s);
+  });
+  // Sort AM names, push "Unassigned" to end
+  const sorted = Object.keys(groups).sort((a,b) => {
+    if (a === 'Unassigned') return 1;
+    if (b === 'Unassigned') return -1;
+    return a.localeCompare(b);
+  });
+  return sorted.map(am => ({ name: am, salons: groups[am].sort() }));
+}
+
+function getRecap(salonId, weekEnding) {
+  return recaps.find(r => r.salon_id === salonId && r.week_ending === weekEnding);
+}
+
+function getWeeklyData(salonId, weekEnding) {
+  return weeklySalon.find(w => w.salon_id === salonId && w.week_ending === weekEnding);
+}
+
+function countFlaggedKPIs(ws) {
+  if (!ws) return 0;
+  let flags = 0;
+  if (ws.cph != null && kpiColor('cph', ws.cph) === 'red') flags++;
+  if (ws.payroll_pct != null && kpiColor('payroll_pct', ws.payroll_pct) === 'red') flags++;
+  if (ws.wait_over15_pct != null && kpiColor('wait_over15', ws.wait_over15_pct) === 'red') flags++;
+  if (ws.cust_growth_pct != null && kpiColor('cust_growth', ws.cust_growth_pct) === 'red') flags++;
+  if (ws.sales_growth_pct != null && kpiColor('sales_growth', ws.sales_growth_pct) === 'red') flags++;
+  return flags;
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatWeekLabel(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Compute AM operations score for a given week
+function computeAMScore(amSalons, weekEnding) {
+  const metrics = ['cph','payroll_pct','wait_over15','cust_growth','sales_growth'];
+  const metricKeys = { cph:'cph', payroll_pct:'payroll_pct', wait_over15:'wait_over15_pct',
+                       cust_growth:'cust_growth_pct', sales_growth:'sales_growth_pct' };
+  let totalScore = 0, totalPossible = 0;
+
+  amSalons.forEach(sid => {
+    const ws = getWeeklyData(sid, weekEnding);
+    if (!ws) return;
+    metrics.forEach(m => {
+      const val = ws[metricKeys[m]];
+      const s = kpiScore(m, val);
+      if (s !== null) {
+        totalScore += s;
+        totalPossible += 2;
+      }
+    });
+  });
+
+  if (totalPossible === 0) return null;
+  return Math.round((totalScore / totalPossible) * 100);
+}
+
+// Compute YTD recap completion for an AM
+function computeYTDRecap(amSalons) {
+  // Count weeks where weekly_salon data exists (so a recap was expected)
+  const weekSet = new Set();
+  weeklySalon.forEach(w => {
+    if (amSalons.includes(w.salon_id)) weekSet.add(w.week_ending);
+  });
+  const weeks = Array.from(weekSet);
+  const possible = weeks.length * amSalons.length;
+  if (possible === 0) return { completed: 0, possible: 0, pct: 0 };
+
+  let completed = 0;
+  weeks.forEach(we => {
+    amSalons.forEach(sid => {
+      const r = getRecap(sid, we);
+      if (r && r.status === 'final') completed++;
+    });
+  });
+
+  return { completed, possible, pct: Math.round((completed / possible) * 100) };
+}
+
+function gradeFromScore(opsScore, recapPct) {
+  // Weighted: 60% ops, 40% recap completion
+  const combined = (opsScore || 0) * 0.6 + (recapPct || 0) * 0.4;
+  if (combined >= 80) return 'A';
+  if (combined >= 65) return 'B';
+  if (combined >= 50) return 'C';
+  if (combined >= 35) return 'D';
+  return 'F';
+}
+
+function scoreColor(score) {
+  if (score >= 70) return 'green';
+  if (score >= 50) return 'amber';
+  return 'red';
+}
+
+function renderScorecards(weekEnding) {
+  const groups = getAMGroups();
+  const el = document.getElementById('scorecards');
+  el.innerHTML = groups.map(g => {
+    const ops = computeAMScore(g.salons, weekEnding);
+    const ytd = computeYTDRecap(g.salons);
+    const grade = gradeFromScore(ops, ytd.pct);
+    const opsC = ops != null ? scoreColor(ops) : 'gray';
+    const recC = scoreColor(ytd.pct);
+    return `<div class="sc-card grade-${grade.toLowerCase()}">
+      <div class="sc-name">${g.name}</div>
+      <div class="sc-salons">${g.salons.length} salon${g.salons.length > 1 ? 's' : ''}</div>
+      <div class="sc-metrics">
+        <div class="sc-metric">
+          <div class="val ${opsC}">${ops != null ? ops : '—'}</div>
+          <div class="lbl">Ops Score</div>
+          ${ops != null ? `<div class="score-bar-wrap"><div class="score-bar-fill ${opsC}" style="width:${ops}%"></div></div>` : ''}
+        </div>
+        <div class="sc-metric">
+          <div class="val ${recC}">${ytd.pct}%</div>
+          <div class="lbl">Recap Rate</div>
+          <div class="score-bar-wrap"><div class="score-bar-fill ${recC}" style="width:${ytd.pct}%"></div></div>
+        </div>
+        <div class="sc-metric">
+          <div class="val" style="font-size:28px; color: ${{A:'var(--green)',B:'var(--teal)',C:'var(--amber)',D:'var(--red)',F:'var(--red)'}[grade]}">${grade}</div>
+          <div class="lbl">Grade</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderWeekSelector() {
+  const sel = document.getElementById('weekSelect');
+  sel.innerHTML = allWeeks.map(w => `<option value="${w}">${formatWeekLabel(w)}</option>`).join('');
+  sel.addEventListener('change', () => renderForWeek(sel.value));
+}
+
+function renderForWeek(weekEnding) {
+  renderScorecards(weekEnding);
+  renderRecapTable(weekEnding);
+}
+
+function renderRecapTable(weekEnding) {
+  const groups = getAMGroups();
+  const section = document.getElementById('recapSection');
+
+  let totalComplete = 0;
+  let totalSalons = SALONS.length;
+
+  // Count completed
+  SALONS.forEach(s => {
+    const r = getRecap(s, weekEnding);
+    if (r && r.status === 'final') totalComplete++;
+  });
+
+  document.getElementById('counter').innerHTML =
+    `<span class="num">${totalComplete}</span> / ${totalSalons} submitted`;
+
+  section.innerHTML = groups.map(g => {
+    const amComplete = g.salons.filter(s => {
+      const r = getRecap(s, weekEnding);
+      return r && r.status === 'final';
+    }).length;
+
+    return `<div class="am-group">
+      <div class="am-header">
+        <span class="am-name">${g.name}</span>
+        <span class="am-count">${amComplete} / ${g.salons.length} complete</span>
+      </div>
+      <table class="rtable">
+        <thead><tr>
+          <th>Store</th>
+          <th>City</th>
+          <th>Flagged KPIs</th>
+          <th>Recap Status</th>
+          <th>Submitted</th>
+        </tr></thead>
+        <tbody>
+          ${g.salons.map(sid => {
+            const r = getRecap(sid, weekEnding);
+            const ws = getWeeklyData(sid, weekEnding);
+            const loc = locMap[sid] || {};
+            const flags = countFlaggedKPIs(ws);
+            const status = r ? (r.status === 'final' ? 'complete' : 'draft') : 'notstarted';
+            const statusLabel = { complete: 'Complete', draft: 'Draft', notstarted: 'Not Started' }[status];
+            const submitted = r && r.status === 'final' ? formatDate(r.updated_at) : '—';
+            const cityDisplay = loc.city || '';
+
+            return `<tr>
+              <td><a href="${DASHBOARD_URL}" target="_blank" class="store-id">#${sid}</a></td>
+              <td><span class="store-city">${cityDisplay}</span></td>
+              <td>
+                ${ws ? `<span class="flag-count ${flags > 0 ? 'has-flags' : 'no-flags'}">
+                  <svg class="flag-icon" viewBox="0 0 16 16" fill="none"><path d="M3 2v12M3 2l9 4-9 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  ${flags}
+                </span>` : '<span style="color:#ccc">—</span>'}
+              </td>
+              <td><span class="badge badge-${status}"><span class="badge-dot"></span>${statusLabel}</span></td>
+              <td>${submitted}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }).join('');
+}
+
+function renderYTD() {
+  const groups = getAMGroups();
+  const body = document.getElementById('ytdBody');
+  body.innerHTML = groups.map(g => {
+    const ytd = computeYTDRecap(g.salons);
+    const c = scoreColor(ytd.pct);
+    const barColor = c === 'green' ? 'var(--green)' : c === 'amber' ? 'var(--amber)' : 'var(--red)';
+    return `<tr>
+      <td style="font-weight:500">${g.name}</td>
+      <td>${ytd.completed}</td>
+      <td>${ytd.possible}</td>
+      <td>
+        <div class="ytd-bar">
+          <div class="ytd-bar-track"><div class="ytd-bar-fill" style="width:${ytd.pct}%;background:${barColor}"></div></div>
+          <span class="ytd-pct" style="color:${barColor}">${ytd.pct}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// Init
+(async () => {
+  try {
+    await loadData();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    renderWeekSelector();
+    renderYTD();
+    if (allWeeks.length > 0) renderForWeek(allWeeks[0]);
+  } catch (err) {
+    document.getElementById('loading').innerHTML =
+      `<div style="color:var(--red)">Error loading data. Please refresh.</div><div style="font-size:12px;color:#888;margin-top:8px">${err.message}</div>`;
+  }
+})();
+</script>
+</body>
+</html>

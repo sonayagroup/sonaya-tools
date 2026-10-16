@@ -72,6 +72,7 @@ tbody tr.clickrow{cursor:pointer}
 .am-card .am-row:last-child{border-bottom:none}
 .am-card .am-row .am-label{color:var(--muted);font-weight:500}
 .am-card .am-row .am-val{font-weight:700}
+.am-card .am-row.am-sub{padding:2px 0 2px 12px;font-size:12px;border-bottom:1px dashed var(--line)}.am-card .am-row.am-sub .am-label{font-size:11.5px}
 .am-card .am-bar-bg{height:7px;background:#e8ede9;border-radius:4px;margin-top:3px;overflow:hidden}
 .am-card .am-bar-fill{height:100%;border-radius:4px;transition:width .3s}
 .recap-status-tbl{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
@@ -1986,14 +1987,15 @@ function renderRecapOverview(){
     });
     const opsScore=kpiN?Math.round((kpiPts/kpiN)*100):null;
 
-    // Growth composite: avg of cust growth + sales growth across salons
-    let growthSum=0,growthN=0;
+    // Portfolio avg payroll & CPH
+    let paySum=0,payN=0,cphSum=0,cphN=0;
     salons.forEach(sid=>{
       const ws=wsData[sid];if(!ws)return;
-      if(ws[WS.custGrowthPct]!=null){growthSum+=Number(ws[WS.custGrowthPct]);growthN++;}
-      if(ws[WS.salesGrowthPct]!=null){growthSum+=Number(ws[WS.salesGrowthPct]);growthN++;}
+      if(ws[WS.payrollPct]!=null){paySum+=Number(ws[WS.payrollPct]);payN++;}
+      if(ws[WS.cutsHr]!=null){cphSum+=Number(ws[WS.cutsHr]);cphN++;}
     });
-    const avgGrowth=growthN?(growthSum/growthN):null;
+    const avgPayroll=payN?(paySum/payN):null;
+    const avgCPH=cphN?(cphSum/cphN):null;
 
     // Recap completion YTD
     let ytdDone=0,ytdTotal=0;
@@ -2009,19 +2011,19 @@ function renderRecapOverview(){
     // This week recap count
     const wkRecaps=salons.filter(s=>recapMap[s]&&recapMap[s].status==='final').length;
 
-    // Overall Grade: weighted Ops 50% + Recap 30% + Growth 20%
-    const growthScore=avgGrowth==null?50:(avgGrowth>=5?100:(avgGrowth>=0?70:30));
-    const overall=opsScore!=null?Math.round(opsScore*0.5+recapRate*0.3+growthScore*0.2):Math.round(recapRate*0.6+growthScore*0.4);
+    // Overall Grade: weighted Salon Score 60% + Recap 40%
+    const overall=opsScore!=null?Math.round(opsScore*0.6+recapRate*0.4):recapRate;
     const grade=overall>=85?'A':overall>=70?'B':overall>=55?'C':overall>=40?'D':'F';
     const gradeCol=overall>=70?GREEN:overall>=55?AMBER:RED;
 
     amHtml.push(`<div class="am-card">
       <div class="am-name">${esc(amName)} <span class="am-grade" style="background:${gradeCol}">${grade} (${overall})</span></div>
-      <div class="am-row"><span class="am-label">Ops Score (KPI health)</span><span class="am-val" style="color:${opsScore!=null?(opsScore>=70?GREEN:opsScore>=50?AMBER:RED):'var(--muted)'}">${opsScore!=null?opsScore+'%':'n/a'}</span></div>
+      <div class="am-row"><span class="am-label">Salon Score (KPI Health)</span><span class="am-val" style="color:${opsScore!=null?(opsScore>=70?GREEN:opsScore>=50?AMBER:RED):'var(--muted)'}">${opsScore!=null?opsScore+'%':'n/a'}</span></div>
+      <div class="am-row am-sub"><span class="am-label">Avg Payroll</span><span class="am-val" style="color:${avgPayroll!=null?(avgPayroll<38?GREEN:avgPayroll<40?AMBER:RED):'var(--muted)'}">${avgPayroll!=null?avgPayroll.toFixed(1)+'%':'n/a'}</span></div>
+      <div class="am-row am-sub"><span class="am-label">Avg CPH</span><span class="am-val" style="color:${avgCPH!=null?(avgCPH>=2.2?GREEN:avgCPH>=2.0?AMBER:RED):'var(--muted)'}">${avgCPH!=null?avgCPH.toFixed(2):'n/a'}</span></div>
       <div class="am-row"><span class="am-label">This week recaps</span><span class="am-val">${wkRecaps}/${salons.length}</span></div>
       <div class="am-row"><span class="am-label">YTD Recap Rate</span><span class="am-val" style="color:${recapRate>=50?GREEN:recapRate>=25?AMBER:RED}">${recapRate}%</span></div>
       <div class="am-bar-bg"><div class="am-bar-fill" style="width:${recapRate}%;background:${recapRate>=50?GREEN:recapRate>=25?AMBER:RED}"></div></div>
-      <div class="am-row" style="border:none;padding-top:6px"><span class="am-label">Avg Growth</span><span class="am-val" style="color:${avgGrowth!=null?(avgGrowth>=5?GREEN:avgGrowth>=0?AMBER:RED):'var(--muted)'}">${avgGrowth!=null?(avgGrowth>=0?'+':'')+avgGrowth.toFixed(1)+'%':'n/a'}</span></div>
     </div>`);
   });
   $("#amCards").innerHTML=amHtml.join("");

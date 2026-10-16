@@ -623,8 +623,8 @@ let GRATE={}, GREVIEWS={}, GRATE_ASOF="";
 async function loadGoogleData(){
   const hdrs={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY};
   const[ratR,revR]=await Promise.all([
-    fetch(SUPA_URL+"/rest/v1/google_ratings?select=*",{headers:hdrs}).then(r=>r.json()),
-    fetch(SUPA_URL+"/rest/v1/google_reviews?select=*&order=updated_at.desc",{headers:hdrs}).then(r=>r.json())
+    fetch(SUPA_URL+"/rest/v1/google_ratings?select=*",{headers:hdrs}).then(r=>r.ok?r.json():[]),
+    fetch(SUPA_URL+"/rest/v1/google_reviews?select=*&order=updated_at.desc",{headers:hdrs}).then(r=>r.ok?r.json():[])
   ]);
   GRATE={};let newest="";
   ratR.forEach(r=>{GRATE[r.salon_id]=[Number(r.rating),r.review_count];if(r.updated_at>newest)newest=r.updated_at;});
@@ -825,7 +825,7 @@ function fetchRecaps(){ if(!supaReady())return Promise.resolve([]);
   return fetch(SUPA_URL+"/rest/v1/recaps?select=*",{headers:supaHeaders()}).then(r=>r.ok?r.json():[]).then(rows=>(rows||[]).map(mapRecapRow)).catch(()=>[]);}
 function upsertRecap(p){ if(!supaReady())return Promise.reject(new Error("Supabase not configured yet (add your URL + anon key)"));
   const body={salon_id:p.salon,week_ending:p.week,area_manager:p.areaManager||"",actions:p.actions||"",schedules:p.schedules||"",licenses_posted:p.licenses_posted||"",cphdays:p.cphdays||"",stylistflags:p.stylistflags||"",quality:p.quality||"",reach:p.reach||"",updated_by:p.updatedBy||"",updated_at:new Date().toISOString(),status:p.status||"final"};
-  return fetch(SUPA_URL+"/rest/v1/recaps",{method:"POST",headers:supaHeaders({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(body)})
+  return fetch(SUPA_URL+"/rest/v1/recaps?on_conflict=salon_id,week_ending",{method:"POST",headers:supaHeaders({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"}),body:JSON.stringify(body)})
     .then(r=>{if(!r.ok)throw new Error("save failed ("+r.status+")");return {ok:true};});}
 
 // tabs
@@ -877,7 +877,7 @@ async function loadBirthdays(){
   }catch(e){console.error('Birthday widget error',e);}
 }
 
-window.onload=()=>{ Promise.all([loadData(),loadGoogleData()]).then(([b])=>{onBoot(b);loadRecaps();loadDailyKpiNotes();loadBirthdays();}).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
+window.onload=()=>{ Promise.all([loadData(),loadGoogleData().catch(e=>{console.error("Google data load failed",e);})]).then(([b])=>{onBoot(b);loadRecaps();loadDailyKpiNotes();loadBirthdays();}).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
 
 // WEEKS includes every week_ending with any rolled-up data, including the current
 // in-progress GC week (Sat–Fri) whose week_ending Friday hasn't happened yet — that entry
@@ -887,8 +887,9 @@ window.onload=()=>{ Promise.all([loadData(),loadGoogleData()]).then(([b])=>{onBo
 // week instead, so the app doesn't open on a half-filled in-progress week. A week counts as
 // complete once its week_ending date has actually occurred; users can still pick the current
 // week manually from the week dropdown.
+function localToday(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function latestDataWeek(){
-  const todayStr=new Date().toISOString().slice(0,10);
+  const todayStr=localToday();
   const completed=WEEKS.filter(w=>w<=todayStr);
   return completed[0]||WEEKS[0]||null;
 }
@@ -1742,7 +1743,7 @@ function renderTrend(series,m,mo){
 }
 
 // RECAP
-function lastFriday(){const d=new Date();const diff=(d.getDay()-5+7)%7;d.setDate(d.getDate()-diff);return d.toISOString().slice(0,10);}
+function lastFriday(){const d=new Date();const diff=(d.getDay()-5+7)%7;d.setDate(d.getDate()-diff);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function loadRecaps(){return fetchRecaps().then(r=>{recaps=r||[];});}
 
 // --- Daily KPI Notes (save-as-you-go, feeds into Weekly Recap) ---
@@ -1840,7 +1841,7 @@ $("#dknSave").onclick=()=>{
 // --- Out-of-standard analysis + recap builders (dashboard "red" thresholds) ---
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function safeParse(s){try{const o=s?JSON.parse(s):{};return (o&&typeof o==="object")?o:{};}catch(e){return{};}}
-function weekDates(wk){const out=[];if(!wk)return out;const d=new Date(wk+"T00:00:00");for(let i=6;i>=0;i--){const x=new Date(d);x.setDate(d.getDate()-i);out.push(x.toISOString().slice(0,10));}return out;}
+function weekDates(wk){const out=[];if(!wk)return out;const d=new Date(wk+"T12:00:00");for(let i=6;i>=0;i--){const x=new Date(d);x.setDate(d.getDate()-i);out.push(x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"));}return out;}
 // salon-level KPIs checked per day: [trendMetric, kpiKey, label, reasonFn]
 const DAYKPIS=[
   ["payrollPct","payroll","Payroll %",v=>v.toFixed(1)+"% (over 40% target)"],
@@ -1855,6 +1856,7 @@ function empRow(cat,name,val){val=val||"";const sel=v=>val===v?" selected":"";
 function buildOOS(id,wk){
   const host=$("#oosSection"); if(!host)return;
   const token=(buildOOS._t=(buildOOS._t||0)+1);
+  buildOOS._ready=false;
   host.innerHTML='<div class="sub" style="margin:8px 0">Checking standards…</div>';
   const rr=recaps.find(x=>String(x.salonId)===String(id)&&String(x.weekEnding)===String(wk))||{};
   const kpiSaved=safeParse(rr.cphdays), stySaved=safeParse(rr.stylistflags), qcSaved=safeParse(rr.quality), rcSaved=safeParse(rr.reach);
@@ -1869,6 +1871,10 @@ function buildOOS(id,wk){
       const recapKey=d+"|"+metric;
       if(!dknKpiMerge[recapKey])dknKpiMerge[recapKey]=kf[metric];
     });
+    // Smart merge: daily stylist notes carry over, but we also track what daily
+    // flags existed so the weekly renderer only pre-fills when reasons are related
+    // (e.g. break/CPH daily → CPH weekly, avg HC daily → avg HC weekly).
+    // Return-rate flags (weekly only) won't get unrelated daily notes pre-filled.
     Object.keys(sf).forEach(name=>{
       if(!dknStyMerge[name])dknStyMerge[name]=sf[name];
       else dknStyMerge[name]+="\n"+sf[name];
@@ -1909,9 +1915,14 @@ function buildOOS(id,wk){
     if(!styRows.length) h+='<div class="oos-neutral">No weekly stylist data yet for the week ending '+fmtDate(wk)+'.</div>';
     else if(!flagged.length) h+='<div class="oos-ok">✓ All stylists within standard for the week ending '+fmtDate(wk)+'.</div>';
     else flagged.forEach(f=>{
-      const val=stySaved[f.name]||dknStyMerge[f.name]||"";
+      // Only merge daily notes when weekly reasons overlap with daily flag categories:
+      // daily CPH/break/payroll → weekly CPH; daily Avg HC → weekly Avg HC.
+      // Return-rate flags (weekly only) don't get daily notes pre-filled.
+      const hasOverlap=f.reasons.some(r=>/^CPH\b/.test(r)||/^Avg HC\b/.test(r));
+      const mergedNote=hasOverlap?dknStyMerge[f.name]:"";
+      const val=stySaved[f.name]||mergedNote||"";
       h+='<div class="oos-item"><div class="hd">'+esc(f.name)+'</div>'
-        +'<div class="meta">Out of standard: '+esc(f.reasons.join(" · "))+(dknStyMerge[f.name]&&!stySaved[f.name]?' <em>(from daily notes)</em>':'')+'</div>'
+        +'<div class="meta">Out of standard: '+esc(f.reasons.join(" · "))+(mergedNote&&!stySaved[f.name]?' <em>(from daily notes)</em>':'')+'</div>'
         +'<textarea data-oos data-cat="sty" data-key="'+esc(f.name)+'" placeholder="What are you doing to address this (training, coaching, REACH, etc.)?">'+esc(val)+'</textarea></div>';});
     h+='<div class="oos-h">🤝 Quality Connections — done this week?</div>';
     if(!emps.length) h+='<div class="oos-neutral">No employee list yet for this salon/week.</div>';
@@ -1921,6 +1932,7 @@ function buildOOS(id,wk){
     else emps.forEach(n=>{h+=empRow("rc",n,rcSaved[n]);});
     h+='</div>';
     host.innerHTML=h;
+    buildOOS._ready=true;
   });
 }
 function collectOOS(){const kpiO={},sty={},qc={},rc={};
@@ -1970,7 +1982,8 @@ function renderRecapOverview(){
   $("#amWeekStat").innerHTML="<b>"+wkDone+"</b>/"+allSalons.length+" finalized"+(wkDraft?" · <span style='color:"+AMBER+"'>"+wkDraft+" draft</span>":"");
 
   // Compute AM cards
-  const allFridays=(WEEKS.length?WEEKS:allFridaysYTD().reverse()).filter(w=>w>=RECAP_START);
+  const todayLocal=localToday();
+  const allFridays=(WEEKS.length?WEEKS:allFridaysYTD().reverse()).filter(w=>w>=RECAP_START&&w<=todayLocal);
   const amHtml=[];
   // Build YTD weekly salon data: all weeks from RECAP_START onward
   const ytdWeeks=allFridays.filter(w=>DATA.weeklies&&DATA.weeklies[w]&&DATA.weeklies[w].WSAL);
@@ -2132,6 +2145,7 @@ $("#recapWeek").onchange=renderRecap;
 $("#recapSalonSel").onchange=function(){current=this.value;$("#salonSel").value=current;renderRecap();};
 function doRecapSave(status){
   const id=current,wk=$("#recapWeek").value;if(!wk){alert("Pick a week-ending date");return;}
+  if(!buildOOS._ready){alert("Still loading standards data — please wait a moment and try again.");return;}
   if(status==='final'){
     // --- validate all fields are filled ---
     document.querySelectorAll('.recap-missing').forEach(el=>el.classList.remove('recap-missing'));
@@ -2161,10 +2175,10 @@ const CT_SALON_NAMES={'0200':'Nob Hill','0646':'Espanola','0933':'Four Hills','2
 async function ctLoad(){
   const h={apikey:SUPA_KEY,Authorization:"Bearer "+SUPA_KEY};
   const[staff,vendors,junctions,company]=await Promise.all([
-    fetch(SUPA_URL+"/rest/v1/salon_contacts?select=*&order=name",{headers:h}).then(r=>r.json()),
-    fetch(SUPA_URL+"/rest/v1/vendors?select=*&order=company",{headers:h}).then(r=>r.json()),
-    fetch(SUPA_URL+"/rest/v1/salon_vendors?select=*",{headers:h}).then(r=>r.json()),
-    fetch(SUPA_URL+"/rest/v1/company_contacts?select=*&order=company",{headers:h}).then(r=>r.json())
+    fetch(SUPA_URL+"/rest/v1/salon_contacts?select=*&order=name",{headers:h}).then(r=>r.ok?r.json():[]),
+    fetch(SUPA_URL+"/rest/v1/vendors?select=*&order=company",{headers:h}).then(r=>r.ok?r.json():[]),
+    fetch(SUPA_URL+"/rest/v1/salon_vendors?select=*",{headers:h}).then(r=>r.ok?r.json():[]),
+    fetch(SUPA_URL+"/rest/v1/company_contacts?select=*&order=company",{headers:h}).then(r=>r.ok?r.json():[])
   ]);
   CT_STAFF=staff||[];CT_VENDORS=vendors||[];CT_JUNCTIONS=junctions||[];CT_COMPANY=company||[];
   ctRender();
@@ -2215,7 +2229,7 @@ function ctRender(){
   $("#ctPrintSub").textContent="Contact Directory · Printed "+new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
 }
 
-function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+
 function fmtDob(s){if(!s)return'';const m=s.match(/^(\w+)\s+(\d+)/);if(!m)return s;const d=parseInt(m[2]),sx=d%10===1&&d!==11?'st':d%10===2&&d!==12?'nd':d%10===3&&d!==13?'rd':'th';return m[1]+' '+d+sx;}
 const DOB_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DOB_ABBR={jan:'January',feb:'February',mar:'March',apr:'April',may:'May',jun:'June',jul:'July',aug:'August',sep:'September',oct:'October',nov:'November',dec:'December'};

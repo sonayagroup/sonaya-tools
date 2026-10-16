@@ -446,7 +446,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
   <div id="recapBanner"></div>
   <div class="recap-bar">
     <span style="font-size:12.5px;color:var(--muted)">Week ending</span>
-    <input type="date" id="recapWeek">
+    <select id="recapWeek"></select>
     <button class="btn" id="recapDraft" style="background:#6b7280">Save Draft</button>
     <button class="btn" id="recapSave">Submit Final</button>
     <span class="savemsg" id="recapMsg"></span>
@@ -1935,10 +1935,11 @@ const AM_DEF={
   'Tanya Shelby':['0646','6101','6116','6117','7700','8914']
 };
 let amOverviewLoaded=false;
+const RECAP_START='2026-08-07'; // first week recaps were entered
 function allFridaysYTD(){
-  const yr=new Date().getFullYear(),out=[];
-  let d=new Date(yr,0,1);
-  // find first Friday
+  const out=[];
+  let d=new Date(RECAP_START+'T12:00:00');
+  // align to Friday
   while(d.getDay()!==5)d.setDate(d.getDate()+1);
   const today=new Date();today.setHours(23,59,59);
   while(d<=today){out.push(d.toISOString().slice(0,10));d.setDate(d.getDate()+7);}
@@ -1968,7 +1969,7 @@ function renderRecapOverview(){
   $("#amWeekStat").innerHTML="<b>"+wkDone+"</b>/"+allSalons.length+" finalized"+(wkDraft?" · <span style='color:"+AMBER+"'>"+wkDraft+" draft</span>":"");
 
   // Compute AM cards
-  const allFridays=WEEKS.length?WEEKS:allFridaysYTD().reverse();
+  const allFridays=(WEEKS.length?WEEKS:allFridaysYTD().reverse()).filter(w=>w>=RECAP_START);
   const amHtml=[];
   Object.entries(AM_DEF).forEach(([amName,salons])=>{
     // Ops Score: average KPI health across their salons for this week
@@ -2079,8 +2080,23 @@ function amJumpToSalon(sid,wk){
 }
 $("#amWeekSel").onchange=()=>{renderRecapOverview();};
 
+let recapWeekPopulated=false;
+function populateRecapWeek(){
+  const sel=$("#recapWeek");if(!sel||sel.tagName!=='SELECT')return;
+  const prev=sel.value;
+  const wks=WEEKS.length?WEEKS:allFridaysYTD().reverse();
+  if(!recapWeekPopulated||sel.options.length===0){
+    sel.innerHTML="";
+    wks.forEach(w=>{const o=document.createElement("option");o.value=w;o.textContent=fmtDate(w);sel.appendChild(o);});
+    recapWeekPopulated=true;
+  }
+  // restore previous selection or default
+  if(prev&&wks.includes(prev))sel.value=prev;
+  else if(curWeek&&wks.includes(curWeek))sel.value=curWeek;
+}
 function renderRecap(){
   renderRecapOverview();
+  populateRecapWeek();
   const id=current||Object.keys(SALONS).sort()[0];
   $("#recapTitle").textContent=(id||"")+" — "+sName(id)+" · Salon Recap Form";
   const wk=$("#recapWeek").value||curWeek||lastFriday();$("#recapWeek").value=wk;

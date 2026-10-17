@@ -643,8 +643,28 @@ body {
 .recap-back-btn {
   padding: 6px 0; border: none; color: var(--brand-red); font-weight: 600;
   font-size: 13px; cursor: pointer; background: none; font-family: inherit;
-  margin-bottom: 16px; display: inline-block;
 }
+.recap-nav-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
+}
+.recap-store-switcher {
+  display: flex; align-items: center; gap: 6px;
+}
+.recap-store-select {
+  padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text-primary); font-size: 13px;
+  font-weight: 600; font-family: inherit; cursor: pointer; min-width: 180px;
+}
+.recap-nav-arrow {
+  width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 50%;
+  background: var(--surface); color: var(--text-primary); font-size: 18px;
+  font-weight: 700; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; transition: all var(--transition); line-height: 1;
+}
+.recap-nav-arrow:hover { background: var(--brand-red); color: #fff; border-color: var(--brand-red); }
+.recap-nav-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+.recap-nav-arrow:disabled:hover { background: var(--surface); color: var(--text-primary); border-color: var(--border); }
 .recap-store-header {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
@@ -8720,8 +8740,23 @@ function renderRecapDetail() {
 
   const leadershipText = recap.leadership || '';
 
+  // Build store switcher options
+  const areaFilter = recapState.area;
+  const switcherStores = STORES.filter(s => areaFilter === 'all' || s.area === areaFilter);
+  let switcherOptions = '';
+  switcherStores.forEach(s => {
+    switcherOptions += '<option value="' + s.id + '"' + (s.id === storeId ? ' selected' : '') + '>' + s.id + ' \u2013 ' + s.name + '</option>';
+  });
+
   detailEl.innerHTML =
-    '<button class="recap-back-btn" id="recapBackBtn">\u2190 Back to all stores</button>' +
+    '<div class="recap-nav-bar">' +
+      '<button class="recap-back-btn" id="recapBackBtn">\u2190 Back to all stores</button>' +
+      '<div class="recap-store-switcher">' +
+        '<button class="recap-nav-arrow" id="recapPrevStore" title="Previous store">\u2039</button>' +
+        '<select class="recap-store-select" id="recapStoreSelect">' + switcherOptions + '</select>' +
+        '<button class="recap-nav-arrow" id="recapNextStore" title="Next store">\u203a</button>' +
+      '</div>' +
+    '</div>' +
     '<div class="recap-store-header">' +
       '<h2><span class="recap-store-id-tag">' + storeId + '</span> ' + store.name + ' \u2014 Weekly Recap</h2>' +
       '<button class="recap-save-btn" id="recapSaveBtn">Save Recap</button>' +
@@ -8756,6 +8791,33 @@ function renderRecapDetail() {
     document.getElementById('recapOverview').style.display = 'block';
     renderRecapOverview();
   });
+
+  // Wire up store switcher
+  const storeSelect = document.getElementById('recapStoreSelect');
+  const prevBtn = document.getElementById('recapPrevStore');
+  const nextBtn = document.getElementById('recapNextStore');
+  if (storeSelect) {
+    const areaFilter = recapState.area;
+    const switcherStores = STORES.filter(s => areaFilter === 'all' || s.area === areaFilter);
+    const curIdx = switcherStores.findIndex(s => s.id === recapState.selectedStore);
+
+    // Disable arrows at edges
+    if (prevBtn) prevBtn.disabled = curIdx <= 0;
+    if (nextBtn) nextBtn.disabled = curIdx >= switcherStores.length - 1;
+
+    storeSelect.addEventListener('change', () => {
+      recapState.selectedStore = storeSelect.value;
+      renderRecapDetail();
+    });
+    if (prevBtn) prevBtn.addEventListener('click', () => {
+      const idx = switcherStores.findIndex(s => s.id === recapState.selectedStore);
+      if (idx > 0) { recapState.selectedStore = switcherStores[idx - 1].id; renderRecapDetail(); }
+    });
+    if (nextBtn) nextBtn.addEventListener('click', () => {
+      const idx = switcherStores.findIndex(s => s.id === recapState.selectedStore);
+      if (idx < switcherStores.length - 1) { recapState.selectedStore = switcherStores[idx + 1].id; renderRecapDetail(); }
+    });
+  }
 
   // Wire up save button
   document.getElementById('recapSaveBtn').addEventListener('click', saveRecap);

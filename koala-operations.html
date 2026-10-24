@@ -622,7 +622,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 
 </div><!-- #appRoot -->
 
-<div class="modal-backdrop" id="onBooksModalBackdrop" onclick="if(event.target===this) closeOnTheBooksModal();">
+<div class="modal-backdrop" id="onBooksModalBackdrop" onclick="if(backdropClickShouldClose(event,this)) closeOnTheBooksModal();">
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="onBooksModalTitle">
     <div class="modal-header">
       <div>
@@ -636,7 +636,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   </div>
 </div>
 
-<div class="modal-backdrop" id="crmStageModalBackdrop" onclick="if(event.target===this) closeCrmStageModal();">
+<div class="modal-backdrop" id="crmStageModalBackdrop" onclick="if(crmStageModalMode !== 'deal' && backdropClickShouldClose(event,this)) closeCrmStageModal();">
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="crmStageModalTitle">
     <div class="modal-header">
       <div>
@@ -650,7 +650,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   </div>
 </div>
 
-<div class="modal-backdrop" id="crmArchivedModalBackdrop" onclick="if(event.target===this) closeCrmArchivedModal();">
+<div class="modal-backdrop" id="crmArchivedModalBackdrop" onclick="if(backdropClickShouldClose(event,this)) closeCrmArchivedModal();">
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="crmArchivedModalTitle">
     <div class="modal-header">
       <div>
@@ -672,7 +672,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   </div>
 </div>
 
-<div class="modal-backdrop" id="adminInviteModalBackdrop" onclick="if(event.target===this) closeAdminInviteModal();">
+<div class="modal-backdrop" id="adminInviteModalBackdrop" onclick="if(backdropClickShouldClose(event,this)) closeAdminInviteModal();">
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="adminInviteModalTitle">
     <div class="modal-header">
       <div>
@@ -706,7 +706,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   </div>
 </div>
 
-<div class="modal-backdrop" id="changePasswordModalBackdrop" onclick="if(event.target===this) closeChangePasswordModal();">
+<div class="modal-backdrop" id="changePasswordModalBackdrop" onclick="if(backdropClickShouldClose(event,this)) closeChangePasswordModal();">
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="changePasswordModalTitle">
     <div class="modal-header">
       <div>
@@ -2813,7 +2813,7 @@ function crmCardHtml(d) {
     : '';
   return `<div class="crm-card" draggable="true" data-id="${d.id}"
       ondragstart="crmHandleDragStart(event, this, '${d.id}')"
-      ondragend="this.classList.remove('crm-dragging')"
+      ondragend="this.classList.remove('crm-dragging'); crmDragId = null;"
       onclick="openCrmDealModal('${d.id}')" role="button" tabindex="0">
     ${marketHtml}
     <div class="crm-card-name">${crmEsc(d.name)}${notesIcon}</div>
@@ -2828,7 +2828,7 @@ function crmColumn(stageName, deals) {
   const meta = CRM_STAGE_META[stageName] || { accent: 'var(--cat-1)' };
   const safeStage = stageName.replace(/'/g, "\\'");
   const cardsHtml = deals.length ? deals.map(d => crmCardHtml(d)).join('') : `<div class="crm-column-empty">${crmSearchQuery.trim() ? 'No matches' : 'No deals'}</div>`;
-  return `<div class="crm-column" style="border-top-color:${meta.accent};"
+  return `<div class="crm-column" data-stage="${crmEsc(stageName)}" style="border-top-color:${meta.accent};"
       ondragover="crmHandleDragOver(event)"
       ondragenter="this.classList.add('crm-drop-target')"
       ondragleave="this.classList.remove('crm-drop-target')"
@@ -2847,11 +2847,28 @@ function crmColumn(stageName, deals) {
   </div>`;
 }
 function renderPipelineBoard(containerId, activeStages, outcomeStages, groups) {
+  const container = document.getElementById(containerId);
+  // Every re-render (the 45s background refresh, a search keystroke, a save) rebuilds the columns
+  // from scratch, which used to snap every column back to the top mid-scroll (reported 2026-10-24 per
+  // Pranav). Remember each column's scroll position — keyed by stage — and the row's sideways scroll,
+  // and put them back after the rebuild.
+  const prevLeft = container.scrollLeft;
+  const prevTops = {};
+  container.querySelectorAll('.crm-column').forEach(col => {
+    const body = col.querySelector('.crm-column-body');
+    if (body && col.dataset.stage) prevTops[col.dataset.stage] = body.scrollTop;
+  });
   let html = '';
   activeStages.forEach(s => { html += crmColumn(s, groups[s] || []); });
   html += `<div class="crm-flow-sep"><span>then</span></div>`;
   outcomeStages.forEach(s => { html += crmColumn(s, groups[s] || []); });
-  document.getElementById(containerId).innerHTML = html;
+  container.innerHTML = html;
+  container.scrollLeft = prevLeft;
+  container.querySelectorAll('.crm-column').forEach(col => {
+    const body = col.querySelector('.crm-column-body');
+    const top = prevTops[col.dataset.stage];
+    if (body && top) body.scrollTop = top;
+  });
 }
 
 /* ---- Drag and drop ---- */
@@ -2905,6 +2922,7 @@ async function crmHandleDrop(e, columnEl, stageName) {
 
 /* ---- Add / Edit deal modal (reuses the crmStageModal shell) ---- */
 function openCrmDealModal(id, presetStage) {
+  crmStageModalMode = 'deal';
   crmEditingId = id || null;
   crmActivityEditingId = null;
   crmActivityDeletingId = null;
@@ -3053,6 +3071,7 @@ async function crmDeleteCurrentDeal() {
 
 /* ---- Read-only "view as table" modal for a whole stage ---- */
 function openCrmStageModal(stageName) {
+  crmStageModalMode = 'table';
   crmEditingId = null;
   const deals = crmDeals.filter(d => d.stage === stageName);
   document.getElementById('crmStageModalTitle').textContent = `${stageName} \u2014 ${deals.length} deal${deals.length === 1 ? '' : 's'}`;
@@ -3076,6 +3095,25 @@ function openCrmStageModal(stageName) {
   document.getElementById('crmStageModalBackdrop').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
+// ---- "Click outside to close" for pop-up windows (fixed 2026-10-24 per Pranav: "when you have a
+// window open and click away, sometimes it closes the window"). A plain onclick on the dark backdrop
+// also fires when a press STARTS inside the window and is RELEASED outside it — e.g. selecting text in
+// Notes or dragging a text box's resize corner past the window's edge — so windows were closing
+// unexpectedly mid-edit. Now a backdrop click only counts if the press also started on the backdrop
+// itself (and not on its scrollbar).
+let modalPressStartedOn = null;
+document.addEventListener('mousedown', (e) => {
+  const t = e.target;
+  modalPressStartedOn = (t && t.classList && t.classList.contains('modal-backdrop') && e.offsetX < t.clientWidth) ? t : null;
+}, true);
+function backdropClickShouldClose(e, el) {
+  return e.target === el && modalPressStartedOn === el;
+}
+// The CRM stage window doubles as the Add/Edit Deal form. A form with unsaved typing should only close
+// from its own Cancel/Save/X buttons (or Esc) — never from a stray click outside — so outside clicks
+// are ignored entirely in 'deal' mode and still close the read-only "View as table" mode.
+let crmStageModalMode = 'table';
+
 function closeCrmStageModal() {
   document.getElementById('crmStageModalBackdrop').classList.remove('open');
   document.body.style.overflow = '';
@@ -3260,7 +3298,7 @@ async function renderCrmTab() {
 
 // Light polling so changes made by teammates on another device show up without a manual reload.
 setInterval(() => {
-  if (document.getElementById('tab-crm').classList.contains('active') && !document.getElementById('crmStageModalBackdrop').classList.contains('open')) {
+  if (document.getElementById('tab-crm').classList.contains('active') && !document.getElementById('crmStageModalBackdrop').classList.contains('open') && !crmDragId) {
     renderCrmTab();
   }
 }, 45000);

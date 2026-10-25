@@ -1237,6 +1237,7 @@ function renderPM(){
               const dueBadge=d!==null?(d<0?`<span class="badge badge-emergency">${Math.abs(d)}d</span>`:d<=7?`<span class="badge badge-medium">${d}d</span>`:`<span class="badge badge-completed">${d}d</span>`):'—';
               return `<tr class="${cls}"><td>${eqName(p.equipment_id)}</td><td>${locStore(p.location_id)}</td><td>${vendName(p.vendor_id)}</td><td>${formatDate(p.last_completed)}</td><td>${dueBadge}</td><td>${teamName(p.assigned_to)}</td><td style="white-space:nowrap">
                 <button class="btn btn-sm btn-secondary" onclick="completePM('${p.id}',${p.frequency_days||30})">Done</button>
+                <button class="btn-icon btn-sm" onclick="viewPMHistory('${p.id}')" title="View History">📋</button>
                 <button class="btn-icon btn-sm" onclick="openPMForm('${p.id}')">✏️</button>
                 <button class="btn-icon btn-sm" onclick="deletePM('${p.id}')">🗑️</button>
               </td></tr>`;
@@ -1434,6 +1435,71 @@ window.submitPMCompletion = async function(id,freq){
     await Promise.all([load('dt_pm_schedules','next_due',true),load('dt_maintenance_logs','created_at',false)]);
     render();
   }
+};
+window.viewPMHistory = function(id){
+  const pm=(cache.dt_pm_schedules||[]).find(x=>x.id===id)||{};
+  const eq=(cache.dt_equipment||[]).find(e=>e.id===pm.equipment_id)||{};
+  // Find matching maintenance logs for this equipment+location with PM title
+  const logs=(cache.dt_maintenance_logs||[]).filter(l=>
+    l.equipment_id===pm.equipment_id && l.location_id===pm.location_id &&
+    l.title && l.title.startsWith('PM:')
+  ).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  // Get photos for this PM
+  const photos=getPhotos('pm_completion',id);
+  const publicUrl=p=>sb.storage.from('maintenance-photos').getPublicUrl(p.storage_path).data?.publicUrl||'';
+  // Group photos by date (approximate match to log entries)
+  const photosByDate={};
+  photos.forEach(p=>{
+    const d=new Date(p.uploaded_at).toISOString().slice(0,10);
+    if(!photosByDate[d]) photosByDate[d]=[];
+    photosByDate[d].push(p);
+  });
+
+  const hasHistory = logs.length > 0 || photos.length > 0;
+  const historyHTML = hasHistory ? logs.map(log=>{
+    const logDate=new Date(log.created_at).toISOString().slice(0,10);
+    const matchPhotos=photosByDate[logDate]||[];
+    return `<div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <strong style="font-size:.9rem">${formatDate(log.created_at)}</strong>
+        ${log.performed_by?`<span style="font-size:.8rem;color:var(--text-secondary)">${log.performed_by}</span>`:''}
+      </div>
+      ${log.description?`<p style="margin:0 0 8px;font-size:.85rem;color:var(--text-primary)">${log.description}</p>`:''}
+      ${log.cost?`<p style="margin:0 0 8px;font-size:.85rem;color:var(--text-secondary)">Cost: $${Number(log.cost).toFixed(2)}</p>`:''}
+      ${matchPhotos.length?`<div style="display:flex;gap:6px;flex-wrap:wrap">${matchPhotos.map(p=>
+        `<img src="${publicUrl(p)}" alt="${p.file_name||'photo'}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border)" onclick="openLightbox('${publicUrl(p).replace(/'/g,"\\'")}')">`
+      ).join('')}</div>`:''}
+    </div>`;
+  }).join('') : '<div style="text-align:center;padding:24px;color:var(--text-muted)"><p>No completion history yet.</p><p style="font-size:.85rem">History will appear here once this PM task is completed.</p></div>';
+
+  // Show unmatched photos (photos that don't match any log date)
+  const matchedDates=new Set(logs.map(l=>new Date(l.created_at).toISOString().slice(0,10)));
+  const unmatchedPhotos=photos.filter(p=>!matchedDates.has(new Date(p.uploaded_at).toISOString().slice(0,10)));
+  const unmatchedHTML=unmatchedPhotos.length?`
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:8px">
+      <div style="font-size:.8rem;font-weight:600;color:var(--text-muted);margin-bottom:8px">ADDITIONAL PHOTOS</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${unmatchedPhotos.map(p=>
+        `<div style="text-align:center"><img src="${publicUrl(p)}" alt="${p.file_name||'photo'}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border)" onclick="openLightbox('${publicUrl(p).replace(/'/g,"\\'")}')">`+
+        `<div style="font-size:.7rem;color:var(--text-muted);margin-top:2px">${formatDate(p.uploaded_at)}</div></div>`
+      ).join('')}</div>
+    </div>`:'';
+
+  openModal(`
+    <div class="modal-header"><h3>PM History</h3><button class="btn-icon" onclick="closeModal()">✕</button></div>
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto">
+      <div style="background:var(--surface-2);padding:12px;border-radius:var(--radius);margin-bottom:16px">
+        <strong>${pm.task_name||'PM Task'}</strong><br>
+        <span style="font-size:.85rem;color:var(--text-secondary)">${locName(pm.location_id)} · ${eqName(pm.equipment_id)}</span>
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:.8rem;color:var(--text-muted)">
+          <span>Frequency: Every ${pm.frequency_days||'—'} days</span>
+          <span>Last Completed: ${formatDate(pm.last_completed)}</span>
+        </div>
+      </div>
+      <div style="font-size:.8rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">COMPLETION LOG (${logs.length} ${logs.length===1?'entry':'entries'})</div>
+      ${historyHTML}
+      ${unmatchedHTML}
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal()">Close</button></div>`);
 };
 window.submitRTUChecklist = async function(id,freq){
   // Require at least one photo

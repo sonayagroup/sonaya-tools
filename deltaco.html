@@ -1028,6 +1028,7 @@ body {
   <button class="tab-btn" data-tab="onboard">Onboarding</button>
   <button class="tab-btn" data-tab="contacts">Contacts</button>
   <button class="tab-btn" data-tab="gmchecklist">GM Checklist</button>
+  <button class="tab-btn" data-tab="dmchecklist">DM Checklist</button>
   <button class="tab-btn" data-tab="admin" id="admin-tab-btn" style="display:none">Admin</button>
 </nav>
 
@@ -1809,6 +1810,63 @@ body {
 
     <div style="margin-top:20px; text-align:right;">
       <span id="gmclSaveStatus" style="font-size:12px; color:var(--text-secondary); margin-right:12px;"></span>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 11: DM CHECKLIST -->
+<div class="tab-content" id="tab-dmchecklist">
+  <div class="container" style="max-width:900px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+      <div>
+        <h2 style="margin:0; font-size:20px; color:var(--text-primary);">DM Daily / Weekly / Biweekly / Monthly Checklist</h2>
+        <p style="margin:4px 0 0; font-size:13px; color:var(--text-secondary);">Track completion of required District Manager tasks by area.</p>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:20px;">
+      <div class="control-group">
+        <label>Area:</label>
+        <select class="control-select" id="dmclArea">
+          <option value="373-001">373-001 (Gizelle)</option>
+          <option value="373-002">373-002 (Manuel)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label>Date:</label>
+        <input type="date" class="control-input" id="dmclDate" />
+      </div>
+    </div>
+
+    <div id="dmclOverview" class="gmcl-overview"></div>
+
+    <div id="dmclContent">
+      <!-- Daily Section -->
+      <div class="gmcl-section">
+        <div class="gmcl-section-hdr" style="background:var(--brand-green); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Daily Tasks</div>
+        <div class="gmcl-items" id="dmclDaily"></div>
+      </div>
+
+      <!-- Weekly Section -->
+      <div class="gmcl-section" style="margin-top:18px;">
+        <div class="gmcl-section-hdr" style="background:var(--brand-red); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Weekly Tasks</div>
+        <div class="gmcl-items" id="dmclWeekly"></div>
+      </div>
+
+      <!-- Biweekly Section -->
+      <div class="gmcl-section" style="margin-top:18px;">
+        <div class="gmcl-section-hdr" style="background:#6366f1; color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Biweekly Tasks</div>
+        <div class="gmcl-items" id="dmclBiweekly"></div>
+      </div>
+
+      <!-- Monthly Section -->
+      <div class="gmcl-section" style="margin-top:18px;">
+        <div class="gmcl-section-hdr" style="background:var(--brand-gold); color:#1a1a2e; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Monthly Tasks</div>
+        <div class="gmcl-items" id="dmclMonthly"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:20px; text-align:right;">
+      <span id="dmclSaveStatus" style="font-size:12px; color:var(--text-secondary); margin-right:12px;"></span>
     </div>
   </div>
 </div>
@@ -10443,6 +10501,7 @@ const GMCL_ITEMS = {
     { key: 'red_times',      text: 'Check red times' },
     { key: 'taco_talk_1',    text: '1 Taco Talk per day' },
     { key: 'reps',           text: 'REPS' },
+    { key: 'dayforce_ts',    text: 'Authorize Timesheets in Dayforce', note: 'Add comments for any edits made' },
   ],
   weekly: [
     { key: 'variance_rpt',   text: 'Send in Weekly Inventory Variance report' },
@@ -10450,6 +10509,8 @@ const GMCL_ITEMS = {
     { key: 'jolt_visit',     text: 'Jolt Restaurant visit list' },
     { key: 'taco_talks_5',   text: '5 Taco Talks complete' },
     { key: 'doordash_errors', text: 'Check Doordash errors and dispute as needed' },
+    { key: 'dayforce_plan',  text: 'Plan in Dayforce for next week' },
+    { key: 'schedule_next',  text: 'Schedule for next week' },
   ],
   monthly: [
     { key: 'taco_talks_all', text: 'All Taco Talks complete' },
@@ -10778,6 +10839,290 @@ document.addEventListener('DOMContentLoaded', function() { gmclShowIncompleteBan
 
 document.querySelector('[data-tab="gmchecklist"]').addEventListener('click', function() {
   if (!gmclLoaded) gmclInit();
+});
+
+/* ========================================================================
+   DM (DISTRICT MANAGER) CHECKLIST
+   ======================================================================== */
+const DMCL_ITEMS = {
+  daily: [
+    { key: 'google_reviews_tracker', text: 'Update Google Reviews tracker by 10 AM' },
+    { key: 'send_google_reviews',    text: 'Send prior day Google reviews by 11 AM' },
+    { key: 'dashboard_update',       text: 'Send Dashboard update by 4 PM' },
+    { key: 'google_review_area',     text: 'Google review update to area chat by 4 PM' },
+    { key: 'shift_inventory',        text: 'Send Shift Inventory update by 5 PM' },
+  ],
+  weekly: [
+    { key: 'store_visits',          text: '5 Store Visit Checklists by Tuesday' },
+    { key: 'dm_infractions_fill',   text: 'Fill out DM infractions by 2 PM Wednesday' },
+    { key: 'dm_infractions_send',   text: 'Send DM infractions out by 5 PM Wednesday' },
+    { key: 'variance_upload',       text: 'Upload Weekly Variance reports to Google Drive by 3 PM Thursday' },
+    { key: 'weekly_recap',          text: 'Company Weekly Recap by 5 PM Thursday' },
+    { key: 'store_recaps',          text: 'Individual Store Recaps by 5 PM Friday' },
+    { key: 'review_weekly_recap',   text: "Review prior week's Weekly Recap with GM" },
+    { key: 'review_variance_gm',    text: "Review prior week's Inventory Variance with GM" },
+    { key: 'review_plan_schedule',  text: "Review next week's plan and Schedule in Dayforce with GM" },
+  ],
+  biweekly: [
+    { key: 'authorize_payroll',     text: 'Authorize Payroll in Dayforce by 12 PM Wednesday' },
+    { key: 'verify_payroll_journal', text: 'Verify Payroll Journal by 3 PM Wednesday' },
+  ],
+  monthly: [
+    { key: 'gm_slides',            text: 'GM slides by the 1st of the month' },
+    { key: 'gm_goals',             text: 'Pick 2 goals with GMs for the month' },
+    { key: 'team_meetings_sched',  text: 'Team meetings scheduled by the 15th of the month; hold them any day after the 16th' },
+    { key: 'meeting_agendas',      text: 'Meeting agendas complete by 5 PM on the 16th of the month' },
+    { key: 'meeting_agendas_email', text: 'Meeting agendas emailed out by 2 PM on the 17th of the month' },
+    { key: 'plv_upload',           text: 'Upload PLVs into Google Drive by 3 PM Thursday after Period end' },
+    { key: 'review_pls_gm',        text: 'Review P&Ls with GM' },
+    { key: 'review_plvs_gm',       text: 'Review PLVs with GM' },
+    { key: 'review_taco_talks_gm', text: 'Review Taco Talks with GM' },
+  ]
+};
+
+const DMCL_WEEKLY_DUE = {
+  store_visits:        { day: 2, label: 'Tuesday' },
+  dm_infractions_fill: { day: 3, label: 'Wednesday' },
+  dm_infractions_send: { day: 3, label: 'Wednesday' },
+  variance_upload:     { day: 4, label: 'Thursday' },
+  weekly_recap:        { day: 4, label: 'Thursday' },
+  store_recaps:        { day: 5, label: 'Friday' },
+  review_weekly_recap: { day: 5, label: 'Friday' },
+  review_variance_gm:  { day: 5, label: 'Friday' },
+  review_plan_schedule:{ day: 5, label: 'Friday' },
+};
+
+const DMCL_BIWEEKLY_DUE = {
+  authorize_payroll:     { day: 3, label: 'Wednesday' },
+  verify_payroll_journal:{ day: 3, label: 'Wednesday' },
+};
+
+let dmclState = {};
+let dmclLoaded = false;
+let dmclCollapsed = { daily: false, weekly: false, biweekly: false, monthly: false };
+
+const DM_AREAS = [
+  { id: '373-001', name: 'Gizelle', stores: ['1029','1056','1153','1357','1391'] },
+  { id: '373-002', name: 'Manuel', stores: ['726','898','1187','1205','1364'] }
+];
+
+function dmclDailyPct(areaId, dateStr) {
+  const items = DMCL_ITEMS.daily;
+  let done = 0;
+  items.forEach(it => { if (dmclState[areaId + '|' + it.key + '|' + dateStr] === true) done++; });
+  return items.length > 0 ? Math.round((done / items.length) * 100) : 0;
+}
+
+function dmclGetPeriodDate(type) {
+  const dateVal = document.getElementById('dmclDate').value;
+  if (type === 'daily') return dateVal;
+  if (type === 'weekly' || type === 'biweekly') {
+    const d = new Date(dateVal + 'T12:00:00');
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return d.toISOString().slice(0, 10);
+  }
+  return dateVal.slice(0, 7) + '-01';
+}
+
+function dmclIsOverdue(type, itemKey, isChecked, selectedDate) {
+  if (isChecked) return false;
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  if (type === 'daily') {
+    if (selectedDate < today) return true;
+    if (selectedDate === today && now.getHours() >= 22) return true;
+    return false;
+  }
+  if (type === 'weekly') {
+    const due = DMCL_WEEKLY_DUE[itemKey];
+    if (!due) return false;
+    const sel = new Date(selectedDate + 'T12:00:00');
+    const day = sel.getDay();
+    const mondayOff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(sel); monday.setDate(sel.getDate() + mondayOff);
+    const dueDate = new Date(monday); dueDate.setDate(monday.getDate() + (due.day - 1));
+    const dueDateStr = dueDate.toISOString().slice(0, 10);
+    if (today > dueDateStr) return true;
+    if (today === dueDateStr && now.getHours() >= 22) return true;
+    return false;
+  }
+  if (type === 'biweekly') {
+    const due = DMCL_BIWEEKLY_DUE[itemKey];
+    if (!due) return false;
+    const sel = new Date(selectedDate + 'T12:00:00');
+    const day = sel.getDay();
+    const mondayOff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(sel); monday.setDate(sel.getDate() + mondayOff);
+    const dueDate = new Date(monday); dueDate.setDate(monday.getDate() + (due.day - 1));
+    const dueDateStr = dueDate.toISOString().slice(0, 10);
+    if (today > dueDateStr) return true;
+    if (today === dueDateStr && now.getHours() >= 22) return true;
+    return false;
+  }
+  if (type === 'monthly') {
+    const periodMonth = selectedDate.slice(0, 7);
+    const currentMonth = today.slice(0, 7);
+    if (currentMonth > periodMonth) return true;
+    if (currentMonth === periodMonth && now.getDate() > 28) return true;
+    return false;
+  }
+  return false;
+}
+
+function dmclDueTag(type, itemKey) {
+  const dueMap = type === 'biweekly' ? DMCL_BIWEEKLY_DUE : DMCL_WEEKLY_DUE;
+  const due = dueMap[itemKey];
+  if (!due) return '';
+  const dateVal = document.getElementById('dmclDate').value;
+  const selected = new Date(dateVal + 'T12:00:00');
+  const today = new Date(); today.setHours(12,0,0,0);
+  const dayOfWeek = selected.getDay();
+  const mondayDiff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(selected); monday.setDate(monday.getDate() + mondayDiff);
+  const dueDate = new Date(monday); dueDate.setDate(dueDate.getDate() + (due.day - 1));
+  const isPast = today > dueDate;
+  const areaId = document.getElementById('dmclArea').value;
+  const periodDate = dmclGetPeriodDate(type);
+  const isChecked = dmclState[areaId + '|' + itemKey + '|' + periodDate] === true;
+  if (isChecked) return '';
+  if (isPast) return '<span class="gmcl-due-tag overdue">OVERDUE</span>';
+  return '<span class="gmcl-due-tag upcoming">Due by ' + due.label + '</span>';
+}
+
+function dmclToggleSection(type) {
+  dmclCollapsed[type] = !dmclCollapsed[type];
+  const capType = type.charAt(0).toUpperCase() + type.slice(1);
+  const items = document.getElementById('dmcl' + capType);
+  const chevron = document.getElementById('dmclChevron_' + type);
+  if (items) items.classList.toggle('collapsed', dmclCollapsed[type]);
+  if (chevron) chevron.classList.toggle('collapsed', dmclCollapsed[type]);
+}
+
+async function dmclInit() {
+  const dateInput = document.getElementById('dmclDate');
+  dateInput.value = new Date().toISOString().slice(0, 10);
+  const areaSel = document.getElementById('dmclArea');
+  areaSel.addEventListener('change', function() { dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
+  dateInput.addEventListener('change', function() { dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
+  await dmclLoadAllAreas();
+  await dmclLoadData();
+  dmclRenderOverview();
+  dmclRender();
+}
+
+async function dmclLoadAllAreas() {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const d7 = new Date(today); d7.setDate(d7.getDate() - 6);
+  const startStr = d7.toISOString().slice(0, 10);
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?period_type=eq.daily&period_date=gte.' + startStr + '&period_date=lte.' + todayStr + '&select=area_id,item_key,period_date,completed', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const data = await res.json();
+    (data || []).forEach(r => { dmclState[r.area_id + '|' + r.item_key + '|' + r.period_date] = r.completed; });
+  } catch (e) { console.error('DMCL overview load error:', e); }
+}
+
+async function dmclLoadData() {
+  const dateVal = document.getElementById('dmclDate').value;
+  if (!dateVal) return;
+  const areaId = document.getElementById('dmclArea').value;
+  const monthStart = dateVal.slice(0, 7) + '-01';
+  const monthEnd = dateVal.slice(0, 7) + '-31';
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?area_id=eq.' + areaId + '&period_date=gte.' + monthStart + '&period_date=lte.' + monthEnd + '&select=item_key,period_date,completed', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    const data = await res.json();
+    Object.keys(dmclState).forEach(k => { if (k.startsWith(areaId + '|')) delete dmclState[k]; });
+    (data || []).forEach(r => { dmclState[areaId + '|' + r.item_key + '|' + r.period_date] = r.completed; });
+    dmclLoaded = true;
+  } catch (e) { console.error('DM Checklist load error:', e); }
+}
+
+function dmclRenderOverview() {
+  const container = document.getElementById('dmclOverview');
+  if (!container) return;
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const selArea = document.getElementById('dmclArea').value;
+  let html = '';
+  DM_AREAS.forEach(area => {
+    const pct = dmclDailyPct(area.id, todayStr);
+    const color = gmclPctColor(pct);
+    const active = area.id === selArea ? ' active' : '';
+    html += '<div class="gmcl-store-card' + active + '" onclick="document.getElementById(\'dmclArea\').value=\'' + area.id + '\';dmclLoadData().then(function(){dmclRender();dmclRenderOverview();})">' +
+      '<div class="gmcl-ring-wrap">' + gmclRingSVG(pct, color, 56) + '<div class="gmcl-ring-pct">' + pct + '%</div></div>' +
+      '<div class="gmcl-store-label">' + area.id + '</div>' +
+      '<div class="gmcl-store-sub">' + area.name + '</div>' +
+      '</div>';
+  });
+  container.innerHTML = html;
+}
+
+function dmclRender() {
+  const areaId = document.getElementById('dmclArea').value;
+  const selectedDate = document.getElementById('dmclDate').value;
+  const sectionConfigs = [
+    { type: 'daily',    color: 'var(--brand-green)', textColor: '#fff',    label: 'Daily Tasks' },
+    { type: 'weekly',   color: 'var(--brand-red)',    textColor: '#fff',    label: 'Weekly Tasks' },
+    { type: 'biweekly', color: '#6366f1',             textColor: '#fff',    label: 'Biweekly Tasks' },
+    { type: 'monthly',  color: 'var(--brand-gold)',   textColor: '#1a1a2e', label: 'Monthly Tasks' }
+  ];
+  sectionConfigs.forEach(function(cfg) {
+    const capType = cfg.type.charAt(0).toUpperCase() + cfg.type.slice(1);
+    const container = document.getElementById('dmcl' + capType);
+    if (!container) return;
+    const items = DMCL_ITEMS[cfg.type];
+    const periodDate = dmclGetPeriodDate(cfg.type);
+    const checked = items.filter(it => dmclState[areaId + '|' + it.key + '|' + periodDate]);
+    const pct = items.length > 0 ? Math.round((checked.length / items.length) * 100) : 0;
+    const isCollapsed = dmclCollapsed[cfg.type];
+    const hdr = container.closest('.gmcl-section').querySelector('.gmcl-section-hdr');
+    if (hdr) {
+      hdr.setAttribute('onclick', "dmclToggleSection('" + cfg.type + "')");
+      hdr.innerHTML = '<span class="gmcl-hdr-left"><span class="gmcl-chevron' + (isCollapsed ? ' collapsed' : '') + '" id="dmclChevron_' + cfg.type + '">▼</span>' + cfg.label + '</span><span class="gmcl-hdr-count">' + checked.length + '/' + items.length + '</span>';
+    }
+    let html = '<div class="gmcl-progress"><div class="gmcl-progress-bar"><div class="gmcl-progress-fill" style="width:' + pct + '%"></div></div><div class="gmcl-progress-text">' + checked.length + '/' + items.length + '</div></div>';
+    items.forEach(function(it) {
+      const k = areaId + '|' + it.key + '|' + periodDate;
+      const isChecked = dmclState[k] === true;
+      const overdue = dmclIsOverdue(cfg.type, it.key, isChecked, selectedDate);
+      const badge = overdue ? '<span class="gmcl-overdue-badge">OVERDUE</span>' : '';
+      const hasDue = (cfg.type === 'weekly' || cfg.type === 'biweekly');
+      const dueTag = hasDue ? dmclDueTag(cfg.type, it.key) : '';
+      html += '<div class="gmcl-item' + (isChecked ? ' checked' : '') + '">' +
+        '<input type="checkbox" id="dmcl_' + it.key + '" ' + (isChecked ? 'checked' : '') + ' onchange="dmclToggle(\'' + areaId + '\',\'' + it.key + '\',\'' + periodDate + '\',\'' + cfg.type + '\',this.checked)">' +
+        '<label for="dmcl_' + it.key + '">' + it.text + badge + dueTag + (it.note ? '<br><span class="gmcl-note">' + it.note + '</span>' : '') + '</label></div>';
+    });
+    container.innerHTML = html;
+    container.classList.toggle('collapsed', isCollapsed);
+  });
+}
+
+async function dmclToggle(areaId, itemKey, periodDate, periodType, completed) {
+  const k = areaId + '|' + itemKey + '|' + periodDate;
+  dmclState[k] = completed;
+  dmclRender();
+  dmclRenderOverview();
+  const statusEl = document.getElementById('dmclSaveStatus');
+  statusEl.textContent = 'Saving...';
+  try {
+    const body = { area_id: areaId, item_key: itemKey, period_type: periodType, period_date: periodDate, completed: completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() };
+    const res = await fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?on_conflict=area_id,item_key,period_date', {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify(body)
+    });
+    statusEl.textContent = res.ok ? 'Saved' : 'Save failed';
+  } catch (e) { statusEl.textContent = 'Save failed'; console.error('DM Checklist save error:', e); }
+  setTimeout(function() { statusEl.textContent = ''; }, 2000);
+}
+
+document.querySelector('[data-tab="dmchecklist"]').addEventListener('click', function() {
+  if (!dmclLoaded) dmclInit();
 });
 
 /* ========================================================================

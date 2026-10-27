@@ -1881,7 +1881,7 @@ body {
       </div>
       <div style="overflow-x:auto;margin-top:12px">
         <table class="admin-user-table" id="admin-user-table">
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Stores</th><th>Tabs</th><th>Features</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Stores</th><th>Tabs</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="admin-user-tbody"></tbody>
         </table>
       </div>
@@ -11136,15 +11136,16 @@ let currentPerms = null;  // dt_dashboard_users row
 const ALL_TABS = {
   ops: 'Daily Operations', sc: 'Service Checks', food: 'Food Cost Analysis',
   financial: 'Financial Health', inspect: 'Store Visit Checklist', recap: 'Weekly Recap',
-  catering: 'Catering CRM', onboard: 'Onboarding', contacts: 'Contacts', gmchecklist: 'GM Checklist'
+  catering: 'Catering CRM', onboard: 'Onboarding', contacts: 'Contacts', gmchecklist: 'GM Checklist',
+  dmchecklist: 'DM Checklist'
 };
 
-// All possible feature keys
+// All possible feature keys (kept for backward compat but no longer shown in admin UI)
 const ALL_FEATURES = {
   pl: 'P&L / Financials', breakeven: 'Break-Even Analysis', labor: 'Labor Data',
   lp: 'Loss Prevention', speed: 'Speed / SOS', jolt: 'Jolt Checklists',
   food_cost: 'Food Cost Reports', sales: 'Sales Data', weekly_recap: 'Weekly Recap Flags',
-  gm_checklist: 'GM Checklist', contacts: 'Contacts Directory', onboarding: 'Onboarding'
+  gm_checklist: 'GM Checklist', dm_checklist: 'DM Checklist', contacts: 'Contacts Directory', onboarding: 'Onboarding'
 };
 
 /* ---------- LOGIN ---------- */
@@ -11235,9 +11236,9 @@ function applyPermissions() {
     window._allowedStores = null; // null = all stores
   }
 
-  // Store feature permissions globally
-  if (!isOwner) {
-    window._allowedFeatures = currentPerms.allowed_features || [];
+  // Store feature permissions globally (empty array = all features, for backward compat)
+  if (!isOwner && currentPerms.allowed_features && currentPerms.allowed_features.length > 0) {
+    window._allowedFeatures = currentPerms.allowed_features;
   } else {
     window._allowedFeatures = null; // null = all features
   }
@@ -11303,13 +11304,12 @@ function adminRenderTable() {
   tbody.innerHTML = adminUsers.map(u => {
     const stores = (u.allowed_stores || []).length === 10 ? 'All' : (u.allowed_stores || []).join(', ');
     const tabs = (u.allowed_tabs || []).length >= Object.keys(ALL_TABS).length ? 'All' : (u.allowed_tabs || []).map(t => ALL_TABS[t] || t).join(', ');
-    const feats = (u.allowed_features || []).length >= Object.keys(ALL_FEATURES).length ? 'All' : (u.allowed_features || []).map(f => ALL_FEATURES[f] || f).join(', ');
-    const badge = `<span class="admin-badge ${u.role}">${u.role.replace('_', ' ')}</span>`;
+    const badge = `<span class="admin-badge ${u.role}">${u.role === 'area_manager' ? 'district manager' : u.role.replace('_', ' ')}</span>`;
     const status = u.is_active ? '<span style="color:var(--status-good)">Active</span>' : '<span style="color:var(--status-critical)">Inactive</span>';
     const isSelf = currentUser && u.id === currentUser.id;
     const actions = isSelf ? '<span style="color:var(--text-muted);font-size:11px">You</span>' :
       `<button class="admin-btn admin-btn-edit" onclick="adminEditUser('${u.id}')">Edit</button>`;
-    return `<tr><td>${u.name || '—'}</td><td>${u.email}</td><td>${badge}</td><td style="max-width:120px;font-size:11.5px">${stores}</td><td style="max-width:150px;font-size:11.5px">${tabs}</td><td style="max-width:150px;font-size:11.5px">${feats}</td><td>${status}</td><td>${actions}</td></tr>`;
+    return `<tr><td>${u.name || '—'}</td><td>${u.email}</td><td>${badge}</td><td style="max-width:120px;font-size:11.5px">${stores}</td><td style="max-width:150px;font-size:11.5px">${tabs}</td><td>${status}</td><td>${actions}</td></tr>`;
   }).join('');
 }
 
@@ -11328,11 +11328,10 @@ function adminShowAddUser() {
       <div class="field"><label>Name</label><input type="text" id="adm-name" placeholder="Full name"></div>
       <div class="field"><label>Temporary Password</label><input type="text" id="adm-pass" value="${generateTempPassword()}"></div>
       <div class="field"><label>Role</label>
-        <select id="adm-role"><option value="gm">GM</option><option value="area_manager">Area Manager</option><option value="viewer">Viewer</option><option value="owner">Owner</option></select>
+        <select id="adm-role"><option value="gm">GM</option><option value="area_manager">District Manager</option><option value="viewer">Viewer</option><option value="owner">Owner</option></select>
       </div>
       <div class="field"><label>Allowed Stores</label><div class="checkbox-grid" id="adm-stores">${storeChecks}</div></div>
       <div class="field"><label>Allowed Tabs</label><div class="checkbox-grid" id="adm-tabs">${tabChecks}</div></div>
-      <div class="field"><label>Allowed Features</label><div class="checkbox-grid" id="adm-feats">${featChecks}</div></div>
       <div class="btn-row">
         <button class="ct-modal .btn-cancel" style="background:var(--surface-page);color:var(--text-primary);border:none;border-radius:var(--radius);padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer" onclick="document.getElementById('admin-modal-overlay').remove()">Cancel</button>
         <button class="ct-modal .btn-save" style="background:#ED1C2E;color:#fff;border:none;border-radius:var(--radius);padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer" onclick="adminCreateUser()">Create User</button>
@@ -11400,14 +11399,13 @@ function adminEditUser(userId) {
       <h3>Edit User: ${u.name || u.email}</h3>
       <div class="field"><label>Name</label><input type="text" id="adm-edit-name" value="${u.name || ''}"></div>
       <div class="field"><label>Role</label>
-        <select id="adm-edit-role"><option value="gm" ${u.role==='gm'?'selected':''}>GM</option><option value="area_manager" ${u.role==='area_manager'?'selected':''}>Area Manager</option><option value="viewer" ${u.role==='viewer'?'selected':''}>Viewer</option><option value="owner" ${u.role==='owner'?'selected':''}>Owner</option></select>
+        <select id="adm-edit-role"><option value="gm" ${u.role==='gm'?'selected':''}>GM</option><option value="area_manager" ${u.role==='area_manager'?'selected':''}>District Manager</option><option value="viewer" ${u.role==='viewer'?'selected':''}>Viewer</option><option value="owner" ${u.role==='owner'?'selected':''}>Owner</option></select>
       </div>
       <div class="field"><label>Status</label>
         <select id="adm-edit-active"><option value="true" ${u.is_active?'selected':''}>Active</option><option value="false" ${!u.is_active?'selected':''}>Inactive</option></select>
       </div>
       <div class="field"><label>Allowed Stores</label><div class="checkbox-grid" id="adm-edit-stores">${storeChecks}</div></div>
       <div class="field"><label>Allowed Tabs</label><div class="checkbox-grid" id="adm-edit-tabs">${tabChecks}</div></div>
-      <div class="field"><label>Allowed Features</label><div class="checkbox-grid" id="adm-edit-feats">${featChecks}</div></div>
       <div class="btn-row">
         <button style="background:var(--surface-page);color:var(--text-primary);border:none;border-radius:var(--radius);padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer" onclick="document.getElementById('admin-modal-overlay').remove()">Cancel</button>
         <button style="background:#ED1C2E;color:#fff;border:none;border-radius:var(--radius);padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer" onclick="adminSaveUser('${userId}')">Save Changes</button>

@@ -1016,6 +1016,50 @@ body {
 .admin-modal .checkbox-grid label{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:var(--text-primary);text-transform:none;letter-spacing:0;cursor:pointer}
 .admin-modal .checkbox-grid input[type=checkbox]{width:auto;margin:0}
 .admin-modal .btn-row{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+
+/* ---- UNDO TOAST ---- */
+.undo-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:14px;z-index:9999;box-shadow:0 6px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+.undo-toast.show{opacity:1;pointer-events:auto}
+.undo-toast .undo-btn{background:none;border:1px solid rgba(255,255,255,.4);color:#fff;padding:4px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.undo-toast .undo-btn:hover{background:rgba(255,255,255,.15)}
+
+/* ---- TAB SCROLL INDICATOR ---- */
+.tab-bar-wrap{position:relative}
+.tab-bar-wrap::after{content:'';position:absolute;top:0;right:0;bottom:0;width:40px;background:linear-gradient(to right,transparent,var(--surface-card));pointer-events:none;opacity:0;transition:opacity .2s}
+.tab-bar-wrap.scroll-right::after{opacity:1}
+
+/* ---- MARK ALL COMPLETE ---- */
+.gmcl-markall{background:none;border:1px solid var(--gridline);border-radius:var(--radius-sm);padding:4px 12px;font-size:11px;font-weight:600;color:var(--text-secondary);cursor:pointer;margin-left:auto}
+.gmcl-markall:hover{background:var(--surface-page);color:var(--text-primary)}
+
+/* ---- LAST REFRESHED ---- */
+.tab-refreshed{font-size:11px;color:var(--text-muted);font-weight:400;margin-left:8px}
+
+/* ---- LARGER MOBILE TOUCH TARGETS ---- */
+@media(max-width:768px){
+  .gmcl-item{padding:14px 16px;gap:14px}
+  .gmcl-item input[type="checkbox"]{width:24px;height:24px;min-width:24px}
+  .gmcl-item label{font-size:15px}
+  .tab-btn{padding:14px 16px;font-size:14px}
+}
+
+/* ---- PRINT STYLES (all tabs) ---- */
+@media print{
+  @page{size:letter;margin:0.5in}
+  .header,.tab-bar-wrap,.login-screen,#chgpw-overlay,.admin-section,.controls,.no-print,.clhist-panel,.gmcl-markall,.undo-toast,.tab-refreshed{display:none!important}
+  .tab-content{display:block!important;page-break-before:auto}
+  .tab-content:not(.active){display:none!important}
+  body{background:#fff!important;color:#000!important}
+  .container{max-width:100%!important;padding:10px!important}
+  .card,.store-card{break-inside:avoid;box-shadow:none!important;border:1px solid #ccc!important}
+  .gmcl-item{padding:6px 10px}
+  .gmcl-item input[type="checkbox"]{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  table{font-size:11px}
+  th,td{padding:4px 6px!important}
+}
+
+/* ---- ACCESSIBILITY: FOCUS VISIBLE ---- */
+.tab-btn:focus-visible{outline:2px solid #ED1C2E;outline-offset:-2px;border-radius:2px}
 </style>
 </head>
 <body>
@@ -1061,6 +1105,9 @@ body {
   </div>
 </div>
 
+<!-- Undo Toast -->
+<div class="undo-toast" id="undoToast"><span id="undoToastMsg"></span><button class="undo-btn" onclick="doUndo()">Undo</button></div>
+
 <div id="app-wrap" style="display:none">
 <header class="app-header">
   <div class="header-left">
@@ -1076,20 +1123,22 @@ body {
   </div>
 </header>
 
-<nav class="tab-bar">
-  <button class="tab-btn active" data-tab="ops">Daily Operations</button>
-  <button class="tab-btn" data-tab="sc">Service Checks</button>
-  <button class="tab-btn" data-tab="food">Food Cost Analysis</button>
-  <button class="tab-btn" data-tab="financial">Financial Health</button>
-  <button class="tab-btn" data-tab="inspect">Store Visit Checklist</button>
-  <button class="tab-btn" data-tab="recap">Weekly Recap</button>
-  <button class="tab-btn" data-tab="catering">Catering CRM</button>
+<div class="tab-bar-wrap" id="tabBarWrap">
+<nav class="tab-bar" id="tabBarNav" role="tablist" aria-label="Dashboard sections">
+  <button class="tab-btn active" data-tab="ops" role="tab" aria-selected="true" tabindex="0">Daily Operations</button>
+  <button class="tab-btn" data-tab="sc" role="tab" aria-selected="false" tabindex="-1">Service Checks</button>
+  <button class="tab-btn" data-tab="food" role="tab" aria-selected="false" tabindex="-1">Food Cost Analysis</button>
+  <button class="tab-btn" data-tab="financial" role="tab" aria-selected="false" tabindex="-1">Financial Health</button>
+  <button class="tab-btn" data-tab="inspect" role="tab" aria-selected="false" tabindex="-1">Store Visit Checklist</button>
+  <button class="tab-btn" data-tab="recap" role="tab" aria-selected="false" tabindex="-1">Weekly Recap</button>
+  <button class="tab-btn" data-tab="catering" role="tab" aria-selected="false" tabindex="-1">Catering CRM</button>
   <!-- <button class="tab-btn" data-tab="onboard">Onboarding</button> -->
-  <button class="tab-btn" data-tab="contacts">Contacts</button>
-  <button class="tab-btn" data-tab="gmchecklist">GM Checklist</button>
-  <button class="tab-btn" data-tab="dmchecklist">DM Checklist</button>
-  <button class="tab-btn" data-tab="admin" id="admin-tab-btn" style="display:none">Admin</button>
+  <button class="tab-btn" data-tab="contacts" role="tab" aria-selected="false" tabindex="-1">Contacts</button>
+  <button class="tab-btn" data-tab="gmchecklist" role="tab" aria-selected="false" tabindex="-1">GM Checklist</button>
+  <button class="tab-btn" data-tab="dmchecklist" role="tab" aria-selected="false" tabindex="-1">DM Checklist</button>
+  <button class="tab-btn" data-tab="admin" id="admin-tab-btn" style="display:none" role="tab" aria-selected="false" tabindex="-1">Admin</button>
 </nav>
+</div>
 
 <!-- TAB 1: DAILY OPERATIONS -->
 <div class="tab-content active" id="tab-ops">
@@ -1871,19 +1920,19 @@ body {
       <button class="gmcl-detail-back" id="gmclBackBtn" onclick="gmclShowOverview()" style="display:none;">&#9664; All Stores</button>
       <!-- Daily Section -->
       <div class="gmcl-section">
-        <div class="gmcl-section-hdr" style="background:var(--brand-green); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Daily Tasks</div>
+        <div class="gmcl-section-hdr" style="background:var(--brand-green); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px; display:flex; align-items:center;">Daily Tasks<button class="gmcl-markall" style="color:#fff;border-color:rgba(255,255,255,.5)" onclick="gmclMarkAllSection('daily')">✓ Mark All</button></div>
         <div class="gmcl-items" id="gmclDaily"></div>
       </div>
 
       <!-- Weekly Section -->
       <div class="gmcl-section" style="margin-top:18px;">
-        <div class="gmcl-section-hdr" style="background:var(--brand-red); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Weekly Tasks</div>
+        <div class="gmcl-section-hdr" style="background:var(--brand-red); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px; display:flex; align-items:center;">Weekly Tasks<button class="gmcl-markall" style="color:#fff;border-color:rgba(255,255,255,.5)" onclick="gmclMarkAllSection('weekly')">✓ Mark All</button></div>
         <div class="gmcl-items" id="gmclWeekly"></div>
       </div>
 
       <!-- Monthly Section -->
       <div class="gmcl-section" style="margin-top:18px;">
-        <div class="gmcl-section-hdr" style="background:var(--brand-gold); color:#1a1a2e; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Monthly Tasks</div>
+        <div class="gmcl-section-hdr" style="background:var(--brand-gold); color:#1a1a2e; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px; display:flex; align-items:center;">Monthly Tasks<button class="gmcl-markall" style="color:#1a1a2e;border-color:rgba(0,0,0,.3)" onclick="gmclMarkAllSection('monthly')">✓ Mark All</button></div>
         <div class="gmcl-items" id="gmclMonthly"></div>
       </div>
     </div>
@@ -1946,25 +1995,25 @@ body {
     <div id="dmclContent">
       <!-- Daily Section -->
       <div class="gmcl-section">
-        <div class="gmcl-section-hdr" style="background:var(--brand-green); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Daily Tasks</div>
+        <div class="gmcl-section-hdr" style="background:var(--brand-green); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px; display:flex; align-items:center;">Daily Tasks<button class="gmcl-markall" style="color:#fff;border-color:rgba(255,255,255,.5)" onclick="dmclMarkAllSection('daily')">✓ Mark All</button></div>
         <div class="gmcl-items" id="dmclDaily"></div>
       </div>
 
       <!-- Weekly Section -->
       <div class="gmcl-section" style="margin-top:18px;">
-        <div class="gmcl-section-hdr" style="background:var(--brand-red); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Weekly Tasks</div>
+        <div class="gmcl-section-hdr" style="background:var(--brand-red); color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px; display:flex; align-items:center;">Weekly Tasks<button class="gmcl-markall" style="color:#fff;border-color:rgba(255,255,255,.5)" onclick="dmclMarkAllSection('weekly')">✓ Mark All</button></div>
         <div class="gmcl-items" id="dmclWeekly"></div>
       </div>
 
       <!-- Biweekly Section -->
       <div class="gmcl-section" style="margin-top:18px;">
-        <div class="gmcl-section-hdr" style="background:#6366f1; color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Biweekly Tasks</div>
+        <div class="gmcl-section-hdr" style="background:#6366f1; color:#fff; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px; display:flex; align-items:center;">Biweekly Tasks<button class="gmcl-markall" style="color:#fff;border-color:rgba(255,255,255,.5)" onclick="dmclMarkAllSection('biweekly')">✓ Mark All</button></div>
         <div class="gmcl-items" id="dmclBiweekly"></div>
       </div>
 
       <!-- Monthly Section -->
       <div class="gmcl-section" style="margin-top:18px;">
-        <div class="gmcl-section-hdr" style="background:var(--brand-gold); color:#1a1a2e; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px;">Monthly Tasks</div>
+        <div class="gmcl-section-hdr" style="background:var(--brand-gold); color:#1a1a2e; padding:10px 16px; border-radius:8px 8px 0 0; font-weight:700; font-size:15px; display:flex; align-items:center;">Monthly Tasks<button class="gmcl-markall" style="color:#1a1a2e;border-color:rgba(0,0,0,.3)" onclick="dmclMarkAllSection('monthly')">✓ Mark All</button></div>
         <div class="gmcl-items" id="dmclMonthly"></div>
       </div>
     </div>
@@ -8581,15 +8630,43 @@ async function init() {
   const foodStoreSelect = document.getElementById('foodStore');
   STORES.forEach(s => { foodStoreSelect.innerHTML += `<option value="${s.id}">${s.name} (${s.id})</option>`; });
 
-  // Tab switching
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    });
+  // Tab switching with ARIA + keyboard nav
+  const _allTabBtns = document.querySelectorAll('.tab-btn');
+  function activateTab(btn) {
+    _allTabBtns.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected','false'); b.tabIndex = -1; });
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    btn.setAttribute('aria-selected','true');
+    btn.tabIndex = 0;
+    btn.focus();
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  }
+  _allTabBtns.forEach(btn => { btn.addEventListener('click', () => activateTab(btn)); });
+  // Arrow-key navigation within tab bar
+  document.getElementById('tabBarNav').addEventListener('keydown', function(e) {
+    if (!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+    e.preventDefault();
+    const visible = Array.from(_allTabBtns).filter(b => b.offsetParent !== null);
+    const idx = visible.indexOf(document.activeElement);
+    let next;
+    if (e.key === 'ArrowRight') next = visible[(idx + 1) % visible.length];
+    else if (e.key === 'ArrowLeft') next = visible[(idx - 1 + visible.length) % visible.length];
+    else if (e.key === 'Home') next = visible[0];
+    else if (e.key === 'End') next = visible[visible.length - 1];
+    if (next) activateTab(next);
   });
+  // Tab scroll indicator
+  const tabBarNav = document.getElementById('tabBarNav');
+  const tabBarWrap = document.getElementById('tabBarWrap');
+  function updateTabScroll() {
+    if (!tabBarNav || !tabBarWrap) return;
+    const canScroll = tabBarNav.scrollWidth > tabBarNav.clientWidth;
+    const atEnd = tabBarNav.scrollLeft + tabBarNav.clientWidth >= tabBarNav.scrollWidth - 4;
+    tabBarWrap.classList.toggle('scroll-right', canScroll && !atEnd);
+  }
+  tabBarNav.addEventListener('scroll', updateTabScroll);
+  window.addEventListener('resize', updateTabScroll);
+  setTimeout(updateTabScroll, 100);
 
   // Ops view toggle
   document.querySelectorAll('#opsViewToggle button').forEach(btn => {
@@ -10819,19 +10896,42 @@ function gmclShowOverview() {
 }
 
 /* ---- Init ---- */
+// --- Data Cache (5-min TTL) ---
+const _dataCache = {};
+const DATA_CACHE_TTL = 5 * 60 * 1000;
+function _cacheKey(prefix, params) { return prefix + '|' + JSON.stringify(params); }
+function _cacheGet(key) {
+  const entry = _dataCache[key];
+  if (entry && (Date.now() - entry.ts < DATA_CACHE_TTL)) return entry.data;
+  delete _dataCache[key];
+  return null;
+}
+function _cacheSet(key, data) { _dataCache[key] = { data: data, ts: Date.now() }; }
+function _cacheInvalidate(prefix) { Object.keys(_dataCache).forEach(function(k) { if (k.startsWith(prefix)) delete _dataCache[k]; }); }
+
+// --- Last Refreshed Tracking ---
+const _tabRefreshed = {};
+function setTabRefreshed(tabKey) { _tabRefreshed[tabKey] = new Date(); }
+function getTabRefreshedHtml(tabKey) {
+  const t = _tabRefreshed[tabKey];
+  if (!t) return '';
+  return '<span class="tab-refreshed">Updated ' + t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) + '</span>';
+}
+
 async function gmclInit() {
   const sel = document.getElementById('gmclStore');
   sel.innerHTML = STORES.map(s => '<option value="' + s.id + '">' + s.id + ' - ' + s.name + '</option>').join('');
   const dateInput = document.getElementById('gmclDate');
   dateInput.value = new Date().toISOString().slice(0, 10);
-  sel.addEventListener('change', function() { gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
-  dateInput.addEventListener('change', function() { gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
+  sel.addEventListener('change', function() { _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
+  dateInput.addEventListener('change', function() { _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
   await gmclLoadAllStores();
   await gmclLoadData();
   gmclRenderOverview();
   gmclRender();
   var backBtn = document.getElementById('gmclBackBtn');
   if (backBtn) backBtn.style.display = '';
+  setTabRefreshed('gmchecklist');
 }
 
 async function gmclLoadData() {
@@ -10840,14 +10940,24 @@ async function gmclLoadData() {
   const storeId = document.getElementById('gmclStore').value;
   const monthStart = dateVal.slice(0, 7) + '-01';
   const monthEnd = dateVal.slice(0, 7) + '-31';
+  const ck = _cacheKey('gmcl', {s:storeId, ms:monthStart, me:monthEnd});
+  const cached = _cacheGet(ck);
+  if (cached) {
+    Object.keys(gmclState).forEach(k => { if (k.startsWith(storeId + '|')) delete gmclState[k]; });
+    cached.forEach(r => { gmclState[storeId + '|' + r.item_key + '|' + r.period_date] = r.completed; });
+    gmclLoaded = true;
+    return;
+  }
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?store_id=eq.' + storeId + '&period_date=gte.' + monthStart + '&period_date=lte.' + monthEnd + '&select=item_key,period_date,completed', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     const data = await res.json();
+    _cacheSet(ck, data || []);
     Object.keys(gmclState).forEach(k => { if (k.startsWith(storeId + '|')) delete gmclState[k]; });
     (data || []).forEach(r => { gmclState[storeId + '|' + r.item_key + '|' + r.period_date] = r.completed; });
     gmclLoaded = true;
+    setTabRefreshed('gmchecklist');
   } catch (e) { console.error('GM Checklist load error:', e); }
 }
 
@@ -10903,23 +11013,85 @@ function gmclRender() {
   });
 }
 
-async function gmclToggle(storeId, itemKey, periodDate, periodType, completed) {
-  const k = storeId + '|' + itemKey + '|' + periodDate;
-  gmclState[k] = completed;
-  gmclRender();
-  gmclRenderOverview();
+// --- Debounced batch save + undo for GM checklist ---
+let _gmclPending = {};
+let _gmclFlushTimer = null;
+let _undoData = null;
+let _undoTimer = null;
+
+function _showUndo(msg, undoFn) {
+  const toast = document.getElementById('undoToast');
+  const msgEl = document.getElementById('undoToastMsg');
+  clearTimeout(_undoTimer);
+  _undoData = undoFn;
+  msgEl.textContent = msg;
+  toast.classList.add('show');
+  _undoTimer = setTimeout(function() { toast.classList.remove('show'); _undoData = null; }, 5000);
+}
+function doUndo() {
+  const toast = document.getElementById('undoToast');
+  toast.classList.remove('show');
+  clearTimeout(_undoTimer);
+  if (_undoData) { _undoData(); _undoData = null; }
+}
+
+function _gmclFlush() {
+  const items = Object.values(_gmclPending);
+  _gmclPending = {};
+  if (items.length === 0) return;
   const statusEl = document.getElementById('gmclSaveStatus');
-  statusEl.textContent = 'Saving...';
-  try {
-    const body = { store_id: storeId, item_key: itemKey, period_type: periodType, period_date: periodDate, completed: completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() };
-    const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?on_conflict=store_id,item_key,period_date', {
+  statusEl.textContent = 'Saving ' + items.length + ' item' + (items.length > 1 ? 's' : '') + '...';
+  Promise.all(items.map(function(body) {
+    return fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?on_conflict=store_id,item_key,period_date', {
       method: 'POST',
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(body)
     });
-    statusEl.textContent = res.ok ? 'Saved' : 'Save failed';
-  } catch (e) { statusEl.textContent = 'Save failed'; console.error('GM Checklist save error:', e); }
-  setTimeout(function() { statusEl.textContent = ''; }, 2000);
+  })).then(function(results) {
+    const allOk = results.every(function(r) { return r.ok; });
+    statusEl.textContent = allOk ? 'Saved' : 'Some saves failed';
+    setTimeout(function() { statusEl.textContent = ''; }, 2000);
+  }).catch(function(e) { statusEl.textContent = 'Save failed'; console.error('GM batch save error:', e); setTimeout(function() { statusEl.textContent = ''; }, 2000); });
+}
+
+async function gmclToggle(storeId, itemKey, periodDate, periodType, completed) {
+  const k = storeId + '|' + itemKey + '|' + periodDate;
+  const prevState = gmclState[k];
+  gmclState[k] = completed;
+  gmclRender();
+  gmclRenderOverview();
+  // Show undo for unchecks
+  if (!completed) {
+    _showUndo('Task unchecked', function() {
+      gmclToggle(storeId, itemKey, periodDate, periodType, true);
+    });
+  }
+  // Queue save with debounce
+  const body = { store_id: storeId, item_key: itemKey, period_type: periodType, period_date: periodDate, completed: completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() };
+  _gmclPending[k] = body;
+  clearTimeout(_gmclFlushTimer);
+  _gmclFlushTimer = setTimeout(_gmclFlush, 1500);
+}
+
+// Mark All Complete for a GM checklist section
+function gmclMarkAllSection(sectionType) {
+  const storeId = document.getElementById('gmclStore').value;
+  if (!storeId) return;
+  const items = GMCL_ITEMS[sectionType];
+  if (!items || items.length === 0) return;
+  const periodDate = gmclGetPeriodDate(sectionType);
+  items.forEach(function(it) {
+    const k = storeId + '|' + it.key + '|' + periodDate;
+    if (!gmclState[k]) {
+      gmclState[k] = true;
+      const body = { store_id: storeId, item_key: it.key, period_type: sectionType, period_date: periodDate, completed: true, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      _gmclPending[k] = body;
+    }
+  });
+  gmclRender();
+  gmclRenderOverview();
+  clearTimeout(_gmclFlushTimer);
+  _gmclFlushTimer = setTimeout(_gmclFlush, 1500);
 }
 
 /* ---- Incomplete Store Banner (Daily Ops tab) ---- */
@@ -10969,6 +11141,7 @@ async function gmclLoadHistory() {
   const toDate = document.getElementById('gmclHistTo').value;
   const content = document.getElementById('gmclHistContent');
   if (!fromDate || !toDate) { content.innerHTML = 'Please select both dates.'; return; }
+  if (typeof window._clhistPage === 'undefined') window._clhistPage = 0;
   content.innerHTML = '<em>Loading…</em>';
   try {
     let url = SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_date=gte.' + fromDate + '&period_date=lte.' + toDate + '&select=store_id,item_key,period_type,period_date,completed';
@@ -10995,9 +11168,21 @@ function clhistRenderTable(rows, stores, itemDefs, fromDate, toDate, entityKey) 
     const eid = r[entityKey];
     lookup[eid + '|' + r.item_key + '|' + r.period_date] = r.completed;
   });
-  const dates = clhistGetDatesInRange(fromDate, toDate);
-  if (dates.length === 0) return 'No dates in range.';
-  if (dates.length > 31) return 'Please select a range of 31 days or fewer.';
+  const allDates = clhistGetDatesInRange(fromDate, toDate);
+  if (allDates.length === 0) return 'No dates in range.';
+  // Pagination: show 31 days at a time
+  const PAGE_SIZE = 31;
+  const totalPages = Math.ceil(allDates.length / PAGE_SIZE);
+  const page = window._clhistPage || 0;
+  const dates = allDates.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  let pagNav = '';
+  if (totalPages > 1) {
+    pagNav = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;font-size:12px">' +
+      (page > 0 ? '<button class="clhist-btn" onclick="window._clhistPage=' + (page - 1) + ';' + (entityKey === 'store_id' ? 'gmclLoadHistory()' : 'dmclLoadHistory()') + '">← Prev</button>' : '') +
+      '<span>Page ' + (page + 1) + ' of ' + totalPages + ' (' + allDates.length + ' days)</span>' +
+      (page < totalPages - 1 ? '<button class="clhist-btn" onclick="window._clhistPage=' + (page + 1) + ';' + (entityKey === 'store_id' ? 'gmclLoadHistory()' : 'dmclLoadHistory()') + '">Next →</button>' : '') +
+      '</div>';
+  }
 
   let html = '';
   const types = Object.keys(itemDefs);
@@ -11059,7 +11244,7 @@ function clhistRenderTable(rows, stores, itemDefs, fromDate, toDate, entityKey) 
     html += '</tbody></table></div>';
   });
   if (!html) return 'No data found for this range.';
-  return html;
+  return pagNav + html + (totalPages > 1 ? pagNav : '');
 }
 
 /* ---- DM CHECKLIST HISTORY ---- */
@@ -11287,12 +11472,13 @@ async function dmclInit() {
   const dateInput = document.getElementById('dmclDate');
   dateInput.value = new Date().toISOString().slice(0, 10);
   const areaSel = document.getElementById('dmclArea');
-  areaSel.addEventListener('change', function() { dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
-  dateInput.addEventListener('change', function() { dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
+  areaSel.addEventListener('change', function() { _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
+  dateInput.addEventListener('change', function() { _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
   await dmclLoadAllAreas();
   await dmclLoadData();
   dmclRenderOverview();
   dmclRender();
+  setTabRefreshed('dmchecklist');
 }
 
 async function dmclLoadAllAreas() {
@@ -11315,14 +11501,24 @@ async function dmclLoadData() {
   const areaId = document.getElementById('dmclArea').value;
   const monthStart = dateVal.slice(0, 7) + '-01';
   const monthEnd = dateVal.slice(0, 7) + '-31';
+  const ck = _cacheKey('dmcl', {a:areaId, ms:monthStart, me:monthEnd});
+  const cached = _cacheGet(ck);
+  if (cached) {
+    Object.keys(dmclState).forEach(k => { if (k.startsWith(areaId + '|')) delete dmclState[k]; });
+    cached.forEach(r => { dmclState[areaId + '|' + r.item_key + '|' + r.period_date] = r.completed; });
+    dmclLoaded = true;
+    return;
+  }
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?area_id=eq.' + areaId + '&period_date=gte.' + monthStart + '&period_date=lte.' + monthEnd + '&select=item_key,period_date,completed', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     const data = await res.json();
+    _cacheSet(ck, data || []);
     Object.keys(dmclState).forEach(k => { if (k.startsWith(areaId + '|')) delete dmclState[k]; });
     (data || []).forEach(r => { dmclState[areaId + '|' + r.item_key + '|' + r.period_date] = r.completed; });
     dmclLoaded = true;
+    setTabRefreshed('dmchecklist');
   } catch (e) { console.error('DM Checklist load error:', e); }
 }
 
@@ -11385,23 +11581,64 @@ function dmclRender() {
   });
 }
 
+// --- Debounced batch save + undo for DM checklist ---
+let _dmclPending = {};
+let _dmclFlushTimer = null;
+
+function _dmclFlush() {
+  const items = Object.values(_dmclPending);
+  _dmclPending = {};
+  if (items.length === 0) return;
+  const statusEl = document.getElementById('dmclSaveStatus');
+  statusEl.textContent = 'Saving ' + items.length + ' item' + (items.length > 1 ? 's' : '') + '...';
+  Promise.all(items.map(function(body) {
+    return fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?on_conflict=area_id,item_key,period_date', {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify(body)
+    });
+  })).then(function(results) {
+    const allOk = results.every(function(r) { return r.ok; });
+    statusEl.textContent = allOk ? 'Saved' : 'Some saves failed';
+    setTimeout(function() { statusEl.textContent = ''; }, 2000);
+  }).catch(function(e) { statusEl.textContent = 'Save failed'; console.error('DM batch save error:', e); setTimeout(function() { statusEl.textContent = ''; }, 2000); });
+}
+
 async function dmclToggle(areaId, itemKey, periodDate, periodType, completed) {
   const k = areaId + '|' + itemKey + '|' + periodDate;
   dmclState[k] = completed;
   dmclRender();
   dmclRenderOverview();
-  const statusEl = document.getElementById('dmclSaveStatus');
-  statusEl.textContent = 'Saving...';
-  try {
-    const body = { area_id: areaId, item_key: itemKey, period_type: periodType, period_date: periodDate, completed: completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() };
-    const res = await fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?on_conflict=area_id,item_key,period_date', {
-      method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify(body)
+  if (!completed) {
+    _showUndo('Task unchecked', function() {
+      dmclToggle(areaId, itemKey, periodDate, periodType, true);
     });
-    statusEl.textContent = res.ok ? 'Saved' : 'Save failed';
-  } catch (e) { statusEl.textContent = 'Save failed'; console.error('DM Checklist save error:', e); }
-  setTimeout(function() { statusEl.textContent = ''; }, 2000);
+  }
+  const body = { area_id: areaId, item_key: itemKey, period_type: periodType, period_date: periodDate, completed: completed, completed_at: completed ? new Date().toISOString() : null, updated_at: new Date().toISOString() };
+  _dmclPending[k] = body;
+  clearTimeout(_dmclFlushTimer);
+  _dmclFlushTimer = setTimeout(_dmclFlush, 1500);
+}
+
+// Mark All Complete for a DM checklist section
+function dmclMarkAllSection(sectionType) {
+  const areaId = document.getElementById('dmclArea').value;
+  if (!areaId) return;
+  const items = DMCL_ITEMS[sectionType];
+  if (!items || items.length === 0) return;
+  const periodDate = dmclGetPeriodDate(sectionType);
+  items.forEach(function(it) {
+    const k = areaId + '|' + it.key + '|' + periodDate;
+    if (!dmclState[k]) {
+      dmclState[k] = true;
+      const body = { area_id: areaId, item_key: it.key, period_type: sectionType, period_date: periodDate, completed: true, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      _dmclPending[k] = body;
+    }
+  });
+  dmclRender();
+  dmclRenderOverview();
+  clearTimeout(_dmclFlushTimer);
+  _dmclFlushTimer = setTimeout(_dmclFlush, 1500);
 }
 
 document.querySelector('[data-tab="dmchecklist"]').addEventListener('click', function() {

@@ -1387,7 +1387,7 @@ function fld(label, path, value, opts = {}) {
   let input;
   if (opts.options) input = `<select ${attrs}>${opts.options.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(value) === String(v) ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select>`;
   else if (t === 'textarea') input = `<textarea ${attrs} rows="${opts.rows || 2}" placeholder="${esc(opts.ph || '')}">${esc(value)}</textarea>`;
-  else input = `<input type="${t}" ${attrs} value="${esc(value)}" placeholder="${esc(opts.ph || '')}" ${opts.step ? `step="${opts.step}"` : ''} ${opts.list ? `list="${opts.list}"` : ''} inputmode="${t === 'number' ? 'decimal' : 'text'}">`;
+  else input = `<input type="${t}" ${attrs} value="${esc(value)}" placeholder="${esc(opts.ph || '')}" ${t === 'number' ? (opts.neg ? 'data-neg="1"' : 'min="0"') : ''} ${opts.step ? `step="${opts.step}"` : ''} ${opts.list ? `list="${opts.list}"` : ''} inputmode="${t === 'number' ? 'decimal' : 'text'}">`;
   return `<div class="field ${opts.cls || ''}"><label>${label}</label>${input}${opts.hint ? `<span class="hint" ${opts.hintId ? `id="${opts.hintId}"` : ''}>${opts.hint}</span>` : ''}</div>`;
 }
 function chk(label, path, value, r) {
@@ -1455,7 +1455,7 @@ function renderEstimate() {
             const on = e.adjust[a.key] !== undefined && e.adjust[a.key] !== null && e.adjust[a.key] !== '';
             return `<div class="adj-item"><input type="checkbox" ${on ? 'checked' : ''} onchange="toggleAdj('${a.key}', this.checked)">
               <span style="flex:1">${esc(a.label)}</span>
-              ${on ? `<input type="number" data-b="est.adjust.${a.key}" data-t="num" value="${esc(e.adjust[a.key])}" min="${a.min}" max="${a.max}">%` : ''}
+              ${on ? `<input type="number" data-b="est.adjust.${a.key}" data-t="num" value="${esc(e.adjust[a.key])}" min="0" title="Guideline ${a.min}–${a.max}%">%` : ''}
               <span class="rng">${a.min}–${a.max}%</span></div>`;
           }).join('')}</div>
         </div>
@@ -1580,7 +1580,7 @@ function scopeFields(s) {
   if (f.includes('scaffold') && num(s.height) > RULES.battWall.heightBreak) checks.push(chk(`Scaffold / stilts (+${RULES.battWall.scaffoldPct}%)`, P + 'scaffold', s.scaffold));
   if (f.includes('contamination')) checks.push(chk('Rodent / animal contamination', P + 'contamination', s.contamination));
   if (checks.length) out.push(`<div class="field full"><div class="row" style="gap:14px">${checks.join('')}</div></div>`);
-  out.push(fld('Extra labor %', P + 'extraPct', s.extraPct, { type: 'number', ph: '0', hint: 'This scope only' }));
+  out.push(fld('Extra labor %', P + 'extraPct', s.extraPct, { type: 'number', ph: '0', hint: 'This scope only (can be negative)', neg: true }));
   out.push(fld('Override labor hrs', P + 'laborOverride', s.laborOverride, { type: 'number', ph: 'guideline' }));
   return out.join('');
 }
@@ -1685,6 +1685,12 @@ function refreshCalc() {
   const fin = QR.fin;
   const th = $('tripHint'), ti = c.tripInfo;
   if (th && ti && ti.fl) th.innerHTML = `Standard ${money0(ti.standard)} · <b>cost floor ${money(ti.floor)}</b> (${ti.fl.crew} workers, ${ti.fl.vehicles} truck${ti.fl.vehicles > 1 ? 's' : ''}) · recommended min ${money0(Math.ceil(ti.floor / 5) * 5)}${ti.raised ? ' · <b style="color:var(--red)">raised to floor</b>' : ''}`;
+  // Blank "Auto"/"Standard" number fields: the ↑/↓ arrows start from the value the calculator is using right now
+  const setStart = (sel, v) => { const el = document.querySelector(`#app input[type=number][data-b="${sel}"]`); if (el && v != null && isFinite(v)) el.dataset.start = String(Math.round(v * 100) / 100); };
+  setStart('opt.planDays', c.days); setStart('opt.otHours', c.ot); setStart('est.rooms', c.rooms);
+  setStart('est.perDiemDays', c.overnight ? (blank(e.perDiemDays) ? c.nights + 1 : c.perDiemDays) : 0);
+  if (ti) setStart('est.tripAdjust', ti.standard);
+  (c.scopes || []).forEach(x => x.scope && x.r && setStart('scope.' + x.scope.id + '.laborOverride', x.r.overridden ? x.r.guideHrs : x.r.hrs));
   setHTML('sumA', `
     <h2>${esc(curOpt().name)} summary</h2>
     <div class="stat-grid">
@@ -1765,7 +1771,7 @@ function readInput(el) {
 }
 function onBind(ev) {
   const el = ev.target;
-  if (el.dataset.autoq !== undefined && S.est) { const o = curOpt(); o.autoQty = o.autoQty || {}; if (el.value === '') delete o.autoQty[el.dataset.autoq]; else o.autoQty[el.dataset.autoq] = el.value; el.classList.toggle('ovr', el.value !== ''); markDirty(); return refreshCalc(); }
+  if (el.dataset.autoq !== undefined && S.est) { if (el.value.includes('-')) el.value = el.value.replace(/-/g, ''); const o = curOpt(); o.autoQty = o.autoQty || {}; if (el.value === '') delete o.autoQty[el.dataset.autoq]; else o.autoQty[el.dataset.autoq] = el.value; el.classList.toggle('ovr', el.value !== ''); markDirty(); return refreshCalc(); }
   if (el.dataset.mat) return onMatEdit(el, ev);
   if (!el.dataset.b || !S.est) return;
   const path = el.dataset.b;
@@ -1781,6 +1787,24 @@ function onBind(ev) {
   // would destroy whatever element the user just clicked into.
   if (ev.type === 'change' && !r && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio' && el.type !== 'date'))) return;
   const structural = ev.type === 'change' || el.type === 'checkbox' || el.tagName === 'SELECT';
+  if (r && structural && el.type === 'number' && ev.type === 'change' && document.activeElement === el) {
+    // Arrow (spinner) clicks fire 'change' on every step: re-rendering now would replace the field under the mouse.
+    // Recalculate now; rebuild the scope card once the user leaves the field.
+    if (!el._deferRender) {
+      el._deferRender = true;
+      el.addEventListener('blur', () => {
+        const est = S.est, sc = r === 'scope' ? findScope(path.split('.')[1]) : null;
+        const go = () => { if (S.est === est && S.view === 'estimate') keepFocus(() => sc ? rerenderScope(sc) : renderEstimate()); };
+        // focus moved because the mouse is pressed on another field: rebuild after the click finishes so it isn't lost
+        // (a dropdown opened by that click waits until a choice is made / it closes, or it would vanish)
+        const later = () => { const t = _downTarget && _downTarget.closest && _downTarget.closest('select');
+          if (t && t.isConnected) { let done = false; const g = () => { if (!done) { done = true; setTimeout(go, 0); } }; t.addEventListener('change', g, { once: true }); t.addEventListener('blur', g, { once: true }); }
+          else setTimeout(go, 0); };
+        if (_mouseDown) document.addEventListener('mouseup', later, { once: true, capture: true }); else go();
+      }, { once: true });
+    }
+    refreshCalc(); return;
+  }
   if (r && structural) {
     // Re-render AFTER the browser has moved focus (click / Tab), then put focus back on the same field
     if (r === 'all') { if (path === 'est.builderId') onBuilderSelected(prevBuilder); keepFocus(renderEstimate); return; }
@@ -1823,6 +1847,7 @@ function keepFocus(fn) {
 }
 function onMatEdit(el) {
   const sc = findScope(el.dataset.mat); if (!sc) return;
+  if (el.value.includes('-')) el.value = el.value.replace(/-/g, '');    // quantities & prices can't be negative
   const key = el.dataset.field === 'qty' ? 'matQty' : 'matPrice';
   sc[key] = sc[key] || {};
   if (el.value === '') delete sc[key][el.dataset.matname]; else sc[key][el.dataset.matname] = el.value;
@@ -2050,6 +2075,53 @@ function quoteReprice() {
   markDirty(); render();
   toast(`Repriced with current prices & rules: ${money0(b)} → ${money0(a)}`, 'ok');
 }
+
+// ─── Number fields (Oct 27 2026): arrows step from what you see, no accidental changes, no negatives ──
+// • Blank fields that show a default in gray (e.g. Height "8", GP % "35 (default)") used to step from 0, so the
+//   up arrow gave 1 — it looked like it went backwards — and the down arrow went negative. The arrows / ↑↓ keys
+//   now start from the shown default (placeholder number, or data-start when the default is computed).
+// • Scrolling the page (mouse wheel / trackpad) over a focused number field used to change its value — usually DOWN,
+//   into negative numbers. The wheel now scrolls the page and leaves the value alone.
+// • Quantities, hours, prices, R-values… can't go below 0: min="0", the "-" key is ignored, and pasted/typed
+//   negatives become 0 when you leave the field. Fields marked data-neg (e.g. "Extra labor %") may still be negative.
+let _mouseDown = false, _downTarget = null;                       // used by the deferred re-render in onBind (left button only)
+document.addEventListener('mousedown', ev => { if (ev.button === 0) { _mouseDown = true; _downTarget = ev.target; } }, true);
+['mouseup', 'dragend'].forEach(t => document.addEventListener(t, () => { _mouseDown = false; }, true));
+window.addEventListener('blur', ev => { if (ev.target === window) _mouseDown = false; });   // window lost focus mid-click
+document.addEventListener('visibilitychange', () => { _mouseDown = false; });
+(function () {
+  const isNum = el => el && el.tagName === 'INPUT' && el.type === 'number';
+  const allowNeg = el => el.dataset.neg === '1' || (el.min !== '' && parseFloat(el.min) < 0);
+  const startVal = el => {
+    const d = el.dataset.start;
+    if (d !== undefined && d !== '' && isFinite(parseFloat(d))) return parseFloat(d);
+    const m = String(el.placeholder || '').replace(/,/g, '').match(/^\s*(-?\d+(?:\.\d+)?)/);
+    return m ? parseFloat(m[1]) : null;
+  };
+  const prime = el => {                       // blank field about to be stepped → start from the shown default
+    if (!isNum(el) || el.value !== '' || el.validity.badInput) return;
+    const v = startVal(el);
+    if (v !== null) el.value = String(allowNeg(el) ? v : Math.max(0, v));
+  };
+  const onSpinner = (el, ev) => {
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    const edge = r.right - parseFloat(cs.paddingRight || 0) - parseFloat(cs.borderRightWidth || 0);
+    return ev.clientX >= edge - 22 && ev.clientX <= r.right;
+  };
+  document.addEventListener('mousedown', ev => { const el = ev.target; if (ev.button === 0 && isNum(el) && onSpinner(el, ev)) prime(el); }, true);
+  document.addEventListener('keydown', ev => {
+    const el = ev.target; if (!isNum(el)) return;
+    if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown' || ev.key === 'PageUp' || ev.key === 'PageDown') prime(el);
+    else if ((ev.key === '-' || ev.key === 'Subtract') && !allowNeg(el)) ev.preventDefault();
+  }, true);
+  document.addEventListener('wheel', ev => {
+    const el = document.activeElement; if (!isNum(el)) return;
+    const r = el.getBoundingClientRect();
+    if (ev.target === el || el.contains(ev.target) || (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom)) el.blur();
+  }, { capture: true, passive: true });
+  document.addEventListener('focusin', ev => { const el = ev.target; if (isNum(el) && el.min === '' && !allowNeg(el)) el.min = '0'; }, true);
+  document.addEventListener('change', ev => { const el = ev.target; if (isNum(el) && !allowNeg(el) && el.value !== '' && parseFloat(el.value) < 0) { el.value = '0'; el.dispatchEvent(new Event('input', { bubbles: true })); } }, true);
+})();
 // ════════════════════════════════════════════════════════════════════════════
 // PERSISTENCE, BUILDERS, SETTINGS, CRM, PROPOSAL
 // ════════════════════════════════════════════════════════════════════════════

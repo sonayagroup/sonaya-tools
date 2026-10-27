@@ -3267,9 +3267,14 @@ function calcOption(opt) {
     if (tier === 'custom') {
       // For custom mileage, auto-fill the override field with calculated amount
       const miles = parseFloat($(p + 'tripMiles')?.value) || 0;
-      const calcTrip = miles * TRIP_TIERS.perMile;
-      $(p + 'tripChargeAmt').value = calcTrip.toFixed(2);
-      tripPerVisit = calcTrip;
+      const savedAmt = $(p + 'tripChargeAmt')?.value;
+      if ((opt.hold || quoteLocked()) && savedAmt !== '' && savedAmt != null && !isNaN(parseFloat(savedAmt))) {
+        tripPerVisit = parseFloat(savedAmt);          // saved / won quote: keep the trip charge it was priced with (no new $/mile)
+      } else {
+        const calcTrip = miles * TRIP_TIERS.perMile;
+        $(p + 'tripChargeAmt').value = calcTrip.toFixed(2);
+        tripPerVisit = calcTrip;
+      }
     } else {
       // Use whatever is in the override field (user may have changed it)
       tripPerVisit = parseFloat($(p + 'tripChargeAmt')?.value) || 0;
@@ -4485,7 +4490,9 @@ function copyEmailPlainText() {
 // ─── FINAL / COMBINED ─────────────────────────────────────────────────────
 
 function createFinalCombined() {
-  const selectedIdxs = getSelectedEmailOptions();
+  if (quoteLocked()) { showToast('This job is won and locked exactly as sold — set its status back from Accepted / Completed to change it.', 'error'); return; }
+  // Never fold an existing Final / Combined into a new one (that doubled every line)
+  const selectedIdxs = getSelectedEmailOptions().filter(i => options[i] && options[i].name !== 'Final / Combined');
   if (selectedIdxs.length === 0) {
     showToast('Select at least one option to create the Final / Combined.', 'error');
     return;
@@ -4638,7 +4645,7 @@ function createFinalCombined() {
 
   // Populate labor
   combinedData.labor.forEach(row => {
-    addLabor(row.label, parseFloat(row.rate) || 25, parseFloat(row.otRate) || 37.50);
+    addLabor(row.label, isNaN(parseFloat(row.rate)) ? 25 : parseFloat(row.rate), isNaN(parseFloat(row.otRate)) ? 37.50 : parseFloat(row.otRate));
     const lastId = combined.rows.labor[combined.rows.labor.length - 1];
     const hrs = document.querySelector(`.${CSS.escape(cp)}lb-hrs[data-id="${lastId}"]`);
     const ot = document.querySelector(`.${CSS.escape(cp)}lb-ot[data-id="${lastId}"]`);
@@ -4688,6 +4695,48 @@ function createFinalCombined() {
 
   showToast('Final / Combined created from: ' + acceptedNames, 'success');
 }
+
+// ─── Number fields (Oct 27 2026): arrows step from what you see, no accidental changes, no negatives ──
+// • Blank fields that show a default in gray (e.g. Height "8", GP % "35 (default)") used to step from 0, so the
+//   up arrow gave 1 — it looked like it went backwards — and the down arrow went negative. The arrows / ↑↓ keys
+//   now start from the shown default (placeholder number, or data-start when the default is computed).
+// • Scrolling the page (mouse wheel / trackpad) over a focused number field used to change its value — usually DOWN,
+//   into negative numbers. The wheel now scrolls the page and leaves the value alone.
+// • Quantities, hours, prices, R-values… can't go below 0: min="0", the "-" key is ignored, and pasted/typed
+//   negatives become 0 when you leave the field. Fields marked data-neg (e.g. "Extra labor %") may still be negative.
+(function () {
+  const isNum = el => el && el.tagName === 'INPUT' && el.type === 'number';
+  const allowNeg = el => el.dataset.neg === '1' || (el.min !== '' && parseFloat(el.min) < 0);
+  const startVal = el => {
+    const d = el.dataset.start;
+    if (d !== undefined && d !== '' && isFinite(parseFloat(d))) return parseFloat(d);
+    const m = String(el.placeholder || '').replace(/,/g, '').match(/^\s*(-?\d+(?:\.\d+)?)/);
+    return m ? parseFloat(m[1]) : null;
+  };
+  const prime = el => {                       // blank field about to be stepped → start from the shown default
+    if (!isNum(el) || el.value !== '' || el.validity.badInput) return;
+    const v = startVal(el);
+    if (v !== null) el.value = String(allowNeg(el) ? v : Math.max(0, v));
+  };
+  const onSpinner = (el, ev) => {
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    const edge = r.right - parseFloat(cs.paddingRight || 0) - parseFloat(cs.borderRightWidth || 0);
+    return ev.clientX >= edge - 22 && ev.clientX <= r.right;
+  };
+  document.addEventListener('mousedown', ev => { const el = ev.target; if (ev.button === 0 && isNum(el) && onSpinner(el, ev)) prime(el); }, true);
+  document.addEventListener('keydown', ev => {
+    const el = ev.target; if (!isNum(el)) return;
+    if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown' || ev.key === 'PageUp' || ev.key === 'PageDown') prime(el);
+    else if ((ev.key === '-' || ev.key === 'Subtract') && !allowNeg(el)) ev.preventDefault();
+  }, true);
+  document.addEventListener('wheel', ev => {
+    const el = document.activeElement; if (!isNum(el)) return;
+    const r = el.getBoundingClientRect();
+    if (ev.target === el || el.contains(ev.target) || (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom)) el.blur();
+  }, { capture: true, passive: true });
+  document.addEventListener('focusin', ev => { const el = ev.target; if (isNum(el) && el.min === '' && !allowNeg(el)) el.min = '0'; }, true);
+  document.addEventListener('change', ev => { const el = ev.target; if (isNum(el) && !allowNeg(el) && el.value !== '' && parseFloat(el.value) < 0) { el.value = '0'; el.dispatchEvent(new Event('input', { bubbles: true })); } }, true);
+})();
 
 // ─── INIT ───────────────────────────────────────────────────────────────────
 

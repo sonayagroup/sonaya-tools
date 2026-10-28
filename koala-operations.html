@@ -150,6 +150,29 @@ body {
 .store-table tbody td:first-child { padding-left: 20px; font-weight: 600; font-variant-numeric: normal; }
 .store-table tbody tr:last-child td { border-bottom: none; }
 .store-table tbody tr:hover td { background: var(--surface-page); }
+/* Sales Rep Breakdown drill-down (2026-10-28): click a rep to see the proposals behind Estimates Sent / Close Rate */
+.rep-toggle { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.rep-toggle:focus-visible { outline: 2px solid var(--cat-1); outline-offset: 3px; border-radius: 4px; }
+.rep-toggle .rep-caret { display: inline-block; width: 10px; color: var(--text-muted); font-size: 10px; transition: transform .15s; }
+.rep-toggle[aria-expanded="true"] .rep-caret { transform: rotate(90deg); }
+.store-table tbody tr.rep-detail td { padding: 4px 20px 18px; background: var(--surface-chart); white-space: normal; font-weight: 400; }
+.store-table tbody tr.rep-detail:hover td { background: var(--surface-chart); }
+.store-table tbody tr.rep-open td { border-bottom-color: transparent; background: var(--surface-chart); }
+/* sticky + viewport-capped so on a phone (where the table scrolls sideways) the drill-down stays on screen */
+.rep-drill-wrap { position: sticky; left: 20px; max-width: calc(100vw - 80px); }
+.rep-drill { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 900px) { .rep-drill { grid-template-columns: 1fr; } }
+.rep-drill-group { background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
+.rep-drill-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.rep-drill-head .rep-drill-total { font-variant-numeric: tabular-nums; text-transform: none; letter-spacing: 0; color: var(--text-primary); }
+.rep-drill-list { max-height: 260px; overflow-y: auto; }
+.rep-drill-item { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.rep-drill-item:last-child { border-bottom: none; }
+.rep-drill-name { font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rep-drill-meta { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+.rep-drill-value { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.rep-drill-empty { color: var(--text-muted); font-size: 12.5px; padding: 8px 0; }
+.rep-drill-note { color: var(--text-muted); font-size: 12px; margin: 2px 0 10px; }
 .section-title { font-size: 15px; font-weight: 700; margin: 28px 0 12px; }
 .section-title-sub { font-size: 12px; font-weight: 400; color: var(--text-muted); }
 .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; }
@@ -1685,6 +1708,7 @@ function aggregateProposalCohort(allProposals, fromISO, throughISO) {
     const sb = bump(bySource, leadSource || '(Unknown)'); sb.sent++; if (outcome !== 'pending') sb[outcome]++;
     if (!EXCLUDED_REPS.has(owner)) {
       const rb = bump(byRep, owner || '(Unassigned)'); rb.sent++; if (outcome !== 'pending') rb[outcome]++;
+      (rb.rows || (rb.rows = [])).push(row); // kept for the Sales Rep Breakdown drill-down
     }
   });
   // Close rate = won / sent (not won / decided) — per Pranav 2026-09-16: still-open estimates should
@@ -1811,6 +1835,73 @@ function computeRevenueTrend() {
 }
 
 /* ---------------- Render: Sales Performance tab ---------------- */
+/* ---- Sales Rep Breakdown drill-down (2026-10-28, per Pranav) ----
+   Clicking a rep expands a row listing the proposals behind that rep's Estimates Sent / Close Rate for
+   the selected period: the same sent-date cohort aggregateProposalCohort() counts, split into Accepted
+   (counted as won), Open, and Expired / Declined. Revenue / Jobs come from invoices (a different
+   source), so a rep with invoiced jobs but no estimates SENT in the period shows an empty drill-down. */
+const salesRepExpanded = new Set();
+function escSR(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+function toggleSalesRep(btn) {
+  const name = btn.dataset.rep;
+  const row = btn.closest('tr');
+  const detail = row && row.nextElementSibling;
+  const open = !salesRepExpanded.has(name);
+  if (open) salesRepExpanded.add(name); else salesRepExpanded.delete(name);
+  btn.setAttribute('aria-expanded', String(open));
+  row.classList.toggle('rep-open', open);
+  if (detail && detail.classList.contains('rep-detail')) detail.hidden = !open;
+}
+function shortSMDate(s) {
+  const d = parseSMDate(s);
+  return d ? `${d.getUTCMonth() + 1}/${d.getUTCDate()}` : '';
+}
+function repDrillHtml(rows, rangeLabel) {
+  rows = rows || [];
+  if (!rows.length) {
+    return `<div class="rep-drill-empty">No estimates sent in ${escSR(rangeLabel)}. Revenue and Jobs here come from invoiced work, which can include estimates sent in earlier periods.</div>`;
+  }
+  const won = [], openRows = [], lost = [];
+  rows.forEach(r => {
+    const status = r[1];
+    if (PROP_WON.has(status)) won.push(r);
+    else if (status === 'Open') openRows.push(r);
+    else lost.push(r);
+  });
+  const bySentDesc = (a, b) => (parseSMDate(b[5]) || 0) - (parseSMDate(a[5]) || 0);
+  const byAcceptedDesc = (a, b) => (parseSMDate(b[2]) || parseSMDate(b[5]) || 0) - (parseSMDate(a[2]) || parseSMDate(a[5]) || 0);
+  won.sort(byAcceptedDesc); openRows.sort(bySentDesc); lost.sort(bySentDesc);
+  const pillClass = st => PROP_WON.has(st) ? 'good' : st === 'Open' ? 'ok' : st === 'Expired' ? 'warn' : 'critical';
+  const item = r => {
+    const [value, status, accepted, , source, sent, name] = r;
+    const meta = [`Sent ${shortSMDate(sent) || '&mdash;'}`];
+    if (accepted && PROP_WON.has(status)) meta.push(`Accepted ${shortSMDate(accepted)}`);
+    if (source) meta.push(escSR(source));
+    return `<div class="rep-drill-item">
+      <div style="min-width:0;">
+        <div class="rep-drill-name" title="${escSR(name)}">${escSR(name) || '(No name)'}</div>
+        <div class="rep-drill-meta">${meta.join(' &middot; ')}</div>
+      </div>
+      <div class="rep-drill-value">${fmtMoney(+value || 0)}<div style="margin-top:3px;"><span class="status-pill ${pillClass(status)}">${escSR(status)}</span></div></div>
+    </div>`;
+  };
+  const group = (title, list, emptyText) => {
+    const total = list.reduce((a, r) => a + (+r[0] || 0), 0);
+    return `<div class="rep-drill-group">
+      <div class="rep-drill-head"><span>${title} (${list.length})</span><span class="rep-drill-total">${fmtMoney(total)}</span></div>
+      <div class="rep-drill-list">${list.length ? list.map(item).join('') : `<div class="rep-drill-empty">${emptyText}</div>`}</div>
+    </div>`;
+  };
+  return `<div class="rep-drill-wrap"><div class="rep-drill-note">${rows.length} estimate${rows.length === 1 ? '' : 's'} sent in ${escSR(rangeLabel)}, by current ServiceMinder status. Accepted counts toward close rate.</div>
+    <div class="rep-drill">
+      ${group('Accepted', won, 'None accepted yet')}
+      ${group('Open', openRows, 'No open estimates')}
+      ${group('Expired / Declined', lost, 'None')}
+    </div></div>`;
+}
+
 function renderSalesTab() {
   const r = dataStore.revenue;
   const liveRev = liveRevenue.status === 'ready' ? liveRevenue : null;
@@ -1966,14 +2057,19 @@ function renderSalesTab() {
       closeRate: c ? cohort.closeRateOf(c) : null,
     };
   }).sort((a, b) => b.revenue - a.revenue);
-  document.getElementById('salesRepTbody').innerHTML = repRows.length ? repRows.map(rp => `<tr>
-      <td>${rp.name}</td>
+  document.getElementById('salesRepTbody').innerHTML = repRows.length ? repRows.map(rp => {
+    const open = salesRepExpanded.has(rp.name);
+    const c = cohort ? cohort.byRep.get(rp.name) : null;
+    return `<tr class="${open ? 'rep-open' : ''}">
+      <td><button type="button" class="rep-toggle" data-rep="${escSR(rp.name)}" aria-expanded="${open}" onclick="toggleSalesRep(this)"><span class="rep-caret">&#9654;</span>${escSR(rp.name)}</button></td>
       <td>${rp.sent || '&mdash;'}</td>
       <td>${rp.closeRate != null ? `${fmtPct(rp.closeRate * 100)} <span style="color:var(--text-muted);font-size:11px;">(${rp.won}/${rp.sent})</span>` : '&mdash;'}</td>
       <td>${fmtMoney(rp.revenue)}</td>
       <td>${rp.invoices || '&mdash;'}</td>
       <td>${rp.invoices ? fmtMoney(rp.revenue / rp.invoices) : '&mdash;'}</td>
-    </tr>`).join('') : `<tr><td colspan="6" style="color:var(--text-muted);text-align:center;">${salesRangeData.loading ? 'Loading…' : 'No data for this range'}</td></tr>`;
+    </tr>
+    <tr class="rep-detail"${open ? '' : ' hidden'}><td colspan="6">${repDrillHtml(c ? c.rows : [], rangeLabel)}</td></tr>`;
+  }).join('') : `<tr><td colspan="6" style="color:var(--text-muted);text-align:center;">${salesRangeData.loading ? 'Loading…' : 'No data for this range'}</td></tr>`;
   document.getElementById('salesRepTableTitle').textContent = `Sales Rep Breakdown (${rangeLabel})`;
 }
 

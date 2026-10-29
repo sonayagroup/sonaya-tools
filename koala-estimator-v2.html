@@ -3524,12 +3524,24 @@ function ductExampleJob() {
 function ductState() {
   if (!S.duct) {
     const j = lsGet('koalaDuctJob');
-    S.duct = j && Array.isArray(j.runs) && j.runs.length ? j : ductExampleJob();
+    S.duct = ductClean(j) || ductExampleJob();
     const st = lsGet('duct-settings') || {};
-    S.ductSet = {}; Object.keys(DUCT_DEFAULTS).forEach(k => { S.ductSet[k] = st[k] !== undefined && st[k] !== '' ? String(st[k]) : DUCT_DEFAULTS[k]; });
+    S.ductSet = {}; Object.keys(DUCT_DEFAULTS).forEach(k => { const v = st && st[k]; S.ductSet[k] = (typeof v === 'number' || (typeof v === 'string' && v !== '' && isFinite(parseFloat(v)))) ? String(v) : DUCT_DEFAULTS[k]; });
   }
   return S.duct;
 }
+// A saved job from this browser: keep only well-formed runs (ids unique numbers, known shapes, values as text)
+function ductClean(j) {
+  if (!j || typeof j !== 'object' || !Array.isArray(j.runs)) return null;
+  const seen = new Set(), str = v => (typeof v === 'string' || typeof v === 'number') ? String(v) : '';
+  const runs = j.runs.filter(r => r && typeof r === 'object').map((r, i) => {
+    let id = parseInt(r.id); if (!(id > 0) || seen.has(id)) id = 1000 + i; seen.add(id);
+    return { id, shape: Object.prototype.hasOwnProperty.call(DUCT_SHAPES, r.shape) ? r.shape : 'round', a: str(r.a), b: str(r.b), len: str(r.len) };
+  });
+  if (!runs.length) return null;
+  return { job: str(j.job), laborHrs: str(j.laborHrs), example: !!j.example, nextId: Math.max(...runs.map(r => r.id)) + 1, runs };
+}
+function ductNewId(d) { d.nextId = Math.max(parseInt(d.nextId) || 1, ...d.runs.map(r => r.id + 1)); return d.nextId++; }
 function ductSave() { lsSet('koalaDuctJob', S.duct); lsSet('duct-settings', S.ductSet); }
 function openDuct() { go('duct'); history.replaceState(null, '', location.pathname + '?tool=duct'); }
 
@@ -3538,19 +3550,21 @@ const dFmt = (n, d = 1) => (n || 0).toLocaleString('en-US', { minimumFractionDig
 function ductPerimeterIn(r) {
   const a = dNum(r.a), b = dNum(r.b);
   if (r.shape === 'round') return DUCT_PI * a;
+  if (!a || (r.shape !== 'round' && !b)) return 0;      // rectangular / flat oval need both sizes
   if (r.shape === 'rect') return 2 * a + 2 * b;
   const w = Math.max(a, b), h = Math.min(a, b);        // flat oval: long side = width, short side = height
   return DUCT_PI * h + 2 * (w - h);
 }
-function ductCalc(d, set) {
-  const waste = 1 + dNum(set.waste) / 100, spW = dNum(set.spacerW) / 12, spGap = Math.max(dNum(set.spacerGap), 1) / 12;
+function ductCalc(d, rawSet) {
+  const set = {}; Object.keys(DUCT_DEFAULTS).forEach(k => { set[k] = rawSet[k] === '' || rawSet[k] == null ? DUCT_DEFAULTS[k] : rawSet[k]; });   // blank setting = default (shown as the gray placeholder)
+  const waste = 1 + dNum(set.waste) / 100, spW = dNum(set.spacerW) / 12, gapIn = dNum(set.spacerGap) >= 1 ? dNum(set.spacerGap) : 24;   // 0 → every 24″
   let area = 0, spacerLin = 0, tapeLin = 0, lenTot = 0;
   const runs = d.runs.map((r, i) => {
     const perFt = ductPerimeterIn(r) / 12, len = dNum(r.len), a = perFt * len;
     area += a;
     if (len > 0 && perFt > 0) {
       lenTot += len;
-      spacerLin += (Math.floor(len / spGap) + 1) * perFt;                    // a strip every 24", plus one at each end
+      spacerLin += (Math.floor(len * 12 / gapIn + 1e-9) + 1) * perFt;                    // a strip every 24", plus one at each end
       tapeLin += len + perFt * Math.max(0, Math.ceil(len / 4) - 1);          // seam along the run + a ring every 4 ft
     }
     return { r, i, area: a, len, perFt };
@@ -3601,7 +3615,7 @@ function renderDuct() {
         <div class="grid">
           <div class="field span2"><label>Job name / address</label><input data-duct="job" value="${esc(d.job)}" placeholder="e.g. Smith residence, 123 Main St"></div>
           <div class="field"><label>Labor hours (whole crew)</label><input type="number" min="0" step="0.5" inputmode="decimal" data-duct="laborHrs" value="${esc(d.laborHrs)}" placeholder="0"><span class="hint">Entered by hand, e.g. 2 installers × 6 hrs = 12</span></div>
-          <div class="field"><label>Labor rate ($/hr)</label><input type="number" min="0" step="0.5" inputmode="decimal" data-duct-set="laborRate" value="${esc(set.laborRate)}"></div>
+          <div class="field"><label>Labor rate ($/hr)</label><input type="number" min="0" step="0.5" inputmode="decimal" data-duct-set="laborRate" value="${esc(set.laborRate)}" placeholder="${DUCT_DEFAULTS.laborRate}"></div>
         </div>
       </div>
 
@@ -3617,7 +3631,7 @@ function renderDuct() {
 
       <div class="card">
         <h2>Material settings <span class="sub">saved in this browser</span><button class="btn sm ghost" style="margin-left:auto;text-transform:none;letter-spacing:0" onclick="ductResetSettings()">Reset to default prices</button></h2>
-        <div class="grid">${DUCT_SET_FIELDS.map(([k, l, st]) => `<div class="field"><label>${l}</label><input type="number" min="0" step="${st}" inputmode="decimal" data-duct-set="${k}" value="${esc(set[k])}"></div>`).join('')}</div>
+        <div class="grid">${DUCT_SET_FIELDS.map(([k, l, st]) => `<div class="field"><label>${l}</label><input type="number" min="0" step="${st}" inputmode="decimal" data-duct-set="${k}" value="${esc(set[k])}" placeholder="${DUCT_DEFAULTS[k]}"></div>`).join('')}</div>
         <div class="calc-note" style="margin-top:10px"><b>Spacers:</b> one strip wraps around the duct every 24″, with a strip at each end. <b>Tape:</b> one seam along the full length of each run, plus a seam around the duct every 4 ft where rolls butt together (rolls are 48″ wide). The overlap &amp; cuts % is added to insulation, spacers and tape.</div>
       </div>
 
@@ -3640,11 +3654,14 @@ function renderDuct() {
 function ductRefresh() {
   const d = S.duct, set = S.ductSet; if (!d || S.view !== 'duct') return;
   const c = ductCalc(d, set);
-  c.runs.forEach(x => { const el = $('ductArea-' + x.r.id); if (el) el.textContent = `${dFmt(x.area)} sq ft`; });
+  c.runs.forEach(x => { const el = $('ductArea-' + x.r.id), r = x.r; if (!el) return;
+    const miss = !dNum(r.a) ? (r.shape === 'round' ? 'diameter' : 'width') : r.shape !== 'round' && !dNum(r.b) ? 'height' : !dNum(r.len) ? 'length' : '';
+    const anyIn = dNum(r.a) || (r.shape !== 'round' && dNum(r.b)) || dNum(r.len);
+    el.innerHTML = miss && anyIn ? `<span style="color:var(--amber)">enter ${miss}</span>` : `${dFmt(x.area)} sq ft`; });
   const roll = n => `${n} roll${n === 1 ? '' : 's'}`;
   const row = (name, note, qty, cost) => `<div class="sum-row"><span>${name}</span><span><b style="color:var(--navy)">${qty}</b> · ${money(cost)}</span></div><div class="sum-row sub"><span>${note}</span></div>`;
   setHTML('ductSum', `
-    <h2>Duct takeoff${d.job ? ` <span class="sub">${esc(d.job)}</span>` : ''}</h2>
+    <h2 style="flex-wrap:wrap">Duct takeoff${d.job ? ` <span class="sub" style="overflow-wrap:anywhere;min-width:0">${esc(d.job)}</span>` : ''}</h2>
     <div class="stat-grid">
       <div class="stat"><div class="k">Duct area</div><div class="v">${dFmt(c.area)} sf</div><div class="s">${dFmt(c.insSq)} sf with ${fmtN(c.wastePct)}% extra</div></div>
       <div class="stat"><div class="k">Duct length</div><div class="v">${fmtN(c.lenTot, 1)} ft</div><div class="s">${d.runs.length} run${d.runs.length === 1 ? '' : 's'}</div></div>
@@ -3675,9 +3692,9 @@ function ductRefresh() {
   });
   _ductText = [`Duct insulation takeoff${d.job ? ': ' + d.job : ''}`, ...lines, '',
     `Duct surface area: ${dFmt(c.area)} sq ft (${dFmt(c.insSq)} sq ft with ${fmtN(c.wastePct)}% extra)`,
-    `Reflectix R-21 4'x100': ${c.insRolls} rolls, ${money(c.cIns)}`,
-    `Reflectix R-21 1.33'x100' (spacers): ${c.spRolls} rolls, ${money(c.cSp)}`,
-    `FSK foil tape 3"x50yd: ${c.tapeRolls} rolls, ${money(c.cTape)}`,
+    `Reflectix R-21 4'x100': ${roll(c.insRolls)}, ${money(c.cIns)}`,
+    `Reflectix R-21 1.33'x100' (spacers): ${roll(c.spRolls)}, ${money(c.cSp)}`,
+    `FSK foil tape 3"x50yd: ${roll(c.tapeRolls)}, ${money(c.cTape)}`,
     `Materials: ${money(c.mat)}`,
     `Labor: ${fmtN(c.hrs, 2)} hrs x ${money(c.rate)}/hr = ${money(c.labor)}`,
     `Job cost (materials + labor): ${money(c.total)}`].join('\n');
@@ -3686,25 +3703,28 @@ function ductRefresh() {
 function ductTouch() { if (S.duct.example) { S.duct.example = false; const p = document.querySelector('#app .card h2 .pill'); if (p) p.remove(); } }
 function ductAddRun() {
   const d = ductState(); ductTouch();
-  const id = d.nextId = Math.max(d.nextId || 1, ...d.runs.map(r => r.id + 1));
-  d.nextId++; d.runs.push({ id, shape: 'round', a: '', b: '', len: '' });
+  const id = ductNewId(d); d.runs.push({ id, shape: 'round', a: '', b: '', len: '' });
   ductSave(); renderDuct();
   const el = document.querySelector(`[data-duct-run="${id}"][data-k="a"]`); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); }
 }
 function ductRemoveRun(id) {
   const d = ductState(); ductTouch();
+  const idx = d.runs.findIndex(r => r.id === id);
   d.runs = d.runs.filter(r => r.id !== id);
-  if (!d.runs.length) d.runs.push({ id: d.nextId++, shape: 'round', a: '', b: '', len: '' });
+  const fresh = !d.runs.length; if (fresh) d.runs.push({ id: ductNewId(d), shape: 'round', a: '', b: '', len: '' });
   ductSave(); renderDuct();
+  const next = d.runs[Math.min(Math.max(idx, 0), d.runs.length - 1)];
+  const el = document.querySelector(`[data-duct-run="${next.id}"][data-k="${fresh ? 'a' : 'shape'}"]`); if (el) el.focus();
 }
 function ductNewJob() {
-  const d = ductState(); const blankJob = !d.example && !d.job && !d.laborHrs && d.runs.every(r => !r.a && !r.len);
-  if (!blankJob && !d.example && !confirm('Clear this duct job and start a new one?')) return;
+  const d = ductState();
+  const nothingToLose = !d.job && !d.laborHrs && (d.example || d.runs.every(r => !r.a && !r.b && !r.len));
+  if (!nothingToLose && !confirm('Clear this duct job and start a new one?')) return;
   S.duct = { job: '', laborHrs: '', example: false, nextId: 2, runs: [{ id: 1, shape: 'round', a: '', b: '', len: '' }] };
   ductSave(); renderDuct();
   const el = document.querySelector('[data-duct="job"]'); if (el) el.focus();
 }
-function ductResetSettings() { S.ductSet = Object.assign({}, S.ductSet, DUCT_DEFAULTS, { laborRate: S.ductSet.laborRate }); ductSave(); renderDuct(); toast('Material prices reset to the defaults', 'ok'); }
+function ductResetSettings() { ['pIns', 'pSp', 'pTape'].forEach(k => { S.ductSet[k] = DUCT_DEFAULTS[k]; }); ductSave(); renderDuct(); toast('Material prices reset to the defaults', 'ok'); }
 function ductCopy() {
   const done = () => toast('Takeoff copied', 'ok');
   const fallback = () => { const t = $('ductCopyFallback'); if (!t) return; t.hidden = false; t.value = _ductText; t.focus(); t.select(); toast('Select all and copy the text below the buttons'); };
@@ -3716,7 +3736,7 @@ function onDuctInput(ev) {
   if (ds.ductRun) {
     const r = S.duct.runs.find(x => String(x.id) === ds.ductRun); if (!r) return;
     ductTouch();
-    if (ds.k === 'shape') { if (ev.type !== 'change') return; r.shape = el.value; ductSave(); renderDuct(); const s = document.querySelector(`[data-duct-run="${r.id}"][data-k="shape"]`); if (s) s.focus(); return; }
+    if (ds.k === 'shape') { if (ev.type !== 'change') return; r.shape = el.value; if (r.shape === 'round') r.b = ''; ductSave(); renderDuct(); const s = document.querySelector(`[data-duct-run="${r.id}"][data-k="shape"]`); if (s) s.focus(); return; }
     r[ds.k] = el.value;
   } else if (ds.duct) { S.duct[ds.duct] = el.value; if (ds.duct !== 'job') ductTouch(); }
   else if (ds.ductSet) S.ductSet[ds.ductSet] = el.value;

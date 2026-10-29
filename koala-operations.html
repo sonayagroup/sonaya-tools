@@ -2270,6 +2270,10 @@ function openNmModal(kind) {
   if (nextMonthOTB.status !== 'ready') return;
   const d = nextMonthOTB.data;
   const monthLabel = nmMonthLabel(d.month);
+  // Same rule as the rest of the dashboard: EXCLUDED_REPS are never shown as a named rep.
+  const cleanOwner = o => { const names = String(o || '').split(',').map(x => x.trim()).filter(x => x && !EXCLUDED_REPS.has(x)); return names.length ? names.join(', ') : null; };
+  d.jobs.forEach(j => { j.owner = cleanOwner(j.owner); });
+  (d.notScheduled.jobs || []).forEach(j => { j.owner = cleanOwner(j.owner); });
   let title, sub, body, footer = '';
   if (kind === 'scheduled') {
     const list = d.jobs.filter(j => j.matched);

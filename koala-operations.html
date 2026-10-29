@@ -615,7 +615,8 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <button data-month="may">May</button>
         <button data-month="jun">Jun</button>
         <button data-month="jul">Jul</button>
-        <button data-month="aug" class="active">Aug</button>
+        <button data-month="aug">Aug</button>
+        <button data-month="sep" class="active">Sep</button>
         <button data-month="ytd">YTD</button>
       </div>
     </div>
@@ -624,7 +625,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Revenue &amp; Net Income — Monthly Actuals</h3>
-        <p class="chart-subtitle" id="chartFinTrendSubtitle">Jan–Aug 2026</p>
+        <p class="chart-subtitle" id="chartFinTrendSubtitle">Jan–Sep 2026</p>
         <div class="chart-area" id="chartFinTrend"></div>
       </div>
       <div class="chart-card">
@@ -1460,8 +1461,17 @@ const dataStore = {
   // + NM Work Comp Fee + Payroll Processing Fees + Employee Benefits; Marketing = Advertising & Marketing +
   // Brand Fund Contribution; Admin & Overhead = everything else (incl. COGS Travel + Travel Meals). Every
   // one of August's five bucket totals reproduces exactly from this rule.
+  //
+  // SEPTEMBER (added 2026-10-29): from the official QuickBooks P&L PDF Pranav sent (accrual basis, run
+  // Oct 21 2026). Totals tie out to the penny: income lines sum to $221,677.85, COGS lines to
+  // $130,187.71, expense lines to $95,712.77, Net Income = Gross Profit − Expenses + Other Income
+  // (−$2,397.10: −$2,400 rebate/refund, +$2.90 interest) = −$6,619.73, and the four location columns
+  // sum to the Total column. Buckets use the same rule as August; the one new line, "COGS Intumescent
+  // Coating" ($2,649.44), is a material COGS line so it goes in Materials. This PDF has no YTD column,
+  // so there is no QuickBooks-reported Jan–Sep YTD — the official-YTD tile stays at Jan–Aug (which still
+  // reconciles exactly) and the monthly-sum tile carries Jan–Sep.
   financial: {
-    monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'],
+    monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep'],
     months: {
       jan: { label: 'Jan 2026 (corrected)', revenue: 156946.51, cogs: 87608.45, grossProfit: 69338.06, grossMargin: 44.18, opex: 78306.22, netIncome: -8966.54, netMargin: -5.71,
              buckets: { materials: 56210.76, fieldLabor: 65419.94, vehicleFuel: 4614.62, marketing: 8497.93, admin: 31171.42 } },
@@ -1479,6 +1489,8 @@ const dataStore = {
              buckets: { materials: 96317.82, fieldLabor: 75964.31, vehicleFuel: 5597.51, marketing: 10136.42, admin: 35902.27 } },
       aug: { label: 'Aug 2026 (verified)', revenue: 226527.51, cogs: 114137.98, grossProfit: 112389.53, grossMargin: 49.61, opex: 106496.25, netIncome: 5896.52, netMargin: 2.60,
              buckets: { materials: 72445.26, fieldLabor: 86207.03, vehicleFuel: 5283.20, marketing: 9331.03, admin: 47367.71 } },
+      sep: { label: 'Sep 2026', revenue: 221677.85, cogs: 130187.71, grossProfit: 91490.14, grossMargin: 41.27, opex: 95712.77, netIncome: -6619.73, netMargin: -2.99,
+             buckets: { materials: 86325.36, fieldLabor: 74571.16, vehicleFuel: 7093.35, marketing: 12571.00, admin: 45339.61 } },
     },
     // Officially reported cumulative YTD figures, read directly off each month's own P&L "(YTD)" column
     // (QuickBooks-computed, not derived by us). ytdThroughJul reconciles exactly against summing the 7
@@ -1487,7 +1499,7 @@ const dataStore = {
     // described above, reconciles the same way: $1,951,247.30 / $239,784.20, which is exactly
     // ytdThroughJul + August's standalone month above, to the penny both on revenue and net income.
     ytdThroughJul: { label: 'Jan–Jul 2026 YTD (QuickBooks report, from Jul P&L)', revenue: 1724719.79, netIncome: 233887.68 },
-    ytdThroughAug: { label: 'Jan–Aug 2026 YTD (QuickBooks report, from Aug P&L)', revenue: 1951247.30, netIncome: 239784.20 },
+    ytdThroughAug: { label: 'Jan–Aug 2026 YTD (QuickBooks report, from Aug P&L)', revenue: 1951247.30, netIncome: 239784.20, throughMonth: 'aug' },
     // June, July, and August 2026 are the months QuickBooks has reported with a location split so far.
     locationByMonth: {
       jun: [
@@ -1508,10 +1520,20 @@ const dataStore = {
         { location: 'Corporate (overhead)', revenue: 0, netIncome: -38810.00 },
         { location: 'Not Specified', revenue: 0, netIncome: -509.80 },
       ],
+      sep: [
+        { location: 'Albuquerque', revenue: 221677.85, netIncome: 36674.44 },
+        { location: 'Las Cruces',  revenue: 0,         netIncome: -8217.18 },
+        { location: 'Corporate (overhead)', revenue: 0, netIncome: -35103.71 },
+        { location: 'Not Specified', revenue: 0, netIncome: 26.72 },
+      ],
     },
   },
   // Notable flags surfaced directly from the real P&L numbers above.
   finFlags: [
+    { level: 'serious', title: 'September 2026 closed at a $6,620 net loss on $221,678 of revenue',
+      body: 'Gross margin fell to 41.3% (Aug 49.6%, Jul 64.5%) as COGS rose to 58.7% of revenue — Batts COGS ($23,433) exceeded Batts sales ($20,282), and Installer Labor was $38,105. Operating expenses were $95,713 (43.2% of revenue), plus a −$2,400 rebate/refund in Other Income.' },
+    { level: 'warn', title: 'Las Cruces shows $0 revenue in September',
+      body: 'All $221,678 of September income is coded to Albuquerque; Las Cruces carries only expenses (−$8,217: rent $4,542, travel $958, payroll taxes). Las Cruces had $13,015 of revenue in August, so this is likely a location-coding issue on invoices — worth checking with the bookkeeper before reading the location split.' },
     { level: 'critical', title: 'Jan–Mar and May 2026 net income were significantly restated — Jan and Feb flip from profit to loss',
       body: 'Pranav sent corrected P&Ls (pulled Sep 1 2026) for every month Jan–Jul. Compared to what this dashboard showed before: January flips from +$6,443 net income to a $8,967 loss; February flips from +$68,742 to a $65,342 loss; March\'s loss deepens from –$39,846 to –$74,761; May\'s profit improves from +$62,372 to +$89,235. Only April was unchanged (re-pulled byte-for-byte identical). The swing is entirely COGS timing/classification — revenue is unchanged in every month. Net effect: H1 2026 profitability is materially worse than this dashboard previously showed.' },
     { level: 'ok', title: 'The $189.5K reconciliation gap flagged previously is now resolved',
@@ -2242,7 +2264,7 @@ function renderOnTheBooksModalTable(jobs, meta) {
 }
 
 /* ---------------- Render: Financial tab ---------------- */
-let finMonth = 'aug';
+let finMonth = 'sep';
 const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
 const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
 
@@ -2311,6 +2333,13 @@ function renderFinancialTab() {
   // Context row: latest official YTD (as reported by QuickBooks), sum of all real monthly statements on
   // file, and whatever month is currently in progress (live ServiceMinder proxy).
   const ytd = dataStore.financial.ytdThroughAug || dataStore.financial.ytdThroughJul;
+  // The official QuickBooks YTD can lag the monthly statements (Sep's P&L PDF has no YTD column), so
+  // reconcile it against the sum of months through the YTD's own month rather than all months on file.
+  const ytdThrough = ytd.throughMonth || 'jul';
+  const ytdMonths = dataStore.financial.monthOrder.slice(0, dataStore.financial.monthOrder.indexOf(ytdThrough) + 1).filter(m => months[m]);
+  const ytdSumRev = ytdMonths.reduce((a, m) => a + months[m].revenue, 0);
+  const ytdSumNI = ytdMonths.reduce((a, m) => a + months[m].netIncome, 0);
+  const ytdReconciles = Math.abs(ytdSumRev - ytd.revenue) < 1 && Math.abs(ytdSumNI - ytd.netIncome) < 1;
   const presentMonths = dataStore.financial.monthOrder.filter(m => months[m]);
   const sumRevenue = presentMonths.reduce((a, m) => a + months[m].revenue, 0);
   const sumNetIncome = presentMonths.reduce((a, m) => a + months[m].netIncome, 0);
@@ -2331,9 +2360,11 @@ function renderFinancialTab() {
   }
   document.getElementById('finContextRow').innerHTML = `
     <div class="callout"><div class="callout-label">${sumLabel}</div><div class="callout-value">${fmtMoneyCompact(sumRevenue)}</div>
-      ${deltaLine(fmtMoneyCompact(sumNetIncome) + ' net income', 'var(--delta-up-good)')}</div>
+      ${deltaLine(fmtMoneyCompact(sumNetIncome) + ' net income', sumNetIncome >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)')}</div>
     <div class="callout"><div class="callout-label">${ytd.label}</div><div class="callout-value">${fmtMoneyCompact(ytd.revenue)}</div>
-      ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income — matches the monthly-sum total at left exactly', 'var(--delta-up-good)')}</div>
+      ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income — ' + (ytdReconciles
+        ? (ytdMonths.length === presentMonths.length ? 'matches the monthly-sum total at left exactly' : `matches the ${months[ytdMonths[0]].label.split(' ')[0]}–${months[ytdThrough].label.split(' ')[0]} monthly P&Ls exactly; latest QuickBooks YTD report on file`)
+        : 'does not match the sum of the monthly P&Ls — check with the bookkeeper'), ytd.netIncome >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)')}</div>
     ${nowTile}
   `;
 
@@ -2378,7 +2409,8 @@ function renderFinancialTab() {
     ['Net Income', f.netIncome],
   ];
   document.getElementById('finTbody').innerHTML = rows.map(([label, v]) => {
-    const cell = fmtMoney(Math.abs(v)) + (v < 0 ? ' (deduction)' : '');
+    // A negative Net Income is a loss, not a deduction (labels only — numbers unchanged).
+    const cell = label === 'Net Income' && v < 0 ? '(' + fmtMoney(Math.abs(v)) + ') loss' : fmtMoney(Math.abs(v)) + (v < 0 ? ' (deduction)' : '');
     return `<tr><td>${label}</td><td>${cell}</td></tr>`;
   }).join('');
 }

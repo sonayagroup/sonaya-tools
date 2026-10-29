@@ -11961,11 +11961,17 @@ function dmclDueTag(type, itemKey) {
   const wedDiff = (dayOfWeek - 3 + 7) % 7;
   const wed = new Date(selected); wed.setDate(wed.getDate() - wedDiff);
   const dueDate = new Date(wed); dueDate.setDate(wed.getDate() + (due.day - 1));
-  const isPast = today > dueDate;
   const areaId = document.getElementById('dmclArea').value;
   const periodDate = dmclGetPeriodDate(type);
   const isChecked = dmclState[areaId + '|' + itemKey + '|' + periodDate] === true;
   if (isChecked) return '';
+  /* For biweekly: only OVERDUE after 2-week period ends */
+  if (type === 'biweekly') {
+    const biweekEnd = new Date(wed); biweekEnd.setDate(wed.getDate() + 13);
+    if (today > biweekEnd) return '<span class="gmcl-due-tag overdue">OVERDUE</span>';
+    return '<span class="gmcl-due-tag upcoming">Due by ' + due.label + '</span>';
+  }
+  const isPast = today > dueDate;
   if (isPast) return '<span class="gmcl-due-tag overdue">OVERDUE</span>';
   return '<span class="gmcl-due-tag upcoming">Due by ' + due.label + '</span>';
 }

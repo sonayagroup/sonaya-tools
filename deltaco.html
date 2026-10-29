@@ -1060,6 +1060,31 @@ body {
 
 /* ---- ACCESSIBILITY: FOCUS VISIBLE ---- */
 .tab-btn:focus-visible{outline:2px solid #ED1C2E;outline-offset:-2px;border-radius:2px}
+
+/* ---- SECRET SHOPS ---- */
+.ss-field label { display:block; font-size:13px; font-weight:500; color:var(--text-secondary); margin-bottom:4px; }
+.ss-check {
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  background:var(--surface-hover); border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:13px; color:var(--text-primary); cursor:pointer; transition:background 0.15s;
+}
+.ss-check:hover { background:var(--surface-card); }
+.ss-check input[type="checkbox"] { width:16px; height:16px; accent-color:var(--brand-green); cursor:pointer; }
+.ss-score-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:48px; padding:4px 10px; border-radius:12px;
+  font-size:13px; font-weight:700; letter-spacing:0.3px;
+}
+.ss-score-badge.excellent { background:rgba(16,185,129,0.15); color:var(--brand-green); }
+.ss-score-badge.good { background:rgba(245,158,11,0.15); color:var(--brand-gold); }
+.ss-score-badge.poor { background:rgba(239,68,68,0.15); color:var(--brand-red); }
+.ss-store-card {
+  background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius);
+  padding:18px; box-shadow:var(--shadow-sm); transition:box-shadow 0.15s;
+}
+.ss-store-card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.08); }
+.ss-mini-bar { height:6px; border-radius:3px; background:var(--surface-hover); overflow:hidden; }
+.ss-mini-bar-fill { height:100%; border-radius:3px; transition:width 0.3s; }
 </style>
 </head>
 <body>
@@ -1136,6 +1161,7 @@ body {
   <button class="tab-btn" data-tab="contacts" role="tab" aria-selected="false" tabindex="-1">Contacts</button>
   <button class="tab-btn" data-tab="gmchecklist" role="tab" aria-selected="false" tabindex="-1">GM Checklist</button>
   <button class="tab-btn" data-tab="dmchecklist" role="tab" aria-selected="false" tabindex="-1">DM Checklist</button>
+  <button class="tab-btn" data-tab="secretshops" role="tab" aria-selected="false" tabindex="-1">Secret Shops</button>
   <button class="tab-btn" data-tab="admin" id="admin-tab-btn" style="display:none" role="tab" aria-selected="false" tabindex="-1">Admin</button>
 </nav>
 </div>
@@ -2020,6 +2046,163 @@ body {
 
     <div style="margin-top:20px; text-align:right;">
       <span id="dmclSaveStatus" style="font-size:12px; color:var(--text-secondary); margin-right:12px;"></span>
+    </div>
+  </div>
+</div>
+
+<!-- SECRET SHOPS TAB -->
+<div class="tab-content" id="tab-secretshops">
+  <div class="container" style="max-width:1100px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <h2 style="margin:0;font-size:20px;font-weight:700;color:var(--text-primary);">Secret Shops</h2>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div class="control-group">
+          <label>Store</label>
+          <select id="ssStoreFilter" class="control-select"><option value="all">All Stores</option></select>
+        </div>
+        <div class="control-group">
+          <label>View</label>
+          <div class="view-toggle">
+            <button class="active" id="ssViewScorecard" onclick="ssSetView('scorecard')">Scorecard</button>
+            <button id="ssViewHistory" onclick="ssSetView('history')">History</button>
+            <button id="ssViewNew" onclick="ssSetView('new')">+ New Shop</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCORECARD VIEW -->
+    <div id="ssScorecard"></div>
+
+    <!-- HISTORY VIEW -->
+    <div id="ssHistory" style="display:none;">
+      <div class="store-table-wrap">
+        <table class="data-table" style="width:100%;">
+          <thead><tr>
+            <th>Store</th><th>Date</th><th>Time</th><th>Score</th><th>Window</th><th>Speaker</th><th>Cashier</th><th>Recorded By</th><th style="width:40px"></th>
+          </tr></thead>
+          <tbody id="ssHistoryBody"></tbody>
+        </table>
+      </div>
+      <div id="ssHistoryEmpty" style="display:none;text-align:center;padding:24px;color:var(--text-secondary);font-size:14px;">No secret shops recorded yet.</div>
+    </div>
+
+    <!-- NEW SHOP FORM -->
+    <div id="ssNewForm" style="display:none;">
+      <div style="background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow-sm);">
+        <h3 style="margin:0 0 20px;font-size:16px;font-weight:600;color:var(--text-primary);">Record Secret Shop</h3>
+        <form id="ssForm" onsubmit="return ssSubmitForm(event)">
+          <!-- Row 1: Store, Date, Time -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;">
+            <div class="ss-field">
+              <label>Store <span style="color:var(--brand-red)">*</span></label>
+              <select id="ssF_store" class="control-select" required style="width:100%"></select>
+            </div>
+            <div class="ss-field">
+              <label>Date <span style="color:var(--brand-red)">*</span></label>
+              <input type="date" id="ssF_date" class="control-input" required style="width:100%">
+            </div>
+            <div class="ss-field">
+              <label>Time <span style="color:var(--brand-red)">*</span></label>
+              <input type="time" id="ssF_time" class="control-input" required style="width:100%">
+            </div>
+            <div class="ss-field">
+              <label>Cashier Name</label>
+              <input type="text" id="ssF_cashier" class="control-input" placeholder="Name" style="width:100%">
+            </div>
+          </div>
+
+          <!-- Yes/No Checks -->
+          <div style="margin-bottom:18px;">
+            <div style="font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Service Checks</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;">
+              <label class="ss-check"><input type="checkbox" id="ssF_greeting"> Correct Greeting</label>
+              <label class="ss-check"><input type="checkbox" id="ssF_upsell_scg"> Upsell Sour Cream / Guac / Chile</label>
+              <label class="ss-check"><input type="checkbox" id="ssF_upsell_drink"> Upsell Drink / Combo</label>
+              <label class="ss-check"><input type="checkbox" id="ssF_upsell_dessert"> Upsell Dessert</label>
+              <label class="ss-check"><input type="checkbox" id="ssF_repeats_order"> Repeats Order</label>
+              <label class="ss-check"><input type="checkbox" id="ssF_friendly"> Friendly & Smiling</label>
+              <label class="ss-check"><input type="checkbox" id="ssF_uniform"> Correct Uniform</label>
+              <label class="ss-check"><input type="checkbox" id="ssF_goodbye"> 2 Part Goodbye</label>
+              <label class="ss-check"><input type="checkbox" id="ssF_order_correct"> Order Correct</label>
+              <label class="ss-check"><input type="checkbox" id="ssF_curb_appeal"> Curb Appeal</label>
+            </div>
+          </div>
+
+          <!-- Timed fields + numeric -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;">
+            <div class="ss-field">
+              <label>Speaker Answer Time <span style="color:var(--text-muted);font-weight:400">(sec)</span></label>
+              <input type="number" id="ssF_speaker_time" class="control-input" min="0" placeholder="Goal: <10s" style="width:100%">
+            </div>
+            <div class="ss-field">
+              <label>Total Speaker Time <span style="color:var(--text-muted);font-weight:400">(sec)</span></label>
+              <input type="number" id="ssF_total_speaker" class="control-input" min="0" placeholder="Goal: <60s" style="width:100%">
+            </div>
+            <div class="ss-field">
+              <label>Window Time <span style="color:var(--text-muted);font-weight:400">(sec)</span></label>
+              <input type="number" id="ssF_window_time" class="control-input" min="0" placeholder="Goal varies by time" style="width:100%">
+            </div>
+            <div class="ss-field">
+              <label>Modifications Marked</label>
+              <select id="ssF_mods" class="control-select" style="width:100%">
+                <option value="n/a">N/A</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div class="ss-field">
+              <label>Napkins</label>
+              <input type="number" id="ssF_napkins" class="control-input" min="0" value="0" style="width:100%">
+            </div>
+            <div class="ss-field">
+              <label>Sauces</label>
+              <input type="number" id="ssF_sauces" class="control-input" min="0" value="0" style="width:100%">
+            </div>
+          </div>
+
+          <!-- Comments -->
+          <div class="ss-field" style="margin-bottom:20px;">
+            <label>Comments</label>
+            <textarea id="ssF_comments" class="control-input" rows="3" placeholder="Any additional observations..." style="width:100%;resize:vertical;font-family:inherit;"></textarea>
+          </div>
+
+          <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button type="button" onclick="ssSetView('scorecard')" style="padding:8px 20px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-card);color:var(--text-secondary);cursor:pointer;font-size:14px;">Cancel</button>
+            <button type="submit" style="padding:8px 24px;border:none;border-radius:var(--radius-sm);background:var(--brand-green);color:#fff;cursor:pointer;font-size:14px;font-weight:600;">Save & Generate Message</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- WhatsApp message modal -->
+    <div id="ssMessageModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+      <div style="background:var(--surface-card);border-radius:var(--radius);padding:24px;max-width:520px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;font-size:16px;font-weight:600;color:var(--text-primary);">WhatsApp Message</h3>
+          <button onclick="document.getElementById('ssMessageModal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);line-height:1;">&times;</button>
+        </div>
+        <pre id="ssMessageText" style="white-space:pre-wrap;word-wrap:break-word;background:var(--surface-hover);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;font-size:13px;line-height:1.6;color:var(--text-primary);max-height:50vh;overflow-y:auto;font-family:inherit;"></pre>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+          <button onclick="ssCopyMessage()" id="ssCopyBtn" style="padding:8px 20px;border:none;border-radius:var(--radius-sm);background:var(--brand-green);color:#fff;cursor:pointer;font-size:14px;font-weight:600;">Copy to Clipboard</button>
+          <button onclick="document.getElementById('ssMessageModal').style.display='none'" style="padding:8px 20px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-card);color:var(--text-secondary);cursor:pointer;font-size:14px;">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail modal for viewing past shops -->
+    <div id="ssDetailModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+      <div style="background:var(--surface-card);border-radius:var(--radius);padding:24px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;font-size:16px;font-weight:600;color:var(--text-primary);" id="ssDetailTitle">Shop Details</h3>
+          <button onclick="document.getElementById('ssDetailModal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);line-height:1;">&times;</button>
+        </div>
+        <div id="ssDetailBody"></div>
+        <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end;">
+          <button onclick="ssShowMessageFromDetail()" style="padding:8px 16px;border:none;border-radius:var(--radius-sm);background:var(--brand-green);color:#fff;cursor:pointer;font-size:13px;font-weight:600;">Generate Message</button>
+          <button onclick="document.getElementById('ssDetailModal').style.display='none'" style="padding:8px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-card);color:var(--text-secondary);cursor:pointer;font-size:13px;">Close</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -11782,6 +11965,406 @@ document.querySelector('[data-tab="dmchecklist"]').addEventListener('click', fun
 });
 
 /* ========================================================================
+   SECRET SHOPS
+   ======================================================================== */
+let ssLoaded = false;
+let ssAllShops = [];
+let ssCurrentView = 'scorecard';
+let ssDetailShop = null; // for detail modal
+
+function ssInit() {
+  ssLoaded = true;
+  // Populate store dropdown
+  const storeSel = document.getElementById('ssF_store');
+  const filterSel = document.getElementById('ssStoreFilter');
+  storeSel.innerHTML = '<option value="">Select store...</option>';
+  STORES.forEach(s => {
+    storeSel.innerHTML += `<option value="${s.id}">${s.id} - ${s.name}</option>`;
+    filterSel.innerHTML += `<option value="${s.id}">${s.id} - ${s.name}</option>`;
+  });
+  // Set default date to today
+  document.getElementById('ssF_date').value = new Date().toISOString().slice(0,10);
+  // Load data
+  ssLoadShops();
+  // Filter change
+  filterSel.addEventListener('change', ssRender);
+}
+
+async function ssLoadShops() {
+  try {
+    const res = await sbFetch('dt_secret_shops?select=*&order=shop_date.desc,shop_time.desc');
+    if (res.ok) {
+      ssAllShops = await res.json();
+    }
+  } catch(e) { console.error('Secret shops load error:', e); }
+  ssRender();
+}
+
+function ssGetFiltered() {
+  const f = document.getElementById('ssStoreFilter').value;
+  return f === 'all' ? ssAllShops : ssAllShops.filter(s => s.store_id === f);
+}
+
+function ssStoreName(id) {
+  const s = ALL_STORES.find(x => x.id === id);
+  return s ? `${s.id} - ${s.name}` : id;
+}
+function ssStoreShort(id) {
+  const s = ALL_STORES.find(x => x.id === id);
+  return s ? s.name : id;
+}
+
+function ssCalcScore(shop) {
+  const checks = [
+    shop.correct_greeting, shop.upsell_sour_cream_guac_chile, shop.upsell_drink_combo,
+    shop.upsell_dessert, shop.repeats_order, shop.friendly_smiling,
+    shop.correct_uniform, shop.two_part_goodbye, shop.order_correct, shop.curb_appeal
+  ];
+  const passed = checks.filter(Boolean).length;
+  return Math.round((passed / checks.length) * 100);
+}
+
+function ssScoreBadge(pct) {
+  const cls = pct >= 80 ? 'excellent' : pct >= 60 ? 'good' : 'poor';
+  return `<span class="ss-score-badge ${cls}">${pct}%</span>`;
+}
+
+function ssWindowGoal(timeStr) {
+  // Parse time string "HH:MM" to determine goal
+  if (!timeStr) return 105; // default
+  const h = parseInt(timeStr.split(':')[0], 10);
+  if (h >= 8 && h < 16) return 60;     // 8a-4p: <60s
+  if (h >= 17 && h < 20) return 105;   // 5p-8p: <105s
+  if (h >= 20 && h <= 23) return 130;   // 8p-12a: <130s
+  return 150;                            // 12a-8a: <150s
+}
+
+function ssWindowBadge(sec, timeStr) {
+  if (sec == null) return '<span style="color:var(--text-muted)">—</span>';
+  const goal = ssWindowGoal(timeStr);
+  const ok = sec <= goal;
+  const color = ok ? 'var(--brand-green)' : 'var(--brand-red)';
+  return `<span style="color:${color};font-weight:600">${sec}s</span> <span style="color:var(--text-muted);font-size:11px;">/ ${goal}s</span>`;
+}
+
+function ssSetView(v) {
+  ssCurrentView = v;
+  document.getElementById('ssScorecard').style.display = v === 'scorecard' ? '' : 'none';
+  document.getElementById('ssHistory').style.display = v === 'history' ? '' : 'none';
+  document.getElementById('ssNewForm').style.display = v === 'new' ? '' : 'none';
+  ['ssViewScorecard','ssViewHistory','ssViewNew'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const btnMap = { scorecard:'ssViewScorecard', history:'ssViewHistory', new:'ssViewNew' };
+  document.getElementById(btnMap[v]).classList.add('active');
+  if (v === 'scorecard' || v === 'history') ssRender();
+}
+
+function ssRender() {
+  if (ssCurrentView === 'scorecard') ssRenderScorecard();
+  else if (ssCurrentView === 'history') ssRenderHistory();
+}
+
+function ssRenderScorecard() {
+  const container = document.getElementById('ssScorecard');
+  const shops = ssGetFiltered();
+  const storeFilter = document.getElementById('ssStoreFilter').value;
+
+  // Group by store
+  const byStore = {};
+  ALL_STORES.forEach(s => { byStore[s.id] = []; });
+  shops.forEach(s => {
+    if (byStore[s.store_id]) byStore[s.store_id].push(s);
+  });
+
+  // If filtering to one store, show that store's detail
+  const storeIds = storeFilter === 'all' ? STORES.map(s => s.id) : [storeFilter];
+
+  // Summary KPI tiles at top
+  const totalShops = shops.length;
+  const avgScore = totalShops > 0 ? Math.round(shops.reduce((a, s) => a + ssCalcScore(s), 0) / totalShops) : 0;
+  const last30 = shops.filter(s => {
+    const d = new Date(s.shop_date);
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+    return d >= cutoff;
+  });
+  const avgScore30 = last30.length > 0 ? Math.round(last30.reduce((a, s) => a + ssCalcScore(s), 0) / last30.length) : 0;
+  const avgWindow30 = last30.length > 0 && last30.some(s => s.window_time != null)
+    ? Math.round(last30.filter(s => s.window_time != null).reduce((a, s) => a + s.window_time, 0) / last30.filter(s => s.window_time != null).length)
+    : null;
+
+  let html = `<div class="kpi-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;">
+    <div class="kpi-tile"><div class="kpi-label">Total Shops</div><div class="kpi-value">${totalShops}</div></div>
+    <div class="kpi-tile"><div class="kpi-label">Avg Score (All)</div><div class="kpi-value">${totalShops > 0 ? ssScoreBadge(avgScore) : '—'}</div></div>
+    <div class="kpi-tile"><div class="kpi-label">Avg Score (30d)</div><div class="kpi-value">${last30.length > 0 ? ssScoreBadge(avgScore30) : '—'}</div></div>
+    <div class="kpi-tile"><div class="kpi-label">Avg Window (30d)</div><div class="kpi-value">${avgWindow30 != null ? avgWindow30 + 's' : '—'}</div></div>
+  </div>`;
+
+  // Store cards
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">`;
+  storeIds.forEach(sid => {
+    const storeShops = byStore[sid] || [];
+    const store = ALL_STORES.find(x => x.id === sid);
+    if (!store) return;
+    const cnt = storeShops.length;
+    const avg = cnt > 0 ? Math.round(storeShops.reduce((a,s) => a + ssCalcScore(s), 0) / cnt) : null;
+    const lastShop = storeShops[0]; // already sorted desc
+    const lastDate = lastShop ? lastShop.shop_date : null;
+    const avgWin = cnt > 0 && storeShops.some(s => s.window_time != null)
+      ? Math.round(storeShops.filter(s => s.window_time != null).reduce((a,s) => a + s.window_time, 0) / storeShops.filter(s => s.window_time != null).length)
+      : null;
+
+    // Check areas: what percentage of checks pass on average
+    const checkNames = ['greeting','upsell_scg','upsell_drink','upsell_dessert','repeats','friendly','uniform','goodbye','order','curb'];
+    const checkFields = ['correct_greeting','upsell_sour_cream_guac_chile','upsell_drink_combo','upsell_dessert','repeats_order','friendly_smiling','correct_uniform','two_part_goodbye','order_correct','curb_appeal'];
+    let worstCheck = null;
+    let worstPct = 100;
+    if (cnt > 0) {
+      checkFields.forEach((field, i) => {
+        const pct = Math.round(storeShops.filter(s => s[field]).length / cnt * 100);
+        if (pct < worstPct) { worstPct = pct; worstCheck = checkNames[i]; }
+      });
+    }
+
+    html += `<div class="ss-store-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:15px;font-weight:600;color:var(--text-primary);">${store.id} - ${store.name}</div>
+        ${avg != null ? ssScoreBadge(avg) : '<span style="color:var(--text-muted);font-size:13px;">No shops</span>'}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:8px;">
+        <div><span style="color:var(--text-muted);">Shops:</span> <strong>${cnt}</strong></div>
+        <div><span style="color:var(--text-muted);">Avg Window:</span> <strong>${avgWin != null ? avgWin + 's' : '—'}</strong></div>
+        <div><span style="color:var(--text-muted);">Last Shop:</span> <strong>${lastDate || '—'}</strong></div>
+        <div><span style="color:var(--text-muted);">Weakest:</span> <strong style="color:${worstPct < 50 ? 'var(--brand-red)' : 'var(--text-primary)'}">${worstCheck ? worstCheck + ' (' + worstPct + '%)' : '—'}</strong></div>
+      </div>
+      ${avg != null ? `<div class="ss-mini-bar"><div class="ss-mini-bar-fill" style="width:${avg}%;background:${avg >= 80 ? 'var(--brand-green)' : avg >= 60 ? 'var(--brand-gold)' : 'var(--brand-red)'}"></div></div>` : ''}
+    </div>`;
+  });
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function ssRenderHistory() {
+  const shops = ssGetFiltered();
+  const tbody = document.getElementById('ssHistoryBody');
+  const empty = document.getElementById('ssHistoryEmpty');
+  if (shops.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = shops.map(s => {
+    const score = ssCalcScore(s);
+    return `<tr style="cursor:pointer;" onclick="ssShowDetail('${s.id}')">
+      <td style="font-weight:600;">${ssStoreShort(s.store_id)}</td>
+      <td>${s.shop_date}</td>
+      <td>${s.shop_time ? s.shop_time.slice(0,5) : ''}</td>
+      <td>${ssScoreBadge(score)}</td>
+      <td>${ssWindowBadge(s.window_time, s.shop_time)}</td>
+      <td>${s.speaker_answer_time != null ? s.speaker_answer_time + 's' : '—'}</td>
+      <td>${s.cashier_name || '—'}</td>
+      <td>${s.recorded_by || '—'}</td>
+      <td><button onclick="event.stopPropagation();ssShowDetail('${s.id}')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;" title="View details">🔍</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function ssShowDetail(shopId) {
+  const shop = ssAllShops.find(s => s.id === shopId);
+  if (!shop) return;
+  ssDetailShop = shop;
+  const score = ssCalcScore(shop);
+  const checks = [
+    ['Correct Greeting', shop.correct_greeting],
+    ['Upsell Sour Cream/Guac/Chile', shop.upsell_sour_cream_guac_chile],
+    ['Upsell Drink/Combo', shop.upsell_drink_combo],
+    ['Upsell Dessert', shop.upsell_dessert],
+    ['Repeats Order', shop.repeats_order],
+    ['Friendly & Smiling', shop.friendly_smiling],
+    ['Correct Uniform', shop.correct_uniform],
+    ['2 Part Goodbye', shop.two_part_goodbye],
+    ['Order Correct', shop.order_correct],
+    ['Curb Appeal', shop.curb_appeal],
+  ];
+  document.getElementById('ssDetailTitle').textContent = `${ssStoreName(shop.store_id)} — ${shop.shop_date}`;
+  document.getElementById('ssDetailBody').innerHTML = `
+    <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+      <div><span style="color:var(--text-muted);font-size:12px;">Score</span><div style="font-size:22px;font-weight:700;">${ssScoreBadge(score)}</div></div>
+      <div><span style="color:var(--text-muted);font-size:12px;">Time</span><div style="font-weight:600;">${shop.shop_time ? shop.shop_time.slice(0,5) : '—'}</div></div>
+      <div><span style="color:var(--text-muted);font-size:12px;">Cashier</span><div style="font-weight:600;">${shop.cashier_name || '—'}</div></div>
+      <div><span style="color:var(--text-muted);font-size:12px;">By</span><div style="font-weight:600;">${shop.recorded_by || '—'}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;">
+      ${checks.map(([label, val]) => `<div style="display:flex;align-items:center;gap:6px;font-size:13px;">
+        <span style="font-size:16px;">${val ? '✅' : '❌'}</span> ${label}
+      </div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;font-size:13px;">
+      <div><span style="color:var(--text-muted);">Speaker Answer:</span> <strong>${shop.speaker_answer_time != null ? shop.speaker_answer_time + 's' : '—'}</strong></div>
+      <div><span style="color:var(--text-muted);">Total Speaker:</span> <strong>${shop.total_speaker_time != null ? shop.total_speaker_time + 's' : '—'}</strong></div>
+      <div><span style="color:var(--text-muted);">Window Time:</span> ${ssWindowBadge(shop.window_time, shop.shop_time)}</div>
+      <div><span style="color:var(--text-muted);">Mods Marked:</span> <strong>${shop.modifications_marked || 'n/a'}</strong></div>
+      <div><span style="color:var(--text-muted);">Napkins:</span> <strong>${shop.napkins}</strong></div>
+      <div><span style="color:var(--text-muted);">Sauces:</span> <strong>${shop.sauces}</strong></div>
+    </div>
+    ${shop.comments ? `<div style="font-size:13px;color:var(--text-secondary);border-top:1px solid var(--border);padding-top:10px;"><strong>Comments:</strong> ${shop.comments}</div>` : ''}
+  `;
+  document.getElementById('ssDetailModal').style.display = 'flex';
+}
+
+function ssShowMessageFromDetail() {
+  if (!ssDetailShop) return;
+  const msg = ssBuildMessage(ssDetailShop);
+  document.getElementById('ssMessageText').textContent = msg;
+  document.getElementById('ssDetailModal').style.display = 'none';
+  document.getElementById('ssMessageModal').style.display = 'flex';
+}
+
+function ssBuildMessage(shop) {
+  const store = ALL_STORES.find(x => x.id === shop.store_id);
+  const storeName = store ? `Del Taco #${store.id} ${store.name}` : `Store ${shop.store_id}`;
+  const score = ssCalcScore(shop);
+
+  const checks = [
+    ['Correct Greeting', shop.correct_greeting],
+    ['Upsell Sour Cream/Guac/Chile', shop.upsell_sour_cream_guac_chile],
+    ['Upsell Drink/Combo', shop.upsell_drink_combo],
+    ['Upsell Dessert', shop.upsell_dessert],
+    ['Repeats Order', shop.repeats_order],
+    ['Friendly & Smiling', shop.friendly_smiling],
+    ['Correct Uniform', shop.correct_uniform],
+    ['2 Part Goodbye', shop.two_part_goodbye],
+    ['Order Correct', shop.order_correct],
+    ['Curb Appeal', shop.curb_appeal],
+  ];
+
+  const passed = checks.filter(([,v]) => v);
+  const failed = checks.filter(([,v]) => !v);
+  const winGoal = ssWindowGoal(shop.shop_time);
+
+  let msg = `🌮 *Secret Shop Report*\n`;
+  msg += `*${storeName}*\n`;
+  msg += `📅 ${shop.shop_date} at ${shop.shop_time ? shop.shop_time.slice(0,5) : '—'}\n`;
+  if (shop.cashier_name) msg += `👤 Cashier: ${shop.cashier_name}\n`;
+  msg += `\n`;
+  msg += `*Score: ${score}% (${passed.length}/${checks.length})*\n\n`;
+
+  // All checks
+  checks.forEach(([label, val]) => {
+    msg += `${val ? '✅' : '❌'} ${label}\n`;
+  });
+
+  msg += `\n⏱️ *Times*\n`;
+  msg += `• Speaker Answer: ${shop.speaker_answer_time != null ? shop.speaker_answer_time + 's' : 'N/A'} (Goal: <10s)\n`;
+  msg += `• Total Speaker: ${shop.total_speaker_time != null ? shop.total_speaker_time + 's' : 'N/A'} (Goal: <60s)\n`;
+  msg += `• Window Time: ${shop.window_time != null ? shop.window_time + 's' : 'N/A'} (Goal: <${winGoal}s)\n`;
+
+  msg += `\n📦 *Order Details*\n`;
+  msg += `• Modifications Marked: ${shop.modifications_marked === 'yes' ? '✅ Yes' : shop.modifications_marked === 'no' ? '❌ No' : 'N/A'}\n`;
+  msg += `• Napkins: ${shop.napkins}\n`;
+  msg += `• Sauces: ${shop.sauces}\n`;
+
+  if (failed.length > 0) {
+    msg += `\n⚠️ *Opportunities*\n`;
+    failed.forEach(([label]) => {
+      msg += `• ${label}\n`;
+    });
+  }
+
+  if (shop.comments) {
+    msg += `\n💬 *Comments:* ${shop.comments}\n`;
+  }
+
+  msg += `\nRecorded by: ${shop.recorded_by || 'Unknown'}`;
+  return msg;
+}
+
+async function ssSubmitForm(e) {
+  e.preventDefault();
+  const form = document.getElementById('ssForm');
+  const storeId = document.getElementById('ssF_store').value;
+  if (!storeId) { form.reportValidity(); return false; }
+
+  // Get current user name
+  const recorder = currentUser ? (currentPerms && currentPerms.name ? currentPerms.name : currentUser.email.split('@')[0]) : 'Unknown';
+
+  const body = {
+    store_id: storeId,
+    shop_date: document.getElementById('ssF_date').value,
+    shop_time: document.getElementById('ssF_time').value,
+    correct_greeting: document.getElementById('ssF_greeting').checked,
+    speaker_answer_time: document.getElementById('ssF_speaker_time').value ? parseInt(document.getElementById('ssF_speaker_time').value) : null,
+    upsell_sour_cream_guac_chile: document.getElementById('ssF_upsell_scg').checked,
+    upsell_drink_combo: document.getElementById('ssF_upsell_drink').checked,
+    upsell_dessert: document.getElementById('ssF_upsell_dessert').checked,
+    repeats_order: document.getElementById('ssF_repeats_order').checked,
+    total_speaker_time: document.getElementById('ssF_total_speaker').value ? parseInt(document.getElementById('ssF_total_speaker').value) : null,
+    friendly_smiling: document.getElementById('ssF_friendly').checked,
+    correct_uniform: document.getElementById('ssF_uniform').checked,
+    two_part_goodbye: document.getElementById('ssF_goodbye').checked,
+    window_time: document.getElementById('ssF_window_time').value ? parseInt(document.getElementById('ssF_window_time').value) : null,
+    cashier_name: document.getElementById('ssF_cashier').value || null,
+    order_correct: document.getElementById('ssF_order_correct').checked,
+    modifications_marked: document.getElementById('ssF_mods').value,
+    napkins: parseInt(document.getElementById('ssF_napkins').value) || 0,
+    sauces: parseInt(document.getElementById('ssF_sauces').value) || 0,
+    curb_appeal: document.getElementById('ssF_curb_appeal').checked,
+    comments: document.getElementById('ssF_comments').value || null,
+    recorded_by: recorder,
+  };
+
+  try {
+    const res = await sbFetch('dt_secret_shops', { method: 'POST', body: JSON.stringify(body) });
+    if (!res.ok) throw new Error('Save failed: ' + res.status);
+    const data = await res.json();
+    const saved = data[0] || { ...body, id: 'temp' };
+    ssAllShops.unshift(saved);
+
+    // Build and show message
+    const msg = ssBuildMessage(saved);
+    document.getElementById('ssMessageText').textContent = msg;
+    document.getElementById('ssMessageModal').style.display = 'flex';
+
+    // Reset form
+    form.reset();
+    document.getElementById('ssF_date').value = new Date().toISOString().slice(0,10);
+    document.getElementById('ssF_napkins').value = '0';
+    document.getElementById('ssF_sauces').value = '0';
+    document.getElementById('ssF_mods').value = 'n/a';
+  } catch(err) {
+    console.error('Secret shop save error:', err);
+    // Show inline error
+    const btn = form.querySelector('button[type="submit"]');
+    const origText = btn.textContent;
+    btn.textContent = 'Error saving — try again';
+    btn.style.background = 'var(--brand-red)';
+    setTimeout(() => { btn.textContent = origText; btn.style.background = 'var(--brand-green)'; }, 3000);
+  }
+  return false;
+}
+
+function ssCopyMessage() {
+  const text = document.getElementById('ssMessageText').textContent;
+  try {
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('ssCopyBtn');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy to Clipboard'; }, 2000);
+    });
+  } catch(e) {
+    // Fallback: select text
+    const pre = document.getElementById('ssMessageText');
+    const range = document.createRange();
+    range.selectNodeContents(pre);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  }
+}
+
+document.querySelector('[data-tab="secretshops"]').addEventListener('click', function() {
+  if (!ssLoaded) ssInit();
+});
+
+/* ========================================================================
    AUTH + ACCESS CONTROL
    ======================================================================== */
 const supaAuth = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -11793,7 +12376,7 @@ const ALL_TABS = {
   ops: 'Daily Operations', sc: 'Service Checks', food: 'Food Cost Analysis',
   financial: 'Financial Health', inspect: 'Store Visit Checklist', recap: 'Weekly Recap',
   catering: 'Catering CRM', contacts: 'Contacts', gmchecklist: 'GM Checklist',
-  dmchecklist: 'DM Checklist'
+  dmchecklist: 'DM Checklist', secretshops: 'Secret Shops'
 };
 
 // All possible feature keys (kept for backward compat but no longer shown in admin UI)

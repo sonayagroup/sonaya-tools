@@ -1085,6 +1085,38 @@ body {
 .ss-store-card:hover { box-shadow:0 2px 8px rgba(0,0,0,0.08); }
 .ss-mini-bar { height:6px; border-radius:3px; background:var(--surface-hover); overflow:hidden; }
 .ss-mini-bar-fill { height:100%; border-radius:3px; transition:width 0.3s; }
+/* KPI breakdown table for secret shops */
+.ss-kpi-breakdown { width:100%; border-collapse:collapse; font-size:13px; margin-top:16px; }
+.ss-kpi-breakdown th { text-align:left; padding:8px 10px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; color:var(--text-muted); border-bottom:2px solid var(--border); }
+.ss-kpi-breakdown td { padding:7px 10px; border-bottom:1px solid var(--border); color:var(--text-primary); }
+.ss-kpi-breakdown tr:last-child td { border-bottom:none; }
+.ss-kpi-breakdown .ss-pct-bar { display:inline-block; height:8px; border-radius:4px; min-width:2px; vertical-align:middle; margin-right:6px; }
+.ss-kpi-section-title { font-size:14px; font-weight:600; color:var(--text-primary); margin:20px 0 8px; padding-bottom:4px; border-bottom:1px solid var(--border); }
+/* Mobile-friendly secret shops */
+@media (max-width: 600px) {
+  #tab-secretshops .container { padding:0 8px; }
+  #tab-secretshops h2 { font-size:17px; }
+  #tab-secretshops .view-toggle button { padding:5px 10px; font-size:12px; }
+  #tab-secretshops .control-group { width:100%; }
+  #tab-secretshops .control-select { width:100%; }
+  .ss-check { padding:12px; font-size:14px; gap:10px; min-height:44px; }
+  .ss-check input[type="checkbox"] { width:20px; height:20px; }
+  .ss-store-card { padding:14px; }
+  .ss-kpi-breakdown { font-size:12px; }
+  .ss-kpi-breakdown th, .ss-kpi-breakdown td { padding:6px 6px; }
+  /* Stack form fields on mobile */
+  #ssNewForm .ss-field input, #ssNewForm .ss-field select, #ssNewForm .ss-field textarea { font-size:16px; min-height:44px; }
+  #ssNewForm button[type="submit"], #ssNewForm button[type="button"] { width:100%; min-height:44px; font-size:15px; }
+  /* Stack detail modal grid to single column */
+  #ssDetailBody > div { grid-template-columns:1fr !important; }
+  /* History table: hide less-important columns on mobile */
+  #ssHistory .data-table th:nth-child(6), #ssHistory .data-table td:nth-child(6),
+  #ssHistory .data-table th:nth-child(7), #ssHistory .data-table td:nth-child(7),
+  #ssHistory .data-table th:nth-child(8), #ssHistory .data-table td:nth-child(8),
+  #ssHistory .data-table th:nth-child(9), #ssHistory .data-table td:nth-child(9) { display:none; }
+  /* Modals full-width on mobile */
+  #ssMessageModal > div, #ssDetailModal > div { width:95%; max-width:none; padding:16px; max-height:90vh; }
+}
 </style>
 </head>
 <body>
@@ -2167,7 +2199,7 @@ body {
             <textarea id="ssF_comments" class="control-input" rows="3" placeholder="Any additional observations..." style="width:100%;resize:vertical;font-family:inherit;"></textarea>
           </div>
 
-          <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
             <button type="button" onclick="ssSetView('scorecard')" style="padding:8px 20px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-card);color:var(--text-secondary);cursor:pointer;font-size:14px;">Cancel</button>
             <button type="submit" style="padding:8px 24px;border:none;border-radius:var(--radius-sm);background:var(--brand-green);color:#fff;cursor:pointer;font-size:14px;font-weight:600;">Save & Generate Message</button>
           </div>
@@ -12075,52 +12107,161 @@ function ssRenderScorecard() {
     if (byStore[s.store_id]) byStore[s.store_id].push(s);
   });
 
-  // If filtering to one store, show that store's detail
   const storeIds = storeFilter === 'all' ? STORES.map(s => s.id) : [storeFilter];
 
-  // Summary KPI tiles at top
+  // All check definitions
+  const checkDefs = [
+    { field:'correct_greeting', label:'Correct Greeting' },
+    { field:'upsell_sour_cream_guac_chile', label:'Upsell SC/Guac/Chile' },
+    { field:'upsell_drink_combo', label:'Upsell Drink/Combo' },
+    { field:'upsell_dessert', label:'Upsell Dessert' },
+    { field:'repeats_order', label:'Repeats Order' },
+    { field:'friendly_smiling', label:'Friendly & Smiling' },
+    { field:'correct_uniform', label:'Correct Uniform' },
+    { field:'two_part_goodbye', label:'2 Part Goodbye' },
+    { field:'order_correct', label:'Order Correct' },
+    { field:'curb_appeal', label:'Curb Appeal' },
+  ];
+
+  // Helper: pass rate for a field across a set of shops
+  function passRate(shopArr, field) {
+    if (shopArr.length === 0) return null;
+    return Math.round(shopArr.filter(s => s[field]).length / shopArr.length * 100);
+  }
+
+  // Helper: avg of a numeric field (ignoring null)
+  function avgField(shopArr, field) {
+    const valid = shopArr.filter(s => s[field] != null);
+    if (valid.length === 0) return null;
+    return Math.round(valid.reduce((a,s) => a + s[field], 0) / valid.length);
+  }
+
+  // Helper: % meeting a goal for a numeric field
+  function meetGoalPct(shopArr, field, goalFn) {
+    const valid = shopArr.filter(s => s[field] != null);
+    if (valid.length === 0) return null;
+    const met = valid.filter(s => {
+      const goal = typeof goalFn === 'function' ? goalFn(s) : goalFn;
+      return s[field] <= goal;
+    }).length;
+    return Math.round(met / valid.length * 100);
+  }
+
+  // Color helper for a percentage
+  function pctColor(pct) {
+    if (pct == null) return 'var(--text-muted)';
+    return pct >= 80 ? 'var(--brand-green)' : pct >= 60 ? 'var(--brand-gold)' : 'var(--brand-red)';
+  }
+  function pctBarHtml(pct) {
+    if (pct == null) return '—';
+    return `<span class="ss-pct-bar" style="width:${Math.max(pct*0.6,2)}px;background:${pctColor(pct)}"></span><strong style="color:${pctColor(pct)}">${pct}%</strong>`;
+  }
+
+  // Summary KPI tiles
   const totalShops = shops.length;
   const avgScore = totalShops > 0 ? Math.round(shops.reduce((a, s) => a + ssCalcScore(s), 0) / totalShops) : 0;
-  const last30 = shops.filter(s => {
-    const d = new Date(s.shop_date);
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
-    return d >= cutoff;
-  });
+  const last30 = shops.filter(s => { const d = new Date(s.shop_date); const c = new Date(); c.setDate(c.getDate()-30); return d >= c; });
   const avgScore30 = last30.length > 0 ? Math.round(last30.reduce((a, s) => a + ssCalcScore(s), 0) / last30.length) : 0;
-  const avgWindow30 = last30.length > 0 && last30.some(s => s.window_time != null)
-    ? Math.round(last30.filter(s => s.window_time != null).reduce((a, s) => a + s.window_time, 0) / last30.filter(s => s.window_time != null).length)
-    : null;
 
-  let html = `<div class="kpi-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;">
+  let html = `<div class="kpi-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
     <div class="kpi-tile"><div class="kpi-label">Total Shops</div><div class="kpi-value">${totalShops}</div></div>
     <div class="kpi-tile"><div class="kpi-label">Avg Score (All)</div><div class="kpi-value">${totalShops > 0 ? ssScoreBadge(avgScore) : '—'}</div></div>
     <div class="kpi-tile"><div class="kpi-label">Avg Score (30d)</div><div class="kpi-value">${last30.length > 0 ? ssScoreBadge(avgScore30) : '—'}</div></div>
-    <div class="kpi-tile"><div class="kpi-label">Avg Window (30d)</div><div class="kpi-value">${avgWindow30 != null ? avgWindow30 + 's' : '—'}</div></div>
   </div>`;
 
-  // Store cards
-  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">`;
+  // ---- SERVICE CHECKS BREAKDOWN ----
+  html += `<div class="ss-kpi-section-title">Service Checks — Pass Rate</div>`;
+  html += `<div style="overflow-x:auto;"><table class="ss-kpi-breakdown"><thead><tr><th>Check</th><th>Overall</th>`;
+  storeIds.forEach(sid => {
+    const st = ALL_STORES.find(x => x.id === sid);
+    html += `<th>${st ? st.id : sid}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+  checkDefs.forEach(cd => {
+    const overall = passRate(shops, cd.field);
+    html += `<tr><td style="font-weight:500;white-space:nowrap;">${cd.label}</td><td>${pctBarHtml(overall)}</td>`;
+    storeIds.forEach(sid => {
+      const pct = passRate(byStore[sid] || [], cd.field);
+      html += `<td>${pctBarHtml(pct)}</td>`;
+    });
+    html += `</tr>`;
+  });
+  // Overall composite row
+  html += `<tr style="border-top:2px solid var(--border);font-weight:600;"><td>Overall Score</td><td>${totalShops > 0 ? ssScoreBadge(avgScore) : '—'}</td>`;
+  storeIds.forEach(sid => {
+    const arr = byStore[sid] || [];
+    const avg = arr.length > 0 ? Math.round(arr.reduce((a,s) => a + ssCalcScore(s), 0) / arr.length) : null;
+    html += `<td>${avg != null ? ssScoreBadge(avg) : '—'}</td>`;
+  });
+  html += `</tr></tbody></table></div>`;
+
+  // ---- TIMED METRICS BREAKDOWN ----
+  html += `<div class="ss-kpi-section-title">Timed Metrics</div>`;
+  html += `<div style="overflow-x:auto;"><table class="ss-kpi-breakdown"><thead><tr><th>Metric</th><th>Overall</th>`;
+  storeIds.forEach(sid => {
+    const st = ALL_STORES.find(x => x.id === sid);
+    html += `<th>${st ? st.id : sid}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  // Speaker Answer Time
+  const satAvgAll = avgField(shops, 'speaker_answer_time');
+  const satMetAll = meetGoalPct(shops, 'speaker_answer_time', 10);
+  html += `<tr><td style="font-weight:500;">Speaker Answer<br><span style="font-size:11px;color:var(--text-muted);">Goal: &lt;10s</span></td>`;
+  html += `<td>${satAvgAll != null ? `<strong>${satAvgAll}s</strong> <span style="font-size:11px;color:var(--text-muted);">avg</span><br>${pctBarHtml(satMetAll)} <span style="font-size:11px;color:var(--text-muted);">met</span>` : '—'}</td>`;
+  storeIds.forEach(sid => {
+    const arr = byStore[sid] || [];
+    const avg = avgField(arr, 'speaker_answer_time');
+    const met = meetGoalPct(arr, 'speaker_answer_time', 10);
+    html += `<td>${avg != null ? `<strong>${avg}s</strong><br>${pctBarHtml(met)}` : '—'}</td>`;
+  });
+  html += `</tr>`;
+
+  // Total Speaker Time
+  const tstAvgAll = avgField(shops, 'total_speaker_time');
+  const tstMetAll = meetGoalPct(shops, 'total_speaker_time', 60);
+  html += `<tr><td style="font-weight:500;">Total Speaker<br><span style="font-size:11px;color:var(--text-muted);">Goal: &lt;60s</span></td>`;
+  html += `<td>${tstAvgAll != null ? `<strong>${tstAvgAll}s</strong> <span style="font-size:11px;color:var(--text-muted);">avg</span><br>${pctBarHtml(tstMetAll)} <span style="font-size:11px;color:var(--text-muted);">met</span>` : '—'}</td>`;
+  storeIds.forEach(sid => {
+    const arr = byStore[sid] || [];
+    const avg = avgField(arr, 'total_speaker_time');
+    const met = meetGoalPct(arr, 'total_speaker_time', 60);
+    html += `<td>${avg != null ? `<strong>${avg}s</strong><br>${pctBarHtml(met)}` : '—'}</td>`;
+  });
+  html += `</tr>`;
+
+  // Window Time (goal varies by time of day)
+  const wtAvgAll = avgField(shops, 'window_time');
+  const wtMetAll = meetGoalPct(shops, 'window_time', s => ssWindowGoal(s.shop_time));
+  html += `<tr><td style="font-weight:500;">Window Time<br><span style="font-size:11px;color:var(--text-muted);">Goal varies by TOD</span></td>`;
+  html += `<td>${wtAvgAll != null ? `<strong>${wtAvgAll}s</strong> <span style="font-size:11px;color:var(--text-muted);">avg</span><br>${pctBarHtml(wtMetAll)} <span style="font-size:11px;color:var(--text-muted);">met</span>` : '—'}</td>`;
+  storeIds.forEach(sid => {
+    const arr = byStore[sid] || [];
+    const avg = avgField(arr, 'window_time');
+    const met = meetGoalPct(arr, 'window_time', s => ssWindowGoal(s.shop_time));
+    html += `<td>${avg != null ? `<strong>${avg}s</strong><br>${pctBarHtml(met)}` : '—'}</td>`;
+  });
+  html += `</tr></tbody></table></div>`;
+
+  // ---- STORE CARDS ----
+  html += `<div class="ss-kpi-section-title">Store Summary</div>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">`;
   storeIds.forEach(sid => {
     const storeShops = byStore[sid] || [];
     const store = ALL_STORES.find(x => x.id === sid);
     if (!store) return;
     const cnt = storeShops.length;
     const avg = cnt > 0 ? Math.round(storeShops.reduce((a,s) => a + ssCalcScore(s), 0) / cnt) : null;
-    const lastShop = storeShops[0]; // already sorted desc
+    const lastShop = storeShops[0];
     const lastDate = lastShop ? lastShop.shop_date : null;
-    const avgWin = cnt > 0 && storeShops.some(s => s.window_time != null)
-      ? Math.round(storeShops.filter(s => s.window_time != null).reduce((a,s) => a + s.window_time, 0) / storeShops.filter(s => s.window_time != null).length)
-      : null;
+    const avgWin = avgField(storeShops, 'window_time');
 
-    // Check areas: what percentage of checks pass on average
-    const checkNames = ['greeting','upsell_scg','upsell_drink','upsell_dessert','repeats','friendly','uniform','goodbye','order','curb'];
-    const checkFields = ['correct_greeting','upsell_sour_cream_guac_chile','upsell_drink_combo','upsell_dessert','repeats_order','friendly_smiling','correct_uniform','two_part_goodbye','order_correct','curb_appeal'];
-    let worstCheck = null;
-    let worstPct = 100;
+    // Find weakest check
+    let worstCheck = null, worstPct = 100;
     if (cnt > 0) {
-      checkFields.forEach((field, i) => {
-        const pct = Math.round(storeShops.filter(s => s[field]).length / cnt * 100);
-        if (pct < worstPct) { worstPct = pct; worstCheck = checkNames[i]; }
+      checkDefs.forEach(cd => {
+        const pct = passRate(storeShops, cd.field);
+        if (pct < worstPct) { worstPct = pct; worstCheck = cd.label; }
       });
     }
 

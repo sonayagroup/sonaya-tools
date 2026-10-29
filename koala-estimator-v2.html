@@ -1306,7 +1306,7 @@ function go(view) {
 document.querySelectorAll('nav [data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
 
 function render() {
-  document.querySelectorAll('nav [data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === S.view || (S.view === 'estimate' && b.dataset.nav === 'home')));
+  document.querySelectorAll('nav [data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === S.view || ((S.view === 'estimate' || S.view === 'duct') && b.dataset.nav === 'home')));
   $('hdrFranchise').textContent = RULES.franchiseName || 'Koala Insulation';
   document.body.classList.toggle('est-view', S.view === 'estimate');
   if (S.view === 'home') renderHome();
@@ -1315,6 +1315,7 @@ function render() {
   else if (S.view === 'settings') renderSettings();
   else if (S.view === 'jobcost') renderJobCosting();
   else if (S.view === 'commissions') renderCommissions();
+  else if (S.view === 'duct') renderDuct();
   renderSaveStatus();
 }
 
@@ -1333,7 +1334,7 @@ function renderHome() {
           <button class="type-card" onclick="${k === 'retrofit' ? "location.href='koala-estimator.html'" : `startEstimate('${k}')`}">
             <div class="ic">${t.icon}</div><h3>${t.label}</h3><p>${t.desc}</p><div class="go">${k === 'retrofit' ? 'Open In-Home Estimator →' : 'Start estimate →'}</div>
           </button>`).join('')}
-          <button class="type-card" onclick="location.href='duct-insulation-estimator.html'">
+          <button class="type-card" onclick="openDuct()">
             <div class="ic">🌬️</div><h3>Duct Insulation</h3><p>Reflectix duct wrap takeoff: enter each duct run for sq ft, rolls, spacers, tape, material cost and labor.</p><div class="go">Open Duct Estimator →</div>
           </button>
       </div>
@@ -2835,6 +2836,7 @@ window.addEventListener('beforeunload', ev => { if (S.view === 'estimate' && S.d
   if (id) return openEstimate(id);
   if (newType === 'retrofit') { location.href = 'koala-estimator.html'; return; }
   if (newType && PROJECT_TYPES[newType]) return startEstimate(newType);
+  if (new URLSearchParams(location.search).get('tool') === 'duct') { S.view = 'duct'; render(); return; }
   const draft = lsGet('koalaV2Draft');
   render();
   if (draft && draft.est && !draft.est.id && Date.now() - draft.at < 7 * 864e5 && draft.est.options.some(o => o.scopes.some(s => s.sqft))) {
@@ -3499,6 +3501,230 @@ async function commChangePw() {
   const v = $('pwNew').value; if (v.length < 6) return toast('Use at least 6 characters', 'error');
   try { await rpc('koala_comm_change_password', { p_new: v }); C.pw = v; ssSet('koalaCommPw', v); $('pwNew').value = ''; toast('Password changed', 'ok'); } catch (e) { toast(e.message, 'error'); }
 }
+
+// ─── DUCT INSULATION ESTIMATOR (Oct 29 2026) ────────────────────────────────────────────────────────
+// Reflectix duct-wrap takeoff, opened from the 4th tile on the home page (S.view = 'duct', URL ?tool=duct).
+// Built from Pranav's duct-insulation-estimator.html (same math), restyled to match this app.
+// Separate from estimates: it does not feed estimate pricing. Labor hours are entered by hand (no duct guideline yet).
+// The job in progress is kept in this browser ('koalaDuctJob'); prices/settings in 'duct-settings'.
+const DUCT_PI = 3.14;
+const DUCT_ROLL = { ins: 400, sp: 133.3, tape: 150 };   // sq ft / sq ft / lin ft per roll
+const DUCT_DEFAULTS = { waste: '10', spacerW: '2', spacerGap: '24', pIns: '134.23', pSp: '54.13', pTape: '11.75', laborRate: '25' };
+const DUCT_SET_FIELDS = [
+  ['waste', 'Extra for overlaps & cuts (%)', '1'], ['spacerW', 'Spacer strip width (in)', '0.25'], ['spacerGap', 'Spacer spacing (in)', '1'],
+  ['pIns', 'Insulation roll $ (400 sq ft)', '0.01'], ['pSp', 'Spacer roll $ (133.3 sq ft)', '0.01'], ['pTape', 'FSK tape roll $ (150 lin ft)', '0.01'],
+];
+const DUCT_SHAPES = { round: 'Round', rect: 'Rectangular', oval: 'Flat oval' };
+let _ductText = '';
+
+function ductExampleJob() {
+  return { job: '', laborHrs: '', example: true, nextId: 3,
+    runs: [{ id: 1, shape: 'round', a: '24', b: '', len: '100' }, { id: 2, shape: 'rect', a: '12', b: '8', len: '40' }] };
+}
+function ductState() {
+  if (!S.duct) {
+    const j = lsGet('koalaDuctJob');
+    S.duct = j && Array.isArray(j.runs) && j.runs.length ? j : ductExampleJob();
+    const st = lsGet('duct-settings') || {};
+    S.ductSet = {}; Object.keys(DUCT_DEFAULTS).forEach(k => { S.ductSet[k] = st[k] !== undefined && st[k] !== '' ? String(st[k]) : DUCT_DEFAULTS[k]; });
+  }
+  return S.duct;
+}
+function ductSave() { lsSet('koalaDuctJob', S.duct); lsSet('duct-settings', S.ductSet); }
+function openDuct() { go('duct'); history.replaceState(null, '', location.pathname + '?tool=duct'); }
+
+const dNum = v => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; };
+const dFmt = (n, d = 1) => (n || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+function ductPerimeterIn(r) {
+  const a = dNum(r.a), b = dNum(r.b);
+  if (r.shape === 'round') return DUCT_PI * a;
+  if (r.shape === 'rect') return 2 * a + 2 * b;
+  const w = Math.max(a, b), h = Math.min(a, b);        // flat oval: long side = width, short side = height
+  return DUCT_PI * h + 2 * (w - h);
+}
+function ductCalc(d, set) {
+  const waste = 1 + dNum(set.waste) / 100, spW = dNum(set.spacerW) / 12, spGap = Math.max(dNum(set.spacerGap), 1) / 12;
+  let area = 0, spacerLin = 0, tapeLin = 0, lenTot = 0;
+  const runs = d.runs.map((r, i) => {
+    const perFt = ductPerimeterIn(r) / 12, len = dNum(r.len), a = perFt * len;
+    area += a;
+    if (len > 0 && perFt > 0) {
+      lenTot += len;
+      spacerLin += (Math.floor(len / spGap) + 1) * perFt;                    // a strip every 24", plus one at each end
+      tapeLin += len + perFt * Math.max(0, Math.ceil(len / 4) - 1);          // seam along the run + a ring every 4 ft
+    }
+    return { r, i, area: a, len, perFt };
+  });
+  const insSq = area * waste, spSq = spacerLin * spW * waste, tapeLf = tapeLin * waste;
+  const roll = (q, per) => q > 0 ? Math.ceil(q / per - 1e-9) : 0;
+  const insRolls = roll(insSq, DUCT_ROLL.ins), spRolls = roll(spSq, DUCT_ROLL.sp), tapeRolls = roll(tapeLf, DUCT_ROLL.tape);
+  const cIns = insRolls * dNum(set.pIns), cSp = spRolls * dNum(set.pSp), cTape = tapeRolls * dNum(set.pTape);
+  const mat = cIns + cSp + cTape, hrs = dNum(d.laborHrs), rate = dNum(set.laborRate), labor = hrs * rate;
+  return { runs, area, lenTot, spacerLin, insSq, spSq, tapeLf, insRolls, spRolls, tapeRolls, cIns, cSp, cTape, mat, hrs, rate, labor, total: mat + labor, wastePct: dNum(set.waste) };
+}
+
+function ductRunHTML(r, i) {
+  const round = r.shape === 'round';
+  const inp = (k, label, v, step, dis) => `<div class="field"><label>${label}</label><input type="number" min="0" step="${step}" inputmode="decimal" data-duct-run="${r.id}" data-k="${k}" value="${esc(v)}" ${dis ? 'disabled placeholder="—"' : ''}></div>`;
+  return `<div class="scope" data-run="${r.id}">
+    <div class="scope-hd">
+      <div class="num">${i + 1}</div>
+      <select data-duct-run="${r.id}" data-k="shape" aria-label="Duct shape">${Object.entries(DUCT_SHAPES).map(([k, l]) => `<option value="${k}" ${r.shape === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <span class="sc-sum" id="ductArea-${r.id}"></span>
+      <div class="acts"><button class="btn sm ghost danger" onclick="ductRemoveRun(${r.id})" title="Remove this run" aria-label="Remove run ${i + 1}">✕</button></div>
+    </div>
+    <div style="padding:12px"><div class="grid">
+      ${inp('a', round ? 'Diameter (in)' : 'Width (in)', r.a, '0.5')}
+      ${inp('b', 'Height (in)', round ? '' : r.b, '0.5', round)}
+      ${inp('len', 'Length (ft)', r.len, '1')}
+    </div></div>
+  </div>`;
+}
+
+function renderDuct() {
+  const d = ductState(), set = S.ductSet;
+  document.body.classList.add('est-view');           // mobile bottom bar with the total
+  $('app').innerHTML = `
+  <div class="est-layout">
+    <div>
+      <div class="card" style="background:linear-gradient(135deg,#043968,#0a4f8c);color:#fff;border:none">
+        <div class="row" style="gap:12px">
+          <div style="font-size:2rem">🌬️</div>
+          <div style="flex:1;min-width:200px"><h2 style="color:var(--green);margin-bottom:2px">Duct Insulation Estimator</h2>
+            <div class="small" style="color:#c9d6e4">Reflectix R-21 duct wrap. Enter each duct run — square footage, rolls, material and labor update as you type.</div></div>
+          <button class="btn sm" onclick="go('home')">← Estimates</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Job</h2>
+        <div class="grid">
+          <div class="field span2"><label>Job name / address</label><input data-duct="job" value="${esc(d.job)}" placeholder="e.g. Smith residence, 123 Main St"></div>
+          <div class="field"><label>Labor hours (whole crew)</label><input type="number" min="0" step="0.5" inputmode="decimal" data-duct="laborHrs" value="${esc(d.laborHrs)}" placeholder="0"><span class="hint">Entered by hand, e.g. 2 installers × 6 hrs = 12</span></div>
+          <div class="field"><label>Labor rate ($/hr)</label><input type="number" min="0" step="0.5" inputmode="decimal" data-duct-set="laborRate" value="${esc(set.laborRate)}"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Duct runs <span class="sub">${d.runs.length} run${d.runs.length === 1 ? '' : 's'}</span>${d.example ? '<span class="pill" style="text-transform:none;letter-spacing:0">Example job — replace with yours</span>' : ''}</h2>
+        <div id="ductRuns">${d.runs.map(ductRunHTML).join('')}</div>
+        <div class="row" style="margin-top:4px">
+          <div class="quick-add"><button onclick="ductAddRun()">+ Add duct run</button></div>
+          <button class="btn sm" style="margin-left:auto" onclick="ductNewJob()">Start new job</button>
+        </div>
+        <div class="calc-note" style="margin-top:10px"><b>Round:</b> 3.14 × (diameter ÷ 12) × length · <b>Rectangular:</b> (W × 2 + H × 2) ÷ 12 × length · <b>Flat oval:</b> (3.14 × H + 2 × (W − H)) ÷ 12 × length, H = short side. Sizes in inches, lengths in feet. A "24 inch duct" means 24″ diameter.</div>
+      </div>
+
+      <div class="card">
+        <h2>Material settings <span class="sub">saved in this browser</span><button class="btn sm ghost" style="margin-left:auto;text-transform:none;letter-spacing:0" onclick="ductResetSettings()">Reset to default prices</button></h2>
+        <div class="grid">${DUCT_SET_FIELDS.map(([k, l, st]) => `<div class="field"><label>${l}</label><input type="number" min="0" step="${st}" inputmode="decimal" data-duct-set="${k}" value="${esc(set[k])}"></div>`).join('')}</div>
+        <div class="calc-note" style="margin-top:10px"><b>Spacers:</b> one strip wraps around the duct every 24″, with a strip at each end. <b>Tape:</b> one seam along the full length of each run, plus a seam around the duct every 4 ft where rolls butt together (rolls are 48″ wide). The overlap &amp; cuts % is added to insulation, spacers and tape.</div>
+      </div>
+
+      <div class="card">
+        <h2>Products &amp; reference</h2>
+        <table class="list">
+          <tr><td><b>Insulation</b></td><td>Reflectix R-21, 4′ × 100′ (400 sq ft)</td><td><a href="https://www.lowes.com/pd/Reflectix-R-21-400-sq-ft-Unfaced-Reflective-Roll-Insulation-48-in-W-x-100-ft-L/1002728560" target="_blank" rel="noopener">Lowe's</a></td></tr>
+          <tr><td><b>Spacers</b></td><td>Reflectix R-21, 1.33′ × 100′ (133.3 sq ft)</td><td><a href="https://www.lowes.com/pd/Reflectix-R-21-133-3-sq-ft-Unfaced-Reflective-Roll-Insulation-16-in-W-x-100-ft-L/1002728480" target="_blank" rel="noopener">Lowe's</a></td></tr>
+          <tr><td><b>Tape</b></td><td>IPG FSK Foil Scrim Tape, 3″ × 50 yd, Cameron Ashley #89324</td><td><a href="https://www.cameronashleybp.com/1020937/product/y/ipgreg-99712" target="_blank" rel="noopener">Cameron Ashley</a></td></tr>
+          <tr><td><b>Install</b></td><td>Example install video</td><td><a href="https://www.youtube.com/watch?v=U9eMfilnGqM" target="_blank" rel="noopener">YouTube</a></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <aside class="sidebar"><div class="card" id="ductSum"></div></aside>
+  </div>`;
+  ductRefresh();
+}
+
+function ductRefresh() {
+  const d = S.duct, set = S.ductSet; if (!d || S.view !== 'duct') return;
+  const c = ductCalc(d, set);
+  c.runs.forEach(x => { const el = $('ductArea-' + x.r.id); if (el) el.textContent = `${dFmt(x.area)} sq ft`; });
+  const roll = n => `${n} roll${n === 1 ? '' : 's'}`;
+  const row = (name, note, qty, cost) => `<div class="sum-row"><span>${name}</span><span><b style="color:var(--navy)">${qty}</b> · ${money(cost)}</span></div><div class="sum-row sub"><span>${note}</span></div>`;
+  setHTML('ductSum', `
+    <h2>Duct takeoff${d.job ? ` <span class="sub">${esc(d.job)}</span>` : ''}</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">Duct area</div><div class="v">${dFmt(c.area)} sf</div><div class="s">${dFmt(c.insSq)} sf with ${fmtN(c.wastePct)}% extra</div></div>
+      <div class="stat"><div class="k">Duct length</div><div class="v">${fmtN(c.lenTot, 1)} ft</div><div class="s">${d.runs.length} run${d.runs.length === 1 ? '' : 's'}</div></div>
+    </div>
+    ${row("Reflectix R-21 4′ × 100′", `${dFmt(c.insSq)} sq ft needed`, roll(c.insRolls), c.cIns)}
+    ${row("Reflectix R-21 1.33′ × 100′ (spacers)", `${dFmt(c.spSq)} sq ft needed (${fmtN(c.spacerLin)} lin ft of strips)`, roll(c.spRolls), c.cSp)}
+    ${row('FSK foil tape 3″ × 50 yd', `${fmtN(c.tapeLf)} lin ft needed`, roll(c.tapeRolls), c.cTape)}
+    <div class="sum-row tot"><span>Materials</span><span>${money(c.mat)}</span></div>
+    <div class="sum-row sub"><span>${c.area > 0 ? money(c.mat / c.area) + ' per sq ft of duct' : ''}</span></div>
+    <div class="sum-row"><span>Labor <span class="muted small">${c.hrs ? `${fmtN(c.hrs, 2)} hrs × ${money(c.rate)}/hr` : 'enter labor hours'}</span></span><span>${money(c.labor)}</span></div>
+    <div class="price-box">
+      <div class="lbl">Job cost (materials + labor)</div>
+      <div class="big">${money(c.total)}</div>
+      <div class="gp"><span>Materials ${money(c.mat)}</span><span>Labor ${money(c.labor)}</span></div>
+      ${c.area > 0 ? `<div class="gp"><span>Per sq ft of duct</span><span>${money(c.total / c.area)}</span></div>` : ''}
+    </div>
+    <div class="sb-actions">
+      <button class="btn primary" onclick="ductCopy()">📋 Copy takeoff</button>
+      <button class="btn" onclick="ductNewJob()">Start new job</button>
+    </div>
+    <textarea id="ductCopyFallback" hidden readonly rows="10" style="width:100%;margin-top:8px;font-size:.78rem;padding:6px;border:1px solid var(--border);border-radius:6px"></textarea>`);
+  const mb = $('mobBar');
+  if (mb) mb.innerHTML = `<div><div class="mb-k">Duct job cost</div><div class="mb-v">${money(c.total)}</div></div><div><div class="mb-k">Area</div><div class="mb-s">${dFmt(c.area)} sf</div></div><button class="btn sm green" onclick="document.getElementById('ductSum').scrollIntoView({behavior:'smooth'})">Takeoff ↓</button>`;
+
+  const lines = c.runs.filter(x => x.len > 0 && x.perFt > 0).map(x => {
+    const r = x.r, size = r.shape === 'round' ? `${dNum(r.a)}" round` : `${dNum(r.a)}" x ${dNum(r.b)}" ${r.shape === 'rect' ? 'rectangular' : 'flat oval'}`;
+    return `Run ${x.i + 1}: ${size}, ${x.len} ft = ${dFmt(x.area)} sq ft`;
+  });
+  _ductText = [`Duct insulation takeoff${d.job ? ': ' + d.job : ''}`, ...lines, '',
+    `Duct surface area: ${dFmt(c.area)} sq ft (${dFmt(c.insSq)} sq ft with ${fmtN(c.wastePct)}% extra)`,
+    `Reflectix R-21 4'x100': ${c.insRolls} rolls, ${money(c.cIns)}`,
+    `Reflectix R-21 1.33'x100' (spacers): ${c.spRolls} rolls, ${money(c.cSp)}`,
+    `FSK foil tape 3"x50yd: ${c.tapeRolls} rolls, ${money(c.cTape)}`,
+    `Materials: ${money(c.mat)}`,
+    `Labor: ${fmtN(c.hrs, 2)} hrs x ${money(c.rate)}/hr = ${money(c.labor)}`,
+    `Job cost (materials + labor): ${money(c.total)}`].join('\n');
+}
+
+function ductTouch() { if (S.duct.example) { S.duct.example = false; const p = document.querySelector('#app .card h2 .pill'); if (p) p.remove(); } }
+function ductAddRun() {
+  const d = ductState(); ductTouch();
+  const id = d.nextId = Math.max(d.nextId || 1, ...d.runs.map(r => r.id + 1));
+  d.nextId++; d.runs.push({ id, shape: 'round', a: '', b: '', len: '' });
+  ductSave(); renderDuct();
+  const el = document.querySelector(`[data-duct-run="${id}"][data-k="a"]`); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); }
+}
+function ductRemoveRun(id) {
+  const d = ductState(); ductTouch();
+  d.runs = d.runs.filter(r => r.id !== id);
+  if (!d.runs.length) d.runs.push({ id: d.nextId++, shape: 'round', a: '', b: '', len: '' });
+  ductSave(); renderDuct();
+}
+function ductNewJob() {
+  const d = ductState(); const blankJob = !d.example && !d.job && !d.laborHrs && d.runs.every(r => !r.a && !r.len);
+  if (!blankJob && !d.example && !confirm('Clear this duct job and start a new one?')) return;
+  S.duct = { job: '', laborHrs: '', example: false, nextId: 2, runs: [{ id: 1, shape: 'round', a: '', b: '', len: '' }] };
+  ductSave(); renderDuct();
+  const el = document.querySelector('[data-duct="job"]'); if (el) el.focus();
+}
+function ductResetSettings() { S.ductSet = Object.assign({}, S.ductSet, DUCT_DEFAULTS, { laborRate: S.ductSet.laborRate }); ductSave(); renderDuct(); toast('Material prices reset to the defaults', 'ok'); }
+function ductCopy() {
+  const done = () => toast('Takeoff copied', 'ok');
+  const fallback = () => { const t = $('ductCopyFallback'); if (!t) return; t.hidden = false; t.value = _ductText; t.focus(); t.select(); toast('Select all and copy the text below the buttons'); };
+  try { navigator.clipboard.writeText(_ductText).then(done, fallback); } catch (e) { fallback(); }
+}
+function onDuctInput(ev) {
+  if (S.view !== 'duct' || !S.duct) return;
+  const el = ev.target, ds = el.dataset;
+  if (ds.ductRun) {
+    const r = S.duct.runs.find(x => String(x.id) === ds.ductRun); if (!r) return;
+    ductTouch();
+    if (ds.k === 'shape') { if (ev.type !== 'change') return; r.shape = el.value; ductSave(); renderDuct(); const s = document.querySelector(`[data-duct-run="${r.id}"][data-k="shape"]`); if (s) s.focus(); return; }
+    r[ds.k] = el.value;
+  } else if (ds.duct) { S.duct[ds.duct] = el.value; if (ds.duct !== 'job') ductTouch(); }
+  else if (ds.ductSet) S.ductSet[ds.ductSet] = el.value;
+  else return;
+  ductSave(); ductRefresh();
+}
+document.addEventListener('input', onDuctInput);
+document.addEventListener('change', onDuctInput);
 
 </script>
 </body>

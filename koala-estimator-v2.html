@@ -251,7 +251,7 @@ const DEFAULT_RULES = {
     heightBreak: 12,
     thicknessStep: 0.5,                                    // spray foam thickness rounds UP to the next ½″
     setYield: { oc: 18000, cc: 4800 },          // board feet per set — from the GM's Sales Estimate Spreadsheet (SPF Supplies/PPE = CC/4,800 + OC/18,000)
-    rPerInch: { oc: 3.7, cc: 7.5 },
+    rPerInch: { oc: 3.7, cc: 7.5 },                        // no longer used for thickness (see SPF_R_TABLE) — kept for old saved settings
     hrs: { wood_low: 15, metal_low: 20, wood_high: 18, metal_high: 24, ocWallsShaved: 18, ccShaved: 24 },
     shaveBagSqft: 500,
     hoseFt: 200,
@@ -427,6 +427,7 @@ let SUPPLIES = [
   { name: 'N95 Mask', price: 1.44, unit: 'mask' },
   { name: 'Poly Sheeting', price: 22.31, unit: 'roll' },
   { name: 'Removal Bags', price: 11.41, unit: 'each' },
+  { name: 'Scissor Lift', price: 0, unit: 'each' },          // rental — qty and $ entered by hand (Oct 29 2026)
   { name: 'Seam Tape', price: 11.54, unit: 'roll' },
   { name: 'Sill Plate Gasket', price: 4.73, unit: 'roll' },
   { name: 'SPF Supplies/PPE', price: 255.43, unit: 'set' },
@@ -436,6 +437,24 @@ let SUPPLIES = [
 ];
 
 // ─── PROJECT TYPES & SCOPE PRESETS ──────────────────────────────────────────
+// Spray foam R-value by thickness — Table 1 of the IAPMO UES evaluation reports (Pranav, Oct 29 2026):
+//   Accufoam OC  — ER-699 (rev. 02/19/2026);  Accufoam CC-HFO — ER-833 (rev. 12/09/2025).
+// Thickness for a target R is read from this table (straight line between rows, through 0); past the last row the
+// last row's slope continues. Not a flat R-per-inch any more.
+const SPF_R_TABLE = {
+  oc: [[1, 3.7], [2, 7.0], [3, 11], [3.5, 13], [4, 15], [5, 19], [5.5, 21], [6, 23], [7, 27], [7.5, 28], [8, 30], [9, 34], [10, 38], [11, 42], [12, 46], [14, 53], [16, 61], [18, 68]],
+  cc: [[1, 7.5], [2, 14], [2.5, 17], [3, 21], [3.5, 24], [4, 27], [5, 34], [6, 41], [7, 48], [7.25, 49], [8, 54], [9, 61], [10, 68], [11, 75], [12, 81]],
+};
+const SPF_PRODUCT = { oc: 'Accufoam OC (ER-699 Table 1)', cc: 'Accufoam CC-HFO (ER-833 Table 1)' };
+function spfThicknessForR(type, R) {
+  R = Number(R); if (!(R > 0)) return 0;
+  const t = SPF_R_TABLE[type === 'oc' ? 'oc' : 'cc'];
+  let pT = 0, pR = 0;
+  for (const [th, r] of t) { if (R <= r + 1e-9) return pT + (th - pT) * (R - pR) / (r - pR); pT = th; pR = r; }
+  const [t1, r1] = t[t.length - 2], [t2, r2] = t[t.length - 1];
+  return t2 + (R - r2) * (t2 - t1) / (r2 - r1);
+}
+
 const PROJECT_TYPES = {
   res_nc: {
     label: 'Residential New Construction', short: 'Res. New Construction', icon: '🏗️',
@@ -652,12 +671,11 @@ function pickBatt(scope) {
   return m.slice().sort((a, b) => a.price / a.coverage - b.price / b.coverage)[0];
 }
 
-// Spray foam thickness, always rounded UP to the next ½″ (2.1″ → 2.5″, 3.6″ → 4.0″, 5.0″ → 5.0″).
+// Spray foam thickness from the target R-value per Accufoam OC / CC-HFO Table 1 (SPF_R_TABLE), always rounded UP to the next ½″ (2.1″ → 2.5″, 3.6″ → 4.0″, 5.0″ → 5.0″).
 // Board feet, sets (labor), materials and price all use this rounded thickness.
 function spfThicknessRaw(scope, rules) {
   if (num(scope.thickness) > 0) return num(scope.thickness);
-  const t = scope.spfType === 'oc' ? rules.spf.rPerInch.oc : rules.spf.rPerInch.cc;
-  return num(scope.rValue) > 0 ? num(scope.rValue) / t : 0;
+  return num(scope.rValue) > 0 ? spfThicknessForR(scope.spfType === 'oc' ? 'oc' : 'cc', num(scope.rValue)) : 0;   // Accufoam Table 1
 }
 function spfThickness(scope, rules) { return ceilTo(spfThicknessRaw(scope, rules), num(rules.spf && rules.spf.thicknessStep) || 0.5); }
 
@@ -737,7 +755,7 @@ function computeScope(scope, est, rules) {
       out.note = `${bdft.toLocaleString()} bd ft (${r2(sets)} sets); ` + out.note;
       out.bonusFlags.crawl = true;
     }
-    out.materials.unshift({ name: `${type === 'oc' ? 'Open' : 'Closed'} Cell SPF — ${r2(th)}″`, qty: bdft, unit: 'bd ft', price: spfPrice(type, est, rules), kind: 'spf', note: `${r2(sets)} sets${Math.abs(thRaw - th) > 1e-9 ? ` · ${r2(thRaw)}″ rounded up to ${r2(th)}″` : ''}` });
+    out.materials.unshift({ name: `${type === 'oc' ? 'Open' : 'Closed'} Cell SPF — ${r2(th)}″`, qty: bdft, unit: 'bd ft', price: spfPrice(type, est, rules), kind: 'spf', note: `${r2(sets)} sets${Math.abs(thRaw - th) > 1e-9 ? ` · ${r2(thRaw)}″ rounded up to ${r2(th)}″` : ''}${!(num(scope.thickness) > 0) && num(scope.rValue) > 0 ? ` · R-${num(scope.rValue)} per Accufoam ${type === 'oc' ? 'OC' : 'CC-HFO'} Table 1` : ''}` });
     out.spfBd = { [type]: bdft };
     out.spf = true;
   } else if (m === 'foam_pack') {
@@ -1498,6 +1516,7 @@ function renderEstimate() {
             <td><button class="btn sm ghost danger" onclick="removeMisc(${i})">✕</button></td></tr>`).join('')}</tbody>
           <tbody id="autoSup"></tbody></table>
         <button class="btn sm" style="margin-top:8px" onclick="addMisc()">+ Add item</button>
+        <button class="btn sm" style="margin-top:8px" onclick="addScissorLift()" title="Scissor lift rental — enter the quantity and $ per unit">+ Scissor lift</button>
       </div>
 
       <div class="card">
@@ -1926,6 +1945,13 @@ function confirmModal(title, body, okLabel, onOk, danger) {
 function hasEnteredAreas() { return S.est.options.some(o => o.scopes.some(s => num(s.sqft))); }
 function dupScope(id) { const o = curOpt(); const i = o.scopes.findIndex(s => s.id === id); const c = clone(o.scopes[i]); c.id = uid(); o.scopes.splice(i + 1, 0, c); markDirty(); renderEstimate(); }
 function moveScope(id, d) { if (lockedGuard()) return; const o = curOpt(); const i = o.scopes.findIndex(s => s.id === id); const j = i + d; if (j < 0 || j >= o.scopes.length) return; [o.scopes[i], o.scopes[j]] = [o.scopes[j], o.scopes[i]]; markDirty(); renderEstimate(); }
+// Scissor lift rental: a manual line — quantity and $ per unit are typed in (Oct 29 2026)
+function addScissorLift() {
+  if (lockedGuard()) return;
+  curOpt().misc.push({ name: 'Scissor Lift', qty: 1, price: '' }); markDirty(); renderEstimate();
+  const i = curOpt().misc.length - 1;
+  setTimeout(() => { const el = document.querySelector(`[data-b="misc.${i}.price"]`); if (el) { el.placeholder = 'Enter $'; el.focus(); } }, 0);
+}
 function addMisc() { if (lockedGuard()) return; curOpt().misc.push({ name: '', qty: 1, price: '' }); markDirty(); renderEstimate(); }
 function removeMisc(i) { if (lockedGuard()) return; curOpt().misc.splice(i, 1); markDirty(); renderEstimate(); }
 
@@ -2501,7 +2527,7 @@ function renderSettings() {
         <tr><td>Height break (ft)</td><td>${n('spf.heightBreak', R.spf.heightBreak)}</td></tr>
         <tr><td><b>Open-cell yield (bd ft / set)</b></td><td>${n('spf.setYield.oc', R.spf.setYield.oc)}</td></tr>
         <tr><td><b>Closed-cell yield (bd ft / set)</b></td><td>${n('spf.setYield.cc', R.spf.setYield.cc)}</td></tr>
-        <tr><td>R per inch OC / CC</td><td>${n('spf.rPerInch.oc', R.spf.rPerInch.oc, '0.1')} ${n('spf.rPerInch.cc', R.spf.rPerInch.cc, '0.1')}</td></tr>
+        <tr><td>Thickness from R-value</td><td class="small">Table 1 of the evaluation reports — Accufoam OC (ER-699: R-13 = 3.5″, R-21 = 5.5″, R-30 = 8″, R-38 = 10″) · Accufoam CC-HFO (ER-833: R-14 = 2″, R-21 = 3″, R-27 = 4″, R-49 = 7.25″). Then rounded up to the next ½″.</td></tr>
       </table><div class="small" style="color:var(--amber)">Set yields match the Sales Estimate Spreadsheet (SPF Supplies/PPE: CC ÷ 4,800, OC ÷ 18,000).</div></div>
     </div>
     <div>

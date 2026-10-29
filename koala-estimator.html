@@ -1497,7 +1497,22 @@ const CLIMATEPRO_COVERAGE = {
 };
 
 // Spray foam R-value per inch
-const SPF_R_PER_INCH = { cc: 7.5, oc: 3.7 };
+const SPF_R_PER_INCH = { cc: 7.5, oc: 3.7 };   // old flat values — thickness now comes from SPF_R_TABLE (Oct 29 2026)
+// Spray foam R-value by thickness — Table 1 of the IAPMO UES evaluation reports:
+//   Accufoam OC — ER-699 (rev. 02/19/2026); Accufoam CC-HFO — ER-833 (rev. 12/09/2025).
+// Thickness for a target R: straight line between table rows (through 0); past the last row the last slope continues.
+const SPF_R_TABLE = {
+  oc: [[1, 3.7], [2, 7.0], [3, 11], [3.5, 13], [4, 15], [5, 19], [5.5, 21], [6, 23], [7, 27], [7.5, 28], [8, 30], [9, 34], [10, 38], [11, 42], [12, 46], [14, 53], [16, 61], [18, 68]],
+  cc: [[1, 7.5], [2, 14], [2.5, 17], [3, 21], [3.5, 24], [4, 27], [5, 34], [6, 41], [7, 48], [7.25, 49], [8, 54], [9, 61], [10, 68], [11, 75], [12, 81]],
+};
+function spfThicknessForR(type, R) {
+  R = Number(R); if (!(R > 0)) return 0;
+  const t = SPF_R_TABLE[type === 'oc' ? 'oc' : 'cc'];
+  let pT = 0, pR = 0;
+  for (const [th, r] of t) { if (R <= r + 1e-9) return pT + (th - pT) * (R - pR) / (r - pR); pT = th; pR = r; }
+  const [t1, r1] = t[t.length - 2], [t2, r2] = t[t.length - 1];
+  return t2 + (R - r2) * (t2 - t1) / (r2 - r1);
+}
 
 const INSULATION = [
   { name: 'R-11 Kraft 15"', price: 41.14, coverage: 155 },
@@ -1587,7 +1602,8 @@ const MISC_CATALOG = [
   { name: 'Poly Sheeting', price: 22.31, unit: 'each' },
   { name: 'Recessed Light Cover', price: 8.36, unit: 'each' },
   { name: 'Removal Bags', price: 11.41, unit: 'each' },
-  { name: 'Rolflex', price: 1.86, unit: 'ft.' },                 // $44.75 per 24 ft roll → priced per linear foot
+  { name: 'Rolflex', price: 1.86, unit: 'ft.' },
+  { name: 'Scissor Lift', price: 0, unit: 'each' },                 // rental — qty and $ entered by hand (Oct 29 2026)                 // $44.75 per 24 ft roll → priced per linear foot
   { name: 'Sill Plate Gasket', price: 4.73, unit: 'each' },
   { name: 'SPF Supplies/PPE', price: 255.43, unit: 'each' },
   { name: 'Staples', price: 5.45, unit: 'each' },
@@ -2337,6 +2353,7 @@ function buildOptionContainer(opt) {
         <tbody id="${p}miscBody"></tbody>
       </table>
       <button class="btn-add" onclick="addMisc()">+ Add Supply</button>
+      <button class="btn-add" onclick="addScissorLift()" title="Scissor lift rental — enter the quantity and $ per unit">+ Scissor Lift</button>
     </div>
     <!-- Labor -->
     <div class="card internal-only">
@@ -2653,6 +2670,15 @@ function addMisc(presetName, presetQty, autoTag) {
       updateMiscUnitLabel(tr, item.unit || 'each', item.coverage || 0);
     }
   }
+  recalc();
+}
+
+// Scissor lift rental: a manual line — quantity and $ are typed in (no catalog price). Oct 29 2026
+function addScissorLift() {
+  addMisc('Scissor Lift', 1);
+  const opt = getOpt(), p = optPrefixFor(opt), id = opt.rows.misc[opt.rows.misc.length - 1].id;
+  const pr = document.querySelector(`.${CSS.escape(p)}ms-price[data-id="${id}"]`);
+  if (pr) { pr.value = ''; pr.placeholder = 'Enter $'; pr.focus(); }
   recalc();
 }
 
@@ -3138,8 +3164,7 @@ function updateSpfCalc() {
     const sel = document.querySelector(`.${CSS.escape(p)}sf-sel[data-id="${id}"]`);
     if (!sel || sel.value === '') return;
     const typeIdx = parseInt(sel.value);
-    const rPerInch = typeIdx === 0 ? SPF_R_PER_INCH.cc : SPF_R_PER_INCH.oc;
-    const thickness = (ctx.rVal / rPerInch).toFixed(2);
+    const thickness = spfThicknessForR(typeIdx === 0 ? 'cc' : 'oc', ctx.rVal).toFixed(2);   // Accufoam Table 1
     const boardFt = Math.ceil(ctx.area * parseFloat(thickness));
     const typeName = SPF_TYPES[typeIdx].name;
     const currentQty = parseInt(document.querySelector(`.${CSS.escape(p)}sf-qty[data-id="${id}"]`)?.value) || 0;
@@ -3150,7 +3175,7 @@ function updateSpfCalc() {
       liftNote = ` (${lifts} lifts, max 3.5"/pass)`;
     }
 
-    msgs.push(`<strong>${typeName}:</strong> R-${ctx.rVal} ÷ ${rPerInch}/in = ${thickness}" thick × ${ctx.area.toLocaleString()} sf = <strong>${boardFt.toLocaleString()} bd ft</strong>${liftNote}${currentQty !== boardFt ? ` <button onclick="setSpfQty('${p}',${id},${boardFt})" style="margin-left:6px;padding:2px 8px;background:var(--navy);color:#fff;border:none;border-radius:3px;font-size:.75rem;cursor:pointer">Apply ${boardFt.toLocaleString()}</button>` : ' ✓'}`);
+    msgs.push(`<strong>${typeName}:</strong> R-${ctx.rVal} = ${thickness}" thick (Accufoam ${typeIdx === 0 ? 'CC-HFO' : 'OC'} Table 1) × ${ctx.area.toLocaleString()} sf = <strong>${boardFt.toLocaleString()} bd ft</strong>${liftNote}${currentQty !== boardFt ? ` <button onclick="setSpfQty('${p}',${id},${boardFt})" style="margin-left:6px;padding:2px 8px;background:var(--navy);color:#fff;border:none;border-radius:3px;font-size:.75rem;cursor:pointer">Apply ${boardFt.toLocaleString()}</button>` : ' ✓'}`);
   });
 
   if (msgs.length) {

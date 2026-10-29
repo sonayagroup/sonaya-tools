@@ -11273,18 +11273,18 @@ function gmclIsOverdue(type, itemKey, isChecked, selectedDate) {
     const wedOff = (day - 3 + 7) % 7;
     const wed = new Date(sel);
     wed.setDate(sel.getDate() - wedOff);
-    const dueDate = new Date(wed);
-    dueDate.setDate(wed.getDate() + (due.day - 1));
-    const dueDateStr = dueDate.toISOString().slice(0, 10);
-    if (today > dueDateStr) return true;
-    if (today === dueDateStr && now.getHours() >= 22) return true;
+    /* Overdue only after the week ends (after Tuesday) */
+    const weekEnd = new Date(wed);
+    weekEnd.setDate(wed.getDate() + 6); // Tuesday
+    const weekEndStr = weekEnd.toISOString().slice(0, 10);
+    if (today > weekEndStr) return true;
     return false;
   }
   if (type === 'monthly') {
+    /* Only overdue once the month has ended */
     const periodMonth = selectedDate.slice(0, 7);
     const currentMonth = today.slice(0, 7);
     if (currentMonth > periodMonth) return true;
-    if (currentMonth === periodMonth && now.getDate() > 28) return true;
     return false;
   }
   return false;
@@ -11917,31 +11917,33 @@ function dmclIsOverdue(type, itemKey, isChecked, selectedDate) {
     const day = sel.getDay();
     const wedOff = (day - 3 + 7) % 7;
     const wed = new Date(sel); wed.setDate(sel.getDate() - wedOff);
-    const dueDate = new Date(wed); dueDate.setDate(wed.getDate() + (due.day - 1));
-    const dueDateStr = dueDate.toISOString().slice(0, 10);
-    if (today > dueDateStr) return true;
-    if (today === dueDateStr && now.getHours() >= 22) return true;
+    /* Overdue only after the week ends (after Tuesday) */
+    const weekEnd = new Date(wed);
+    weekEnd.setDate(wed.getDate() + 6); // Tuesday
+    const weekEndStr = weekEnd.toISOString().slice(0, 10);
+    if (today > weekEndStr) return true;
     return false;
   }
   if (type === 'biweekly') {
     const due = DMCL_BIWEEKLY_DUE[itemKey];
     if (!due) return false;
-    /* Week runs Wed–Tue: find Wednesday start */
+    /* Week runs Wed–Tue: find Wednesday start, biweekly = 2 full weeks */
     const sel = new Date(selectedDate + 'T12:00:00');
     const day = sel.getDay();
     const wedOff = (day - 3 + 7) % 7;
     const wed = new Date(sel); wed.setDate(sel.getDate() - wedOff);
-    const dueDate = new Date(wed); dueDate.setDate(wed.getDate() + (due.day - 1));
-    const dueDateStr = dueDate.toISOString().slice(0, 10);
-    if (today > dueDateStr) return true;
-    if (today === dueDateStr && now.getHours() >= 22) return true;
+    /* Overdue only after 2 weeks end (the following Tuesday, 13 days from Wed) */
+    const biweekEnd = new Date(wed);
+    biweekEnd.setDate(wed.getDate() + 13); // Tuesday of 2nd week
+    const biweekEndStr = biweekEnd.toISOString().slice(0, 10);
+    if (today > biweekEndStr) return true;
     return false;
   }
   if (type === 'monthly') {
+    /* Only overdue once the month has ended */
     const periodMonth = selectedDate.slice(0, 7);
     const currentMonth = today.slice(0, 7);
     if (currentMonth > periodMonth) return true;
-    if (currentMonth === periodMonth && now.getDate() > 28) return true;
     return false;
   }
   return false;

@@ -2043,6 +2043,11 @@ body {
         <button class="fiscal-wk-nav" onclick="gmclWeekNav(1)" title="Next week">▶</button>
         <button class="fiscal-wk-today" onclick="gmclWeekNav(0)" title="Jump to today">Today</button>
       </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="fiscal-wk-nav" onclick="gmclMonthNav(-1)" title="Previous month">◀</button>
+        <span id="gmclMonthLabel" class="fiscal-wk-label" style="min-width:100px;text-align:center"></span>
+        <button class="fiscal-wk-nav" onclick="gmclMonthNav(1)" title="Next month">▶</button>
+      </div>
     </div>
     <!-- GM Checklist History Panel (hidden by default) -->
     <div id="gmclHistPanel" class="clhist-panel" style="display:none">
@@ -2121,6 +2126,11 @@ body {
         <span id="dmclWeekLabel" class="fiscal-wk-label"></span>
         <button class="fiscal-wk-nav" onclick="dmclWeekNav(1)" title="Next week">▶</button>
         <button class="fiscal-wk-today" onclick="dmclWeekNav(0)" title="Jump to today">Today</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="fiscal-wk-nav" onclick="dmclMonthNav(-1)" title="Previous month">◀</button>
+        <span id="dmclMonthLabel" class="fiscal-wk-label" style="min-width:100px;text-align:center"></span>
+        <button class="fiscal-wk-nav" onclick="dmclMonthNav(1)" title="Next month">▶</button>
       </div>
     </div>
     <!-- DM Checklist History Panel (hidden by default) -->
@@ -11281,8 +11291,8 @@ function gmclIsOverdue(type, itemKey, isChecked, selectedDate) {
     return false;
   }
   if (type === 'monthly') {
-    /* Only overdue once the month has ended */
-    const periodMonth = selectedDate.slice(0, 7);
+    /* Only overdue once the month has ended — use month picker */
+    const periodMonth = gmclMonthVal || selectedDate.slice(0, 7);
     const currentMonth = today.slice(0, 7);
     if (currentMonth > periodMonth) return true;
     return false;
@@ -11407,12 +11417,47 @@ function getTabRefreshedHtml(tabKey) {
   return '<span class="tab-refreshed">Updated ' + t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) + '</span>';
 }
 
+/* ---- Month picker state & helpers ---- */
+let gmclMonthVal = new Date().toISOString().slice(0, 7);
+let dmclMonthVal = new Date().toISOString().slice(0, 7);
+
+function monthLabel(ym) {
+  const [y, m] = ym.split('-');
+  const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return names[parseInt(m) - 1] + ' ' + y;
+}
+function updateMonthLabel(elId, ym) {
+  const el = document.getElementById(elId);
+  if (el) el.textContent = monthLabel(ym);
+}
+function stepMonth(ym, dir) {
+  let [y, m] = ym.split('-').map(Number);
+  m += dir;
+  if (m > 12) { m = 1; y++; }
+  if (m < 1) { m = 12; y--; }
+  return y + '-' + String(m).padStart(2, '0');
+}
+function gmclMonthNav(dir) {
+  gmclMonthVal = stepMonth(gmclMonthVal, dir);
+  updateMonthLabel('gmclMonthLabel', gmclMonthVal);
+  _cacheInvalidate('gmcl');
+  gmclLoadData().then(function() { gmclRender(); });
+}
+function dmclMonthNav(dir) {
+  dmclMonthVal = stepMonth(dmclMonthVal, dir);
+  updateMonthLabel('dmclMonthLabel', dmclMonthVal);
+  _cacheInvalidate('dmcl');
+  dmclLoadData().then(function() { dmclRender(); });
+}
+
 async function gmclInit() {
   const sel = document.getElementById('gmclStore');
   sel.innerHTML = STORES.map(s => '<option value="' + s.id + '">' + s.id + ' - ' + s.name + '</option>').join('');
   const dateInput = document.getElementById('gmclDate');
   dateInput.value = new Date().toISOString().slice(0, 10);
   updateFiscalWeekLabel('gmclWeekLabel', dateInput.value);
+  gmclMonthVal = dateInput.value.slice(0, 7);
+  updateMonthLabel('gmclMonthLabel', gmclMonthVal);
   sel.addEventListener('change', function() { _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
   dateInput.addEventListener('change', function() { updateFiscalWeekLabel('gmclWeekLabel', dateInput.value); _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
   await gmclLoadAllStores();
@@ -11427,6 +11472,8 @@ function gmclWeekNav(dir) {
   const dateInput = document.getElementById('gmclDate');
   if (dir === 0) {
     dateInput.value = new Date().toISOString().slice(0, 10);
+    gmclMonthVal = dateInput.value.slice(0, 7);
+    updateMonthLabel('gmclMonthLabel', gmclMonthVal);
   } else {
     const cur = new Date(dateInput.value + 'T12:00:00');
     cur.setDate(cur.getDate() + dir * 7);
@@ -11441,8 +11488,12 @@ async function gmclLoadData() {
   const dateVal = document.getElementById('gmclDate').value;
   if (!dateVal) return;
   const storeId = document.getElementById('gmclStore').value;
-  const monthStart = dateVal.slice(0, 7) + '-01';
-  const monthEnd = dateVal.slice(0, 7) + '-31';
+  const dateMonth = dateVal.slice(0, 7);
+  const pickerMonth = gmclMonthVal || dateMonth;
+  const minMonth = dateMonth < pickerMonth ? dateMonth : pickerMonth;
+  const maxMonth = dateMonth > pickerMonth ? dateMonth : pickerMonth;
+  const monthStart = minMonth + '-01';
+  const monthEnd = maxMonth + '-31';
   const ck = _cacheKey('gmcl', {s:storeId, ms:monthStart, me:monthEnd});
   const cached = _cacheGet(ck);
   if (cached) {
@@ -11475,7 +11526,7 @@ function gmclGetPeriodDate(type) {
     d.setDate(d.getDate() - diff);
     return d.toISOString().slice(0, 10);
   }
-  return dateVal.slice(0, 7) + '-01';
+  return (gmclMonthVal || dateVal.slice(0, 7)) + '-01';
 }
 
 /* ---- Unified gmclRender: collapsible sections + overdue badges + due tags ---- */
@@ -11897,7 +11948,7 @@ function dmclGetPeriodDate(type) {
     d.setDate(d.getDate() - diff);
     return d.toISOString().slice(0, 10);
   }
-  return dateVal.slice(0, 7) + '-01';
+  return (dmclMonthVal || dateVal.slice(0, 7)) + '-01';
 }
 
 function dmclIsOverdue(type, itemKey, isChecked, selectedDate) {
@@ -11940,8 +11991,8 @@ function dmclIsOverdue(type, itemKey, isChecked, selectedDate) {
     return false;
   }
   if (type === 'monthly') {
-    /* Only overdue once the month has ended */
-    const periodMonth = selectedDate.slice(0, 7);
+    /* Only overdue once the month has ended — use month picker */
+    const periodMonth = dmclMonthVal || selectedDate.slice(0, 7);
     const currentMonth = today.slice(0, 7);
     if (currentMonth > periodMonth) return true;
     return false;
@@ -11989,6 +12040,8 @@ async function dmclInit() {
   const dateInput = document.getElementById('dmclDate');
   dateInput.value = new Date().toISOString().slice(0, 10);
   updateFiscalWeekLabel('dmclWeekLabel', dateInput.value);
+  dmclMonthVal = dateInput.value.slice(0, 7);
+  updateMonthLabel('dmclMonthLabel', dmclMonthVal);
   const areaSel = document.getElementById('dmclArea');
   areaSel.addEventListener('change', function() { _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
   dateInput.addEventListener('change', function() { updateFiscalWeekLabel('dmclWeekLabel', dateInput.value); _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
@@ -12002,6 +12055,8 @@ function dmclWeekNav(dir) {
   const dateInput = document.getElementById('dmclDate');
   if (dir === 0) {
     dateInput.value = new Date().toISOString().slice(0, 10);
+    dmclMonthVal = dateInput.value.slice(0, 7);
+    updateMonthLabel('dmclMonthLabel', dmclMonthVal);
   } else {
     const cur = new Date(dateInput.value + 'T12:00:00');
     cur.setDate(cur.getDate() + dir * 7);
@@ -12030,8 +12085,12 @@ async function dmclLoadData() {
   const dateVal = document.getElementById('dmclDate').value;
   if (!dateVal) return;
   const areaId = document.getElementById('dmclArea').value;
-  const monthStart = dateVal.slice(0, 7) + '-01';
-  const monthEnd = dateVal.slice(0, 7) + '-31';
+  const dateMonth = dateVal.slice(0, 7);
+  const pickerMonth = dmclMonthVal || dateMonth;
+  const minMonth = dateMonth < pickerMonth ? dateMonth : pickerMonth;
+  const maxMonth = dateMonth > pickerMonth ? dateMonth : pickerMonth;
+  const monthStart = minMonth + '-01';
+  const monthEnd = maxMonth + '-31';
   const ck = _cacheKey('dmcl', {a:areaId, ms:monthStart, me:monthEnd});
   const cached = _cacheGet(ck);
   if (cached) {

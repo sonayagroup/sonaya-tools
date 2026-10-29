@@ -1154,6 +1154,50 @@ body {
   /* Modals full-width on mobile */
   #ssMessageModal > div, #ssDetailModal > div { width:95%; max-width:none; padding:16px; max-height:90vh; }
 }
+
+/* --- Equipment / Light Bulb Reference --- */
+.eq-zone-card {
+  background:var(--surface-card); border:1px solid var(--border); border-radius:var(--radius);
+  margin-bottom:14px; overflow:hidden;
+}
+.eq-zone-head {
+  display:flex; justify-content:space-between; align-items:center; padding:14px 16px;
+  cursor:pointer; user-select:none; transition:background 0.15s;
+}
+.eq-zone-head:hover { background:var(--surface-hover); }
+.eq-zone-icon { font-size:18px; margin-right:8px; }
+.eq-zone-name { font-size:14px; font-weight:700; color:var(--text-primary); }
+.eq-zone-count { font-size:12px; color:var(--text-muted); margin-left:8px; }
+.eq-zone-chevron { font-size:18px; color:var(--text-muted); transition:transform 0.2s; }
+.eq-zone-card.expanded .eq-zone-chevron { transform:rotate(180deg); }
+.eq-zone-body { max-height:0; overflow:hidden; transition:max-height 0.3s ease; }
+.eq-zone-card.expanded .eq-zone-body { max-height:2000px; }
+.eq-zone-body-inner { padding:0 16px 14px; }
+.eq-bulb-row {
+  display:grid; grid-template-columns:1fr 60px 100px 1fr; gap:8px 12px; align-items:center;
+  padding:10px 0; border-bottom:1px solid var(--surface-hover); font-size:13px; color:var(--text-secondary);
+}
+.eq-bulb-row:last-child { border-bottom:none; }
+.eq-bulb-label { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.4px; }
+.eq-bulb-type { font-weight:600; color:var(--text-primary); }
+.eq-bulb-supplier { font-size:12px; color:var(--text-muted); }
+.eq-edit-input { width:100%; padding:5px 8px; font-size:13px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface-card); color:var(--text-primary); }
+.eq-edit-input:focus { outline:none; border-color:var(--brand-green); }
+.eq-add-bulb-btn {
+  margin-top:8px; padding:6px 12px; font-size:12px; font-weight:600; border:1px dashed var(--border);
+  border-radius:var(--radius-sm); background:transparent; color:var(--text-muted); cursor:pointer; width:100%;
+}
+.eq-add-bulb-btn:hover { border-color:var(--brand-green); color:var(--brand-green); }
+.eq-save-bar {
+  position:sticky; bottom:0; padding:12px 16px; background:var(--surface-card); border-top:1px solid var(--border);
+  display:flex; justify-content:flex-end; gap:8px; z-index:10;
+}
+.eq-empty { text-align:center; padding:40px 20px; color:var(--text-muted); font-size:14px; }
+@media (max-width:600px) {
+  .eq-bulb-row { grid-template-columns:1fr 1fr; }
+  .eq-bulb-row .eq-bulb-supplier { grid-column:1/-1; }
+  #tab-equip .container { padding:0 8px; }
+}
 </style>
 </head>
 <body>
@@ -1231,6 +1275,7 @@ body {
   <button class="tab-btn" data-tab="gmchecklist" role="tab" aria-selected="false" tabindex="-1">GM Checklist</button>
   <button class="tab-btn" data-tab="dmchecklist" role="tab" aria-selected="false" tabindex="-1">DM Checklist</button>
   <button class="tab-btn" data-tab="secretshops" role="tab" aria-selected="false" tabindex="-1">Secret Shops</button>
+  <button class="tab-btn" data-tab="equip" role="tab" aria-selected="false" tabindex="-1">Equipment</button>
   <button class="tab-btn" data-tab="admin" id="admin-tab-btn" style="display:none" role="tab" aria-selected="false" tabindex="-1">Admin</button>
 </nav>
 </div>
@@ -2278,6 +2323,25 @@ body {
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- EQUIPMENT TAB -->
+<div class="tab-content" id="tab-equip">
+  <div class="container" style="max-width:1000px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <h2 style="margin:0;font-size:20px;font-weight:700;color:var(--text-primary);">💡 Light Bulb Reference</h2>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div class="control-group">
+          <label>Store</label>
+          <select id="eqStoreSelect" class="control-select" onchange="eqRender()"></select>
+        </div>
+        <button class="btn-sm" id="eqEditBtn" style="display:none" onclick="eqToggleEdit()">✏️ Edit</button>
+        <button class="btn-sm" id="eqAddZoneBtn" style="display:none" onclick="eqAddZone()">+ Add Zone</button>
+      </div>
+    </div>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">Static reference of bulb types by store zone. Owners can edit inline.</p>
+    <div id="eqContent"></div>
   </div>
 </div>
 
@@ -12576,6 +12640,216 @@ document.querySelector('[data-tab="secretshops"]').addEventListener('click', fun
 });
 
 /* ========================================================================
+   EQUIPMENT — LIGHT BULB REFERENCE
+   ======================================================================== */
+const ZONE_ICONS = {
+  'Dining Room':'🍽️', 'Kitchen':'🔪', 'Drive-Thru':'🚗', 'Parking Lot':'🅿️',
+  'Restrooms':'🚻', 'Exterior':'🏢', 'Office':'🖥️', 'Storage':'📦', 'Walk-In':'❄️'
+};
+const DEFAULT_ZONES = ['Dining Room','Kitchen','Drive-Thru','Parking Lot','Restrooms','Exterior','Office','Storage'];
+
+// Static light bulb data — keyed by storeId → zone → array of bulb entries
+// Each bulb: { type, qty, wattage, base, supplier, partNo }
+const LIGHT_BULBS = {
+  '726': {
+    'Dining Room': [
+      { type:'LED A19', qty:24, wattage:'9W', base:'E26', supplier:'HD Supply', partNo:'LED-A19-9W' },
+      { type:'LED PAR38 Flood', qty:8, wattage:'15W', base:'E26', supplier:'HD Supply', partNo:'PAR38-15W' },
+    ],
+    'Kitchen': [
+      { type:'T8 LED Tube 4ft', qty:16, wattage:'18W', base:'Bi-Pin G13', supplier:'HD Supply', partNo:'T8-LED-4FT' },
+    ],
+    'Drive-Thru': [
+      { type:'LED Wall Pack', qty:4, wattage:'30W', base:'Hardwired', supplier:'HD Supply', partNo:'WP-30W-LED' },
+      { type:'LED Canopy Light', qty:2, wattage:'45W', base:'Hardwired', supplier:'Grainger', partNo:'CNP-45W' },
+    ],
+    'Parking Lot': [
+      { type:'LED Shoebox 200W', qty:4, wattage:'200W', base:'Slip Fitter', supplier:'Grainger', partNo:'SB-200W-LED' },
+    ],
+    'Restrooms': [
+      { type:'LED A19', qty:4, wattage:'9W', base:'E26', supplier:'HD Supply', partNo:'LED-A19-9W' },
+    ],
+    'Exterior': [
+      { type:'LED Wall Pack', qty:6, wattage:'30W', base:'Hardwired', supplier:'HD Supply', partNo:'WP-30W-LED' },
+    ],
+  },
+  '898': {
+    'Dining Room': [
+      { type:'LED A19', qty:20, wattage:'9W', base:'E26', supplier:'HD Supply', partNo:'LED-A19-9W' },
+      { type:'LED PAR38 Flood', qty:6, wattage:'15W', base:'E26', supplier:'HD Supply', partNo:'PAR38-15W' },
+    ],
+    'Kitchen': [
+      { type:'T8 LED Tube 4ft', qty:14, wattage:'18W', base:'Bi-Pin G13', supplier:'HD Supply', partNo:'T8-LED-4FT' },
+    ],
+    'Drive-Thru': [
+      { type:'LED Wall Pack', qty:4, wattage:'30W', base:'Hardwired', supplier:'HD Supply', partNo:'WP-30W-LED' },
+    ],
+    'Parking Lot': [
+      { type:'LED Shoebox 200W', qty:3, wattage:'200W', base:'Slip Fitter', supplier:'Grainger', partNo:'SB-200W-LED' },
+    ],
+    'Restrooms': [
+      { type:'LED A19', qty:4, wattage:'9W', base:'E26', supplier:'HD Supply', partNo:'LED-A19-9W' },
+    ],
+    'Exterior': [
+      { type:'LED Wall Pack', qty:5, wattage:'30W', base:'Hardwired', supplier:'HD Supply', partNo:'WP-30W-LED' },
+    ],
+  },
+};
+// Clone template for stores without specific data yet
+ALL_STORES.forEach(s => {
+  if (!LIGHT_BULBS[s.id]) LIGHT_BULBS[s.id] = {};
+});
+
+let eqEditMode = false;
+let eqLoaded = false;
+
+function eqInit() {
+  const sel = document.getElementById('eqStoreSelect');
+  sel.innerHTML = ALL_STORES.map(s => `<option value="${s.id}">${s.name} (${s.id})</option>`).join('');
+  eqLoaded = true;
+  eqRender();
+}
+
+function eqRender() {
+  const storeId = document.getElementById('eqStoreSelect').value;
+  const isOwner = currentPerms && currentPerms.role === 'owner';
+  document.getElementById('eqEditBtn').style.display = isOwner ? '' : 'none';
+  document.getElementById('eqAddZoneBtn').style.display = (isOwner && eqEditMode) ? '' : 'none';
+
+  const zones = LIGHT_BULBS[storeId] || {};
+  const zoneNames = Object.keys(zones);
+  const cont = document.getElementById('eqContent');
+
+  if (zoneNames.length === 0 && !eqEditMode) {
+    cont.innerHTML = `<div class="eq-empty">No bulb data for this store yet.${isOwner ? ' Click <b>Edit</b> then <b>+ Add Zone</b> to start.' : ''}</div>`;
+    return;
+  }
+
+  let html = '';
+  zoneNames.forEach(zone => {
+    const bulbs = zones[zone] || [];
+    const icon = ZONE_ICONS[zone] || '💡';
+    const totalQty = bulbs.reduce((s,b) => s + (b.qty||0), 0);
+
+    html += `<div class="eq-zone-card expanded" data-zone="${zone}">`;
+    html += `<div class="eq-zone-head" onclick="this.parentElement.classList.toggle('expanded')">`;
+    html += `<div style="display:flex;align-items:center"><span class="eq-zone-icon">${icon}</span><span class="eq-zone-name">${zone}</span><span class="eq-zone-count">${totalQty} bulb${totalQty!==1?'s':''}</span></div>`;
+    html += `<span class="eq-zone-chevron">▾</span></div>`;
+    html += `<div class="eq-zone-body"><div class="eq-zone-body-inner">`;
+
+    // Header row
+    html += `<div class="eq-bulb-row" style="border-bottom:2px solid var(--border);padding-bottom:6px;">`;
+    html += `<span class="eq-bulb-label">Type / Model</span><span class="eq-bulb-label">Qty</span><span class="eq-bulb-label">Wattage / Base</span><span class="eq-bulb-label">Supplier / Part #</span>`;
+    html += `</div>`;
+
+    bulbs.forEach((b, idx) => {
+      if (eqEditMode) {
+        html += `<div class="eq-bulb-row">`;
+        html += `<input class="eq-edit-input" data-zone="${zone}" data-idx="${idx}" data-field="type" value="${b.type||''}" placeholder="e.g. LED A19">`;
+        html += `<input class="eq-edit-input" data-zone="${zone}" data-idx="${idx}" data-field="qty" value="${b.qty||''}" placeholder="Qty" inputmode="numeric" style="text-align:center">`;
+        html += `<div style="display:flex;gap:4px;flex-direction:column"><input class="eq-edit-input" data-zone="${zone}" data-idx="${idx}" data-field="wattage" value="${b.wattage||''}" placeholder="Wattage"><input class="eq-edit-input" data-zone="${zone}" data-idx="${idx}" data-field="base" value="${b.base||''}" placeholder="Base type"></div>`;
+        html += `<div style="display:flex;gap:4px;flex-direction:column"><input class="eq-edit-input" data-zone="${zone}" data-idx="${idx}" data-field="supplier" value="${b.supplier||''}" placeholder="Supplier"><input class="eq-edit-input" data-zone="${zone}" data-idx="${idx}" data-field="partNo" value="${b.partNo||''}" placeholder="Part #"></div>`;
+        html += `</div>`;
+      } else {
+        html += `<div class="eq-bulb-row">`;
+        html += `<span class="eq-bulb-type">${b.type||'—'}</span>`;
+        html += `<span style="text-align:center;font-weight:600">${b.qty||'—'}</span>`;
+        html += `<span>${b.wattage||'—'} / ${b.base||'—'}</span>`;
+        html += `<span class="eq-bulb-supplier">${b.supplier||'—'}${b.partNo ? ' · '+b.partNo : ''}</span>`;
+        html += `</div>`;
+      }
+    });
+
+    if (eqEditMode) {
+      html += `<button class="eq-add-bulb-btn" onclick="eqAddBulb('${zone}')">+ Add Bulb</button>`;
+    }
+
+    html += `</div></div></div>`;
+  });
+
+  if (eqEditMode) {
+    html += `<div class="eq-save-bar"><button class="btn-sm" onclick="eqCancel()" style="background:var(--surface-hover);color:var(--text-secondary)">Cancel</button><button class="btn-sm" onclick="eqSave()" style="background:var(--brand-green);color:#fff">Save Changes</button></div>`;
+  }
+
+  cont.innerHTML = html;
+}
+
+function eqToggleEdit() {
+  eqEditMode = !eqEditMode;
+  const btn = document.getElementById('eqEditBtn');
+  btn.textContent = eqEditMode ? '✕ Cancel Edit' : '✏️ Edit';
+  document.getElementById('eqAddZoneBtn').style.display = eqEditMode ? '' : 'none';
+  eqRender();
+}
+
+function eqAddZone() {
+  const storeId = document.getElementById('eqStoreSelect').value;
+  const existing = Object.keys(LIGHT_BULBS[storeId] || {});
+  const available = DEFAULT_ZONES.filter(z => !existing.includes(z));
+  const name = available.length > 0
+    ? prompt('Add zone:\\n' + available.map((z,i) => `${i+1}. ${z}`).join('\\n') + '\\n\\nType a name or number:')
+    : prompt('Zone name:');
+  if (!name) return;
+  const resolved = available[parseInt(name)-1] || name.trim();
+  if (!resolved) return;
+  if (!LIGHT_BULBS[storeId]) LIGHT_BULBS[storeId] = {};
+  if (!LIGHT_BULBS[storeId][resolved]) {
+    LIGHT_BULBS[storeId][resolved] = [{ type:'', qty:0, wattage:'', base:'', supplier:'', partNo:'' }];
+  }
+  eqRender();
+}
+
+function eqAddBulb(zone) {
+  const storeId = document.getElementById('eqStoreSelect').value;
+  if (!LIGHT_BULBS[storeId]) LIGHT_BULBS[storeId] = {};
+  if (!LIGHT_BULBS[storeId][zone]) LIGHT_BULBS[storeId][zone] = [];
+  // Read current edits first
+  eqReadEdits();
+  LIGHT_BULBS[storeId][zone].push({ type:'', qty:0, wattage:'', base:'', supplier:'', partNo:'' });
+  eqRender();
+}
+
+function eqReadEdits() {
+  const storeId = document.getElementById('eqStoreSelect').value;
+  document.querySelectorAll('.eq-edit-input').forEach(inp => {
+    const zone = inp.dataset.zone;
+    const idx = parseInt(inp.dataset.idx);
+    const field = inp.dataset.field;
+    if (LIGHT_BULBS[storeId] && LIGHT_BULBS[storeId][zone] && LIGHT_BULBS[storeId][zone][idx]) {
+      const val = field === 'qty' ? (parseInt(inp.value)||0) : inp.value.trim();
+      LIGHT_BULBS[storeId][zone][idx][field] = val;
+    }
+  });
+}
+
+function eqSave() {
+  eqReadEdits();
+  // Clean up empty bulb entries
+  const storeId = document.getElementById('eqStoreSelect').value;
+  if (LIGHT_BULBS[storeId]) {
+    Object.keys(LIGHT_BULBS[storeId]).forEach(zone => {
+      LIGHT_BULBS[storeId][zone] = LIGHT_BULBS[storeId][zone].filter(b => b.type || b.qty || b.wattage);
+      if (LIGHT_BULBS[storeId][zone].length === 0) delete LIGHT_BULBS[storeId][zone];
+    });
+  }
+  eqEditMode = false;
+  document.getElementById('eqEditBtn').textContent = '✏️ Edit';
+  document.getElementById('eqAddZoneBtn').style.display = 'none';
+  eqRender();
+}
+
+function eqCancel() {
+  eqEditMode = false;
+  document.getElementById('eqEditBtn').textContent = '✏️ Edit';
+  document.getElementById('eqAddZoneBtn').style.display = 'none';
+  eqRender();
+}
+
+document.querySelector('[data-tab="equip"]').addEventListener('click', function() {
+  if (!eqLoaded) eqInit();
+});
+
+/* ========================================================================
    AUTH + ACCESS CONTROL
    ======================================================================== */
 const supaAuth = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12587,7 +12861,7 @@ const ALL_TABS = {
   ops: 'Daily Operations', sc: 'Service Checks', food: 'Food Cost Analysis',
   financial: 'Financial Health', inspect: 'Store Visit Checklist', recap: 'Weekly Recap',
   catering: 'Catering CRM', contacts: 'Contacts', gmchecklist: 'GM Checklist',
-  dmchecklist: 'DM Checklist', secretshops: 'Secret Shops'
+  dmchecklist: 'DM Checklist', secretshops: 'Secret Shops', equip: 'Equipment'
 };
 
 // All possible feature keys (kept for backward compat but no longer shown in admin UI)

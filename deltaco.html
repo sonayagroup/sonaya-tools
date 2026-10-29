@@ -863,6 +863,11 @@ body {
 /* ---- CHECKLIST HISTORY ---- */
 .clhist-btn{background:var(--surface-page);border:1px solid var(--gridline);border-radius:var(--radius-sm);padding:6px 14px;font-size:12px;font-weight:600;color:var(--text-secondary);cursor:pointer}
 .clhist-btn:hover{background:var(--gridline)}
+.fiscal-wk-nav{background:var(--surface-page);border:1px solid var(--gridline);border-radius:var(--radius-sm);padding:4px 8px;font-size:12px;color:var(--text-secondary);cursor:pointer;line-height:1}
+.fiscal-wk-nav:hover{background:var(--gridline);color:var(--text-primary)}
+.fiscal-wk-label{font-size:12px;font-weight:600;color:var(--text-secondary);white-space:nowrap}
+.fiscal-wk-today{background:transparent;border:1px solid var(--gridline);border-radius:var(--radius-sm);padding:3px 8px;font-size:11px;font-weight:600;color:var(--brand-green);cursor:pointer}
+.fiscal-wk-today:hover{background:var(--brand-green);color:#fff}
 .clhist-panel{background:var(--surface-card);border:1px solid var(--border-color);border-radius:8px;padding:16px;margin-top:16px;overflow-x:auto}
 .clhist-panel h4{margin:0 0 12px;font-size:15px;font-weight:700;color:var(--text-primary)}
 .clhist-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
@@ -2032,6 +2037,12 @@ body {
         <label>Date:</label>
         <input type="date" class="control-input" id="gmclDate" />
       </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="fiscal-wk-nav" onclick="gmclWeekNav(-1)" title="Previous week">◀</button>
+        <span id="gmclWeekLabel" class="fiscal-wk-label"></span>
+        <button class="fiscal-wk-nav" onclick="gmclWeekNav(1)" title="Next week">▶</button>
+        <button class="fiscal-wk-today" onclick="gmclWeekNav(0)" title="Jump to today">Today</button>
+      </div>
     </div>
     <!-- GM Checklist History Panel (hidden by default) -->
     <div id="gmclHistPanel" class="clhist-panel" style="display:none">
@@ -2104,6 +2115,12 @@ body {
       <div class="control-group">
         <label>Date:</label>
         <input type="date" class="control-input" id="dmclDate" />
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="fiscal-wk-nav" onclick="dmclWeekNav(-1)" title="Previous week">◀</button>
+        <span id="dmclWeekLabel" class="fiscal-wk-label"></span>
+        <button class="fiscal-wk-nav" onclick="dmclWeekNav(1)" title="Next week">▶</button>
+        <button class="fiscal-wk-today" onclick="dmclWeekNav(0)" title="Jump to today">Today</button>
       </div>
     </div>
     <!-- DM Checklist History Panel (hidden by default) -->
@@ -11181,6 +11198,27 @@ const GMCL_ITEMS = {
   ]
 };
 
+/* ---- Shared fiscal week helpers (Wed–Tue cycle) ---- */
+function fiscalWeekRange(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.getDay(); // 0=Sun
+  const diff = (day - 3 + 7) % 7; // days since last Wednesday
+  const wed = new Date(d);
+  wed.setDate(d.getDate() - diff);
+  const tue = new Date(wed);
+  tue.setDate(wed.getDate() + 6);
+  return { wed: wed, tue: tue, wedStr: wed.toISOString().slice(0, 10), tueStr: tue.toISOString().slice(0, 10) };
+}
+function fiscalWeekLabel(dateStr) {
+  const r = fiscalWeekRange(dateStr);
+  const opts = { month: 'short', day: 'numeric' };
+  return 'Week: ' + r.wed.toLocaleDateString('en-US', opts) + ' – ' + r.tue.toLocaleDateString('en-US', opts);
+}
+function updateFiscalWeekLabel(labelId, dateStr) {
+  const el = document.getElementById(labelId);
+  if (el) el.textContent = fiscalWeekLabel(dateStr);
+}
+
 let gmclState = {};  // { 'storeId|itemKey|date': true/false }
 let gmclLoaded = false;
 let gmclStreaks = {};
@@ -11374,8 +11412,9 @@ async function gmclInit() {
   sel.innerHTML = STORES.map(s => '<option value="' + s.id + '">' + s.id + ' - ' + s.name + '</option>').join('');
   const dateInput = document.getElementById('gmclDate');
   dateInput.value = new Date().toISOString().slice(0, 10);
+  updateFiscalWeekLabel('gmclWeekLabel', dateInput.value);
   sel.addEventListener('change', function() { _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
-  dateInput.addEventListener('change', function() { _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
+  dateInput.addEventListener('change', function() { updateFiscalWeekLabel('gmclWeekLabel', dateInput.value); _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
   await gmclLoadAllStores();
   await gmclLoadData();
   gmclRenderOverview();
@@ -11383,6 +11422,19 @@ async function gmclInit() {
   var backBtn = document.getElementById('gmclBackBtn');
   if (backBtn) backBtn.style.display = '';
   setTabRefreshed('gmchecklist');
+}
+function gmclWeekNav(dir) {
+  const dateInput = document.getElementById('gmclDate');
+  if (dir === 0) {
+    dateInput.value = new Date().toISOString().slice(0, 10);
+  } else {
+    const cur = new Date(dateInput.value + 'T12:00:00');
+    cur.setDate(cur.getDate() + dir * 7);
+    dateInput.value = cur.toISOString().slice(0, 10);
+  }
+  updateFiscalWeekLabel('gmclWeekLabel', dateInput.value);
+  _cacheInvalidate('gmcl');
+  gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); });
 }
 
 async function gmclLoadData() {
@@ -11928,14 +11980,28 @@ function dmclToggleSection(type) {
 async function dmclInit() {
   const dateInput = document.getElementById('dmclDate');
   dateInput.value = new Date().toISOString().slice(0, 10);
+  updateFiscalWeekLabel('dmclWeekLabel', dateInput.value);
   const areaSel = document.getElementById('dmclArea');
   areaSel.addEventListener('change', function() { _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
-  dateInput.addEventListener('change', function() { _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
+  dateInput.addEventListener('change', function() { updateFiscalWeekLabel('dmclWeekLabel', dateInput.value); _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
   await dmclLoadAllAreas();
   await dmclLoadData();
   dmclRenderOverview();
   dmclRender();
   setTabRefreshed('dmchecklist');
+}
+function dmclWeekNav(dir) {
+  const dateInput = document.getElementById('dmclDate');
+  if (dir === 0) {
+    dateInput.value = new Date().toISOString().slice(0, 10);
+  } else {
+    const cur = new Date(dateInput.value + 'T12:00:00');
+    cur.setDate(cur.getDate() + dir * 7);
+    dateInput.value = cur.toISOString().slice(0, 10);
+  }
+  updateFiscalWeekLabel('dmclWeekLabel', dateInput.value);
+  _cacheInvalidate('dmcl');
+  dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); });
 }
 
 async function dmclLoadAllAreas() {

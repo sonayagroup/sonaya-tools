@@ -10865,12 +10865,13 @@ let gmclLoaded = false;
 let gmclStreaks = {};
 let gmclCollapsed = { daily: false, weekly: false, monthly: false };
 
+/* Week runs Wed–Tue. day offsets: 1=Wed, 2=Thu, 3=Fri, 4=Sat, 5=Sun, 6=Mon, 7=Tue */
 const GMCL_WEEKLY_DUE = {
-  variance_rpt:  { day: 3, label: 'Wednesday' },
-  jolt_cleaning: { day: 4, label: 'Thursday' },
-  jolt_visit:    { day: 5, label: 'Friday' },
-  taco_talks_5:  { day: 2, label: 'Tuesday' },
-  doordash_errors: { day: 5, label: 'Friday' }
+  variance_rpt:  { day: 1, label: 'Wednesday' },
+  jolt_cleaning: { day: 2, label: 'Thursday' },
+  jolt_visit:    { day: 3, label: 'Friday' },
+  taco_talks_5:  { day: 7, label: 'Tuesday' },
+  doordash_errors: { day: 3, label: 'Friday' }
 };
 
 /* ---- SVG progress ring ---- */
@@ -10907,13 +10908,14 @@ function gmclIsOverdue(type, itemKey, isChecked, selectedDate) {
   if (type === 'weekly') {
     const due = GMCL_WEEKLY_DUE[itemKey];
     if (!due) return false;
+    /* Week runs Wed–Tue: find Wednesday start */
     const sel = new Date(selectedDate + 'T12:00:00');
     const day = sel.getDay();
-    const mondayOff = day === 0 ? -6 : 1 - day;
-    const monday = new Date(sel);
-    monday.setDate(sel.getDate() + mondayOff);
-    const dueDate = new Date(monday);
-    dueDate.setDate(monday.getDate() + (due.day - 1));
+    const wedOff = (day - 3 + 7) % 7;
+    const wed = new Date(sel);
+    wed.setDate(sel.getDate() - wedOff);
+    const dueDate = new Date(wed);
+    dueDate.setDate(wed.getDate() + (due.day - 1));
     const dueDateStr = dueDate.toISOString().slice(0, 10);
     if (today > dueDateStr) return true;
     if (today === dueDateStr && now.getHours() >= 22) return true;
@@ -10936,12 +10938,13 @@ function gmclDueTag(itemKey) {
   const dateVal = document.getElementById('gmclDate').value;
   const selected = new Date(dateVal + 'T12:00:00');
   const today = new Date(); today.setHours(12,0,0,0);
+  /* Week runs Wed–Tue: find Wednesday start */
   const dayOfWeek = selected.getDay();
-  const mondayDiff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(selected);
-  monday.setDate(monday.getDate() + mondayDiff);
-  const dueDate = new Date(monday);
-  dueDate.setDate(dueDate.getDate() + (due.day - 1));
+  const wedDiff = (dayOfWeek - 3 + 7) % 7;
+  const wed = new Date(selected);
+  wed.setDate(wed.getDate() - wedDiff);
+  const dueDate = new Date(wed);
+  dueDate.setDate(wed.getDate() + (due.day - 1));
   const isPast = today > dueDate;
   const storeId = document.getElementById('gmclStore').value;
   const periodDate = gmclGetPeriodDate('weekly');
@@ -11092,10 +11095,11 @@ function gmclGetPeriodDate(type) {
   const dateVal = document.getElementById('gmclDate').value;
   if (type === 'daily') return dateVal;
   if (type === 'weekly') {
+    /* Week runs Wed–Tue: find the Wednesday that starts this week */
     const d = new Date(dateVal + 'T12:00:00');
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + diff);
+    const day = d.getDay(); // 0=Sun
+    const diff = (day - 3 + 7) % 7; // days since last Wednesday
+    d.setDate(d.getDate() - diff);
     return d.toISOString().slice(0, 10);
   }
   return dateVal.slice(0, 7) + '-01';
@@ -11475,21 +11479,22 @@ const DMCL_ITEMS = {
   ]
 };
 
+/* Week runs Wed–Tue. day offsets: 1=Wed, 2=Thu, 3=Fri, 4=Sat, 5=Sun, 6=Mon, 7=Tue */
 const DMCL_WEEKLY_DUE = {
-  store_visits:        { day: 2, label: 'Tuesday' },
-  dm_infractions_fill: { day: 3, label: 'Wednesday' },
-  dm_infractions_send: { day: 3, label: 'Wednesday' },
-  variance_upload:     { day: 4, label: 'Thursday' },
-  weekly_recap:        { day: 4, label: 'Thursday' },
-  store_recaps:        { day: 5, label: 'Friday' },
-  review_weekly_recap: { day: 5, label: 'Friday' },
-  review_variance_gm:  { day: 5, label: 'Friday' },
-  review_plan_schedule:{ day: 5, label: 'Friday' },
+  store_visits:        { day: 7, label: 'Tuesday' },
+  dm_infractions_fill: { day: 1, label: 'Wednesday' },
+  dm_infractions_send: { day: 1, label: 'Wednesday' },
+  variance_upload:     { day: 2, label: 'Thursday' },
+  weekly_recap:        { day: 2, label: 'Thursday' },
+  store_recaps:        { day: 3, label: 'Friday' },
+  review_weekly_recap: { day: 3, label: 'Friday' },
+  review_variance_gm:  { day: 3, label: 'Friday' },
+  review_plan_schedule:{ day: 3, label: 'Friday' },
 };
 
 const DMCL_BIWEEKLY_DUE = {
-  authorize_payroll:     { day: 3, label: 'Wednesday' },
-  verify_payroll_journal:{ day: 3, label: 'Wednesday' },
+  authorize_payroll:     { day: 1, label: 'Wednesday' },
+  verify_payroll_journal:{ day: 1, label: 'Wednesday' },
 };
 
 let dmclState = {};
@@ -11512,10 +11517,11 @@ function dmclGetPeriodDate(type) {
   const dateVal = document.getElementById('dmclDate').value;
   if (type === 'daily') return dateVal;
   if (type === 'weekly' || type === 'biweekly') {
+    /* Week runs Wed–Tue: find the Wednesday that starts this week */
     const d = new Date(dateVal + 'T12:00:00');
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + diff);
+    const day = d.getDay(); // 0=Sun
+    const diff = (day - 3 + 7) % 7; // days since last Wednesday
+    d.setDate(d.getDate() - diff);
     return d.toISOString().slice(0, 10);
   }
   return dateVal.slice(0, 7) + '-01';
@@ -11533,11 +11539,12 @@ function dmclIsOverdue(type, itemKey, isChecked, selectedDate) {
   if (type === 'weekly') {
     const due = DMCL_WEEKLY_DUE[itemKey];
     if (!due) return false;
+    /* Week runs Wed–Tue: find Wednesday start */
     const sel = new Date(selectedDate + 'T12:00:00');
     const day = sel.getDay();
-    const mondayOff = day === 0 ? -6 : 1 - day;
-    const monday = new Date(sel); monday.setDate(sel.getDate() + mondayOff);
-    const dueDate = new Date(monday); dueDate.setDate(monday.getDate() + (due.day - 1));
+    const wedOff = (day - 3 + 7) % 7;
+    const wed = new Date(sel); wed.setDate(sel.getDate() - wedOff);
+    const dueDate = new Date(wed); dueDate.setDate(wed.getDate() + (due.day - 1));
     const dueDateStr = dueDate.toISOString().slice(0, 10);
     if (today > dueDateStr) return true;
     if (today === dueDateStr && now.getHours() >= 22) return true;
@@ -11546,11 +11553,12 @@ function dmclIsOverdue(type, itemKey, isChecked, selectedDate) {
   if (type === 'biweekly') {
     const due = DMCL_BIWEEKLY_DUE[itemKey];
     if (!due) return false;
+    /* Week runs Wed–Tue: find Wednesday start */
     const sel = new Date(selectedDate + 'T12:00:00');
     const day = sel.getDay();
-    const mondayOff = day === 0 ? -6 : 1 - day;
-    const monday = new Date(sel); monday.setDate(sel.getDate() + mondayOff);
-    const dueDate = new Date(monday); dueDate.setDate(monday.getDate() + (due.day - 1));
+    const wedOff = (day - 3 + 7) % 7;
+    const wed = new Date(sel); wed.setDate(sel.getDate() - wedOff);
+    const dueDate = new Date(wed); dueDate.setDate(wed.getDate() + (due.day - 1));
     const dueDateStr = dueDate.toISOString().slice(0, 10);
     if (today > dueDateStr) return true;
     if (today === dueDateStr && now.getHours() >= 22) return true;
@@ -11573,10 +11581,11 @@ function dmclDueTag(type, itemKey) {
   const dateVal = document.getElementById('dmclDate').value;
   const selected = new Date(dateVal + 'T12:00:00');
   const today = new Date(); today.setHours(12,0,0,0);
+  /* Week runs Wed–Tue: find Wednesday start */
   const dayOfWeek = selected.getDay();
-  const mondayDiff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(selected); monday.setDate(monday.getDate() + mondayDiff);
-  const dueDate = new Date(monday); dueDate.setDate(dueDate.getDate() + (due.day - 1));
+  const wedDiff = (dayOfWeek - 3 + 7) % 7;
+  const wed = new Date(selected); wed.setDate(wed.getDate() - wedDiff);
+  const dueDate = new Date(wed); dueDate.setDate(wed.getDate() + (due.day - 1));
   const isPast = today > dueDate;
   const areaId = document.getElementById('dmclArea').value;
   const periodDate = dmclGetPeriodDate(type);

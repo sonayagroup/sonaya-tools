@@ -3098,12 +3098,26 @@ function gmLoad(force){
   return GM.loading;}
 
 // ---- roster: stylists with floor hours at this salon in the last 30 days (daily) or in EPP the last 5 weeks ----
-function gmRoster(sid,asOf){asOf=asOf||gmToday();const from=gmAdd(asOf,-30);const map={};
-  const add=(n)=>{if(!n||/product refunds/i.test(n))return;const k=gmKey(n);if(!map[k]||n.length>map[k].length)map[k]=n;};
-  Object.keys(DATA.days||{}).forEach(d=>{if(d<from||d>asOf)return;((DATA.days[d].STY||{})[sid]||[]).forEach(r=>{if((+r[1]||0)>0)add(r[0]);});});
-  Object.keys(DATA.weeklies||{}).forEach(w=>{if(w<gmAdd(asOf,-35)||w>asOf)return;((DATA.weeklies[w].EPP||{})[sid]||[]).forEach(r=>{if((+r[1]||0)>0)add(r[0]);});});
-  const inactive=new Set(GM.prof.filter(p=>p.inactive).map(p=>gmKey(p.stylist_name)));
-  return Object.keys(map).filter(k=>!inactive.has(k)).map(k=>({key:k,name:map[k]})).sort((a,b)=>a.name.localeCompare(b.name));}
+// A stylist belongs on a salon's board when that salon is where they work most (or at least 25% of
+// their floor hours in the last 30 days). One-off floater shifts don't put someone on another salon's
+// board; they're listed separately ("also worked here") and can still have a conversation logged.
+// Area Managers (AM_DEF) are never on a board: they coach, they aren't coached by salon managers.
+function gmAmKeys(){const s=new Set();try{Object.keys(AM_DEF).forEach(n=>{const p=n.trim().split(/\s+/);s.add(gmKey(p.slice(1).join(" ")+", "+p[0]));});}catch(e){}return s;}
+function gmHours(asOf){asOf=asOf||gmToday();const from=gmAdd(asOf,-30);const hrs={},names={};
+  const add=(sid,n,h)=>{if(!n||/product refunds/i.test(n)||!(h>0))return;const k=gmKey(n);if(!names[k]||n.length>names[k].length)names[k]=n;(hrs[k]=hrs[k]||{})[sid]=(hrs[k][sid]||0)+h;};
+  Object.keys(DATA.days||{}).forEach(d=>{if(d<from||d>asOf)return;const sty=DATA.days[d].STY||{};Object.keys(sty).forEach(sid=>sty[sid].forEach(r=>add(sid,r[0],+r[1]||0)));});
+  // fallback for anyone with no daily rows in the window: weekly EPS hours
+  const epp={};Object.keys(DATA.weeklies||{}).forEach(w=>{if(w<gmAdd(asOf,-35)||w>asOf)return;const E=DATA.weeklies[w].EPP||{};Object.keys(E).forEach(sid=>E[sid].forEach(r=>{const k=gmKey(r[0]);if(hrs[k])return;(epp[k]=epp[k]||[]).push([sid,r[0],+r[1]||0]);}));});
+  Object.keys(epp).forEach(k=>epp[k].forEach(([sid,n,h])=>add(sid,n,h)));
+  return {hrs,names};}
+function gmRosterSplit(sid,asOf){const {hrs,names}=gmHours(asOf);const am=gmAmKeys();
+  const inactive=new Set(GM.prof.filter(p=>p.inactive).map(p=>gmKey(p.stylist_name)));const core=[],floaters=[];
+  Object.keys(hrs).forEach(k=>{const h=hrs[k];if(!h[sid]||am.has(k)||inactive.has(k))return;const tot=Object.values(h).reduce((a,b)=>a+b,0);
+    const top=Object.keys(h).sort((a,b)=>h[b]-h[a])[0];const st={key:k,name:names[k],home:top,hrs:h[sid]};
+    if(top===sid||h[sid]>=0.25*tot)core.push(st);else floaters.push(st);});
+  const by=(a,b)=>a.name.localeCompare(b.name);return {core:core.sort(by),floaters:floaters.sort(by)};}
+function gmRoster(sid,asOf){return gmRosterSplit(sid,asOf).core;}
+function gmRosterAll(sid,asOf){const r=gmRosterSplit(sid,asOf);return r.core.concat(r.floaters).sort((a,b)=>a.name.localeCompare(b.name));}
 function gmProfile(key){return GM.prof.find(p=>gmKey(p.stylist_name)===key)||null;}
 function gmHire(st){const p=gmProfile(st.key);if(p&&p.hire_date)return {date:p.hire_date,src:"profile"};const c=gmContactHire(st.name);return c?{date:c,src:"contacts"}:null;}
 
@@ -3239,6 +3253,8 @@ function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,to
       +'<td>'+(r.tr?gmChip("gm-g",GM_KINDS[r.tr.kind].replace("Training · ","")+" · "+gmShort(r.tr.date)):gmChip("gm-n","None logged"))+'</td>'
       +'<td>'+gmLicChip(chk,r.lic,today)+'</td></tr>';});
   h+='</tbody></table></div></div>';
+  const fl=gmRosterSplit(sid,today).floaters;
+  if(fl.length)h+='<div class="legend-note">Also worked here in the last 30 days (home salon elsewhere, not scored here): '+fl.map(f=>'<button class="gm-link" data-act="tl" data-key="'+esc(f.key)+'">'+esc(f.name)+'</button> ('+f.hrs.toFixed(1)+' hrs · mostly '+esc(sName(f.home))+')').join(', ')+'</div>';
   // recent log
   const recent=GM.log.filter(r=>String(r.salon_id)===String(sid)).slice(0,12);
   h+='<div class="card gm-recent"><h3>Recent conversations</h3><div class="hint">Every entry is kept with who logged it and when. Click a stylist name above for their full history.</div>';
@@ -3259,7 +3275,7 @@ function gmSummary(r){
   return r.notes||r.focus||"";}
 
 // ---- Log a conversation ----
-function gmLogForm(preKey,preKind){const sid=current,R=gmRoster(sid);const today=gmToday();
+function gmLogForm(preKey,preKind){const sid=current,R=gmRosterAll(sid);const today=gmToday();
   let h='<h3>Log a conversation · '+esc(sName(sid))+'</h3><div class="gm-form">'
     +'<div class="gm-f"><label>Stylist</label><select id="gmLSty"><option value="">Select…</option>'+R.map(s=>'<option value="'+esc(s.name)+'"'+(s.key===preKey?" selected":"")+'>'+esc(s.name)+'</option>').join("")+'</select></div>'
     +'<div class="gm-f"><label>Date</label><input type="date" id="gmLDate" value="'+today+'" max="'+today+'"></div>'
@@ -3314,7 +3330,7 @@ async function gmDelete(id){const btn=document.querySelector('[data-act="del"]')
   catch(e){const er=$("#gmVErr");if(er)er.textContent=e.message;}}
 
 // ---- Stylist profile (hire date, checklist, Great Academy) ----
-function gmProfForm(key){const sid=current;const st=gmRoster(sid).find(s=>s.key===key)||{key,name:key};const p=gmProfile(key)||{};const hire=gmHire(st);
+function gmProfForm(key){const sid=current;const st=gmRosterAll(sid).find(s=>s.key===key)||{key,name:key};const p=gmProfile(key)||{};const hire=gmHire(st);
   let h='<h3>'+esc(st.name)+' · training record</h3><div class="gm-form">'
     +'<div class="gm-f"><label>Hire date</label><input type="date" id="gmPHire" value="'+esc(p.hire_date||"")+'"><span class="hint">'+(hire&&hire.src==="contacts"?"From Contacts: "+fmtDate(hire.date)+". Enter a date only to correct it.":"")+'</span></div>'
     +'<div class="gm-f"><label>Training checklist signed off</label><input type="date" id="gmPCheck" value="'+esc(p.checklist_done||"")+'"><span class="hint">Due within 7 days of hire'+(hire?" ("+fmtDate(gmAdd(hire.date,7))+")":"")+'</span></div>'
@@ -3325,14 +3341,14 @@ function gmProfForm(key){const sid=current;const st=gmRoster(sid).find(s=>s.key=
     +'<div class="gm-actions"><span class="gm-err" id="gmPErr"></span><button class="gm-cancel" data-act="close">Cancel</button><button class="btn" id="gmPSave">Save</button></div>';
   gmModal(h);
   $("#gmPSave").onclick=async()=>{const err=$("#gmPErr");const who=$("#gmPWho").value.trim(),role=$("#gmPRole").value;if(!who){err.textContent="Enter your name in Logged by.";return;}
-    const body={stylist_name:p.stylist_name||st.name,home_salon:p.home_salon||sid,hire_date:$("#gmPHire").value||null,checklist_done:$("#gmPCheck").value||null,
+    const body={stylist_name:p.stylist_name||st.name,home_salon:p.home_salon||null,hire_date:$("#gmPHire").value||null,checklist_done:$("#gmPCheck").value||null,
       great_academy_done:$("#gmPAcad").value||null,inactive:$("#gmPInact").value==="1",notes:$("#gmPNotes").value.trim(),updated_by:who+" ("+role+")",updated_at:new Date().toISOString()};
     try{gmSetWho(who,role);const res=await gmPost("gc_stylist_profile",body,"?on_conflict=stylist_name","resolution=merge-duplicates,return=representation");
       GM.prof=GM.prof.filter(x=>x.stylist_name!==body.stylist_name);GM.prof.push((res&&res[0])||body);gmClose();renderManager();}
     catch(e){err.textContent=e.message;}};}
 
 // ---- Stylist timeline ----
-function gmTimeline(key){const sid=current;const st=gmRoster(sid).find(s=>s.key===key)||{key,name:key};const items=[];
+function gmTimeline(key){const sid=current;const st=gmRosterAll(sid).find(s=>s.key===key)||{key,name:key};const items=[];
   GM.log.forEach(r=>{if(gmKey(r.stylist_name)!==key)return;const dot=r.kind==="qc"?"":r.kind==="reach"?"r":"t";
     items.push({d:r.session_date,dot,t:GM_KINDS[r.kind]+(String(r.salon_id)!==String(sid)?" · "+sName(r.salon_id):""),s:gmSummary(r)+(r.follow_up?" Follow-up "+fmtDate(r.follow_up)+".":"")+" Logged by "+(r.logged_by||"—")+(r.logged_role?" ("+r.logged_role+")":"")+".",id:r.id});});
   (recaps||[]).forEach(r=>{if(String(r.salonId)!==String(sid))return;const q=safeParse(r.quality),c=safeParse(r.reach);

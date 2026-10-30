@@ -536,7 +536,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 
 <section class="panel" id="manager">
   <div class="gm-sub">
-    <div class="det-mode" id="gmViewBar"><button data-v="board" class="active">Development Board</button><button data-v="rhythm">Weekly Rhythm</button><button data-v="license">License Wall Check</button><button data-v="score">Scorecard &amp; History</button></div>
+    <div class="det-mode" id="gmViewBar"><button data-v="board" class="active">Development Board</button><button data-v="rhythm">Weekly Rhythm</button><button data-v="score">Scorecard &amp; History</button></div>
     <span id="gmSalonLbl" style="font-weight:700;color:var(--blue-dk);font-size:13.5px"></span>
   </div>
   <details class="card" style="margin-bottom:14px;padding:12px 16px">
@@ -3026,11 +3026,11 @@ function scPrint(){
 <script>
 // ===== GREAT MANAGER SYSTEM (Manager tab) =====
 // Coaching Log (QC with GREAT steps, REACH per the Weekly Stylist REACH form, training),
-// Development Board, Weekly Rhythm, monthly License Wall Check, Development Score + history.
-// Tables: gc_coaching_log, gc_stylist_profile, gc_manager_tasks, gc_license_checks.
+// Development Board, Weekly Rhythm, Development Score + history. Licensing uses the weekly recap's yes/no.
+// Tables: gc_coaching_log, gc_stylist_profile, gc_manager_tasks.
 // Out-of-standard uses the same stylist thresholds as the Weekly Recap (buildOOS):
 // Avg HC >= 19, new return < 21%, repeat return < 72% (CPH is not a coaching trigger here).
-const GM={log:[],prof:[],tasks:[],lic:[],contacts:[],loaded:false,loading:null,view:"board"};
+const GM={log:[],prof:[],tasks:[],contacts:[],loaded:false,loading:null,view:"board"};
 const GM_KINDS={qc:"Quality Connection",reach:"REACH",virtual_1on1:"Training · Virtual 1:1",in_person:"Training · In-person",shadowing:"Training · Shadowing",class:"Training · Class",academy_module:"Great Academy module"};
 const GM_TRAIN_KINDS=["virtual_1on1","in_person","shadowing","class","academy_module"];
 const GM_GREAT=[["G","Greet and introduce"],["R","Review Clips Notes"],["E","Engage to create the cut and connect through consultation"],["A","Ask questions to confirm satisfaction"],["T","Thank and invite back"]];
@@ -3090,9 +3090,8 @@ function gmLoad(force){
     gmGet("gc_coaching_log?select=*&deleted=eq.false&order=session_date.desc&limit=5000"),
     gmGet("gc_stylist_profile?select=*"),
     gmGet("gc_manager_tasks?select=*&order=period_date.desc&limit=5000"),
-    gmGet("gc_license_checks?select=*&order=check_date.desc,created_at.desc&limit=1000"),
     gmGet("salon_contacts?select=name,salon_id,role,anniversary").catch(()=>[])
-  ]).then(([l,p,t,c,ct])=>{GM.log=l||[];GM.prof=p||[];GM.tasks=t||[];GM.lic=c||[];GM.contacts=ct||[];GM.loaded=true;
+  ]).then(([l,p,t,ct])=>{GM.log=l||[];GM.prof=p||[];GM.tasks=t||[];GM.contacts=ct||[];GM.loaded=true;
     try{if($("#recap")&&$("#recap").classList.contains("active"))renderRecap();}catch(e){}
     return GM;}).catch(e=>{GM.loading=null;throw e;});
   return GM.loading;}
@@ -3138,8 +3137,9 @@ function gmStandards(sid,key,asOf){asOf=asOf||gmToday();
     if(typeof row[10]==="number"&&row[10]<72)reasons.push("Repeat return "+row[10].toFixed(0)+"%");
     return {week:w,reasons};}
   return {week:null,reasons:[]};}
-function gmLatestLic(sid){return GM.lic.find(c=>String(c.salon_id)===String(sid))||null;}
-function gmLicItem(chk,key){if(!chk)return null;return (chk.items||[]).find(i=>i.kind==="stylist"&&gmKey(i.name)===key)||null;}
+// Licensing comes from the weekly recap question "Are all stylists licenses posted and current with a color photo and
+// is the current business license and establishment license posted?" (recaps.licenses_posted = yes/no).
+function gmRecapLic(sid){const r=(recaps||[]).filter(x=>String(x.salonId)===String(sid)&&(x.licenses_posted==="yes"||x.licenses_posted==="no")).sort((a,b)=>String(b.weekEnding).localeCompare(String(a.weekEnding)))[0];return r?{ans:r.licenses_posted,wk:r.weekEnding}:null;}
 
 // ---- chips ----
 function gmChip(cls,txt,title){return '<span class="gm-chip '+cls+'"'+(title?' title="'+esc(title)+'"':'')+'>'+esc(txt)+'</span>';}
@@ -3152,22 +3152,16 @@ function gmTrainChip(doneDate,hire,dueDays,today){
   if(today<=due)return gmChip("gm-a","Due "+gmShort(due));
   if(gmDiff(hire,today)<=90)return gmChip("gm-r","Overdue · due "+gmShort(due));
   return gmChip("gm-n","Not recorded");}
-function gmLicChip(chk,item,today){
-  if(!chk||!item)return gmChip("gm-n","Not checked");
-  if(!(item.posted&&item.current&&item.photo)){const miss=[!item.posted?"not posted":"",!item.current?"not current":"",!item.photo?"no color photo":""].filter(Boolean).join(", ");return gmChip("gm-r","Issue: "+miss);}
-  if(item.exp){const d=gmDiff(today,item.exp);if(d<0)return gmChip("gm-r","Expired "+gmShort(item.exp));if(d<=60)return gmChip(d<=30?"gm-r":"gm-a","Expires in "+d+" days");}
-  const age=gmDiff(chk.check_date,today);
-  return age>30?gmChip("gm-a","Check due · last "+gmShort(chk.check_date)):gmChip("gm-g","OK"+(item.exp?" · exp "+fmtDate(item.exp):""));}
 
 // ---- per-stylist board row ----
-function gmRow(sid,st,ev,today,chk){
+function gmRow(sid,st,ev,today){
   const qc=gmLast(ev,st.key,["qc"],today),rc=gmLast(ev,st.key,["reach"],today),tr=gmLast(ev,st.key,GM_TRAIN_KINDS,today);
   const std=gmStandards(sid,st.key,today);const flagged=std.reasons.length>0;
   let coachedSinceFlag=false;if(flagged){const from=gmAdd(std.week,-6);coachedSinceFlag=ev.some(e=>e.key===st.key&&(e.kind==="qc"||e.kind==="reach")&&e.date>=from&&e.date<=today);}
   const hire=gmHire(st);const prof=gmProfile(st.key)||{};
   const qcAge=qc?gmDiff(qc.date,today):999,rcAge=rc?gmDiff(rc.date,today):999;
   const pri=(flagged&&!coachedSinceFlag?1000:0)+(qcAge>30?200:qcAge>21?50:0)+(rcAge>30?200:rcAge>21?50:0)+Math.min(qcAge,120)+Math.min(rcAge,120);
-  return {st,qc,rc,tr,std,flagged,coachedSinceFlag,hire,prof,pri,lic:gmLicItem(chk,st.key)};}
+  return {st,qc,rc,tr,std,flagged,coachedSinceFlag,hire,prof,pri};}
 
 // ---- score ----
 function gmScore(sid,today){today=today||gmToday();const R=gmRoster(sid,today);if(!R.length)return null;
@@ -3189,7 +3183,7 @@ function gmScore(sid,today){today=today||gmToday();const R=gmRoster(sid,today);i
   c.rhythm=rd?rp/rd:null;
   const sv=gmSchedThrough(sid);c.sched=sv?Math.max(0,Math.min(1,gmDiff(today,sv)/28)):0;
   let num=0,den=0;Object.keys(GM_W).forEach(k=>{if(c[k]==null)return;num+=c[k]*GM_W[k];den+=GM_W[k];});
-  const lic=gmLatestLic(sid);const comp=!lic?"none":(gmDiff(lic.check_date,today)>30?"stale":(lic.all_ok?"ok":"fail"));
+  const lic=gmRecapLic(sid);const comp=!lic?"none":(lic.ans==="yes"?"ok":"fail");
   return {score:den?Math.round(num/den*100):null,c,n:R.length,comp,lic};}
 function gmTask(sid,ptype,pdate,k){return GM.tasks.find(t=>String(t.salon_id)===String(sid)&&t.period_type===ptype&&t.period_date===pdate&&t.item_key===k)||null;}
 function gmItemDone(t,it){return !!t&&(it.type==="date"?!!t.value:!!t.completed);}
@@ -3202,7 +3196,7 @@ function gmRecapDefault(cat,sid,wk,name){if(!GM.loaded)return"";const from=gmAdd
   return GM.log.some(r=>String(r.salon_id)===String(sid)&&r.kind===kind&&gmKey(r.stylist_name)===k&&r.session_date>=from&&r.session_date<=wk)?"yes":"";}
 function gmRecapSchedText(sid,wk){if(!GM.loaded)return"";const t=gmTask(sid,"week",wk,"sched_through");const v=t&&t.value?t.value:gmSchedThrough(sid);
   return v?"Yes, entered through "+fmtDate(v)+" (from Weekly Rhythm)":"";}
-function gmRecapLicDefault(sid,wk){if(!GM.loaded)return"";const c=GM.lic.find(x=>String(x.salon_id)===String(sid)&&x.check_date<=wk&&gmDiff(x.check_date,wk)<=31);return c?(c.all_ok?"yes":"no"):"";}
+function gmRecapLicDefault(sid,wk){return"";} // the recap question itself is the source of truth
 
 // ---- logger identity (no logins in this dashboard) ----
 function gmWho(){let n="",r="Manager";try{n=localStorage.getItem("gm_logger")||"";r=localStorage.getItem("gm_role")||"Manager";}catch(e){}return {n,r};}
@@ -3221,11 +3215,11 @@ function renderManager(){const host=$("#gmBody");if(!host)return;
   $("#gmSalonLbl").textContent=current?(current+" — "+sName(current)):"";
   if(!GM.loaded){host.innerHTML='<div class="loading">Loading manager data…</div>';
     gmLoad().then(renderManager).catch(e=>{host.innerHTML='<div class="banner warn">Could not load manager data: '+esc(e.message)+'</div>';});return;}
-  try{({board:gmBoard,rhythm:gmRhythm,license:gmLicense,score:gmScorecard}[GM.view]||gmBoard)(host);}
+  try{({board:gmBoard,rhythm:gmRhythm,score:gmScorecard}[GM.view]||gmBoard)(host);}
   catch(e){console.error(e);host.innerHTML='<div class="banner warn">Something went wrong drawing this view: '+esc(e.message)+'</div>';}}
 
-function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,today);const ev=gmEvents(sid);const chk=gmLatestLic(sid);
-  const rows=R.map(s=>gmRow(sid,s,ev,today,chk)).sort((a,b)=>b.pri-a.pri||a.st.name.localeCompare(b.st.name));
+function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,today);const ev=gmEvents(sid);
+  const rows=R.map(s=>gmRow(sid,s,ev,today)).sort((a,b)=>b.pri-a.pri||a.st.name.localeCompare(b.st.name));
   const sc=gmScore(sid,today);
   const qcN=rows.filter(r=>r.qc&&gmDiff(r.qc.date,today)<=30).length,rcN=rows.filter(r=>r.rc&&gmDiff(r.rc.date,today)<=30).length;
   const priN=rows.filter(r=>r.flagged&&!r.coachedSinceFlag).length;
@@ -3241,7 +3235,7 @@ function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,to
     +'</div>';
   h+='<div class="recap-bar"><button class="btn" data-act="log">+ Log a conversation</button><span class="sub" style="color:var(--muted);font-size:12.5px">Sorted so stylists to coach first are on top. Green ≤21 days, amber 22–30, red over 30 or never.</span></div>';
   if(!rows.length){h+='<div class="oos-neutral">No stylists with floor hours at this salon in the last 30 days.</div>';host.innerHTML=h;return;}
-  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Stylist</th><th>Standards</th><th>Last QC</th><th>Last REACH</th><th>Training checklist</th><th>Great Academy</th><th>Last training</th><th>License</th></tr></thead><tbody>';
+  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Stylist</th><th>Standards</th><th>Last QC</th><th>Last REACH</th><th>Training checklist</th><th>Great Academy</th><th>Last training</th></tr></thead><tbody>';
   rows.forEach(r=>{const k=esc(r.st.key);const hire=r.hire?r.hire.date:null;
     const stdCell=r.flagged?gmChip(r.coachedSinceFlag?"gm-a":"gm-r",r.coachedSinceFlag?"Coached":"Coach")+'<div class="gm-why">'+esc(r.std.reasons.join(" · "))+' · wk '+gmShort(r.std.week)+'</div>':(r.std.week?gmChip("gm-g","In standard"):gmChip("gm-n","No EPS yet"));
     h+='<tr class="'+(r.flagged&&!r.coachedSinceFlag?"gm-pri":"")+'"><td><button class="gm-name" data-act="tl" data-key="'+k+'">'+esc(r.st.name)+'</button>'
@@ -3250,8 +3244,7 @@ function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,to
       +'<td>'+gmAgeChip(r.qc,today)+'</td><td>'+gmAgeChip(r.rc,today)+'</td>'
       +'<td class="gm-click" data-act="prof" data-key="'+k+'">'+gmTrainChip(r.prof.checklist_done,hire,7,today)+'</td>'
       +'<td class="gm-click" data-act="prof" data-key="'+k+'">'+gmTrainChip(r.prof.great_academy_done,hire,30,today)+'</td>'
-      +'<td>'+(r.tr?gmChip("gm-g",GM_KINDS[r.tr.kind].replace("Training · ","")+" · "+gmShort(r.tr.date)):gmChip("gm-n","None logged"))+'</td>'
-      +'<td>'+gmLicChip(chk,r.lic,today)+'</td></tr>';});
+      +'<td>'+(r.tr?gmChip("gm-g",GM_KINDS[r.tr.kind].replace("Training · ","")+" · "+gmShort(r.tr.date)):gmChip("gm-n","None logged"))+'</td></tr>';});
   h+='</tbody></table></div></div>';
   const fl=gmRosterSplit(sid,today).floaters;
   if(fl.length)h+='<div class="legend-note">Also worked here in the last 30 days (home salon elsewhere, not scored here): '+fl.map(f=>'<button class="gm-link" data-act="tl" data-key="'+esc(f.key)+'">'+esc(f.name)+'</button> ('+f.hrs.toFixed(1)+' hrs · mostly '+esc(sName(f.home))+')').join(', ')+'</div>';
@@ -3264,10 +3257,8 @@ function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,to
     h+='</tbody></table></div>';}
   h+='</div>';
   host.innerHTML=h;}
-function gmCompBanner(sc){if(!sc)return"";
-  if(sc.comp==="ok")return"";
-  const msg=sc.comp==="none"?"No license wall check on record. Complete the monthly License Wall Check.":sc.comp==="stale"?"License wall check is over 30 days old (last "+fmtDate(sc.lic.check_date)+"). Complete this month's check.":"The last license wall check ("+fmtDate(sc.lic.check_date)+") found issues. Fix them and re-check.";
-  return '<div class="gm-banner red">⚠️ <b>Compliance:</b> '+esc(msg)+' <button class="gm-link" data-act="goto" data-v="license">Open License Wall Check</button></div>';}
+function gmCompBanner(sc){if(!sc||sc.comp!=="fail")return"";
+  return '<div class="gm-banner red">⚠️ <b>Licenses:</b> the weekly recap for the week ending '+fmtDate(sc.lic.wk)+' answered <b>No</b> to “all stylist licenses posted and current with a color photo, and the business and establishment licenses posted.” Fix it and answer Yes on the next recap.</div>';}
 function gmSummary(r){
   if(r.kind==="qc"){const g=r.great||{};const coached=GM_GREAT.filter(s=>g[s[0]]==="coached").map(s=>s[0]);
     return (coached.length?"Coached "+coached.join(", "):"All 5 steps observed")+(r.focus?". Focus: "+r.focus:"")+(r.commitment?". Commitment: "+r.commitment:"");}
@@ -3362,8 +3353,6 @@ function gmTimeline(key){const sid=current;const st=gmRosterAll(sid).find(s=>s.k
   if(hire)items.push({d:hire.date,dot:"t",t:"Hired",s:"Training checklist due "+fmtDate(gmAdd(hire.date,7))+", Great Academy due "+fmtDate(gmAdd(hire.date,30))+"."});
   if(p.checklist_done)items.push({d:p.checklist_done,dot:"t",t:"Training checklist signed off",s:""});
   if(p.great_academy_done)items.push({d:p.great_academy_done,dot:"t",t:"Great Academy completed",s:""});
-  GM.lic.filter(c=>String(c.salon_id)===String(sid)).forEach(c=>{const it=gmLicItem(c,key);if(!it)return;const ok=it.posted&&it.current&&it.photo;
-    items.push({d:c.check_date,dot:ok?"l":"f",t:"License wall check: "+(ok?"OK":"issue"),s:(ok?"Posted, current, color photo.":"Posted "+(it.posted?"yes":"no")+", current "+(it.current?"yes":"no")+", color photo "+(it.photo?"yes":"no")+".")+(it.exp?" Expires "+fmtDate(it.exp)+".":"")+" Checked by "+(c.checked_by||"—")+"."});});
   items.sort((a,b)=>b.d.localeCompare(a.d));
   let h='<h3>'+esc(st.name)+' · history</h3><div class="recap-bar" style="margin-top:0"><button class="btn" data-act="log" data-key="'+esc(key)+'">+ Log a conversation</button><button class="gm-btn2" data-act="prof" data-key="'+esc(key)+'">Training record</button></div>';
   h+=items.length?'<ul class="gm-tl">'+items.map(i=>'<li><span class="d">'+fmtDate(i.d)+'</span><span class="dot '+i.dot+'"></span><span class="e"><b>'+esc(i.t)+'</b>'+(i.s?'<span>'+esc(i.s)+'</span>':'')+(i.id?' <button class="gm-link" data-act="view" data-id="'+esc(i.id)+'">View</button>':'')+'</span></li>').join("")+'</ul>':'<div class="oos-neutral">No history yet.</div>';
@@ -3407,46 +3396,17 @@ async function gmSaveTask(ptype,pdate,k,completed,value,el){const w=await gmEnsu
     GM.tasks=GM.tasks.filter(t=>!(String(t.salon_id)===String(current)&&t.period_type===ptype&&t.period_date===pdate&&t.item_key===k));GM.tasks.unshift((res&&res[0])||body);renderManager();}
   catch(e){const er=$("#gmRErr");if(er)er.textContent=e.message;if(el&&el.type==="checkbox")el.checked=!completed;}}
 
-// ---- License Wall Check ----
-function gmLicense(host){const sid=current,today=gmToday();const R=gmRoster(sid,today);const last=gmLatestLic(sid);
-  const prevItem=(kind,key)=>last?(last.items||[]).find(i=>i.kind===kind&&(kind!=="stylist"||gmKey(i.name)===key)):null;
-  let h=gmCompBanner(gmScore(sid,today)||{comp:last?"ok":"none",lic:last});
-  if(last&&last.all_ok&&gmDiff(last.check_date,today)<=30)h+='<div class="gm-banner green">✓ Last check '+fmtDate(last.check_date)+' by '+esc(last.checked_by||"—")+': everything posted and current. Next check due by '+fmtDate(gmAdd(last.check_date,30))+'.</div>';
-  h+='<div class="card"><h3>Monthly License Wall Check</h3><div class="hint">Walk the license wall and check each line. Type the expiration date you see so the dashboard can warn you 60 and 30 days ahead. Each saved check is kept as history.</div>'
-    +'<div class="tbl-scroll"><table class="gm-tbl gm-lic"><thead><tr><th>License</th><th>Posted</th><th>Current</th><th>Color photo</th><th>Expires</th></tr></thead><tbody>';
-  const row=(kind,name,key,photo)=>{const p=prevItem(kind,key)||{};const id=kind+"|"+(key||kind);
-    return '<tr data-lic="'+esc(id)+'" data-kind="'+kind+'" data-name="'+esc(name)+'"><td><b>'+esc(name)+'</b></td><td><input type="checkbox" data-f="posted"></td><td><input type="checkbox" data-f="current"></td><td>'+(photo?'<input type="checkbox" data-f="photo">':'<span class="sub" style="color:var(--muted)">n/a</span>')+'</td><td><input type="date" data-f="exp" value="'+esc(p.exp||"")+'"></td></tr>';};
-  h+=row("business","Business license","",false)+row("establishment","Establishment license","",false);
-  R.forEach(s=>{h+=row("stylist",s.name,s.key,true);});
-  h+='</tbody></table></div><div class="gm-form" style="margin-top:12px">'+gmWhoFields("gmK").replace("Logged by","Checked by")+'<div class="gm-f full"><label>Notes</label><textarea id="gmKNotes" placeholder="Anything missing or being fixed?"></textarea></div></div>'
-    +'<div class="gm-actions"><span class="gm-err" id="gmKErr"></span><button class="gm-btn2" data-act="licall">Mark all posted and current</button><button class="btn" data-act="licsave">Save wall check</button></div></div>';
-  const hist=GM.lic.filter(c=>String(c.salon_id)===String(sid)).slice(0,12);
-  h+='<div class="card" style="margin-top:14px"><h3>Wall check history</h3>';
-  if(!hist.length)h+='<div class="oos-neutral">No wall checks saved yet.</div>';
-  else{h+='<div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Date</th><th>Checked by</th><th>Result</th><th>Issues</th></tr></thead><tbody>';
-    hist.forEach(c=>{const bad=(c.items||[]).filter(i=>!(i.posted&&i.current&&(i.kind!=="stylist"||i.photo)));
-      h+='<tr><td>'+fmtDate(c.check_date)+'</td><td>'+esc(c.checked_by||"—")+'</td><td>'+(c.all_ok?gmChip("gm-g","All OK"):gmChip("gm-r",bad.length+" issue"+(bad.length===1?"":"s")))+'</td><td class="wrap">'+esc(bad.map(i=>i.name).join(", ")+(c.notes?(bad.length?" · ":"")+c.notes:""))+'</td></tr>';});
-    h+='</tbody></table></div>';}
-  h+='</div>';host.innerHTML=h;}
-async function gmLicSave(){const err=$("#gmKErr");err.textContent="";const who=$("#gmKWho").value.trim(),role=$("#gmKRole").value;if(!who){err.textContent="Enter your name in Checked by.";return;}
-  const items=[];document.querySelectorAll("#gmBody tr[data-lic]").forEach(tr=>{const g=f=>{const el=tr.querySelector('[data-f="'+f+'"]');return el?(el.type==="checkbox"?el.checked:el.value):null;};
-    const kind=tr.dataset.kind;items.push({kind,name:tr.dataset.name,posted:!!g("posted"),current:!!g("current"),photo:kind==="stylist"?!!g("photo"):true,exp:g("exp")||null});});
-  const today=gmToday();const all_ok=items.every(i=>i.posted&&i.current&&i.photo&&(!i.exp||i.exp>=today));
-  try{gmSetWho(who,role);const res=await gmPost("gc_license_checks",{salon_id:current,check_date:today,checked_by:who+(role==="AM"?" (AM)":""),items,all_ok,notes:$("#gmKNotes").value.trim()});
-    if(res&&res[0])GM.lic.unshift(res[0]);else await gmLoad(true);renderManager();window.scrollTo({top:0,behavior:"smooth"});}
-  catch(e){err.textContent=e.message;}}
-
 // ---- Scorecard & history (all salons) ----
 function gmScorecard(host){const today=gmToday();
-  let h='<div class="gm-banner info">The Development Score is information only for the first 4–6 weeks. It measures coverage a manager controls: QC and REACH in the last 30 days, coaching for out-of-standard stylists within 14 days, new-stylist training on time, the Weekly Rhythm, and how far ahead schedules are entered. QC/REACH answered “yes” on weekly recaps count too. Licensing is a separate pass/fail check.</div>';
-  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Salon</th><th>Score</th><th>QC 30d (20)</th><th>REACH 30d (20)</th><th>Flagged coached (20)</th><th>Training (15)</th><th>Rhythm 4 wks (15)</th><th>Schedules (10)</th><th>Licenses</th></tr></thead><tbody>';
+  let h='<div class="gm-banner info">The Development Score is information only for the first 4–6 weeks. It measures coverage a manager controls: QC and REACH in the last 30 days, coaching for out-of-standard stylists within 14 days, new-stylist training on time, the Weekly Rhythm, and how far ahead schedules are entered. QC/REACH answered “yes” on weekly recaps count too. Licenses show the latest weekly recap’s yes/no and aren’t part of the score.</div>';
+  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Salon</th><th>Score</th><th>QC 30d (20)</th><th>REACH 30d (20)</th><th>Flagged coached (20)</th><th>Training (15)</th><th>Rhythm 4 wks (15)</th><th>Schedules (10)</th><th>Licenses (recap)</th></tr></thead><tbody>';
   const pct=v=>v==null?'<span style="color:var(--muted)">n/a</span>':'<b style="color:'+(v>=.8?GREEN:v>=.6?AMBER:RED)+'">'+Math.round(v*100)+'%</b>';
-  const compChip=c=>c==="ok"?gmChip("gm-g","OK"):c==="fail"?gmChip("gm-r","Issues"):c==="stale"?gmChip("gm-a","Check due"):gmChip("gm-r","Never checked");
+  const compChip=(c,l)=>c==="ok"?gmChip("gm-g","Yes · WE "+gmShort(l.wk)):c==="fail"?gmChip("gm-r","No · WE "+gmShort(l.wk)):gmChip("gm-n","Not answered");
   Object.entries(AM_DEF).forEach(([am,salons])=>{const scs=salons.map(s=>({s,r:gmScore(s,today)}));const vals=scs.map(x=>x.r&&x.r.score).filter(v=>v!=null);const avg=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):null;
     h+='<tr style="background:var(--bg)"><td colspan="9"><b>'+esc(am)+'</b> · average <span class="gm-score" style="background:'+gmScoreCol(avg)+'">'+(avg==null?"—":avg)+'</span></td></tr>';
     scs.forEach(({s,r})=>{h+='<tr class="gm-click" data-act="jump" data-sid="'+s+'"><td><b>'+s+'</b> <span style="color:var(--muted);font-size:12px">'+esc(sName(s))+'</span></td>'
       +'<td><span class="gm-score" style="background:'+gmScoreCol(r&&r.score)+'">'+(r&&r.score!=null?r.score:"—")+'</span></td>'
-      +(r?['qc','reach','pri','train','rhythm','sched'].map(k=>'<td>'+pct(r.c[k])+'</td>').join("")+'<td>'+compChip(r.comp)+'</td>':'<td colspan="7" style="color:var(--muted)">No active stylists</td>')+'</tr>';});});
+      +(r?['qc','reach','pri','train','rhythm','sched'].map(k=>'<td>'+pct(r.c[k])+'</td>').join("")+'<td>'+compChip(r.comp,r.lic)+'</td>':'<td colspan="7" style="color:var(--muted)">No active stylists</td>')+'</tr>';});});
   h+='</tbody></table></div></div>';
   // weekly coaching history grid
   const curWe=gmWeekEnd(today);const wks=[];for(let i=7;i>=0;i--)wks.push(gmAdd(curWe,-7*i));
@@ -3474,8 +3434,6 @@ document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if
   if(a==="del"){gmDelete(el.dataset.id);return;}
   if(a==="goto"){GM.view=el.dataset.v;renderManager();return;}
   if(a==="who"){gmSetWho("",gmWho().r);gmEnsureWho().then(()=>renderManager());return;}
-  if(a==="licall"){document.querySelectorAll('#gmBody tr[data-lic] input[type=checkbox]').forEach(c=>c.checked=true);return;}
-  if(a==="licsave"){gmLicSave();return;}
   if(a==="jump"){const s=el.dataset.sid;current=s;const ss=$("#salonSel");if(ss)ss.value=s;GM.view="board";renderManager();window.scrollTo({top:0});return;}
 });
 document.addEventListener("change",e=>{const el=e.target;if(!el.closest||!el.closest("#manager"))return;const a=el.dataset&&el.dataset.act;

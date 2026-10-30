@@ -2263,6 +2263,7 @@ function amJumpToSalon(sid,wk){
   // set the recap week
   $("#recapWeek").value=wk;
   renderRecap();
+  [renderDetail,renderReps,renderTeam,renderAA,loadTrend,ctRender].forEach(function(fn){try{fn();}catch(e){}}); // keep other tabs on the same salon
   // scroll to the per-salon form
   const el=$("#recapBar");if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -2307,7 +2308,7 @@ function renderRecap(){
   buildOOS(id,wk);
 }
 $("#recapWeek").onchange=renderRecap;
-$("#recapSalonSel").onchange=function(){current=this.value;$("#salonSel").value=current;renderRecap();};
+$("#recapSalonSel").onchange=function(){const ss=$("#salonSel");ss.value=this.value;ss.dispatchEvent(new Event("change"));}; // refreshes Detail/REPS/etc. too, not just the recap
 function doRecapSave(status){
   const id=current,wk=$("#recapWeek").value;if(!wk){alert("Pick a week-ending date");return;}
   if(!buildOOS._ready){alert("Still loading standards data — please wait a moment and try again.");return;}
@@ -3561,7 +3562,7 @@ document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if
   if(a==="del"){gmDelete(el.dataset.id);return;}
   if(a==="goto"){GM.view=el.dataset.v;renderManager();return;}
   if(a==="who"){gmSetWho("",gmWho().r);gmEnsureWho().then(()=>renderManager());return;}
-  if(a==="jump"){const s=el.dataset.sid;current=s;const ss=$("#salonSel");if(ss)ss.value=s;GM.view="board";renderManager();window.scrollTo({top:0});return;}
+  if(a==="jump"){const s=el.dataset.sid;GM.view="board";const ss=$("#salonSel");if(ss){ss.value=s;ss.dispatchEvent(new Event("change"));}else{current=s;}renderManager();window.scrollTo({top:0});return;}
 });
 document.addEventListener("change",e=>{const el=e.target;if(!el.closest||!el.closest("#manager"))return;const a=el.dataset&&el.dataset.act;
   if(a==="dtask")gmSaveTask("day",el.dataset.day,el.dataset.k,el.checked,null,el);
@@ -3572,6 +3573,7 @@ document.addEventListener("change",e=>{const el=e.target;if(!el.closest||!el.clo
 document.addEventListener("keydown",e=>{if(e.key==="Escape")gmClose();});
 function gmSetHash(){try{history.replaceState(null,"","#manager-"+current);}catch(e){}}
 (function(){const t=document.querySelector('.tab[data-t="manager"]');if(t)t.addEventListener("click",()=>{gmSetHash();renderManager();});
+  document.querySelectorAll('.tabs-inner .tab').forEach(x=>{if(x.dataset.t!=="manager")x.addEventListener("click",()=>{if(/^#manager/.test(location.hash)){try{history.replaceState(null,"",location.pathname+location.search);}catch(e){}}});}); // a reload should reopen the tab you're on, not Manager
   document.querySelectorAll("#gmViewBar button").forEach(b=>b.addEventListener("click",()=>{GM.view=b.dataset.v;renderManager();}));
   const ss=$("#salonSel");if(ss)ss.addEventListener("change",()=>{current=ss.value;gmClose();try{localStorage.setItem("gc_last_salon",current);}catch(e){}if($("#manager").classList.contains("active"))gmSetHash();if($("#manager").classList.contains("active"))renderManager();}); // set current here: this listener runs before the dashboard's own onchange
   // load manager data in the background once the main data is in, so the recap can pre-fill from it
@@ -3654,7 +3656,10 @@ function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
   document.querySelectorAll(".tabs-inner .tab-link").forEach(a=>a.hidden=mgr&&!/gc-maintenance/.test(a.getAttribute("href")||"")); // managers keep the Maintenance list
   const ss=$("#salonSel");
   if(mgr){[...ss.options].forEach(o=>{if(!gcCanSalon(o.value))o.remove();});
-    if(!ss.options.length){$("#emptyBanner").innerHTML='<div class="banner warn">Your account isn’t assigned to a salon yet. Ask Pranav to add your salon.</div>';}
+    if(!ss.options.length){$("#emptyBanner").innerHTML='<div class="banner warn">Your account isn’t assigned to a salon yet. Ask Pranav to add your salon.</div>';
+      // no salon: never fall back to another salon's data; only the Portfolio stays available
+      current=null;document.querySelectorAll(".tabs-inner .tab").forEach(t=>{if(t.dataset.t!=="portfolio")t.hidden=true;});
+      const pt=document.querySelector('.tab[data-t="portfolio"]');if(pt)pt.click();return;}
     const a=$("#adminHrsCards");if(a)a.innerHTML="";}
   const m=location.hash.match(/^#([a-z]+)(?:-(\d{4}))?$/);
   let want=null;

@@ -1253,7 +1253,7 @@ const ADMIN_MGRS=[{name:"Gonzales, Liza",match:"Gonzales, Liza",allot:10},
   {name:"Shelby, Tanya",match:"Shelby, Tanya",allot:10}];
 function renderAdminHrs(){
   const el=$("#adminHrsCards");if(!el)return;
-  if(typeof gcIsMgr==="function"&&gcIsMgr()){el.innerHTML="";return;} // salon managers never see Area Manager admin hours
+  if(typeof gcHas==="function"&&!gcHas("adminhrs")){el.innerHTML="";return;} // hidden unless this login has AM admin hours access
   const latest=DATES[0];if(!latest){el.innerHTML="";return;}
   const wkStart=gcWeekStart(latest);
   const weekDates=Object.keys(DATA.days||{}).filter(d=>d>=wkStart&&d<=latest).sort();
@@ -3593,6 +3593,13 @@ let GCU={user:null,perms:null};
 let gcSB=null,gcAuthP=null;
 const GC_ROLE_NAMES={owner:"Owner",am:"Area Manager",manager:"Salon Manager",asst_manager:"Assistant Manager"};
 const GC_MGR_TABS=["portfolio","reps","detail","manager","contacts"];
+// Areas a login can open. Tabs use data-t keys; links match on their href; adminhrs = the Area Manager admin-hours cards.
+const GC_AREAS=[["portfolio","Portfolio"],["reps","Daily REPS"],["detail","Salon Detail"],["recap","Weekly Recap"],["manager","Manager"],["contacts","Contacts"],["scorecard","Scorecard"],["crm","Stylist CRM"],["quiz","Manager Quiz"],["maint","Maintenance"],["adminhrs","AM admin hours"]];
+const GC_LINK_AREA={"gc-crm":"crm","gc-quiz-admin":"quiz","gc-maintenance":"maint"};
+function gcRoleAreas(role){return (role==="manager"||role==="asst_manager")?GC_MGR_TABS.concat(["maint"]):GC_AREAS.map(a=>a[0]);}
+function gcAreasFor(u){if(!u)return [];if(u.role==="owner")return GC_AREAS.map(a=>a[0]);return Array.isArray(u.access)?u.access:gcRoleAreas(u.role);}
+function gcHas(area){return !GCU.perms||gcAreasFor(GCU.perms).includes(area);}
+function gcLinkArea(href){const k=Object.keys(GC_LINK_AREA).find(x=>String(href||"").includes(x));return k?GC_LINK_AREA[k]:null;}
 function gcIsMgr(){return !!(GCU.perms&&(GCU.perms.role==="manager"||GCU.perms.role==="asst_manager"));}
 function gcIsOwner(){return !!(GCU.perms&&GCU.perms.role==="owner");}
 function gcCanSalon(sid){return !gcIsMgr()||(GCU.perms.salon_ids||[]).map(String).includes(String(sid));}
@@ -3653,8 +3660,9 @@ function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
   if(!$("#gcUser")){const d=document.createElement("div");d.id="gcUser";d.className="gc-user";
     d.innerHTML='<span><b>'+esc(p.name||p.email)+'</b> · '+esc(GC_ROLE_NAMES[p.role]||p.role)+'</span><button type="button" id="gcPwBtn">Change password</button><button type="button" id="gcOutBtn">Sign out</button>';
     $(".hdr-inner").appendChild(d);$("#gcPwBtn").onclick=()=>gcPwModal(false);$("#gcOutBtn").onclick=gcSignOut;}
-  document.querySelectorAll(".tabs-inner .tab").forEach(t=>{const k=t.dataset.t;let show=mgr?GC_MGR_TABS.includes(k):true;if(k==="users")show=gcIsOwner();t.hidden=!show;});
-  document.querySelectorAll(".tabs-inner .tab-link").forEach(a=>a.hidden=mgr&&!/gc-maintenance/.test(a.getAttribute("href")||"")); // managers keep the Maintenance list
+  document.querySelectorAll(".tabs-inner .tab").forEach(t=>{const k=t.dataset.t;t.hidden=k==="users"?!gcIsOwner():!gcHas(k);});
+  document.querySelectorAll(".tabs-inner .tab-link").forEach(a=>{const k=gcLinkArea(a.getAttribute("href"));a.hidden=k?!gcHas(k):false;});
+  if(!gcHas("adminhrs")){const a=$("#adminHrsCards");if(a)a.innerHTML="";}
   const ss=$("#salonSel");
   if(mgr){[...ss.options].forEach(o=>{if(!gcCanSalon(o.value))o.remove();});
     if(!ss.options.length){$("#emptyBanner").innerHTML='<div class="banner warn">Your account isn’t assigned to a salon yet. Ask Pranav to add your salon.</div>';
@@ -3669,7 +3677,10 @@ function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
   if(!want&&mgr&&ss.options.length)want=ss.options[0].value;
   if(want&&want!==current){ss.value=want;ss.dispatchEvent(new Event("change"));}
   const tab=m?m[1]:(mgr?"manager":null);
-  if(tab){const el=document.querySelector('.tab[data-t="'+tab+'"]');if(el&&!el.hidden)el.click();}}
+  let el=tab?document.querySelector('.tab[data-t="'+tab+'"]'):null;
+  const act=document.querySelector(".tabs-inner .tab.active");
+  if(!(el&&!el.hidden)&&act&&act.hidden)el=document.querySelector(".tabs-inner .tab:not([hidden])"); // landed on a tab this login can't open
+  if(el&&!el.hidden)el.click();}
 
 // ===== USERS (owners only) =====
 let GC_USERS=[],GC_SUGGEST=[];
@@ -3682,11 +3693,14 @@ async function gcUsersLoad(){const host=$("#gcUsersBody");if(!host)return;host.i
       const k=e;if(!by[k])by[k]={email:e,name:x.name,role,salon_ids:[]};if(!by[k].salon_ids.includes(String(x.salon_id)))by[k].salon_ids.push(String(x.salon_id));});
     GC_SUGGEST=Object.values(by).sort((a,b)=>(a.role==="am"?0:1)-(b.role==="am"?0:1)||a.name.localeCompare(b.name));
     gcUsersRender();}catch(e){host.innerHTML='<div class="banner warn">Could not load users: '+esc(e.message||e)+'</div>';}}
+function gcAccessLabel(u){if(u.role==="owner"||!Array.isArray(u.access))return '<span class="hint">Role default</span>';
+  return gmChip("gm-a","Custom")+' '+esc(GC_AREAS.filter(a=>u.access.includes(a[0])).map(a=>a[1]).join(", "));}
 function gcSalonList(ids){return (ids||[]).length?(ids||[]).map(s=>s+" "+(SALONS[s]||"")).join(", "):"All salons";}
 function gcUsersRender(){const host=$("#gcUsersBody");
-  let h='<div class="recap-bar"><button class="btn" id="gcAddUser">+ Add user</button><span class="gm-why">Managers and assistant managers see Portfolio, Daily REPS, Salon Detail, Manager and Contacts for their salon(s) only. Area Managers and Owners see everything; only Owners see this page.</span></div>';
-  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Salons</th><th>Status</th><th></th></tr></thead><tbody>';
+  let h='<div class="recap-bar"><button class="btn" id="gcAddUser">+ Add user</button><span class="gm-why">Each role starts with default access: managers and assistant managers see Portfolio, Daily REPS, Salon Detail, Manager, Contacts and Maintenance for their salon(s) only; Area Managers see everything. Click Edit to turn individual areas on or off for one person. Only Owners see this page.</span></div>';
+  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Salons</th><th>Access</th><th>Status</th><th></th></tr></thead><tbody>';
   GC_USERS.forEach(u=>{h+='<tr><td><b>'+esc(u.name||"—")+'</b></td><td>'+esc(u.email)+'</td><td>'+esc(GC_ROLE_NAMES[u.role]||u.role)+'</td><td class="wrap">'+esc(u.role==="owner"?"All salons":gcSalonList(u.salon_ids))+'</td>'
+    +'<td class="wrap">'+gcAccessLabel(u)+'</td>'
     +'<td>'+(u.is_active?(u.must_change_password?gmChip("gm-a","Temp password"):gmChip("gm-g","Active")):gmChip("gm-n","Disabled"))+'</td>'
     +'<td><button class="gm-link" data-gcedit="'+esc(u.id)+'">Edit</button></td></tr>';});
   h+='</tbody></table></div></div>';
@@ -3727,18 +3741,31 @@ function gcUserForm(u,pre){const isNew=!u;const v=u||Object.assign({email:"",nam
     +(isNew?'<div class="gm-f"><label for="gcUPw">Temporary password</label><input id="gcUPw" value="'+gcTempPw()+'"><span class="hint">Default is greatclips. They must choose their own at first sign-in.</span></div>'
       :'<div class="gm-f"><label for="gcUActive">Status</label><select id="gcUActive"><option value="1">Active</option><option value="0"'+(v.is_active?"":" selected")+'>Disabled</option></select></div>')
     +'<div class="gm-f full"><label>Salons</label><div class="ct-vl-grid" id="gcUSalons">'+salons.map(s=>'<label><input type="checkbox" value="'+s+'"'+((v.salon_ids||[]).includes(s)?" checked":"")+'> '+s+' '+esc(SALONS[s])+'</label>').join("")+'</div><span class="hint">Managers only see the salons checked here. Owners always see all salons.</span></div>'
+    +'<div class="gm-f full"><label>Access</label><div class="ct-vl-grid" id="gcUAccess">'+GC_AREAS.map(a=>'<label><input type="checkbox" value="'+a[0]+'"'+(gcAreasFor(v).includes(a[0])?" checked":"")+'> '+a[1]+'</label>').join("")+'</div>'
+    +'<span class="hint" id="gcUAccHint"></span> <button type="button" class="gm-link" id="gcUAccReset">Reset to role default</button></div>'
     +'</div><div class="gm-actions"><span class="gm-err" id="gcUErr"></span>'+(isNew?'':'<button class="gm-cancel" id="gcUReset">Reset password</button>')+'<button class="gm-cancel" data-act="close" id="gcUCancel">Cancel</button><button class="btn" id="gcUSave">'+(isNew?"Create login":"Save")+'</button></div>';
   gmModal(h);$("#gcUCancel").onclick=gmClose;
   const salonsSel=()=>[...document.querySelectorAll("#gcUSalons input:checked")].map(c=>c.value);
+  const accSel=()=>[...document.querySelectorAll("#gcUAccess input:checked")].map(c=>c.value);
+  const accBoxes=()=>[...document.querySelectorAll("#gcUAccess input")];
+  const sameSet=(a,b)=>a.length===b.length&&a.every(x=>b.includes(x));
+  const accSync=()=>{const role=$("#gcURole").value,own=role==="owner";accBoxes().forEach(c=>{c.disabled=own;if(own)c.checked=true;});
+    $("#gcUAccHint").textContent=own?"Owners always see everything.":sameSet(accSel(),gcRoleAreas(role))?"Using the "+GC_ROLE_NAMES[role]+" default.":"Custom access for this person.";
+    $("#gcUAccReset").hidden=own||sameSet(accSel(),gcRoleAreas(role));};
+  const accDefault=()=>{const d=gcRoleAreas($("#gcURole").value);accBoxes().forEach(c=>c.checked=d.includes(c.value));accSync();};
+  $("#gcURole").addEventListener("change",accDefault);$("#gcUAccReset").onclick=accDefault;$("#gcUAccess").addEventListener("change",accSync);accSync();
+  const accVal=role=>{if(role==="owner")return null;const a=accSel();return sameSet(a,gcRoleAreas(role))?null:GC_AREAS.map(x=>x[0]).filter(k=>a.includes(k));};
   $("#gcUSave").onclick=async()=>{const err=$("#gcUErr");err.textContent="";const role=$("#gcURole").value,name=$("#gcUName").value.trim(),sal=salonsSel();
     if(!name){err.textContent="Enter a name.";return;}if((role==="manager"||role==="asst_manager")&&!sal.length){err.textContent="Pick the manager’s salon.";return;}
+    const access=accVal(role);if(access&&!access.some(k=>GC_AREAS.slice(0,7).some(a=>a[0]===k))){err.textContent="Turn on at least one tab (Portfolio through Scorecard).";return;}
     const btn=$("#gcUSave");btn.disabled=true;
     try{if(isNew){const email=$("#gcUEmail").value.trim().toLowerCase(),pw=$("#gcUPw").value;
-        const r=await gcFn({action:"create",email,name,role,salon_ids:sal,password:pw});gmClose();await gcUsersLoad();
+        const r=await gcFn({action:"create",email,name,role,salon_ids:sal,password:pw});
+        if(access&&r&&r.user_id){await gcClient().from("gc_dashboard_users").update({access}).eq("id",r.user_id);}gmClose();await gcUsersLoad();
         gmModal('<h3>Login created for '+esc(name)+'</h3>'+(r.linked_existing_login?'<p>'+esc(email)+' already had a Sonaya login (for example the Del Taco dashboard). They sign in with that same password.</p>'
           :'<p>Send them these details. They’ll be asked to choose their own password the first time they sign in.</p><div class="gm-banner info" style="margin-top:10px">Site: tools.sonayagroup.com/greatclips.html<br>Email: <b>'+esc(email)+'</b><br>Temporary password: <b>'+esc(pw)+'</b></div>')
           +'<div class="gm-actions"><button class="btn" data-act="close" id="gcDone">Done</button></div>');$("#gcDone").onclick=gmClose;}
-      else{const {error}=await gcClient().from("gc_dashboard_users").update({name,role,salon_ids:sal,is_active:$("#gcUActive").value==="1",updated_at:new Date().toISOString()}).eq("id",u.id);if(error)throw error;
+      else{const {error}=await gcClient().from("gc_dashboard_users").update({name,role,salon_ids:sal,access,is_active:$("#gcUActive").value==="1",updated_at:new Date().toISOString()}).eq("id",u.id);if(error)throw error;
         gmClose();gmToast("Saved "+name);gcUsersLoad();}}
     catch(e){err.textContent=e.message||String(e);btn.disabled=false;}};
   if(!isNew)$("#gcUReset").onclick=async()=>{const pw=gcTempPw();const err=$("#gcUErr");
@@ -3749,6 +3776,5 @@ async function gcFn(body){const {data:{session}}=await gcClient().auth.getSessio
   const r=await fetch(SUPA_URL+"/functions/v1/gc-dashboard-user",{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPA_KEY,Authorization:"Bearer "+session.access_token},body:JSON.stringify(body)});
   const j=await r.json().catch(()=>({}));if(!r.ok||j.error)throw new Error(j.error||("Request failed ("+r.status+")"));return j;}
 (function(){const t=document.querySelector('.tab[data-t="users"]');if(t)t.addEventListener("click",()=>{if(gcIsOwner())gcUsersLoad();});})();
-
 </script>
 </body></html>

@@ -300,6 +300,18 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 .gm-score{display:inline-block;min-width:44px;padding:3px 9px;border-radius:12px;font-weight:800;color:#fff;text-align:center}
 .gm-recent{margin-top:16px}
 @media (max-width:640px){.gm-modal{padding:16px}.gm-item{grid-template-columns:auto minmax(0,1fr)}.gm-item .st{grid-column:2;text-align:left}}
+.gm-dhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.gm-dhead h3{font-size:14.5px;font-weight:800;color:var(--blue-dk)}.gm-dhead h3 span{font-weight:500;color:var(--muted);font-size:12.5px}
+.gm-dhead select{border:1px solid var(--line);border-radius:7px;padding:6px 9px;font:inherit;font-size:13px}
+.gm-ditem{display:grid;grid-template-columns:auto 22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer;background:#fff}
+.gm-ditem:hover{background:#f7faf9}
+.gm-ditem input{width:20px;height:20px;cursor:pointer}
+.gm-ditem .n{font-weight:800;color:var(--blue);text-align:center}
+.gm-ditem .tx{display:flex;flex-direction:column;min-width:0}.gm-ditem .lb{font-weight:600;font-size:13.5px}
+.gm-ditem .st{font-size:11.5px;color:var(--muted);text-align:right}
+.gm-ditem:has(input:checked) .lb{color:var(--muted)}
+.gm-dstrip{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+@media (max-width:640px){.gm-ditem{grid-template-columns:auto 18px minmax(0,1fr)}.gm-ditem .st{grid-column:3;text-align:left}}
 </style></head>
 <body>
 <header><div class="hdr-inner">
@@ -539,17 +551,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
     <div class="det-mode" id="gmViewBar"><button data-v="board" class="active">Development Board</button><button data-v="rhythm">Weekly Rhythm</button><button data-v="score">Scorecard &amp; History</button></div>
     <span id="gmSalonLbl" style="font-weight:700;color:var(--blue-dk);font-size:13.5px"></span>
   </div>
-  <details class="card" style="margin-bottom:14px;padding:12px 16px">
-    <summary class="dkn-toggle">Daily Five · every shift, about 15 minutes</summary>
-    <ol style="margin:10px 0 2px 20px;font-size:13px;display:grid;gap:4px">
-      <li>Post the Daily REPS (auto-generated on the Daily REPS tab)</li>
-      <li>Review yesterday’s flags (HC time, CPH, product %, avg mins between, payroll %), then hold a 5-minute stand-up with each stylist using the Development Board</li>
-      <li>Resolve cash over/short (the dashboard flags shorts over $10)</li>
-      <li>Review the daily cleaning checklist</li>
-      <li>Check email and Trello</li>
-    </ol>
-    <div class="legend-note">Delivering GREAT: <b>G</b>reet and introduce · <b>R</b>eview Clips Notes · <b>E</b>ngage and connect through consultation · <b>A</b>sk to confirm satisfaction · <b>T</b>hank and invite back</div>
-  </details>
+  <div class="card" id="gmDaily" style="margin-bottom:14px"></div>
   <div id="gmBody"></div>
 </section>
 
@@ -3046,8 +3048,15 @@ const GM_WEEK_ITEMS=[
   {k:"time_off",label:"Time-off requests emailed for approval and saved to Drive",days:"Wed / Sun",due:0},
   {k:"sched_posted",label:"3 weeks of schedules posted (Red Binder, breakroom, WhatsApp)",days:"Thu",due:-1},
   {k:"eps_recap",label:"EPS posted on whiteboard, 1:1s as needed, weekly recap submitted",days:"Sat",due:-6}];
+const GM_DAY_ITEMS=[
+  {k:"reps",label:"Post the Daily REPS",hint:"Auto-generated on the Daily REPS tab"},
+  {k:"standup",label:"Review yesterday’s flags, then a 5-minute stand-up with each stylist",hint:"HC time, CPH, product %, avg mins between, payroll %. Use the Development Board for coaching focus."},
+  {k:"cash",label:"Resolve cash over/short",hint:"Rerun End of Day tasks to fix mistakes if needed"},
+  {k:"cleaning",label:"Review the daily cleaning checklist"},
+  {k:"email",label:"Check email and Trello"}];
 const GM_MONTH_ITEMS=[{k:"inventory",label:"Monthly inventory (office, cleaning, backbar, retail) scanned and saved to Drive",days:"First Tue"}];
 const GM_W={qc:20,reach:20,pri:20,train:15,rhythm:15,sched:10};
+const GM_DAY_START="2026-10-30"; // Daily Five checkboxes started; earlier days show grey, not missed
 const GM_START="2026-10-30"; // first week (ending Fri) the Weekly Rhythm existed; earlier weeks are not scored
 
 // ---- date helpers (local dates as YYYY-MM-DD) ----
@@ -3213,6 +3222,7 @@ function renderManager(){const host=$("#gmBody");if(!host)return;
   $("#gmSalonLbl").textContent=current?(current+" — "+sName(current)):"";
   if(!GM.loaded){host.innerHTML='<div class="loading">Loading manager data…</div>';
     gmLoad().then(renderManager).catch(e=>{host.innerHTML='<div class="banner warn">Could not load manager data: '+esc(e.message)+'</div>';});return;}
+  try{gmDaily();}catch(e){console.error(e);}
   try{({board:gmBoard,rhythm:gmRhythm,score:gmScorecard}[GM.view]||gmBoard)(host);}
   catch(e){console.error(e);host.innerHTML='<div class="banner warn">Something went wrong drawing this view: '+esc(e.message)+'</div>';}}
 
@@ -3356,6 +3366,22 @@ function gmTimeline(key){const sid=current;const st=gmRosterAll(sid).find(s=>s.k
   h+=items.length?'<ul class="gm-tl">'+items.map(i=>'<li><span class="d">'+fmtDate(i.d)+'</span><span class="dot '+i.dot+'"></span><span class="e"><b>'+esc(i.t)+'</b>'+(i.s?'<span>'+esc(i.s)+'</span>':'')+(i.id?' <button class="gm-link" data-act="view" data-id="'+esc(i.id)+'">View</button>':'')+'</span></li>').join("")+'</ul>':'<div class="oos-neutral">No history yet.</div>';
   h+='<div class="gm-actions"><button class="btn" data-act="close">Close</button></div>';gmModal(h);}
 
+// ---- Daily Five (checked each shift) ----
+let gmDailyDay=null;
+function gmDaily(){const host=$("#gmDaily");if(!host)return;const sid=current,today=gmToday();if(!gmDailyDay||gmDailyDay>today)gmDailyDay=today;const day=gmDailyDay;
+  const days=[];for(let i=0;i<7;i++)days.push(gmAdd(today,-i));
+  let h='<div class="gm-dhead"><h3>Daily Five <span>· every shift, about 15 minutes</span></h3><select id="gmDDay">'+days.map(d=>'<option value="'+d+'"'+(d===day?" selected":"")+'>'+(d===today?"Today, ":d===gmAdd(today,-1)?"Yesterday, ":gmD(d).toLocaleDateString("en-US",{weekday:"short"})+", ")+gmShort(d)+'</option>').join("")+'</select></div>';
+  let done=0;
+  GM_DAY_ITEMS.forEach((it,i)=>{const t=gmTask(sid,"day",day,it.k);const ok=!!(t&&t.completed);if(ok)done++;
+    let extra="";if(it.k==="cash"){const prev=gmAdd(day,-1);const row=(((DATA.days||{})[prev]||{}).SAL||[]).find(r=>String(r[0])===String(sid));
+      if(row&&typeof row[14]==="number"){const v=row[14];extra=' · <b style="color:'+(v<-10?RED:v<0?AMBER:GREEN)+'">'+fmtDate(prev)+': '+(v<0?"−$"+Math.abs(v).toFixed(2)+" short":v>0?"$"+v.toFixed(2)+" over":"balanced")+'</b>';}}
+    h+='<label class="gm-ditem"><input type="checkbox" data-act="dtask" data-day="'+day+'" data-k="'+it.k+'"'+(ok?" checked":"")+'><span class="n">'+(i+1)+'</span><span class="tx"><span class="lb">'+esc(it.label)+'</span>'+((it.hint||extra)?'<span class="gm-why">'+esc(it.hint||"")+extra+'</span>':'')+'</span><span class="st">'+(ok?esc(t.completed_by||"")+(t.completed_at?" · "+new Date(t.completed_at).toLocaleTimeString([], {hour:"numeric",minute:"2-digit"}):""):"")+'</span></label>';});
+  // last 7 days strip
+  h+='<div class="gm-dstrip"><span class="gm-why" style="margin:0">Last 7 days:</span>'+days.slice().reverse().map(d=>{let n=0;GM_DAY_ITEMS.forEach(it=>{const t=gmTask(sid,"day",d,it.k);if(t&&t.completed)n++;});
+    const cls=n===GM_DAY_ITEMS.length?"gm-g":n>0?"gm-a":(d===today||d<GM_DAY_START?"gm-n":"gm-r");return '<span class="gm-chip '+cls+'" title="'+fmtDate(d)+'">'+gmD(d).toLocaleDateString("en-US",{weekday:"short"})+' '+n+'/'+GM_DAY_ITEMS.length+'</span>';}).join(" ")+'</div>';
+  h+='<div class="gm-actions" style="justify-content:space-between;margin-top:8px"><span class="legend-note" style="margin:0">Delivering GREAT: <b>G</b>reet and introduce · <b>R</b>eview Clips Notes · <b>E</b>ngage and connect through consultation · <b>A</b>sk to confirm satisfaction · <b>T</b>hank and invite back</span><span><span class="gm-err" id="gmDErr"></span> <span class="gm-why" style="display:inline">Checking as <b>'+esc(gmWho().n||"(set your name)")+'</b></span> <button class="gm-link" data-act="who">Change</button></span></div>';
+  host.innerHTML=h;$("#gmDDay").onchange=function(){gmDailyDay=this.value;gmDaily();};}
+
 // ---- Weekly Rhythm ----
 let gmRhythmWeek=null;
 function gmRhythm(host){const sid=current,today=gmToday();const curWe=gmWeekEnd(today);if(!gmRhythmWeek)gmRhythmWeek=curWe;
@@ -3392,7 +3418,7 @@ async function gmSaveTask(ptype,pdate,k,completed,value,el){const w=await gmEnsu
     completed_by:completed?(w.n+(w.r==="AM"?" (AM)":"")):(prev?prev.completed_by:null),completed_at:completed?((prev&&prev.completed&&prev.completed_at&&(value==null||value===prev.value))?prev.completed_at:new Date().toISOString()):(prev?prev.completed_at:null),updated_at:new Date().toISOString()};
   try{const res=await gmPost("gc_manager_tasks",body,"?on_conflict=salon_id,period_type,period_date,item_key","resolution=merge-duplicates,return=representation");
     GM.tasks=GM.tasks.filter(t=>!(String(t.salon_id)===String(current)&&t.period_type===ptype&&t.period_date===pdate&&t.item_key===k));GM.tasks.unshift((res&&res[0])||body);renderManager();}
-  catch(e){const er=$("#gmRErr");if(er)er.textContent=e.message;if(el&&el.type==="checkbox")el.checked=!completed;}}
+  catch(e){const er=$(ptype==="day"?"#gmDErr":"#gmRErr");if(er)er.textContent=e.message;if(el&&el.type==="checkbox")el.checked=!completed;}}
 
 // ---- Scorecard & history (all salons) ----
 function gmScorecard(host){const today=gmToday();
@@ -3435,7 +3461,8 @@ document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if
   if(a==="jump"){const s=el.dataset.sid;current=s;const ss=$("#salonSel");if(ss)ss.value=s;GM.view="board";renderManager();window.scrollTo({top:0});return;}
 });
 document.addEventListener("change",e=>{const el=e.target;if(!el.closest||!el.closest("#manager"))return;const a=el.dataset&&el.dataset.act;
-  if(a==="task")gmSaveTask("week",el.dataset.week,el.dataset.k,el.checked,null,el);
+  if(a==="dtask")gmSaveTask("day",el.dataset.day,el.dataset.k,el.checked,null,el);
+  else if(a==="task")gmSaveTask("week",el.dataset.week,el.dataset.k,el.checked,null,el);
   else if(a==="mtask")gmSaveTask("month",el.dataset.month,el.dataset.k,el.checked,null,el);
   else if(a==="sched")gmSaveTask("week",el.dataset.week,"sched_through",!!el.value,el.value||null,el);
 });

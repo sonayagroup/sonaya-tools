@@ -3047,7 +3047,7 @@ const GM_WEEK_ITEMS=[
   {k:"deposits",label:"Deposits made and change ordered",days:"Tue / Fri",due:0},
   {k:"time_off",label:"Time-off requests emailed for approval and saved to Drive",days:"Wed / Sun",due:0},
   {k:"sched_posted",label:"3 weeks of schedules posted (Red Binder, breakroom, WhatsApp)",days:"Thu",due:-1},
-  {k:"eps_recap",label:"EPS posted on whiteboard, 1:1s as needed, weekly recap submitted",days:"Sat",due:-6}];
+  {k:"eps_recap",label:"Employee Performance Summary posted on whiteboard, 1:1s as needed, weekly recap submitted",days:"Sat",due:-6}];
 const GM_DAY_ITEMS=[
   {k:"reps",label:"Post the Daily REPS",hint:"Auto-generated on the Daily REPS tab"},
   {k:"standup",label:"Review yesterday’s flags, then a 5-minute stand-up with each stylist",hint:"HC time, CPH, product %, avg mins between, payroll %. Use the Development Board for coaching focus."},
@@ -3112,7 +3112,7 @@ function gmAmKeys(){const s=new Set();try{Object.keys(AM_DEF).forEach(n=>{const 
 function gmHours(asOf){asOf=asOf||gmToday();const from=gmAdd(asOf,-30);const hrs={},names={};
   const add=(sid,n,h)=>{if(!n||/product refunds/i.test(n)||!(h>0))return;const k=gmKey(n);if(!names[k]||n.length>names[k].length)names[k]=n;(hrs[k]=hrs[k]||{})[sid]=(hrs[k][sid]||0)+h;};
   Object.keys(DATA.days||{}).forEach(d=>{if(d<from||d>asOf)return;const sty=DATA.days[d].STY||{};Object.keys(sty).forEach(sid=>sty[sid].forEach(r=>add(sid,r[0],+r[1]||0)));});
-  // fallback for anyone with no daily rows in the window: weekly EPS hours
+  // fallback for anyone with no daily rows in the window: weekly Employee Performance Summary hours
   const epp={};Object.keys(DATA.weeklies||{}).forEach(w=>{if(w<gmAdd(asOf,-35)||w>asOf)return;const E=DATA.weeklies[w].EPP||{};Object.keys(E).forEach(sid=>E[sid].forEach(r=>{const k=gmKey(r[0]);if(hrs[k])return;(epp[k]=epp[k]||[]).push([sid,r[0],+r[1]||0]);}));});
   Object.keys(epp).forEach(k=>epp[k].forEach(([sid,n,h])=>add(sid,n,h)));
   return {hrs,names};}
@@ -3209,7 +3209,7 @@ function gmRecapLicDefault(sid,wk){return"";} // the recap question itself is th
 function gmWho(){let n="",r="Manager";try{n=localStorage.getItem("gm_logger")||"";r=localStorage.getItem("gm_role")||"Manager";}catch(e){}return {n,r};}
 function gmSetWho(n,r){try{localStorage.setItem("gm_logger",n);localStorage.setItem("gm_role",r);}catch(e){}}
 function gmWhoFields(prefix){const w=gmWho();return '<div class="gm-f"><label>Logged by</label><input id="'+prefix+'Who" value="'+esc(w.n)+'" placeholder="Your name"></div>'
-  +'<div class="gm-f"><label>Role</label><select id="'+prefix+'Role"><option'+(w.r==="Manager"?" selected":"")+'>Manager</option><option'+(w.r==="AM"?" selected":"")+' value="AM">Area Manager</option></select></div>';}
+  +'<div class="gm-f"><label>Role</label><select id="'+prefix+'Role"><option'+(w.r==="Manager"?" selected":"")+'>Manager</option><option'+(w.r==="Assistant Manager"?" selected":"")+'>Assistant Manager</option><option'+(w.r==="AM"?" selected":"")+' value="AM">Area Manager</option></select></div>';}
 
 // ---- modal ----
 function gmModal(html){gmClose();const bg=document.createElement("div");bg.className="gm-bg";bg.id="gmBg";bg.innerHTML='<div class="gm-modal" role="dialog" aria-modal="true">'+html+'</div>';
@@ -3245,7 +3245,7 @@ function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,to
   if(!rows.length){h+='<div class="oos-neutral">No stylists with floor hours at this salon in the last 30 days.</div>';host.innerHTML=h;return;}
   h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Stylist</th><th>Standards</th><th>Last QC</th><th>Last REACH</th><th>Training checklist</th><th>Great Academy</th><th>Last training</th></tr></thead><tbody>';
   rows.forEach(r=>{const k=esc(r.st.key);const hire=r.hire?r.hire.date:null;
-    const stdCell=r.flagged?gmChip(r.coachedSinceFlag?"gm-a":"gm-r",r.coachedSinceFlag?"Coached":"Coach")+'<div class="gm-why">'+esc(r.std.reasons.join(" · "))+' · wk '+gmShort(r.std.week)+'</div>':(r.std.week?gmChip("gm-g","In standard"):gmChip("gm-n","No EPS yet"));
+    const stdCell=r.flagged?gmChip(r.coachedSinceFlag?"gm-a":"gm-r",r.coachedSinceFlag?"Coached":"Coach")+'<div class="gm-why">'+esc(r.std.reasons.join(" · "))+' · wk '+gmShort(r.std.week)+'</div>':(r.std.week?gmChip("gm-g","In standard"):gmChip("gm-n","No weekly summary yet"));
     h+='<tr class="'+(r.flagged&&!r.coachedSinceFlag?"gm-pri":"")+'"><td><button class="gm-name" data-act="tl" data-key="'+k+'">'+esc(r.st.name)+'</button>'
       +'<div class="gm-why">'+(hire?"Hired "+fmtDate(hire):"Hire date unknown")+'</div></td>'
       +'<td class="wrap">'+stdCell+'</td>'
@@ -3356,7 +3356,7 @@ function gmTimeline(key){const sid=current;const st=gmRosterAll(sid).find(s=>s.k
     const f=safeParse(r.stylistflags);Object.keys(f).forEach(n=>{if(gmKey(n)===key&&f[n])items.push({d:r.weekEnding,dot:"f",t:"Recap note (out of standard)",s:f[n]});});});
   Object.keys(DATA.weeklies||{}).sort().reverse().slice(0,16).forEach(w=>{const row=((DATA.weeklies[w].EPP||{})[sid]||[]).find(r=>gmKey(r[0])===key);if(!row)return;
     const rs=[];if(typeof row[3]==="number"&&row[3]>=19)rs.push("Avg HC "+row[3].toFixed(1)+" min");if(typeof row[9]==="number"&&row[9]<21)rs.push("New return "+row[9].toFixed(0)+"%");if(typeof row[10]==="number"&&row[10]<72)rs.push("Repeat return "+row[10].toFixed(0)+"%");
-    if(rs.length)items.push({d:w,dot:"f",t:"Flagged out of standard",s:rs.join(" · ")+" (EPS week ending "+fmtDate(w)+")"});});
+    if(rs.length)items.push({d:w,dot:"f",t:"Flagged out of standard",s:rs.join(" · ")+" (Employee Performance Summary, week ending "+fmtDate(w)+")"});});
   const p=gmProfile(key)||{},hire=gmHire(st);
   if(hire)items.push({d:hire.date,dot:"t",t:"Hired",s:"Training checklist due "+fmtDate(gmAdd(hire.date,7))+", Great Academy due "+fmtDate(gmAdd(hire.date,30))+"."});
   if(p.checklist_done)items.push({d:p.checklist_done,dot:"t",t:"Training checklist signed off",s:""});
@@ -3415,7 +3415,7 @@ function gmEnsureWho(){const w=gmWho();if(w.n)return Promise.resolve(w);return n
 async function gmSaveTask(ptype,pdate,k,completed,value,el){const w=await gmEnsureWho();if(!w||!w.n){if(el&&el.type==="checkbox")el.checked=!completed;return;}
   const prev=gmTask(current,ptype,pdate,k);
   const body={salon_id:current,period_type:ptype,period_date:pdate,item_key:k,completed,value:value==null?(prev?prev.value:null):value,
-    completed_by:completed?(w.n+(w.r==="AM"?" (AM)":"")):(prev?prev.completed_by:null),completed_at:completed?((prev&&prev.completed&&prev.completed_at&&(value==null||value===prev.value))?prev.completed_at:new Date().toISOString()):(prev?prev.completed_at:null),updated_at:new Date().toISOString()};
+    completed_by:completed?(w.n+(w.r==="AM"?" (AM)":w.r==="Assistant Manager"?" (Asst Mgr)":"")):(prev?prev.completed_by:null),completed_at:completed?((prev&&prev.completed&&prev.completed_at&&(value==null||value===prev.value))?prev.completed_at:new Date().toISOString()):(prev?prev.completed_at:null),updated_at:new Date().toISOString()};
   try{const res=await gmPost("gc_manager_tasks",body,"?on_conflict=salon_id,period_type,period_date,item_key","resolution=merge-duplicates,return=representation");
     GM.tasks=GM.tasks.filter(t=>!(String(t.salon_id)===String(current)&&t.period_type===ptype&&t.period_date===pdate&&t.item_key===k));GM.tasks.unshift((res&&res[0])||body);renderManager();}
   catch(e){const er=$(ptype==="day"?"#gmDErr":"#gmRErr");if(er)er.textContent=e.message;if(el&&el.type==="checkbox")el.checked=!completed;}}

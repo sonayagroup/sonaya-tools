@@ -3113,7 +3113,7 @@ const GM_REACH=[["R","Recognize their strengths","What did they excel at this pa
   ["C","Communicate","Expectations, updates or other information shared."],
   ["H","How are you?","General check-in on how they're doing overall."]];
 const GM_WEEK_ITEMS=[
-  {k:"sched_through",label:"Schedules entered through",days:"Mon",due:-4,type:"date",hint:"Target: 4+ weeks out"},
+  {k:"sched_through",label:"Are schedules up to date and entered?",days:"Mon",due:-4},
   {k:"redo",label:"Redo log calls and service recovery",days:"Mon / Wed / Sun",due:0},
   {k:"deposits",label:"Deposits made and change ordered",days:"Tue / Fri",due:0},
   {k:"time_off",label:"Time-off requests emailed for approval and saved to Drive",days:"Wed / Sun",due:0},
@@ -3261,7 +3261,8 @@ function gmScore(sid,today){today=today||gmToday();const R=gmRoster(sid,today);i
   const curWe=gmWeekEnd(today);let rp=0,rd=0;
   for(let i=1;i<=4;i++){const we=gmAdd(curWe,-7*i);if(we<GM_START)continue;GM_WEEK_ITEMS.forEach(it=>{rd++;rp+=gmItemPts(sid,we,it);});}
   c.rhythm=rd?rp/rd:null;
-  const sv=gmSchedThrough(sid);c.sched=sv?Math.max(0,Math.min(1,gmDiff(today,sv)/28)):0;
+  // schedules: share of the last 4 completed weeks (since launch) where "Are schedules up to date and entered?" was checked; late counts half
+  {let sp=0,sd=0;const it=GM_WEEK_ITEMS.find(x=>x.k==="sched_through");for(let i=1;i<=4;i++){const we=gmAdd(curWe,-7*i);if(we<GM_START)continue;sd++;sp+=gmItemPts(sid,we,it);}c.sched=sd?sp/sd:null;}
   let num=0,den=0;Object.keys(GM_W).forEach(k=>{if(c[k]==null)return;num+=c[k]*GM_W[k];den+=GM_W[k];});
   const lic=gmRecapLic(sid);const comp=!lic?"none":(lic.ans==="yes"?"ok":"fail");
   return {score:den?Math.round(num/den*100):null,c,n:R.length,comp,lic};}
@@ -3274,8 +3275,8 @@ function gmScoreCol(s){return s==null?"#9aa5a2":s>=80?GREEN:s>=60?AMBER:RED;}
 // ---- recap integration (called from buildOOS / renderRecap) ----
 function gmRecapDefault(cat,sid,wk,name){if(!GM.loaded)return"";const from=gmAdd(wk,-6),k=gmKey(name),kind=cat==="qc"?"qc":"reach";
   return GM.log.some(r=>String(r.salon_id)===String(sid)&&r.kind===kind&&gmKey(r.stylist_name)===k&&r.session_date>=from&&r.session_date<=wk)?"yes":"";}
-function gmRecapSchedText(sid,wk){if(!GM.loaded)return"";const t=gmTask(sid,"week",wk,"sched_through");const v=t&&t.value?t.value:gmSchedThrough(sid);
-  return v?"Yes, entered through "+fmtDate(v)+" (from Weekly Rhythm)":"";}
+function gmRecapSchedText(sid,wk){if(!GM.loaded)return"";const t=gmTask(sid,"week",wk,"sched_through");
+  return (t&&t.completed)?"Yes (checked by "+(t.completed_by||"the manager")+" on the Weekly Rhythm)":"";}
 function gmRecapLicDefault(sid,wk){return"";} // the recap question itself is the source of truth
 
 // ---- logger identity (no logins in this dashboard) ----
@@ -3526,7 +3527,7 @@ async function gmSaveTask(ptype,pdate,k,completed,value,el){const w=await gmEnsu
 
 // ---- Scorecard & history (all salons) ----
 function gmScorecard(host){const today=gmToday();
-  let h='<div class="gm-banner info">The Development Score is information only for the first 4–6 weeks. It measures coverage a manager controls: QC and REACH in the last 30 days, coaching for out-of-standard stylists within 14 days, new-stylist training on time, the Weekly Rhythm, and how far ahead schedules are entered. QC/REACH answered “yes” on weekly recaps count too. Licenses show the latest weekly recap’s yes/no and aren’t part of the score.</div>';
+  let h='<div class="gm-banner info">The Development Score is information only for the first 4–6 weeks. It measures coverage a manager controls: QC and REACH in the last 30 days, coaching for out-of-standard stylists within 14 days, new-stylist training on time, the Weekly Rhythm, and whether schedules are up to date and entered. QC/REACH answered “yes” on weekly recaps count too. Licenses show the latest weekly recap’s yes/no and aren’t part of the score.</div>';
   h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Salon</th><th>Score</th><th>QC 30d (20)</th><th>REACH 30d (20)</th><th>Flagged coached (20)</th><th>Training (15)</th><th>Rhythm 4 wks (15)</th><th>Schedules (10)</th><th>Licenses (recap)</th></tr></thead><tbody>';
   const pct=v=>v==null?'<span style="color:var(--muted)">n/a</span>':'<b style="color:'+(v>=.8?GREEN:v>=.6?AMBER:RED)+'">'+Math.round(v*100)+'%</b>';
   const compChip=(c,l)=>c==="ok"?gmChip("gm-g","Yes · WE "+gmShort(l.wk)):c==="fail"?gmChip("gm-r","No · WE "+gmShort(l.wk)):gmChip("gm-n","Not answered");

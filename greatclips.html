@@ -354,6 +354,11 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .gc-user button{background:none;border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:6px;padding:3px 9px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 .gc-user button:hover{background:rgba(255,255,255,.18)}
 .tab[hidden],.tab-link[hidden],#gmViewBar button[hidden]{display:none!important}
+
+.gm-today-row.gm-coach{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+.gm-coach .who{display:flex;flex-direction:column;gap:1px;min-width:0}
+.gm-coach .who .gm-why{flex:none}
+.gm-coach .gm-logbtns{flex-wrap:nowrap}
 </style></head>
 <body class="gc-locked">
 <div id="gcLogin" class="gc-login">
@@ -389,10 +394,10 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
   <div class="tab" data-t="manager">Manager</div>
   <div class="tab" data-t="contacts">Contacts</div>
   <div class="tab" data-t="scorecard">Scorecard</div>
-  <div class="tab" data-t="users" hidden>Users</div>
   <a href="https://tools.sonayagroup.com/gc-crm.html" class="tab-link">👥 Stylist CRM</a>
   <a href="https://tools.sonayagroup.com/gc-quiz-admin.html" class="tab-link">📝 Manager Quiz</a>
   <a href="https://tools.sonayagroup.com/gc-maintenance/" class="tab-link">🔧 Maintenance</a>
+  <div class="tab" data-t="users" hidden style="margin-left:auto">Users</div>
 </div></nav>
 <div class="wrap">
 
@@ -3357,7 +3362,7 @@ function gmTodayCard(sid,rows,today){
   const we=gmWeekEnd(today);const due=GM_WEEK_ITEMS.filter(it=>!gmItemDone(gmTask(sid,"week",we,it.k),it)&&gmAdd(we,it.due)<=today);
   const reasons=r=>{const a=[];if(r.flagged&&!r.coachedSinceFlag)a.push(r.std.reasons.join(", "));if(!r.qc||gmDiff(r.qc.date,today)>30)a.push("QC due");if(!r.rc||gmDiff(r.rc.date,today)>30)a.push("REACH due");return a.join(" · ");};
   let h='<div class="card gm-today"><h3>Today at '+esc(sName(sid))+'</h3><div class="gm-today-grid">';
-  h+='<div><div class="gm-today-h">Coach today</div>'+(coach.length?coach.map(r=>'<div class="gm-today-row"><button class="gm-name" data-act="tl" data-key="'+esc(r.st.key)+'">'+esc(gmFirstLast(r.st.name))+'</button><span class="gm-why">'+esc(reasons(r))+'</span><span class="gm-logbtns"><button class="gm-mini" data-act="log" data-key="'+esc(r.st.key)+'" data-kind="qc">+ QC</button><button class="gm-mini" data-act="log" data-key="'+esc(r.st.key)+'" data-kind="reach">+ REACH</button></span></div>').join(""):'<div class="gm-why">Everyone is covered. Nice work.</div>')+'</div>';
+  h+='<div><div class="gm-today-h">Coach today</div>'+(coach.length?coach.map(r=>'<div class="gm-today-row gm-coach"><div class="who"><button class="gm-name" data-act="tl" data-key="'+esc(r.st.key)+'">'+esc(gmFirstLast(r.st.name))+'</button><span class="gm-why">'+esc(reasons(r))+'</span></div><span class="gm-logbtns"><button class="gm-mini" data-act="log" data-key="'+esc(r.st.key)+'" data-kind="qc">+ QC</button><button class="gm-mini" data-act="log" data-key="'+esc(r.st.key)+'" data-kind="reach">+ REACH</button></span></div>').join(""):'<div class="gm-why">Everyone is covered. Nice work.</div>')+'</div>';
   h+='<div><div class="gm-today-h">Follow-ups due</div>'+(fu.length?fu.map(r=>'<div class="gm-today-row"><button class="gm-name" data-act="view" data-id="'+esc(r.id)+'">'+esc(gmFirstLast(r.stylist_name))+'</button><span class="gm-why">'+esc((GM_KINDS[r.kind]||r.kind)+" on "+gmShort(r.session_date)+" · follow up by "+gmShort(r.follow_up))+(r.commitment||r.focus?' · “'+esc(r.commitment||r.focus)+'”':'')+'</span></div>').join(""):'<div class="gm-why">No follow-ups due.</div>')+'</div>';
   const dueShow=due.slice(0,3);
   h+='<div><div class="gm-today-h">Weekly Rhythm due</div>'+(due.length?dueShow.map(it=>'<div class="gm-today-row"><span>'+esc(it.label)+'</span><span class="gm-why">'+esc(it.days)+(gmAdd(we,it.due)<today?" · overdue":" · today")+'</span></div>').join("")+'<button class="gm-link" data-act="goto" data-v="rhythm">'+(due.length>3?"+"+(due.length-3)+" more · ":"")+'Open Weekly Rhythm</button>':'<div class="gm-why">Nothing due yet this week.</div>')+'</div>';
@@ -3646,7 +3651,7 @@ function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
     d.innerHTML='<span><b>'+esc(p.name||p.email)+'</b> · '+esc(GC_ROLE_NAMES[p.role]||p.role)+'</span><button type="button" id="gcPwBtn">Change password</button><button type="button" id="gcOutBtn">Sign out</button>';
     $(".hdr-inner").appendChild(d);$("#gcPwBtn").onclick=()=>gcPwModal(false);$("#gcOutBtn").onclick=gcSignOut;}
   document.querySelectorAll(".tabs-inner .tab").forEach(t=>{const k=t.dataset.t;let show=mgr?GC_MGR_TABS.includes(k):true;if(k==="users")show=gcIsOwner();t.hidden=!show;});
-  document.querySelectorAll(".tabs-inner .tab-link").forEach(a=>a.hidden=mgr);
+  document.querySelectorAll(".tabs-inner .tab-link").forEach(a=>a.hidden=mgr&&!/gc-maintenance/.test(a.getAttribute("href")||"")); // managers keep the Maintenance list
   const ss=$("#salonSel");
   if(mgr){[...ss.options].forEach(o=>{if(!gcCanSalon(o.value))o.remove();});
     if(!ss.options.length){$("#emptyBanner").innerHTML='<div class="banner warn">Your account isn’t assigned to a salon yet. Ask Pranav to add your salon.</div>';}

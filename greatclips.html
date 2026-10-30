@@ -3640,7 +3640,7 @@ function gcPwModal(forced,done){
   document.body.appendChild(bg);$("#gcPw1").focus();
   if(!forced)$("#gcPwCancel").onclick=()=>bg.remove();
   $("#gcPwForm").onsubmit=async ev=>{ev.preventDefault();const a=$("#gcPw1").value,b=$("#gcPw2").value,err=$("#gcPwErr");err.textContent="";
-    if(a.length<8){err.textContent="Use at least 8 characters.";return;}if(a!==b){err.textContent="The two passwords don’t match.";return;}
+    if(a.length<8){err.textContent="Use at least 8 characters.";return;}if(a.trim().toLowerCase()===GC_DEFAULT_PW){err.textContent="Choose a password other than the temporary one.";return;}if(a!==b){err.textContent="The two passwords don’t match.";return;}
     const btn=$("#gcPwSave");btn.disabled=true;btn.textContent="Saving…";
     const {error}=await gcClient().auth.updateUser({password:a});
     if(error){err.textContent=error.message;btn.disabled=false;btn.textContent="Save password";return;}
@@ -3690,14 +3690,33 @@ function gcUsersRender(){const host=$("#gcUsersBody");
     +'<td>'+(u.is_active?(u.must_change_password?gmChip("gm-a","Temp password"):gmChip("gm-g","Active")):gmChip("gm-n","Disabled"))+'</td>'
     +'<td><button class="gm-link" data-gcedit="'+esc(u.id)+'">Edit</button></td></tr>';});
   h+='</tbody></table></div></div>';
-  if(GC_SUGGEST.length){h+='<div class="card" style="margin-top:14px"><h3>Suggested from Contacts</h3><div class="hint">Managers listed in the Contacts tab who don’t have a login yet. Check the email before adding.</div><div class="tbl-scroll"><table class="gm-tbl"><tbody>';
-    GC_SUGGEST.forEach((s,i)=>{h+='<tr><td><b>'+esc(s.name)+'</b></td><td>'+esc(s.email)+'</td><td>'+esc(GC_ROLE_NAMES[s.role])+'</td><td class="wrap">'+esc(gcSalonList(s.salon_ids))+'</td><td><button class="gm-mini" data-gcsug="'+i+'">Add</button></td></tr>';});
+  if(GC_SUGGEST.length){h+='<div class="card" style="margin-top:14px"><h3>Suggested from Contacts</h3><div class="hint">Managers listed in the Contacts tab who don’t have a login yet. Check the emails, untick anyone you don’t want, then add them all at once. Each starts with the password <b>greatclips</b> and must change it at first sign-in.</div>'
+      +'<div class="recap-bar"><button class="btn" id="gcAddChecked">Add checked logins</button><span class="gm-err" id="gcBulkErr"></span></div><div class="tbl-scroll"><table class="gm-tbl"><tbody>';
+    const seenNames=new Set();
+    GC_SUGGEST.forEach((s,i)=>{const dup=seenNames.has(String(s.name).toLowerCase());seenNames.add(String(s.name).toLowerCase());
+      h+='<tr><td><input type="checkbox" data-gcpick="'+i+'"'+(dup?'':' checked')+' aria-label="Add '+esc(s.name)+'"></td><td><b>'+esc(s.name)+'</b>'+(dup?' <span class="gm-chip gm-a">second email</span>':'')+'</td><td>'+esc(s.email)+'</td><td>'+esc(GC_ROLE_NAMES[s.role])+'</td><td class="wrap">'+esc(gcSalonList(s.salon_ids))+'</td><td><button class="gm-mini" data-gcsug="'+i+'">Add</button></td></tr>';});
     h+='</tbody></table></div></div>';}
   host.innerHTML=h;
   $("#gcAddUser").onclick=()=>gcUserForm(null);
   host.querySelectorAll("[data-gcedit]").forEach(b=>b.onclick=()=>gcUserForm(GC_USERS.find(u=>u.id===b.dataset.gcedit)));
-  host.querySelectorAll("[data-gcsug]").forEach(b=>b.onclick=()=>{const s=GC_SUGGEST[+b.dataset.gcsug];gcUserForm(null,s);});}
-function gcTempPw(){const c="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";let p="";const a=new Uint32Array(12);crypto.getRandomValues(a);a.forEach(v=>p+=c[v%c.length]);return p;}
+  host.querySelectorAll("[data-gcsug]").forEach(b=>b.onclick=()=>{const s=GC_SUGGEST[+b.dataset.gcsug];gcUserForm(null,s);});
+  const bulk=$("#gcAddChecked");if(bulk)bulk.onclick=gcBulkAdd;}
+async function gcBulkAdd(){const picks=[...document.querySelectorAll("#gcUsersBody [data-gcpick]:checked")].map(c=>GC_SUGGEST[+c.dataset.gcpick]);
+  const err=$("#gcBulkErr");err.textContent="";if(!picks.length){err.textContent="Tick at least one person.";return;}
+  const btn=$("#gcAddChecked");btn.disabled=true;const done=[],linked=[],failed=[];
+  for(let i=0;i<picks.length;i++){const s=picks[i];btn.textContent="Adding "+(i+1)+" of "+picks.length+"…";
+    let sal=s.salon_ids||[];if(s.role==="am"){const amN=Object.keys(AM_DEF).find(n=>n.toLowerCase().startsWith(String(s.name||"").toLowerCase().split(" ")[0]));if(amN)sal=AM_DEF[amN].slice();}
+    try{const r=await gcFn({action:"create",email:s.email,name:s.name,role:s.role,salon_ids:sal,password:GC_DEFAULT_PW});(r.linked_existing_login?linked:done).push(s);}
+    catch(e){failed.push(s.name+" ("+(e.message||e)+")");}}
+  await gcUsersLoad();
+  gmModal('<h3>Logins added</h3>'
+    +(done.length?'<p><b>'+done.length+' new login'+(done.length===1?'':'s')+'.</b> They sign in at tools.sonayagroup.com/greatclips.html with their email and the password <b>greatclips</b>, then choose their own.</p>':'')
+    +(linked.length?'<p style="margin-top:8px"><b>'+linked.length+' already had a Sonaya login</b> (for example the Del Taco dashboard) and keep their current password: '+esc(linked.map(x=>x.name).join(", "))+'.</p>':'')
+    +(failed.length?'<p style="margin-top:8px;color:var(--red-dk)"><b>Not added:</b> '+esc(failed.join("; "))+'</p>':'')
+    +'<div class="gm-actions"><button class="btn" id="gcBulkDone">Done</button></div>');$("#gcBulkDone").onclick=gmClose;}
+// Every new login and every reset starts on this shared temporary password; the user must change it at first sign-in.
+const GC_DEFAULT_PW="greatclips";
+function gcTempPw(){return GC_DEFAULT_PW;}
 function gcUserForm(u,pre){const isNew=!u;const v=u||Object.assign({email:"",name:"",role:"manager",salon_ids:[],is_active:true},pre||{});
   if(v.role==="am"&&(!v.salon_ids||v.salon_ids.length<2)){const amN=Object.keys(AM_DEF).find(n=>n.toLowerCase().startsWith(String(v.name||"").toLowerCase().split(" ")[0]));if(amN)v.salon_ids=AM_DEF[amN].slice();}
   const salons=Object.keys(SALONS).sort();
@@ -3705,7 +3724,7 @@ function gcUserForm(u,pre){const isNew=!u;const v=u||Object.assign({email:"",nam
     +'<div class="gm-f"><label for="gcUName">Name</label><input id="gcUName" value="'+esc(v.name||"")+'"></div>'
     +'<div class="gm-f"><label for="gcUEmail">Email</label><input id="gcUEmail" type="email" value="'+esc(v.email||"")+'"'+(isNew?"":" disabled")+'></div>'
     +'<div class="gm-f"><label for="gcURole">Role</label><select id="gcURole">'+Object.keys(GC_ROLE_NAMES).map(r=>'<option value="'+r+'"'+(r===v.role?" selected":"")+'>'+GC_ROLE_NAMES[r]+'</option>').join("")+'</select></div>'
-    +(isNew?'<div class="gm-f"><label for="gcUPw">Temporary password</label><input id="gcUPw" value="'+gcTempPw()+'"><span class="hint">They’ll choose their own at first sign-in.</span></div>'
+    +(isNew?'<div class="gm-f"><label for="gcUPw">Temporary password</label><input id="gcUPw" value="'+gcTempPw()+'"><span class="hint">Default is greatclips. They must choose their own at first sign-in.</span></div>'
       :'<div class="gm-f"><label for="gcUActive">Status</label><select id="gcUActive"><option value="1">Active</option><option value="0"'+(v.is_active?"":" selected")+'>Disabled</option></select></div>')
     +'<div class="gm-f full"><label>Salons</label><div class="ct-vl-grid" id="gcUSalons">'+salons.map(s=>'<label><input type="checkbox" value="'+s+'"'+((v.salon_ids||[]).includes(s)?" checked":"")+'> '+s+' '+esc(SALONS[s])+'</label>').join("")+'</div><span class="hint">Managers only see the salons checked here. Owners always see all salons.</span></div>'
     +'</div><div class="gm-actions"><span class="gm-err" id="gcUErr"></span>'+(isNew?'':'<button class="gm-cancel" id="gcUReset">Reset password</button>')+'<button class="gm-cancel" data-act="close" id="gcUCancel">Cancel</button><button class="btn" id="gcUSave">'+(isNew?"Create login":"Save")+'</button></div>';

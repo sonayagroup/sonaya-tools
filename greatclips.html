@@ -2,6 +2,7 @@
 <html lang="en"><head><meta charset="UTF-8">
 <base target="_top">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--blue:#048667;--blue-dk:#073b3a;--red:#e4002b;--red-dk:#b30020;--green:#089f45;--amber:#e9a049;
@@ -312,8 +313,64 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 .gm-ditem:has(input:checked) .lb{color:var(--muted)}
 .gm-dstrip{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
 @media (max-width:640px){.gm-ditem{grid-template-columns:auto 18px minmax(0,1fr)}.gm-ditem .st{grid-column:3;text-align:left}}
+.gm-toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--blue-dk);color:#fff;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13.5px;box-shadow:0 6px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:990;max-width:92vw}
+.gm-toast.show{opacity:1;transform:translate(-50%,0)}
+.gm-logbtns{display:inline-flex;gap:6px;flex-wrap:wrap}
+.gm-mini{background:#fff;color:var(--blue);border:1.5px solid var(--blue);border-radius:7px;padding:4px 9px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.gm-mini:hover{background:var(--blue);color:#fff}
+.gm-today{margin-bottom:14px;border-left:4px solid var(--green)}
+.gm-today h3{margin-bottom:10px}
+.gm-today-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px 20px}
+.gm-today-h{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;margin-bottom:6px}
+.gm-today-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.gm-today-row:last-of-type{border-bottom:none}
+.gm-today-row .gm-why{flex:1 1 140px;margin:0}
+.gm-legend{margin-top:8px;line-height:2}
+@media (max-width:700px){
+  .gm-board thead{display:none}
+  .gm-board,.gm-board tbody,.gm-board tr,.gm-board td{display:block;width:100%}
+  .gm-board tr{border-bottom:6px solid var(--bg);padding:10px 12px}
+  .gm-board td{border:none;padding:4px 0;white-space:normal;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .gm-board td:first-child{display:block;padding-bottom:6px}
+  .gm-board td[data-l]::before{content:attr(data-l);font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:700}
+  .gm-board td.wrap{flex-wrap:wrap}
+  .gm-board tr.gm-pri td:first-child{box-shadow:none}
+  .gm-board tr.gm-pri{box-shadow:inset 4px 0 0 var(--red)}
+}
+/* === Login + access === */
+body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!important}
+.gc-login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px max(16px,env(safe-area-inset-left,0px));background:linear-gradient(135deg,var(--blue),var(--blue-dk))}
+.gc-login[hidden]{display:none}
+.gc-login-card{background:#fff;border-radius:14px;padding:28px 26px;width:380px;max-width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.gc-login-card h1{font-size:19px;font-weight:800;color:var(--blue-dk);margin-bottom:2px}
+.gc-login-card .sub{font-size:12.5px;color:var(--muted);margin-bottom:18px}
+.gc-login-card label{display:block;font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin:12px 0 4px}
+.gc-login-card input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
+.gc-login-card input:focus{outline:2px solid var(--green);outline-offset:1px;border-color:transparent}
+.gc-login-card .btn{width:100%;margin-top:18px;padding:11px}
+.gc-login-err{color:var(--red-dk);font-size:12.5px;font-weight:600;min-height:18px;margin-top:10px}
+.gc-login-help{font-size:12px;color:var(--muted);margin-top:12px}
+.gc-user{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;background:rgba(255,255,255,.14);padding:6px 10px;border-radius:8px}
+.gc-user button{background:none;border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:6px;padding:3px 9px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.gc-user button:hover{background:rgba(255,255,255,.18)}
+.tab[hidden],.tab-link[hidden],#gmViewBar button[hidden]{display:none!important}
 </style></head>
-<body>
+<body class="gc-locked">
+<div id="gcLogin" class="gc-login">
+  <div class="gc-login-card">
+    <h1>Great Clips · Salon Dashboard</h1>
+    <div class="sub">Sonaya Group · sign in to continue</div>
+    <form id="gcLoginForm" novalidate>
+      <label for="gcEmail">Email</label><input id="gcEmail" type="email" autocomplete="username" required>
+      <label for="gcPass">Password</label><input id="gcPass" type="password" autocomplete="current-password" required>
+      <button class="btn" id="gcLoginBtn" type="submit">Sign in</button>
+    </form>
+    <div class="gc-login-err" id="gcLoginErr" role="alert"></div>
+    <div id="gcLoginOut" hidden><button class="btn" id="gcLoginOutBtn" type="button" style="background:#6b7280">Sign out</button></div>
+    <div class="gc-login-help">Forgot your password or need access? Ask Pranav to reset it from the Users page.</div>
+  </div>
+</div>
+
 <header><div class="hdr-inner">
   <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQwAAAAwCAQAAABOSox6AAAC+klEQVR42u2c627sIAyEmYj3f+Xpr93T0wSwzT3YUqVqt2xg+DDjhC2CJJh8B8GjrFJaJ66qJcxDdUD0Kt112g4MdgHtbCieVNoKDHZBzaF4UonZ1yZqeTXG4hwoOAC3iXMRRVCgy6p5X67Ae1SKhe6XkhkOBESv04YqxcxwNTscjsGjRieJSljDY6AJFrtOMaqxQEPMllL8Ora2YIM2L1Ypnjbgii3vBJX4GVc8MFu0cUJ4LRQMIQA3odD4Qn93com10q5NjUNi1vZhcL54vsGF70+NH9L1n1/bi8B/hLQHg8JyDeLVDPX6hzpXSMHopxKN1R6MOfKOYwgIvLrlC2n3+Os3KtvrWry7mGZCDb1GyFUl43d2qj9D16IlFlgYjzo/9c1QcToWKLgEVt574MN2OcuwDq0rVGqH/x1GQByKBRJS57Yz3P4WBi+xwYNuc7ai2hch8T6/cBgzBpVdf3oVidWMDM3Sq6GI0psCDwsN4paJhXJN4/z5VQja/y54/WhhrrqDeWYGmk9NWVtvAXE8Gvr6ZAIYeL3ou/RbDEd89PCrFFurVhA7uJZPH/FYwqIMBgxCYvhUyCbGjyUGoXUvwvGOM59M3vfra+522fCgP/QdC8Xg+js5BeXbKdtJ6ZmIYlO5Nk/IvK0MLIXtahlFfHvsWsIzWK/LYrpc3yrP31aYyxjmsmbiOhx/c7uVSn3UbfqF0muxFcHFVyoqJ7mfSWbb5RiL5sRyfqqmnMoXUm0fo1sMpKn4644zMwbclE1jcdCpw3jsPMw630MTGjIh56pE1bPk1KioA6NUuvaCIbUKNXkGhZYf2NDgXFf+hEf/QtmyTbAmY5QHHQai0U4uNr5W/aesVFRDBkYNHKgcEFVXQcV/8WCzKeBCUNwPOZmPP8dGw0azYWlOfSNz7pxGydARj3FIyBRFm66OO0+eNnO5v4XqHZ3hnKtS7qsYlhnEXIY9esA2aMYuV93DwfBwMDwcDA8Hw8PB8HAwPBwMDwfDw8HweF38ANCiCWc/qeQQAAAAAElFTkSuQmCC" alt="Great Clips" style="height:28px;filter:brightness(0) invert(1)">
   <span style="font-size:15px;font-weight:600;opacity:.92;white-space:nowrap">Salon Performance Dashboard</span>
@@ -332,6 +389,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
   <div class="tab" data-t="manager">Manager</div>
   <div class="tab" data-t="contacts">Contacts</div>
   <div class="tab" data-t="scorecard">Scorecard</div>
+  <div class="tab" data-t="users" hidden>Users</div>
   <a href="https://tools.sonayagroup.com/gc-crm.html" class="tab-link">👥 Stylist CRM</a>
   <a href="https://tools.sonayagroup.com/gc-quiz-admin.html" class="tab-link">📝 Manager Quiz</a>
   <a href="https://tools.sonayagroup.com/gc-maintenance/" class="tab-link">🔧 Maintenance</a>
@@ -544,6 +602,11 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
     <div class="recap-q"><label>Are schedules up to date and entered?</label><textarea id="q_schedules"></textarea></div>
     <div class="recap-q"><label>Are all stylists licenses posted and current with a color photo and is the current business license and establishment license posted?</label><select id="q_licenses_posted" style="width:100%;border:1px solid var(--line);border-radius:7px;padding:9px 10px;font:inherit;font-size:13px;background:#fcfdfe"><option value="">— Select —</option><option value="yes">Yes</option><option value="no">No</option></select></div>
   </div>
+</section>
+
+<section class="panel" id="users">
+  <div class="sec-title">Users &amp; access</div>
+  <div id="gcUsersBody"></div>
 </section>
 
 <section class="panel" id="manager">
@@ -971,7 +1034,7 @@ async function loadBirthdays(){
   }catch(e){console.error('Birthday widget error',e);}
 }
 
-window.onload=()=>{ Promise.all([loadData(),loadGoogleData().catch(e=>{console.error("Google data load failed",e);})]).then(([b])=>{onBoot(b);loadRecaps();loadDailyKpiNotes();loadBirthdays();}).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
+window.onload=()=>{ gcAuthStart(); Promise.all([loadData(),loadGoogleData().catch(e=>{console.error("Google data load failed",e);})]).then(([b])=>gcAuthStart().then(()=>{onBoot(b);loadRecaps();loadDailyKpiNotes();loadBirthdays();})).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
 
 // WEEKS includes every week_ending with any rolled-up data, including the current
 // in-progress GC week (Sat–Fri) whose week_ending Friday hasn't happened yet — that entry
@@ -1010,6 +1073,7 @@ function onBoot(b){
   updMeta();
   if(!DATES.length&&!WEEKS.length){$("#emptyBanner").innerHTML='<div class="banner warn">No data stored yet. Once the daily/weekly tasks run (or a day is ingested), pick a date here and it appears.</div>';}
   loadDay();loadWeek();
+  if(typeof gcApplyAccess==="function")gcApplyAccess();
 }
 function fmtDate(iso){if(!iso)return"";const p=String(iso).split("-");return p.length===3?(+p[1])+"/"+(+p[2])+"/"+p[0]:iso;}
 function updMeta(){$("#hdrMeta").innerHTML="Day <b>"+(curDate?fmtDate(curDate):"—")+"</b> · Week <b>"+(curWeek?fmtDate(curWeek):"—")+"</b>";}
@@ -1102,7 +1166,7 @@ function renderPort(){
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
       <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
-    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
+    tr.onclick=()=>{if(typeof gcCanSalon==="function"&&!gcCanSalon(s[0]))return;current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
 }
@@ -1129,7 +1193,7 @@ function renderPortYTD(){
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
       <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
-    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];detMode="ytd";document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x.dataset.mode==="ytd"));$("#detDay").style.display="none";$("#detWeek").style.display="none";$("#detYTD").style.display="";renderDetail();document.querySelector('.tab[data-t="detail"]').click();};
+    tr.onclick=()=>{if(typeof gcCanSalon==="function"&&!gcCanSalon(s[0]))return;current=s[0];$("#salonSel").value=s[0];detMode="ytd";document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x.dataset.mode==="ytd"));$("#detDay").style.display="none";$("#detWeek").style.display="none";$("#detYTD").style.display="";renderDetail();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
 }
@@ -1156,7 +1220,7 @@ function renderPortWTD(){
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
       <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
-    tr.onclick=()=>{current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
+    tr.onclick=()=>{if(typeof gcCanSalon==="function"&&!gcCanSalon(s[0]))return;current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
 }
@@ -1184,6 +1248,7 @@ const ADMIN_MGRS=[{name:"Gonzales, Liza",match:"Gonzales, Liza",allot:10},
   {name:"Shelby, Tanya",match:"Shelby, Tanya",allot:10}];
 function renderAdminHrs(){
   const el=$("#adminHrsCards");if(!el)return;
+  if(typeof gcIsMgr==="function"&&gcIsMgr()){el.innerHTML="";return;} // salon managers never see Area Manager admin hours
   const latest=DATES[0];if(!latest){el.innerHTML="";return;}
   const wkStart=gcWeekStart(latest);
   const weekDates=Object.keys(DATA.days||{}).filter(d=>d>=wkStart&&d<=latest).sort();
@@ -3057,7 +3122,9 @@ const GM_DAY_ITEMS=[
 const GM_MONTH_ITEMS=[{k:"inventory",label:"Monthly inventory (office, cleaning, backbar, retail) scanned and saved to Drive",days:"First Tue"}];
 const GM_W={qc:20,reach:20,pri:20,train:15,rhythm:15,sched:10};
 const GM_DAY_START="2026-10-30"; // Daily Five checkboxes started; earlier days show grey, not missed
-const GM_START="2026-10-30"; // first week (ending Fri) the Weekly Rhythm existed; earlier weeks are not scored
+const GM_START="2026-10-30";
+const GM_LAUNCH="2026-10-30"; // first 30 days after launch: "never"/overdue-before-launch show grey/amber, not red
+function gmGrace(today){return (today||gmToday())<gmAdd(GM_LAUNCH,30);} // first week (ending Fri) the Weekly Rhythm existed; earlier weeks are not scored
 
 // ---- date helpers (local dates as YYYY-MM-DD) ----
 function gmIso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
@@ -3150,14 +3217,14 @@ function gmRecapLic(sid){const r=(recaps||[]).filter(x=>String(x.salonId)===Stri
 
 // ---- chips ----
 function gmChip(cls,txt,title){return '<span class="gm-chip '+cls+'"'+(title?' title="'+esc(title)+'"':'')+'>'+esc(txt)+'</span>';}
-function gmAgeChip(ev,today){if(!ev)return gmChip("gm-r","Never");const a=gmDiff(ev.date,today);
+function gmAgeChip(ev,today){if(!ev)return gmGrace(today)?gmChip("gm-n","Not started"):gmChip("gm-r","Never");const a=gmDiff(ev.date,today);
   const cls=a<=21?"gm-g":a<=30?"gm-a":"gm-r";return gmChip(cls,(a<=0?"Today":a+" day"+(a===1?"":"s"))+(ev.src==="recap"?" · recap":""),"Last on "+fmtDate(ev.date)+(ev.src==="recap"?" (from weekly recap)":""));}
 function gmTrainChip(doneDate,hire,dueDays,today){
   if(doneDate){const late=hire&&doneDate>gmAdd(hire,dueDays);return gmChip(late?"gm-a":"gm-g",(late?"Done late ":"Done ")+gmShort(doneDate));}
   if(!hire)return gmChip("gm-n","No hire date");
   const due=gmAdd(hire,dueDays);
   if(today<=due)return gmChip("gm-a","Due "+gmShort(due));
-  if(gmDiff(hire,today)<=90)return gmChip("gm-r","Overdue · due "+gmShort(due));
+  if(gmDiff(hire,today)<=90)return (gmGrace(today)&&due<GM_LAUNCH)?gmChip("gm-a","Needs date"):gmChip("gm-r","Overdue · due "+gmShort(due));
   return gmChip("gm-n","Not recorded");}
 
 // ---- per-stylist board row ----
@@ -3206,15 +3273,19 @@ function gmRecapSchedText(sid,wk){if(!GM.loaded)return"";const t=gmTask(sid,"wee
 function gmRecapLicDefault(sid,wk){return"";} // the recap question itself is the source of truth
 
 // ---- logger identity (no logins in this dashboard) ----
-function gmWho(){let n="",r="Manager";try{n=localStorage.getItem("gm_logger")||"";r=localStorage.getItem("gm_role")||"Manager";}catch(e){}return {n,r};}
+const GM_ROLE_LBL={owner:"Owner",am:"AM",manager:"Manager",asst_manager:"Assistant Manager"};
+function gmAcct(){return (typeof GCU!=="undefined"&&GCU&&GCU.perms)?GCU.perms:null;}
+function gmWho(){const a=gmAcct();if(a)return {n:a.name||a.email,r:GM_ROLE_LBL[a.role]||"Manager"};let n="",r="Manager";try{n=localStorage.getItem("gm_logger")||"";r=localStorage.getItem("gm_role")||"Manager";}catch(e){}return {n,r};}
 function gmSetWho(n,r){try{localStorage.setItem("gm_logger",n);localStorage.setItem("gm_role",r);}catch(e){}}
-function gmWhoFields(prefix){const w=gmWho();return '<div class="gm-f"><label>Logged by</label><input id="'+prefix+'Who" value="'+esc(w.n)+'" placeholder="Your name"></div>'
+function gmWhoFields(prefix){const w=gmWho();if(gmAcct())return '<div class="gm-f full"><span class="gm-why">Saved as <b>'+esc(w.n)+'</b> ('+esc(w.r)+')</span><input type="hidden" id="'+prefix+'Who" value="'+esc(w.n)+'"><input type="hidden" id="'+prefix+'Role" value="'+esc(w.r)+'"></div>';return '<div class="gm-f"><label>Logged by</label><input id="'+prefix+'Who" value="'+esc(w.n)+'" placeholder="Your name"></div>'
   +'<div class="gm-f"><label>Role</label><select id="'+prefix+'Role"><option'+(w.r==="Manager"?" selected":"")+'>Manager</option><option'+(w.r==="Assistant Manager"?" selected":"")+'>Assistant Manager</option><option'+(w.r==="AM"?" selected":"")+' value="AM">Area Manager</option></select></div>';}
 
 // ---- modal ----
 function gmModal(html){gmClose();const bg=document.createElement("div");bg.className="gm-bg";bg.id="gmBg";bg.innerHTML='<div class="gm-modal" role="dialog" aria-modal="true">'+html+'</div>';
   bg.addEventListener("click",e=>{if(e.target===bg)gmClose();});document.body.appendChild(bg);return bg;}
 function gmClose(){const b=$("#gmBg");if(b)b.remove();}
+function gmToast(msg){let t=$("#gmToast");if(!t){t=document.createElement("div");t.id="gmToast";t.className="gm-toast";t.setAttribute("role","status");document.body.appendChild(t);}
+  t.textContent=msg;t.classList.add("show");clearTimeout(gmToast._t);gmToast._t=setTimeout(()=>t.classList.remove("show"),2600);}
 
 // ===== RENDER =====
 function renderManager(){const host=$("#gmBody");if(!host)return;
@@ -3223,6 +3294,7 @@ function renderManager(){const host=$("#gmBody");if(!host)return;
   if(!GM.loaded){host.innerHTML='<div class="loading">Loading manager data…</div>';
     gmLoad().then(renderManager).catch(e=>{host.innerHTML='<div class="banner warn">Could not load manager data: '+esc(e.message)+'</div>';});return;}
   try{gmDaily();}catch(e){console.error(e);}
+  const mgrOnly=typeof gcIsMgr==="function"&&gcIsMgr();const sb=document.querySelector('#gmViewBar button[data-v="score"]');if(sb)sb.hidden=mgrOnly;if(mgrOnly&&GM.view==="score")GM.view="board";
   try{({board:gmBoard,rhythm:gmRhythm,score:gmScorecard}[GM.view]||gmBoard)(host);}
   catch(e){console.error(e);host.innerHTML='<div class="banner warn">Something went wrong drawing this view: '+esc(e.message)+'</div>';}}
 
@@ -3234,6 +3306,7 @@ function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,to
   const trainOver=rows.filter(r=>{const h=r.hire;if(!h||gmDiff(h.date,today)>90)return false;return (!r.prof.checklist_done&&today>gmAdd(h.date,7))||(!r.prof.great_academy_done&&today>gmAdd(h.date,30));}).length;
   let h='';
   h+=gmCompBanner(sc);
+  h+=gmTodayCard(sid,rows,today);
   h+='<div class="gm-tiles">'
     +'<div class="gm-tile"><div class="lbl">Development Score</div><div class="val" style="color:'+gmScoreCol(sc&&sc.score)+'">'+(sc&&sc.score!=null?sc.score:"—")+'</div><div class="sub">Information only for now</div></div>'
     +'<div class="gm-tile"><div class="lbl">QC last 30 days</div><div class="val">'+qcN+' / '+rows.length+'</div><div class="sub">stylists covered</div></div>'
@@ -3241,19 +3314,21 @@ function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,to
     +'<div class="gm-tile"><div class="lbl">Coach this week</div><div class="val" style="color:'+(priN?RED:GREEN)+'">'+priN+'</div><div class="sub">out of standard, not yet coached</div></div>'
     +'<div class="gm-tile"><div class="lbl">New-stylist training</div><div class="val" style="color:'+(trainOver?RED:GREEN)+'">'+(trainOver?trainOver+" overdue":"On track")+'</div><div class="sub">checklist 7 days · Academy 30 days</div></div>'
     +'</div>';
-  h+='<div class="recap-bar"><button class="btn" data-act="log">+ Log a conversation</button><span class="sub" style="color:var(--muted);font-size:12.5px">Sorted so stylists to coach first are on top. Green ≤21 days, amber 22–30, red over 30 or never.</span></div>';
+  h+='<div class="recap-bar"><button class="btn" data-act="log">+ Log a conversation</button><span class="sub" style="color:var(--muted);font-size:12.5px">Stylists to coach first are on top. Use + QC or + REACH on a row to log for that stylist.</span></div>';
   if(!rows.length){h+='<div class="oos-neutral">No stylists with floor hours at this salon in the last 30 days.</div>';host.innerHTML=h;return;}
-  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Stylist</th><th>Standards</th><th>Last QC</th><th>Last REACH</th><th>Training checklist</th><th>Great Academy</th><th>Last training</th></tr></thead><tbody>';
+  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl gm-board"><thead><tr><th>Stylist</th><th>Log</th><th>Standards</th><th>Last QC</th><th>Last REACH</th><th>Training checklist</th><th>Great Academy</th><th>Last training</th></tr></thead><tbody>';
   rows.forEach(r=>{const k=esc(r.st.key);const hire=r.hire?r.hire.date:null;
     const stdCell=r.flagged?gmChip(r.coachedSinceFlag?"gm-a":"gm-r",r.coachedSinceFlag?"Coached":"Coach")+'<div class="gm-why">'+esc(r.std.reasons.join(" · "))+' · wk '+gmShort(r.std.week)+'</div>':(r.std.week?gmChip("gm-g","In standard"):gmChip("gm-n","No weekly summary yet"));
     h+='<tr class="'+(r.flagged&&!r.coachedSinceFlag?"gm-pri":"")+'"><td><button class="gm-name" data-act="tl" data-key="'+k+'">'+esc(r.st.name)+'</button>'
       +'<div class="gm-why">'+(hire?"Hired "+fmtDate(hire):"Hire date unknown")+'</div></td>'
-      +'<td class="wrap">'+stdCell+'</td>'
-      +'<td>'+gmAgeChip(r.qc,today)+'</td><td>'+gmAgeChip(r.rc,today)+'</td>'
-      +'<td class="gm-click" data-act="prof" data-key="'+k+'">'+gmTrainChip(r.prof.checklist_done,hire,7,today)+'</td>'
-      +'<td class="gm-click" data-act="prof" data-key="'+k+'">'+gmTrainChip(r.prof.great_academy_done,hire,30,today)+'</td>'
-      +'<td>'+(r.tr?gmChip("gm-g",GM_KINDS[r.tr.kind].replace("Training · ","")+" · "+gmShort(r.tr.date)):gmChip("gm-n","None logged"))+'</td></tr>';});
+      +'<td data-l="Log"><span class="gm-logbtns"><button class="gm-mini" data-act="log" data-key="'+k+'" data-kind="qc">+ QC</button><button class="gm-mini" data-act="log" data-key="'+k+'" data-kind="reach">+ REACH</button></span></td>'
+      +'<td class="wrap" data-l="Standards">'+stdCell+'</td>'
+      +'<td data-l="Last QC">'+gmAgeChip(r.qc,today)+'</td><td data-l="Last REACH">'+gmAgeChip(r.rc,today)+'</td>'
+      +'<td class="gm-click" data-l="Checklist" data-act="prof" data-key="'+k+'">'+gmTrainChip(r.prof.checklist_done,hire,7,today)+'</td>'
+      +'<td class="gm-click" data-l="Great Academy" data-act="prof" data-key="'+k+'">'+gmTrainChip(r.prof.great_academy_done,hire,30,today)+'</td>'
+      +'<td data-l="Last training">'+(r.tr?gmChip("gm-g",GM_KINDS[r.tr.kind].replace("Training · ","")+" · "+gmShort(r.tr.date)):gmChip("gm-n","None logged"))+'</td></tr>';});
   h+='</tbody></table></div></div>';
+  h+='<div class="legend-note gm-legend"><b>Key:</b> '+gmChip("gm-g","Green")+' done in the last 21 days · '+gmChip("gm-a","Amber")+' due soon (22–30 days) or needs a date · '+gmChip("gm-r","Red")+' over 30 days, never, or overdue · '+gmChip("gm-n","Grey")+' not started yet or not tracked. <b>Coach</b> = out of standard on haircut time or returns and not coached since. Tap a stylist’s name for their history, a training cell to record dates.</div>';
   const fl=gmRosterSplit(sid,today).floaters;
   if(fl.length)h+='<div class="legend-note">Also worked here in the last 30 days (home salon elsewhere, not scored here): '+fl.map(f=>'<button class="gm-link" data-act="tl" data-key="'+esc(f.key)+'">'+esc(f.name)+'</button> ('+f.hrs.toFixed(1)+' hrs · mostly '+esc(sName(f.home))+')').join(', ')+'</div>';
   // recent log
@@ -3273,6 +3348,21 @@ function gmSummary(r){
   if(r.kind==="reach"){const x=r.reach||{};return [x.wage?"Effective wage $"+x.wage+"/hr":"",x.A?"Goal: "+x.A:"",x.R?"Strengths: "+x.R:""].filter(Boolean).join(". ");}
   return r.notes||r.focus||"";}
 
+// ---- Today card: who to coach, follow-ups due, Weekly Rhythm items due ----
+function gmTodayCard(sid,rows,today){
+  const coach=rows.filter(r=>(r.flagged&&!r.coachedSinceFlag)||(!r.qc||gmDiff(r.qc.date,today)>30)||(!r.rc||gmDiff(r.rc.date,today)>30)).slice(0,3);
+  const fu=[];const seen=new Set();
+  GM.log.filter(r=>String(r.salon_id)===String(sid)&&r.follow_up&&r.follow_up<=today&&r.follow_up>=gmAdd(today,-14)).forEach(r=>{const k=gmKey(r.stylist_name);if(seen.has(k))return;
+    const newer=GM.log.some(x=>gmKey(x.stylist_name)===k&&x.id!==r.id&&(x.created_at||"")>(r.created_at||"")&&x.session_date>=r.follow_up);if(newer)return;seen.add(k);fu.push(r);});
+  const we=gmWeekEnd(today);const due=GM_WEEK_ITEMS.filter(it=>!gmItemDone(gmTask(sid,"week",we,it.k),it)&&gmAdd(we,it.due)<=today);
+  const reasons=r=>{const a=[];if(r.flagged&&!r.coachedSinceFlag)a.push(r.std.reasons.join(", "));if(!r.qc||gmDiff(r.qc.date,today)>30)a.push("QC due");if(!r.rc||gmDiff(r.rc.date,today)>30)a.push("REACH due");return a.join(" · ");};
+  let h='<div class="card gm-today"><h3>Today at '+esc(sName(sid))+'</h3><div class="gm-today-grid">';
+  h+='<div><div class="gm-today-h">Coach today</div>'+(coach.length?coach.map(r=>'<div class="gm-today-row"><button class="gm-name" data-act="tl" data-key="'+esc(r.st.key)+'">'+esc(gmFirstLast(r.st.name))+'</button><span class="gm-why">'+esc(reasons(r))+'</span><span class="gm-logbtns"><button class="gm-mini" data-act="log" data-key="'+esc(r.st.key)+'" data-kind="qc">+ QC</button><button class="gm-mini" data-act="log" data-key="'+esc(r.st.key)+'" data-kind="reach">+ REACH</button></span></div>').join(""):'<div class="gm-why">Everyone is covered. Nice work.</div>')+'</div>';
+  h+='<div><div class="gm-today-h">Follow-ups due</div>'+(fu.length?fu.map(r=>'<div class="gm-today-row"><button class="gm-name" data-act="view" data-id="'+esc(r.id)+'">'+esc(gmFirstLast(r.stylist_name))+'</button><span class="gm-why">'+esc((GM_KINDS[r.kind]||r.kind)+" on "+gmShort(r.session_date)+" · follow up by "+gmShort(r.follow_up))+(r.commitment||r.focus?' · “'+esc(r.commitment||r.focus)+'”':'')+'</span></div>').join(""):'<div class="gm-why">No follow-ups due.</div>')+'</div>';
+  const dueShow=due.slice(0,3);
+  h+='<div><div class="gm-today-h">Weekly Rhythm due</div>'+(due.length?dueShow.map(it=>'<div class="gm-today-row"><span>'+esc(it.label)+'</span><span class="gm-why">'+esc(it.days)+(gmAdd(we,it.due)<today?" · overdue":" · today")+'</span></div>').join("")+'<button class="gm-link" data-act="goto" data-v="rhythm">'+(due.length>3?"+"+(due.length-3)+" more · ":"")+'Open Weekly Rhythm</button>':'<div class="gm-why">Nothing due yet this week.</div>')+'</div>';
+  h+='</div></div>';return h;}
+
 // ---- Log a conversation ----
 function gmLogForm(preKey,preKind){const sid=current,R=gmRosterAll(sid);const today=gmToday();
   let h='<h3>Log a conversation · '+esc(sName(sid))+'</h3><div class="gm-form">'
@@ -3282,7 +3372,13 @@ function gmLogForm(preKey,preKind){const sid=current,R=gmRosterAll(sid);const to
     +'<div class="gm-f full" id="gmLBody"></div>'
     +gmWhoFields("gmL")+'</div>'
     +'<div class="gm-actions"><span class="gm-err" id="gmLErr"></span><button class="gm-cancel" data-act="close">Cancel</button><button class="btn" id="gmLSave">Save</button></div>';
-  gmModal(h);const kindSel=$("#gmLKind");kindSel.onchange=gmLogBody;gmLogBody();$("#gmLSave").onclick=gmLogSave;}
+  gmModal(h);const kindSel=$("#gmLKind");kindSel.onchange=gmLogBody;$("#gmLSty").onchange=gmPrevGoal;gmLogBody();$("#gmLSave").onclick=gmLogSave;}
+function gmPrevGoal(){const box=$("#gmLPrev");if(!box)return;const sty=$("#gmLSty").value;if(!sty){box.innerHTML="";return;}const k=gmKey(sty);
+  const last=GM.log.filter(r=>r.kind==="reach"&&gmKey(r.stylist_name)===k).sort((a,b)=>(b.session_date+b.created_at).localeCompare(a.session_date+a.created_at))[0];
+  if(!last||!last.reach||!last.reach.A){box.innerHTML='<div class="gm-banner info" style="margin-bottom:10px">First REACH logged for '+esc(gmFirstLast(sty))+'. Set a goal in A below.</div>';return;}
+  box.innerHTML='<div class="gm-banner info" style="margin-bottom:10px"><b>Last REACH '+fmtDate(last.session_date)+'.</b> Goal: “'+esc(last.reach.A)+'”'
+    +'<div class="gm-f" style="margin-top:8px;max-width:320px"><label>Did they reach that goal?</label><select id="gmLPrevMet"><option value="">Select…</option><option value="yes">Yes</option><option value="partly">Partly</option><option value="no">No</option></select></div>'
+    +'<input type="hidden" id="gmLPrevGoal" value="'+esc(last.reach.A)+'"></div>';}
 function gmLogBody(){const k=$("#gmLKind").value,host=$("#gmLBody");let h="";
   if(k==="qc"){h+='<label>GREAT · mark each step observed or coached</label><div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">';
     GM_GREAT.forEach(s=>{h+='<div class="gm-step"><span class="k">'+s[0]+'</span><span class="t">'+esc(s[1])+'</span><span class="gm-seg" data-step="'+s[0]+'"><button type="button" data-val="observed">Observed</button><button type="button" data-val="coached">Coached</button></span></div>';});
@@ -3293,10 +3389,11 @@ function gmLogBody(){const k=$("#gmLKind").value,host=$("#gmLBody");let h="";
     GM_REACH.forEach(s=>{h+='<div class="gm-rl"><span class="k">'+s[0]+'</span><div class="gm-f"><label>'+esc(s[1])+' <span class="hint">· '+esc(s[2])+'</span></label>'
       +(s[0]==="E"?'<input type="number" step="0.01" min="0" id="gmLWage" placeholder="Effective hourly wage $ (base + bonuses + credit tips × 2) ÷ hours" style="margin-bottom:6px">':'')
       +'<textarea id="gmLR_'+s[0]+'"'+(s[0]==="E"?' placeholder="Opportunity areas: CPH, TBC, HCT, apparel, conversation…"':'')+'></textarea></div></div>';});
-    h+='</div><div class="gm-form" style="margin-top:10px"><div class="gm-f"><label>Follow-up date</label><input type="date" id="gmLFollow"></div></div>';}
+    h+='</div><div class="gm-form" style="margin-top:10px"><div class="gm-f"><label>Follow-up date</label><input type="date" id="gmLFollow"></div></div>';
+    h='<div id="gmLPrev"></div>'+h;}
   else{h+='<div class="gm-form"><div class="gm-f full"><label>Topic and notes</label><textarea id="gmLNotes" placeholder="What was covered? e.g. kids cuts, consultation, Great Academy module name"></textarea></div>'
     +'<div class="gm-f"><label>Follow-up date</label><input type="date" id="gmLFollow"></div></div>';}
-  host.innerHTML=h;
+  host.innerHTML=h;gmPrevGoal();
   host.querySelectorAll(".gm-seg").forEach(seg=>seg.querySelectorAll("button").forEach(b=>b.onclick=()=>{seg.dataset.sel=b.dataset.val;
     seg.querySelectorAll("button").forEach(x=>x.className="");b.className=b.dataset.val==="observed"?"on-o":"on-c";}));}
 async function gmLogSave(){const err=$("#gmLErr");err.textContent="";
@@ -3309,17 +3406,18 @@ async function gmLogSave(){const err=$("#gmLErr");err.textContent="";
     if(Object.values(g).includes("coached")&&!body.focus){err.textContent="Add a focus area for the steps you coached.";return;}}
   else if(kind==="reach"){const x={};GM_REACH.forEach(s=>{x[s[0]]=$("#gmLR_"+s[0]).value.trim();});const w=$("#gmLWage").value;if(w)x.wage=Number(w);
     const empty=GM_REACH.filter(s=>!x[s[0]]).map(s=>s[0]);if(empty.length){err.textContent="Fill in every REACH step (missing "+empty.join(", ")+").";return;}
+    const pm=$("#gmLPrevMet");if(pm){if(!pm.value){err.textContent="Say whether they reached last week’s goal.";return;}x.prev_goal_met=pm.value;x.prev_goal=$("#gmLPrevGoal").value;}
     body.reach=x;body.focus=x.A;}
   else{body.notes=$("#gmLNotes").value.trim();if(!body.notes){err.textContent="Add a topic or notes.";return;}}
   const btn=$("#gmLSave");btn.disabled=true;btn.textContent="Saving…";
   try{gmSetWho(who,role);const res=await gmPost("gc_coaching_log",body);if(res&&res[0])GM.log.unshift(res[0]);else await gmLoad(true);
-    GM.log.sort((a,b)=>(b.session_date+b.created_at).localeCompare(a.session_date+a.created_at));gmClose();renderManager();}
+    GM.log.sort((a,b)=>(b.session_date+b.created_at).localeCompare(a.session_date+a.created_at));gmClose();renderManager();gmToast("Saved "+(GM_KINDS[kind]||"entry")+" for "+gmFirstLast(sty));}
   catch(e){err.textContent=e.message;btn.disabled=false;btn.textContent="Save";}}
 function gmViewEntry(id){const r=GM.log.find(x=>x.id===id);if(!r)return;let h='<h3>'+esc(GM_KINDS[r.kind]||r.kind)+' · '+esc(r.stylist_name)+'</h3>'
   +'<div class="gm-why" style="font-size:12.5px;margin-bottom:10px">'+fmtDate(r.session_date)+' · '+esc(sName(r.salon_id))+' · logged by '+esc(r.logged_by||"—")+(r.logged_role?" ("+esc(r.logged_role)+")":"")+' on '+(r.created_at?new Date(r.created_at).toLocaleString():"")+'</div>';
   if(r.kind==="qc"){const g=r.great||{};h+=GM_GREAT.map(s=>'<div class="gm-step" style="margin-bottom:6px"><span class="k">'+s[0]+'</span><span class="t">'+esc(s[1])+'</span>'+gmChip(g[s[0]]==="coached"?"gm-a":"gm-g",g[s[0]]==="coached"?"Coached":"Observed")+'</div>').join("")
     +(r.focus?'<p style="margin-top:10px"><b>Focus:</b> '+esc(r.focus)+'</p>':'')+(r.commitment?'<p><b>Commitment:</b> '+esc(r.commitment)+'</p>':'');}
-  else if(r.kind==="reach"){const x=r.reach||{};h+=GM_REACH.map(s=>'<div class="gm-rl" style="margin-bottom:8px"><span class="k" style="padding-top:0">'+s[0]+'</span><div><b>'+esc(s[1])+'</b>'+(s[0]==="E"&&x.wage?' · $'+esc(x.wage)+'/hr':'')+'<div style="white-space:pre-wrap;font-size:13px">'+esc(x[s[0]]||"—")+'</div></div></div>').join("");}
+  else if(r.kind==="reach"){const x=r.reach||{};if(x.prev_goal)h+='<div class="gm-banner info">Last goal: “'+esc(x.prev_goal)+'” · reached: <b>'+esc(x.prev_goal_met||"—")+'</b></div>';h+=GM_REACH.map(s=>'<div class="gm-rl" style="margin-bottom:8px"><span class="k" style="padding-top:0">'+s[0]+'</span><div><b>'+esc(s[1])+'</b>'+(s[0]==="E"&&x.wage?' · $'+esc(x.wage)+'/hr':'')+'<div style="white-space:pre-wrap;font-size:13px">'+esc(x[s[0]]||"—")+'</div></div></div>').join("");}
   else h+='<p style="white-space:pre-wrap">'+esc(r.notes||"")+'</p>';
   if(r.follow_up)h+='<p style="margin-top:8px"><b>Follow-up:</b> '+fmtDate(r.follow_up)+'</p>';
   h+='<div class="gm-actions"><span class="gm-err" id="gmVErr"></span><button class="gm-cancel" data-act="del" data-id="'+esc(r.id)+'" style="color:var(--red-dk)">Remove entry</button><button class="btn" data-act="close">Close</button></div>';
@@ -3332,18 +3430,18 @@ async function gmDelete(id){const btn=document.querySelector('[data-act="del"]')
 function gmProfForm(key){const sid=current;const st=gmRosterAll(sid).find(s=>s.key===key)||{key,name:key};const p=gmProfile(key)||{};const hire=gmHire(st);
   let h='<h3>'+esc(st.name)+' · training record</h3><div class="gm-form">'
     +'<div class="gm-f"><label>Hire date</label><input type="date" id="gmPHire" value="'+esc(p.hire_date||"")+'"><span class="hint">'+(hire&&hire.src==="contacts"?"From Contacts: "+fmtDate(hire.date)+". Enter a date only to correct it.":"")+'</span></div>'
-    +'<div class="gm-f"><label>Training checklist signed off</label><input type="date" id="gmPCheck" value="'+esc(p.checklist_done||"")+'"><span class="hint">Due within 7 days of hire'+(hire?" ("+fmtDate(gmAdd(hire.date,7))+")":"")+'</span></div>'
-    +'<div class="gm-f"><label>Great Academy completed</label><input type="date" id="gmPAcad" value="'+esc(p.great_academy_done||"")+'"><span class="hint">Due within 30 days of hire'+(hire?" ("+fmtDate(gmAdd(hire.date,30))+")":"")+'</span></div>'
+    +'<div class="gm-f"><label>Training checklist signed off</label><span style="display:flex;gap:6px"><input type="date" id="gmPCheck" value="'+esc(p.checklist_done||"")+'"><button type="button" class="gm-btn2" data-today="gmPCheck">Done today</button></span><span class="hint">Due within 7 days of hire'+(hire?" ("+fmtDate(gmAdd(hire.date,7))+")":"")+'</span></div>'
+    +'<div class="gm-f"><label>Great Academy completed</label><span style="display:flex;gap:6px"><input type="date" id="gmPAcad" value="'+esc(p.great_academy_done||"")+'"><button type="button" class="gm-btn2" data-today="gmPAcad">Done today</button></span><span class="hint">Due within 30 days of hire'+(hire?" ("+fmtDate(gmAdd(hire.date,30))+")":"")+'</span></div>'
     +'<div class="gm-f"><label>Status</label><select id="gmPInact"><option value="0">Active</option><option value="1"'+(p.inactive?" selected":"")+'>No longer with us (hide from board)</option></select></div>'
     +'<div class="gm-f full"><label>Notes</label><textarea id="gmPNotes">'+esc(p.notes||"")+'</textarea></div>'
     +gmWhoFields("gmP")+'</div>'
     +'<div class="gm-actions"><span class="gm-err" id="gmPErr"></span><button class="gm-cancel" data-act="close">Cancel</button><button class="btn" id="gmPSave">Save</button></div>';
-  gmModal(h);
+  gmModal(h);document.querySelectorAll("#gmBg [data-today]").forEach(b=>b.onclick=()=>{$("#"+b.dataset.today).value=gmToday();});
   $("#gmPSave").onclick=async()=>{const err=$("#gmPErr");const who=$("#gmPWho").value.trim(),role=$("#gmPRole").value;if(!who){err.textContent="Enter your name in Logged by.";return;}
     const body={stylist_name:p.stylist_name||st.name,home_salon:p.home_salon||null,hire_date:$("#gmPHire").value||null,checklist_done:$("#gmPCheck").value||null,
       great_academy_done:$("#gmPAcad").value||null,inactive:$("#gmPInact").value==="1",notes:$("#gmPNotes").value.trim(),updated_by:who+" ("+role+")",updated_at:new Date().toISOString()};
     try{gmSetWho(who,role);const res=await gmPost("gc_stylist_profile",body,"?on_conflict=stylist_name","resolution=merge-duplicates,return=representation");
-      GM.prof=GM.prof.filter(x=>x.stylist_name!==body.stylist_name);GM.prof.push((res&&res[0])||body);gmClose();renderManager();}
+      GM.prof=GM.prof.filter(x=>x.stylist_name!==body.stylist_name);GM.prof.push((res&&res[0])||body);gmClose();renderManager();gmToast("Training record saved for "+gmFirstLast(body.stylist_name));}
     catch(e){err.textContent=e.message;}};}
 
 // ---- Stylist timeline ----
@@ -3379,7 +3477,7 @@ function gmDaily(){const host=$("#gmDaily");if(!host)return;const sid=current,to
   // last 7 days strip
   h+='<div class="gm-dstrip"><span class="gm-why" style="margin:0">Last 7 days:</span>'+days.slice().reverse().map(d=>{let n=0;GM_DAY_ITEMS.forEach(it=>{const t=gmTask(sid,"day",d,it.k);if(t&&t.completed)n++;});
     const cls=n===GM_DAY_ITEMS.length?"gm-g":n>0?"gm-a":(d===today||d<GM_DAY_START?"gm-n":"gm-r");return '<span class="gm-chip '+cls+'" title="'+fmtDate(d)+'">'+gmD(d).toLocaleDateString("en-US",{weekday:"short"})+' '+n+'/'+GM_DAY_ITEMS.length+'</span>';}).join(" ")+'</div>';
-  h+='<div class="gm-actions" style="justify-content:space-between;margin-top:8px"><span class="legend-note" style="margin:0">Delivering GREAT: <b>G</b>reet and introduce · <b>R</b>eview Clips Notes · <b>E</b>ngage and connect through consultation · <b>A</b>sk to confirm satisfaction · <b>T</b>hank and invite back</span><span><span class="gm-err" id="gmDErr"></span> <span class="gm-why" style="display:inline">Checking as <b>'+esc(gmWho().n||"(set your name)")+'</b></span> <button class="gm-link" data-act="who">Change</button></span></div>';
+  h+='<div class="gm-actions" style="justify-content:space-between;margin-top:8px"><span class="legend-note" style="margin:0">Delivering GREAT: <b>G</b>reet and introduce · <b>R</b>eview Clips Notes · <b>E</b>ngage and connect through consultation · <b>A</b>sk to confirm satisfaction · <b>T</b>hank and invite back</span><span><span class="gm-err" id="gmDErr"></span> <span class="gm-why" style="display:inline">Checking as <b>'+esc(gmWho().n||"(set your name)")+'</b></span> <button class="gm-link" data-act="who"'+(gmAcct()?' hidden':'')+'>Change</button></span></div>';
   host.innerHTML=h;$("#gmDDay").onchange=function(){gmDailyDay=this.value;gmDaily();};}
 
 // ---- Weekly Rhythm ----
@@ -3415,7 +3513,7 @@ function gmEnsureWho(){const w=gmWho();if(w.n)return Promise.resolve(w);return n
 async function gmSaveTask(ptype,pdate,k,completed,value,el){const w=await gmEnsureWho();if(!w||!w.n){if(el&&el.type==="checkbox")el.checked=!completed;return;}
   const prev=gmTask(current,ptype,pdate,k);
   const body={salon_id:current,period_type:ptype,period_date:pdate,item_key:k,completed,value:value==null?(prev?prev.value:null):value,
-    completed_by:completed?(w.n+(w.r==="AM"?" (AM)":w.r==="Assistant Manager"?" (Asst Mgr)":"")):(prev?prev.completed_by:null),completed_at:completed?((prev&&prev.completed&&prev.completed_at&&(value==null||value===prev.value))?prev.completed_at:new Date().toISOString()):(prev?prev.completed_at:null),updated_at:new Date().toISOString()};
+    completed_by:completed?(w.n+(w.r==="AM"?" (AM)":w.r==="Assistant Manager"?" (Asst Mgr)":w.r==="Owner"?" (Owner)":"")):(prev?prev.completed_by:null),completed_at:completed?((prev&&prev.completed&&prev.completed_at&&(value==null||value===prev.value))?prev.completed_at:new Date().toISOString()):(prev?prev.completed_at:null),updated_at:new Date().toISOString()};
   try{const res=await gmPost("gc_manager_tasks",body,"?on_conflict=salon_id,period_type,period_date,item_key","resolution=merge-duplicates,return=representation");
     GM.tasks=GM.tasks.filter(t=>!(String(t.salon_id)===String(current)&&t.period_type===ptype&&t.period_date===pdate&&t.item_key===k));GM.tasks.unshift((res&&res[0])||body);renderManager();}
   catch(e){const er=$(ptype==="day"?"#gmDErr":"#gmRErr");if(er)er.textContent=e.message;if(el&&el.type==="checkbox")el.checked=!completed;}}
@@ -3451,7 +3549,7 @@ function gmWeekHeadcount(sid,we){const e=((DATA.weeklies[we]||{}).EPP||{})[sid];
 document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el)return;
   if(!el.closest("#manager")&&!el.closest("#gmBg"))return;const a=el.dataset.act;
   if(a==="close"){gmClose();return;}
-  if(a==="log"){gmLogForm(el.dataset.key||null);return;}
+  if(a==="log"){gmLogForm(el.dataset.key||null,el.dataset.kind||null);return;}
   if(a==="tl"){gmTimeline(el.dataset.key);return;}
   if(a==="prof"){gmProfForm(el.dataset.key);return;}
   if(a==="view"){gmViewEntry(el.dataset.id);return;}
@@ -3467,12 +3565,160 @@ document.addEventListener("change",e=>{const el=e.target;if(!el.closest||!el.clo
   else if(a==="sched")gmSaveTask("week",el.dataset.week,"sched_through",!!el.value,el.value||null,el);
 });
 document.addEventListener("keydown",e=>{if(e.key==="Escape")gmClose();});
-(function(){const t=document.querySelector('.tab[data-t="manager"]');if(t)t.addEventListener("click",()=>renderManager());
+function gmSetHash(){try{history.replaceState(null,"","#manager-"+current);}catch(e){}}
+(function(){const t=document.querySelector('.tab[data-t="manager"]');if(t)t.addEventListener("click",()=>{gmSetHash();renderManager();});
   document.querySelectorAll("#gmViewBar button").forEach(b=>b.addEventListener("click",()=>{GM.view=b.dataset.v;renderManager();}));
-  const ss=$("#salonSel");if(ss)ss.addEventListener("change",()=>{current=ss.value;gmClose();if($("#manager").classList.contains("active"))renderManager();}); // set current here: this listener runs before the dashboard's own onchange
+  const ss=$("#salonSel");if(ss)ss.addEventListener("change",()=>{current=ss.value;gmClose();try{localStorage.setItem("gc_last_salon",current);}catch(e){}if($("#manager").classList.contains("active"))gmSetHash();if($("#manager").classList.contains("active"))renderManager();}); // set current here: this listener runs before the dashboard's own onchange
   // load manager data in the background once the main data is in, so the recap can pre-fill from it
   const wait=setInterval(()=>{if(DATA&&DATA.dates&&DATA.dates.length){clearInterval(wait);gmLoad().catch(e=>console.error("Manager data load failed",e));}},500);
 })();
+
+</script>
+<script>
+// ===== LOGIN + ACCESS CONTROL (Great Clips dashboard) =====
+// Supabase Auth email/password (same project and pattern as the Del Taco dashboard).
+// Permissions live in gc_dashboard_users: role owner | am | manager | asst_manager, salon_ids[].
+// Managers / assistant managers: Portfolio, Daily REPS, Salon Detail, Manager, Contacts — their salon(s) only,
+// no Area Manager admin hours, no Weekly Recap / Scorecard / other tools. Owners also get the Users tab.
+// NOTE: this controls what the page shows. Report data is still read with the shared public key, as before.
+let GCU={user:null,perms:null};
+let gcSB=null,gcAuthP=null;
+const GC_ROLE_NAMES={owner:"Owner",am:"Area Manager",manager:"Salon Manager",asst_manager:"Assistant Manager"};
+const GC_MGR_TABS=["portfolio","reps","detail","manager","contacts"];
+function gcIsMgr(){return !!(GCU.perms&&(GCU.perms.role==="manager"||GCU.perms.role==="asst_manager"));}
+function gcIsOwner(){return !!(GCU.perms&&GCU.perms.role==="owner");}
+function gcCanSalon(sid){return !gcIsMgr()||(GCU.perms.salon_ids||[]).map(String).includes(String(sid));}
+function gcClient(){if(!gcSB)gcSB=window.supabase.createClient(SUPA_URL,SUPA_KEY);return gcSB;}
+
+function gcLoginMsg(msg,ok){const e=$("#gcLoginErr");if(e){e.textContent=msg||"";e.style.color=ok?GREEN:"";}}
+function gcUnlock(){document.body.classList.remove("gc-locked");const l=$("#gcLogin");if(l)l.hidden=true;}
+function gcLock(){document.body.classList.add("gc-locked");const l=$("#gcLogin");if(l)l.hidden=false;}
+
+function gcAuthStart(){
+  if(gcAuthP)return gcAuthP;
+  gcAuthP=new Promise(resolve=>{
+    const finish=async(session)=>{
+      try{
+        const {data,error}=await gcClient().from("gc_dashboard_users").select("*").eq("id",session.user.id).maybeSingle();
+        if(error)throw error;
+        if(!data||!data.is_active){gcLoginMsg("You’re signed in as "+session.user.email+", but you don’t have access to the Great Clips dashboard yet. Ask Pranav to add you.");
+          $("#gcLoginForm").hidden=true;$("#gcLoginOut").hidden=false;return;}
+        GCU={user:session.user,perms:data};
+        if(data.must_change_password){gcPwModal(true,()=>{gcUnlock();resolve(GCU);});return;}
+        gcUnlock();resolve(GCU);
+      }catch(e){gcLoginMsg("Couldn’t check your access: "+(e.message||e));}
+    };
+    $("#gcLoginForm").addEventListener("submit",async ev=>{ev.preventDefault();
+      const email=$("#gcEmail").value.trim(),pw=$("#gcPass").value,btn=$("#gcLoginBtn");
+      if(!email||!pw){gcLoginMsg("Enter your email and password.");return;}
+      btn.disabled=true;btn.textContent="Signing in…";gcLoginMsg("");
+      const {data,error}=await gcClient().auth.signInWithPassword({email,password:pw});
+      btn.disabled=false;btn.textContent="Sign in";
+      if(error){gcLoginMsg(/invalid/i.test(error.message)?"That email and password don’t match. Check them and try again.":error.message);return;}
+      finish(data.session);});
+    $("#gcLoginOutBtn").onclick=()=>gcSignOut();
+    gcClient().auth.getSession().then(({data})=>{if(data&&data.session)finish(data.session);else{gcLock();setTimeout(()=>{const e=$("#gcEmail");if(e)e.focus();},50);}});
+  });
+  return gcAuthP;}
+async function gcSignOut(){try{await gcClient().auth.signOut();}catch(e){}try{localStorage.removeItem("gc_last_salon");}catch(e){}location.hash="";location.reload();}
+
+function gcPwModal(forced,done){
+  const bg=document.createElement("div");bg.className="gm-bg";bg.id="gcPwBg";
+  bg.innerHTML='<div class="gm-modal" style="width:420px" role="dialog" aria-modal="true"><h3>'+(forced?"Set your own password":"Change your password")+'</h3>'
+    +(forced?'<p class="gm-why" style="margin-bottom:10px">You signed in with a temporary password. Choose a new one to continue.</p>':'')
+    +'<form id="gcPwForm" class="gm-form"><div class="gm-f full"><label for="gcPw1">New password</label><input type="password" id="gcPw1" autocomplete="new-password" minlength="8"></div>'
+    +'<div class="gm-f full"><label for="gcPw2">Confirm new password</label><input type="password" id="gcPw2" autocomplete="new-password"></div>'
+    +'<div class="gm-actions full" style="grid-column:1/-1"><span class="gm-err" id="gcPwErr"></span>'+(forced?'':'<button type="button" class="gm-cancel" id="gcPwCancel">Cancel</button>')+'<button class="btn" id="gcPwSave">Save password</button></div></form></div>';
+  document.body.appendChild(bg);$("#gcPw1").focus();
+  if(!forced)$("#gcPwCancel").onclick=()=>bg.remove();
+  $("#gcPwForm").onsubmit=async ev=>{ev.preventDefault();const a=$("#gcPw1").value,b=$("#gcPw2").value,err=$("#gcPwErr");err.textContent="";
+    if(a.length<8){err.textContent="Use at least 8 characters.";return;}if(a!==b){err.textContent="The two passwords don’t match.";return;}
+    const btn=$("#gcPwSave");btn.disabled=true;btn.textContent="Saving…";
+    const {error}=await gcClient().auth.updateUser({password:a});
+    if(error){err.textContent=error.message;btn.disabled=false;btn.textContent="Save password";return;}
+    try{await gcClient().rpc("gc_clear_must_change");}catch(e){}
+    if(GCU.perms)GCU.perms.must_change_password=false;bg.remove();if(typeof gmToast==="function")gmToast("Password updated");if(done)done();};}
+
+// Called at the end of onBoot (data is loaded and selectors are filled)
+function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
+  // user chip in header
+  if(!$("#gcUser")){const d=document.createElement("div");d.id="gcUser";d.className="gc-user";
+    d.innerHTML='<span><b>'+esc(p.name||p.email)+'</b> · '+esc(GC_ROLE_NAMES[p.role]||p.role)+'</span><button type="button" id="gcPwBtn">Change password</button><button type="button" id="gcOutBtn">Sign out</button>';
+    $(".hdr-inner").appendChild(d);$("#gcPwBtn").onclick=()=>gcPwModal(false);$("#gcOutBtn").onclick=gcSignOut;}
+  document.querySelectorAll(".tabs-inner .tab").forEach(t=>{const k=t.dataset.t;let show=mgr?GC_MGR_TABS.includes(k):true;if(k==="users")show=gcIsOwner();t.hidden=!show;});
+  document.querySelectorAll(".tabs-inner .tab-link").forEach(a=>a.hidden=mgr);
+  const ss=$("#salonSel");
+  if(mgr){[...ss.options].forEach(o=>{if(!gcCanSalon(o.value))o.remove();});
+    if(!ss.options.length){$("#emptyBanner").innerHTML='<div class="banner warn">Your account isn’t assigned to a salon yet. Ask Pranav to add your salon.</div>';}
+    const a=$("#adminHrsCards");if(a)a.innerHTML="";}
+  const m=location.hash.match(/^#([a-z]+)(?:-(\d{4}))?$/);
+  let want=null;
+  if(m&&m[2]&&SALONS[m[2]]&&gcCanSalon(m[2]))want=m[2];
+  if(!want){try{const l=localStorage.getItem("gc_last_salon");if(l&&SALONS[l]&&gcCanSalon(l))want=l;}catch(e){}}
+  if(!want&&mgr&&ss.options.length)want=ss.options[0].value;
+  if(want&&want!==current){ss.value=want;ss.dispatchEvent(new Event("change"));}
+  const tab=m?m[1]:(mgr?"manager":null);
+  if(tab){const el=document.querySelector('.tab[data-t="'+tab+'"]');if(el&&!el.hidden)el.click();}}
+
+// ===== USERS (owners only) =====
+let GC_USERS=[],GC_SUGGEST=[];
+async function gcUsersLoad(){const host=$("#gcUsersBody");if(!host)return;host.innerHTML='<div class="loading">Loading users…</div>';
+  try{const {data,error}=await gcClient().from("gc_dashboard_users").select("*").order("role").order("name");if(error)throw error;GC_USERS=data||[];
+    const r=await fetch(SUPA_URL+"/rest/v1/salon_contacts?select=name,email,role,salon_id&role=ilike.*manager*",{headers:supaHeaders()});const c=r.ok?await r.json():[];
+    const have=new Set(GC_USERS.map(u=>u.email.toLowerCase()));const by={};
+    c.forEach(x=>{const e=String(x.email||"").trim().toLowerCase();if(!e||have.has(e))return;const rl=String(x.role||"").toLowerCase();
+      const role=rl.includes("area")?"am":(rl.includes("asst")||rl.includes("assistant"))?"asst_manager":"manager";
+      const k=e;if(!by[k])by[k]={email:e,name:x.name,role,salon_ids:[]};if(!by[k].salon_ids.includes(String(x.salon_id)))by[k].salon_ids.push(String(x.salon_id));});
+    GC_SUGGEST=Object.values(by).sort((a,b)=>(a.role==="am"?0:1)-(b.role==="am"?0:1)||a.name.localeCompare(b.name));
+    gcUsersRender();}catch(e){host.innerHTML='<div class="banner warn">Could not load users: '+esc(e.message||e)+'</div>';}}
+function gcSalonList(ids){return (ids||[]).length?(ids||[]).map(s=>s+" "+(SALONS[s]||"")).join(", "):"All salons";}
+function gcUsersRender(){const host=$("#gcUsersBody");
+  let h='<div class="recap-bar"><button class="btn" id="gcAddUser">+ Add user</button><span class="gm-why">Managers and assistant managers see Portfolio, Daily REPS, Salon Detail, Manager and Contacts for their salon(s) only. Area Managers and Owners see everything; only Owners see this page.</span></div>';
+  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Salons</th><th>Status</th><th></th></tr></thead><tbody>';
+  GC_USERS.forEach(u=>{h+='<tr><td><b>'+esc(u.name||"—")+'</b></td><td>'+esc(u.email)+'</td><td>'+esc(GC_ROLE_NAMES[u.role]||u.role)+'</td><td class="wrap">'+esc(u.role==="owner"?"All salons":gcSalonList(u.salon_ids))+'</td>'
+    +'<td>'+(u.is_active?(u.must_change_password?gmChip("gm-a","Temp password"):gmChip("gm-g","Active")):gmChip("gm-n","Disabled"))+'</td>'
+    +'<td><button class="gm-link" data-gcedit="'+esc(u.id)+'">Edit</button></td></tr>';});
+  h+='</tbody></table></div></div>';
+  if(GC_SUGGEST.length){h+='<div class="card" style="margin-top:14px"><h3>Suggested from Contacts</h3><div class="hint">Managers listed in the Contacts tab who don’t have a login yet. Check the email before adding.</div><div class="tbl-scroll"><table class="gm-tbl"><tbody>';
+    GC_SUGGEST.forEach((s,i)=>{h+='<tr><td><b>'+esc(s.name)+'</b></td><td>'+esc(s.email)+'</td><td>'+esc(GC_ROLE_NAMES[s.role])+'</td><td class="wrap">'+esc(gcSalonList(s.salon_ids))+'</td><td><button class="gm-mini" data-gcsug="'+i+'">Add</button></td></tr>';});
+    h+='</tbody></table></div></div>';}
+  host.innerHTML=h;
+  $("#gcAddUser").onclick=()=>gcUserForm(null);
+  host.querySelectorAll("[data-gcedit]").forEach(b=>b.onclick=()=>gcUserForm(GC_USERS.find(u=>u.id===b.dataset.gcedit)));
+  host.querySelectorAll("[data-gcsug]").forEach(b=>b.onclick=()=>{const s=GC_SUGGEST[+b.dataset.gcsug];gcUserForm(null,s);});}
+function gcTempPw(){const c="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";let p="";const a=new Uint32Array(12);crypto.getRandomValues(a);a.forEach(v=>p+=c[v%c.length]);return p;}
+function gcUserForm(u,pre){const isNew=!u;const v=u||Object.assign({email:"",name:"",role:"manager",salon_ids:[],is_active:true},pre||{});
+  if(v.role==="am"&&(!v.salon_ids||v.salon_ids.length<2)){const amN=Object.keys(AM_DEF).find(n=>n.toLowerCase().startsWith(String(v.name||"").toLowerCase().split(" ")[0]));if(amN)v.salon_ids=AM_DEF[amN].slice();}
+  const salons=Object.keys(SALONS).sort();
+  let h='<h3>'+(isNew?"Add user":"Edit "+esc(u.name||u.email))+'</h3><div class="gm-form">'
+    +'<div class="gm-f"><label for="gcUName">Name</label><input id="gcUName" value="'+esc(v.name||"")+'"></div>'
+    +'<div class="gm-f"><label for="gcUEmail">Email</label><input id="gcUEmail" type="email" value="'+esc(v.email||"")+'"'+(isNew?"":" disabled")+'></div>'
+    +'<div class="gm-f"><label for="gcURole">Role</label><select id="gcURole">'+Object.keys(GC_ROLE_NAMES).map(r=>'<option value="'+r+'"'+(r===v.role?" selected":"")+'>'+GC_ROLE_NAMES[r]+'</option>').join("")+'</select></div>'
+    +(isNew?'<div class="gm-f"><label for="gcUPw">Temporary password</label><input id="gcUPw" value="'+gcTempPw()+'"><span class="hint">They’ll choose their own at first sign-in.</span></div>'
+      :'<div class="gm-f"><label for="gcUActive">Status</label><select id="gcUActive"><option value="1">Active</option><option value="0"'+(v.is_active?"":" selected")+'>Disabled</option></select></div>')
+    +'<div class="gm-f full"><label>Salons</label><div class="ct-vl-grid" id="gcUSalons">'+salons.map(s=>'<label><input type="checkbox" value="'+s+'"'+((v.salon_ids||[]).includes(s)?" checked":"")+'> '+s+' '+esc(SALONS[s])+'</label>').join("")+'</div><span class="hint">Managers only see the salons checked here. Owners always see all salons.</span></div>'
+    +'</div><div class="gm-actions"><span class="gm-err" id="gcUErr"></span>'+(isNew?'':'<button class="gm-cancel" id="gcUReset">Reset password</button>')+'<button class="gm-cancel" data-act="close" id="gcUCancel">Cancel</button><button class="btn" id="gcUSave">'+(isNew?"Create login":"Save")+'</button></div>';
+  gmModal(h);$("#gcUCancel").onclick=gmClose;
+  const salonsSel=()=>[...document.querySelectorAll("#gcUSalons input:checked")].map(c=>c.value);
+  $("#gcUSave").onclick=async()=>{const err=$("#gcUErr");err.textContent="";const role=$("#gcURole").value,name=$("#gcUName").value.trim(),sal=salonsSel();
+    if(!name){err.textContent="Enter a name.";return;}if((role==="manager"||role==="asst_manager")&&!sal.length){err.textContent="Pick the manager’s salon.";return;}
+    const btn=$("#gcUSave");btn.disabled=true;
+    try{if(isNew){const email=$("#gcUEmail").value.trim().toLowerCase(),pw=$("#gcUPw").value;
+        const r=await gcFn({action:"create",email,name,role,salon_ids:sal,password:pw});gmClose();await gcUsersLoad();
+        gmModal('<h3>Login created for '+esc(name)+'</h3>'+(r.linked_existing_login?'<p>'+esc(email)+' already had a Sonaya login (for example the Del Taco dashboard). They sign in with that same password.</p>'
+          :'<p>Send them these details. They’ll be asked to choose their own password the first time they sign in.</p><div class="gm-banner info" style="margin-top:10px">Site: tools.sonayagroup.com/greatclips.html<br>Email: <b>'+esc(email)+'</b><br>Temporary password: <b>'+esc(pw)+'</b></div>')
+          +'<div class="gm-actions"><button class="btn" data-act="close" id="gcDone">Done</button></div>');$("#gcDone").onclick=gmClose;}
+      else{const {error}=await gcClient().from("gc_dashboard_users").update({name,role,salon_ids:sal,is_active:$("#gcUActive").value==="1",updated_at:new Date().toISOString()}).eq("id",u.id);if(error)throw error;
+        gmClose();gmToast("Saved "+name);gcUsersLoad();}}
+    catch(e){err.textContent=e.message||String(e);btn.disabled=false;}};
+  if(!isNew)$("#gcUReset").onclick=async()=>{const pw=gcTempPw();const err=$("#gcUErr");
+    try{await gcFn({action:"reset_password",user_id:u.id,password:pw});gmClose();gcUsersLoad();
+      gmModal('<h3>Password reset for '+esc(u.name||u.email)+'</h3><p>Send them this temporary password. They’ll choose a new one when they sign in.</p><div class="gm-banner info" style="margin-top:10px">Email: <b>'+esc(u.email)+'</b><br>Temporary password: <b>'+esc(pw)+'</b></div><div class="gm-actions"><button class="btn" id="gcDone2">Done</button></div>');$("#gcDone2").onclick=gmClose;}
+    catch(e){err.textContent=e.message||String(e);}};}
+async function gcFn(body){const {data:{session}}=await gcClient().auth.getSession();if(!session)throw new Error("Your session expired. Sign in again.");
+  const r=await fetch(SUPA_URL+"/functions/v1/gc-dashboard-user",{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPA_KEY,Authorization:"Bearer "+session.access_token},body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));if(!r.ok||j.error)throw new Error(j.error||("Request failed ("+r.status+")"));return j;}
+(function(){const t=document.querySelector('.tab[data-t="users"]');if(t)t.addEventListener("click",()=>{if(gcIsOwner())gcUsersLoad();});})();
 
 </script>
 </body></html>

@@ -2699,7 +2699,7 @@ const SC_METRICS=[
   {grp:"Customer Retention"},
   {k:"newret",name:"New customer return %",tgt:"26%+",t:26,dir:"high",dec:1,suf:"%",cls:v=>kpi("newret",v),
     well:"New guests are coming back. Celebrate it.",
-    focus:"Use Clips Notes, a great consultation, and invite new guests back by name."},
+    focus:"Use Clip Notes, a great consultation, and invite new guests back by name."},
   {k:"repret",name:"Repeat customer return %",tgt:"78%+",t:78,dir:"high",dec:1,suf:"%",cls:v=>kpi("repret",v),
     well:"Regulars keep coming back. Recognize the consistency.",
     focus:"Keep cuts consistent, use their notes, and invite them back with a timeframe."}];
@@ -2957,7 +2957,7 @@ h3{font-size:11.5px;margin:0 0 3px;color:#073b3a}.card{border:1px solid #d7e2de;
 const GM={log:[],prof:[],tasks:[],contacts:[],loaded:false,loading:null,view:"board"};
 const GM_KINDS={qc:"Quality Connection",reach:"REACH",virtual_1on1:"Training · Virtual 1:1",in_person:"Training · In-person",shadowing:"Training · Shadowing",class:"Training · Class",academy_module:"Great Academy module"};
 const GM_TRAIN_KINDS=["virtual_1on1","in_person","shadowing","class","academy_module"];
-const GM_GREAT=[["G","Greet and introduce"],["R","Review Clips Notes"],["E","Engage to create the cut and connect through consultation"],["A","Ask questions to confirm satisfaction"],["T","Thank and invite back"]];
+const GM_GREAT=[["G","Greet and introduce"],["R","Review Clip Notes and connect through consultation"],["E","Engage to create the cut"],["A","Ask questions to confirm satisfaction"],["T","Thank and invite back"]];
 const GM_REACH=[["R","Recognize their strengths","What did they excel at this past week? Celebrate it."],
   ["E","Effective wage","Review their effective hourly wage and share it. Estimate cash tips by doubling credit card tips. Review opportunity areas to make more money (CPH, TBC, HCT, apparel, conversation, etc.)."],
   ["A","Ask","What would they like to work on this week? Set a new goal."],
@@ -3135,7 +3135,7 @@ const GM_ROLE_LBL={owner:"Owner",am:"AM",manager:"Manager",asst_manager:"Assista
 function gmAcct(){return (typeof GCU!=="undefined"&&GCU&&GCU.perms)?GCU.perms:null;}
 function gmWho(){const a=gmAcct();if(a)return {n:a.name||a.email,r:GM_ROLE_LBL[a.role]||"Manager"};let n="",r="Manager";try{n=localStorage.getItem("gm_logger")||"";r=localStorage.getItem("gm_role")||"Manager";}catch(e){}return {n,r};}
 function gmSetWho(n,r){try{localStorage.setItem("gm_logger",n);localStorage.setItem("gm_role",r);}catch(e){}}
-function gmWhoFields(prefix){const w=gmWho();if(gmAcct())return '<div class="gm-f full"><span class="gm-why">Saved as <b>'+esc(w.n)+'</b> ('+esc(w.r)+')</span><input type="hidden" id="'+prefix+'Who" value="'+esc(w.n)+'"><input type="hidden" id="'+prefix+'Role" value="'+esc(w.r)+'"></div>';return '<div class="gm-f"><label>Logged by</label><input id="'+prefix+'Who" value="'+esc(w.n)+'" placeholder="Your name"></div>'
+function gmWhoFields(prefix){const w=gmWho();if(gmAcct())return '<div class="gm-f full"><span class="gm-why"><span class="gm-whoLbl">Saved as</span> <b>'+esc(w.n)+'</b> ('+esc(w.r)+')</span><input type="hidden" id="'+prefix+'Who" value="'+esc(w.n)+'"><input type="hidden" id="'+prefix+'Role" value="'+esc(w.r)+'"></div>';return '<div class="gm-f"><label>Logged by</label><input id="'+prefix+'Who" value="'+esc(w.n)+'" placeholder="Your name"></div>'
   +'<div class="gm-f"><label>Role</label><select id="'+prefix+'Role"><option'+(w.r==="Manager"?" selected":"")+'>Manager</option><option'+(w.r==="Assistant Manager"?" selected":"")+'>Assistant Manager</option><option'+(w.r==="AM"?" selected":"")+' value="AM">Area Manager</option></select></div>';}
 
 // ---- modal ----
@@ -3202,7 +3202,7 @@ function gmCompBanner(sc){if(!sc||sc.comp!=="fail")return"";
   return '<div class="gm-banner red">⚠️ <b>Licenses:</b> the weekly recap for the week ending '+fmtDate(sc.lic.wk)+' answered <b>No</b> to “all stylist licenses posted and current with a color photo, and the business and establishment licenses posted.” Fix it and answer Yes on the next recap.</div>';}
 function gmSummary(r){
   if(r.kind==="qc"){const g=r.great||{};const coached=GM_GREAT.filter(s=>g[s[0]]==="coached").map(s=>s[0]);
-    return (coached.length?"Coached "+coached.join(", "):"All 5 steps observed")+(r.focus?". Focus: "+r.focus:"")+(r.commitment?". Commitment: "+r.commitment:"");}
+    return (coached.length?"Coached "+coached.join(", "):"All 5 steps observed")+(r.focus?". Comments: "+r.focus:"")+(r.commitment?". Development plan: "+r.commitment:"");}
   if(r.kind==="reach"){const x=r.reach||{};return [x.wage?"Effective wage $"+x.wage+"/hr":"",x.A?"Goal: "+x.A:"",x.R?"Strengths: "+x.R:""].filter(Boolean).join(". ");}
   return r.notes||r.focus||"";}
 
@@ -3224,7 +3224,7 @@ function gmTodayCard(sid,rows,today){
 // ---- Log a conversation ----
 function gmLogForm(preKey,preKind){const sid=current,R=gmRosterAll(sid);const today=gmToday();
   let h='<h3>Log a conversation · '+esc(sName(sid))+'</h3><div class="gm-form">'
-    +'<div class="gm-f"><label>Stylist</label><select id="gmLSty"><option value="">Select…</option>'+R.map(s=>'<option value="'+esc(s.name)+'"'+(s.key===preKey?" selected":"")+'>'+esc(s.name)+'</option>').join("")+'</select></div>'
+    +'<div class="gm-f"><label id="gmLStyLbl">Stylist</label><select id="gmLSty"><option value="">Select…</option>'+R.map(s=>'<option value="'+esc(s.name)+'"'+(s.key===preKey?" selected":"")+'>'+esc(s.name)+'</option>').join("")+'</select></div>'
     +'<div class="gm-f"><label>Date</label><input type="date" id="gmLDate" value="'+today+'" max="'+today+'"></div>'
     +'<div class="gm-f full"><label>Type</label><select id="gmLKind">'+Object.keys(GM_KINDS).map(k=>'<option value="'+k+'"'+(k===(preKind||"qc")?" selected":"")+'>'+GM_KINDS[k]+'</option>').join("")+'</select></div>'
     +'<div class="gm-f full" id="gmLBody"></div>'
@@ -3238,11 +3238,12 @@ function gmPrevGoal(){const box=$("#gmLPrev");if(!box)return;const sty=$("#gmLSt
     +'<div class="gm-f" style="margin-top:8px;max-width:320px"><label>Did they reach that goal?</label><select id="gmLPrevMet"><option value="">Select…</option><option value="yes">Yes</option><option value="partly">Partly</option><option value="no">No</option></select></div>'
     +'<input type="hidden" id="gmLPrevGoal" value="'+esc(last.reach.A)+'"></div>';}
 function gmLogBody(){const k=$("#gmLKind").value,host=$("#gmLBody");let h="";
-  if(k==="qc"){h+='<label>GREAT · mark each step observed or coached</label><div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">';
+  {const sl=$("#gmLStyLbl");if(sl)sl.textContent=k==="qc"?"Stylist observed":"Stylist";document.querySelectorAll("#gmModal .gm-whoLbl, .gm-modal .gm-whoLbl").forEach(e=>e.textContent=k==="qc"?"Observed by":"Saved as");} // wording matches the paper Quality Connection form
+  if(k==="qc"){h+='<label>How was each step delivered? · mark observed or coached</label><div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">';
     GM_GREAT.forEach(s=>{h+='<div class="gm-step"><span class="k">'+s[0]+'</span><span class="t">'+esc(s[1])+'</span><span class="gm-seg" data-step="'+s[0]+'"><button type="button" data-val="observed">Observed</button><button type="button" data-val="coached">Coached</button></span></div>';});
-    h+='</div><div class="gm-form" style="margin-top:10px"><div class="gm-f full"><label>Focus area</label><textarea id="gmLFocus" placeholder="What did you coach on? e.g. haircut time, return rate, consultation"></textarea></div>'
-      +'<div class="gm-f full"><label>Stylist’s commitment</label><textarea id="gmLCommit" placeholder="What will they do differently?"></textarea></div>'
-      +'<div class="gm-f"><label>Follow-up date</label><input type="date" id="gmLFollow"></div></div>';}
+    h+='</div><div class="gm-form" style="margin-top:10px"><div class="gm-f full"><label>Customer experience comments</label><textarea id="gmLFocus" placeholder="What you observed and coached, from the paper form"></textarea></div>'
+      +'<div class="gm-f full"><label>Development plan (stylist’s commitment)</label><textarea id="gmLCommit" placeholder="What the stylist will work on next"></textarea></div>'
+      +'<div class="gm-f"><label>Next Quality Connection date</label><input type="date" id="gmLFollow"></div></div>';}
   else if(k==="reach"){h+='<label>Weekly Stylist REACH</label><div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">';
     GM_REACH.forEach(s=>{h+='<div class="gm-rl"><span class="k">'+s[0]+'</span><div class="gm-f"><label>'+esc(s[1])+' <span class="hint">· '+esc(s[2])+'</span></label>'
       +(s[0]==="E"?'<input type="number" step="0.01" min="0" id="gmLWage" placeholder="Effective hourly wage $ (base + bonuses + credit tips × 2) ÷ hours" style="margin-bottom:6px">':'')
@@ -3261,7 +3262,7 @@ async function gmLogSave(){const err=$("#gmLErr");err.textContent="";
   if(kind==="qc"){const g={};let miss=[];document.querySelectorAll("#gmLBody .gm-seg").forEach(s=>{if(s.dataset.sel)g[s.dataset.step]=s.dataset.sel;else miss.push(s.dataset.step);});
     if(miss.length){err.textContent="Mark every GREAT step (missing "+miss.join(", ")+").";return;}
     body.great=g;body.focus=$("#gmLFocus").value.trim();body.commitment=$("#gmLCommit").value.trim();
-    if(Object.values(g).includes("coached")&&!body.focus){err.textContent="Add a focus area for the steps you coached.";return;}}
+    if(Object.values(g).includes("coached")&&!body.focus){err.textContent="Add customer experience comments for the steps you coached.";return;}}
   else if(kind==="reach"){const x={};GM_REACH.forEach(s=>{x[s[0]]=$("#gmLR_"+s[0]).value.trim();});const w=$("#gmLWage").value;if(w)x.wage=Number(w);
     const empty=GM_REACH.filter(s=>!x[s[0]]).map(s=>s[0]);if(empty.length){err.textContent="Fill in every REACH step (missing "+empty.join(", ")+").";return;}
     const pm=$("#gmLPrevMet");if(pm){if(!pm.value){err.textContent="Say whether they reached last week’s goal.";return;}x.prev_goal_met=pm.value;x.prev_goal=$("#gmLPrevGoal").value;}
@@ -3274,7 +3275,7 @@ async function gmLogSave(){const err=$("#gmLErr");err.textContent="";
 function gmViewEntry(id){const r=GM.log.find(x=>x.id===id);if(!r)return;let h='<h3>'+esc(GM_KINDS[r.kind]||r.kind)+' · '+esc(r.stylist_name)+'</h3>'
   +'<div class="gm-why" style="font-size:12.5px;margin-bottom:10px">'+fmtDate(r.session_date)+' · '+esc(sName(r.salon_id))+' · logged by '+esc(r.logged_by||"—")+(r.logged_role?" ("+esc(r.logged_role)+")":"")+' on '+(r.created_at?new Date(r.created_at).toLocaleString():"")+'</div>';
   if(r.kind==="qc"){const g=r.great||{};h+=GM_GREAT.map(s=>'<div class="gm-step" style="margin-bottom:6px"><span class="k">'+s[0]+'</span><span class="t">'+esc(s[1])+'</span>'+gmChip(g[s[0]]==="coached"?"gm-a":"gm-g",g[s[0]]==="coached"?"Coached":"Observed")+'</div>').join("")
-    +(r.focus?'<p style="margin-top:10px"><b>Focus:</b> '+esc(r.focus)+'</p>':'')+(r.commitment?'<p><b>Commitment:</b> '+esc(r.commitment)+'</p>':'');}
+    +(r.focus?'<p style="margin-top:10px"><b>Customer experience comments:</b> '+esc(r.focus)+'</p>':'')+(r.commitment?'<p><b>Development plan (stylist’s commitment):</b> '+esc(r.commitment)+'</p>':'');}
   else if(r.kind==="reach"){const x=r.reach||{};if(x.prev_goal)h+='<div class="gm-banner info">Last goal: “'+esc(x.prev_goal)+'” · reached: <b>'+esc(x.prev_goal_met||"—")+'</b></div>';h+=GM_REACH.map(s=>'<div class="gm-rl" style="margin-bottom:8px"><span class="k" style="padding-top:0">'+s[0]+'</span><div><b>'+esc(s[1])+'</b>'+(s[0]==="E"&&x.wage?' · $'+esc(x.wage)+'/hr':'')+'<div style="white-space:pre-wrap;font-size:13px">'+esc(x[s[0]]||"—")+'</div></div></div>').join("");}
   else h+='<p style="white-space:pre-wrap">'+esc(r.notes||"")+'</p>';
   if(r.follow_up)h+='<p style="margin-top:8px"><b>Follow-up:</b> '+fmtDate(r.follow_up)+'</p>';
@@ -3335,7 +3336,7 @@ function gmDaily(){const host=$("#gmDaily");if(!host)return;const sid=current,to
   // last 7 days strip
   h+='<div class="gm-dstrip"><span class="gm-why" style="margin:0">Last 7 days:</span>'+days.slice().reverse().map(d=>{let n=0;GM_DAY_ITEMS.forEach(it=>{const t=gmTask(sid,"day",d,it.k);if(t&&t.completed)n++;});
     const cls=n===GM_DAY_ITEMS.length?"gm-g":n>0?"gm-a":(d===today||d<GM_DAY_START?"gm-n":"gm-r");return '<span class="gm-chip '+cls+'" title="'+fmtDate(d)+'">'+gmD(d).toLocaleDateString("en-US",{weekday:"short"})+' '+n+'/'+GM_DAY_ITEMS.length+'</span>';}).join(" ")+'</div>';
-  h+='<div class="gm-actions" style="justify-content:space-between;margin-top:8px"><span class="legend-note" style="margin:0">Delivering GREAT: <b>G</b>reet and introduce · <b>R</b>eview Clips Notes · <b>E</b>ngage and connect through consultation · <b>A</b>sk to confirm satisfaction · <b>T</b>hank and invite back</span><span><span class="gm-err" id="gmDErr"></span> <span class="gm-why" style="display:inline">Checking as <b>'+esc(gmWho().n||"(set your name)")+'</b></span> <button class="gm-link" data-act="who"'+(gmAcct()?' hidden':'')+'>Change</button></span></div>';
+  h+='<div class="gm-actions" style="justify-content:space-between;margin-top:8px"><span class="legend-note" style="margin:0">Delivering GREAT: <b>G</b>reet and introduce · <b>R</b>eview Clip Notes and connect through consultation · <b>E</b>ngage to create the cut · <b>A</b>sk questions to confirm satisfaction · <b>T</b>hank and invite back</span><span><span class="gm-err" id="gmDErr"></span> <span class="gm-why" style="display:inline">Checking as <b>'+esc(gmWho().n||"(set your name)")+'</b></span> <button class="gm-link" data-act="who"'+(gmAcct()?' hidden':'')+'>Change</button></span></div>';
   host.innerHTML=h;$("#gmDDay").onchange=function(){gmDailyDay=this.value;gmDaily();};}
 
 // ---- Weekly Rhythm ----
@@ -3431,7 +3432,6 @@ function gmSetHash(){try{history.replaceState(null,"","#manager-"+current);}catc
   // load manager data in the background once the main data is in, so the recap can pre-fill from it
   const wait=setInterval(()=>{if(DATA&&DATA.dates&&DATA.dates.length){clearInterval(wait);gmLoad().catch(e=>console.error("Manager data load failed",e));}},500);
 })();
-
 </script>
 <script>
 // ===== LOGIN + ACCESS CONTROL (Great Clips dashboard) =====

@@ -246,6 +246,14 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 .sc-bar{display:flex;height:26px;border-radius:6px;overflow:hidden;margin:12px 0 6px;background:#eef2f1}
 .sc-bar div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;min-width:0;overflow:hidden;white-space:nowrap}
 .sc-bar-key{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--muted)}
+.sc-sim{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.sc-sim h4{margin:0 0 2px;font-size:13.5px}.sc-sim .hint{font-size:11.5px;color:var(--muted);margin-bottom:10px}
+.sc-sim-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.sc-sim-row input[type=range]{flex:1;min-width:150px;accent-color:#0b6b4f}
+.sc-sim-cph{text-align:center;min-width:64px}.sc-sim-cph .v{font-size:22px;font-weight:800;line-height:1.1}.sc-sim-cph .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.sc-sim-out{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px;text-align:center}
+.sc-sim-out div{background:#eef7f2;border-radius:8px;padding:8px 4px}.sc-sim-out .v{font-size:18px;font-weight:800;color:#0b6b4f;line-height:1.15}.sc-sim-out .l{font-size:10.5px;color:var(--muted)}
+.sc-sim-note{font-size:11px;color:var(--muted);margin-top:8px}
 .sc-bar-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 .sc-big{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;text-align:center}
 .sc-big .lbl{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
@@ -421,7 +429,7 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
   <div class="tab" data-t="recap">Weekly Recap</div>
   <div class="tab" data-t="manager">Manager</div>
   <div class="tab" data-t="contacts">Contacts</div>
-  <div class="tab" data-t="scorecard">Scorecard</div>
+  <div class="tab" data-t="scorecard">Stylist Scorecard</div>
   <a href="https://tools.sonayagroup.com/gc-crm.html" class="tab-link">👥 Stylist CRM</a>
   <a href="https://tools.sonayagroup.com/gc-quiz-admin.html" class="tab-link">📝 Manager Quiz</a>
   <a href="https://tools.sonayagroup.com/gc-maintenance/" class="tab-link">🔧 Maintenance</a>
@@ -690,7 +698,7 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 </section>
 
 <section class="panel" id="scorecard">
-  <div class="sec-title">Employee Performance Scorecard</div>
+  <div class="sec-title">Stylist Scorecard</div>
   <div class="recap-bar" style="flex-wrap:wrap;gap:10px;margin-bottom:16px">
     <label style="font-size:12.5px;color:var(--muted)" for="scSalon">Salon</label>
     <select id="scSalon" style="min-width:180px"></select>
@@ -736,6 +744,7 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
           <div><div class="lbl">Effective hourly wage</div><div class="val" id="scEff">—</div><div class="sub">incl. tips &amp; est. cash tips</div></div>
           <div><div class="lbl">Est. annual earnings</div><div class="val" id="scAnnual">—</div><div class="sub">effective wage × 2,040 hrs (full-time)</div></div>
         </div>
+        <div class="sc-sim" id="scSim"></div>
       </div>
     </div>
     <div class="card sc-ben">
@@ -2727,7 +2736,9 @@ function scInit(){
   $("#scMonth").onchange=()=>scRender();
   $("#scPrint").onclick=scPrint;
   scPopWeeks();scPopMonths();scModeUi();
-  if(sids.length===1){salSel.value=sids[0];scPopStylists();}
+  // default to the salon picked in the header (a manager's own salon); a manager with several salons gets their first one
+  const def=(typeof current!=="undefined"&&current&&sids.includes(String(current)))?String(current):((sids.length===1||(typeof gcIsMgr==="function"&&gcIsMgr()))?sids[0]:"");
+  if(def){salSel.value=def;scPopStylists();}
   scRender();
 }
 function scModeUi(){
@@ -2741,7 +2752,8 @@ function scPopStylists(){
   stySel.innerHTML=""; opt(stySel,"","— Select Stylist —");
   if(!sid) return;
   const names=new Set();
-  scYearWeeks().forEach(wk=>{const e=DATA.weeklies[wk]&&DATA.weeklies[wk].EPP;if(e&&e[sid])e[sid].forEach(row=>names.add(row[0]));});
+  // only stylists who worked at this salon in the last 4 weeks of data (others have usually left or were floating)
+  [...DATA.weeks].sort().slice(-4).forEach(wk=>{const e=DATA.weeklies[wk]&&DATA.weeklies[wk].EPP;if(e&&e[sid])e[sid].forEach(row=>{if((Number(row[1])||0)>0||(Number(row[2])||0)>0)names.add(row[0]);});});
   [...names].sort().forEach(n=>opt(stySel,n,n));
 }
 function scPopWeeks(){
@@ -2793,7 +2805,7 @@ function scRender(){
   $("#scName").textContent=sty;
   $("#scMeta").textContent=sname+" (#"+sid+") · Area Manager: "+am+" · "+period;
   $("#scHeadStats").innerHTML=ytd?'<div><div class="v">'+ytd.hrswk.toFixed(1)+'</div><div class="l">Avg floor hrs / week (YTD)</div></div><div><div class="v">'+Math.round(ytd.custwk)+'</div><div class="l">Avg customers / week (YTD)</div></div>':"";
-  $("#scPrintHeader").innerHTML='<div><b>Employee Performance Scorecard</b> · '+esc(sty)+' · '+esc(sname)+' (#'+sid+') · '+esc(period)+'</div>';
+  $("#scPrintHeader").innerHTML='<div><b>Stylist Scorecard</b> · '+esc(sty)+' · '+esc(sname)+' (#'+sid+') · '+esc(period)+'</div>';
 
   // ---- Going well / Focus on (selected period) ----
   const scored=SC_METRICS.filter(m=>m.k&&!m.info).map(m=>{const v=cur?cur[m.k]:null;return (v===null||v===undefined||isNaN(v))?null:{m,v,c:m.cls(v),mg:scMargin(m,v)};}).filter(Boolean);
@@ -2829,7 +2841,7 @@ async function scRenderComp(sid,sty,ytd){
   if(!row){
     $("#scPayNote").textContent="No payroll data for this stylist yet.";
     const ov0=scCashOverride(sid,sty);tb.innerHTML='<tr><td>Est. cash tips per hour</td><td>'+cashInputFor(ov0===null?0:ov0,ov0!==null)+'</td></tr>';
-    $("#scBar").innerHTML="";$("#scBarKey").innerHTML="";$("#scEff").textContent="—";$("#scAnnual").textContent="—";
+    $("#scBar").innerHTML="";$("#scBarKey").innerHTML="";$("#scEff").textContent="—";$("#scAnnual").textContent="—";$("#scSim").innerHTML="";
     scWireCash(sid,sty,ytd);return;
   }
   const fd=d=>new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
@@ -2853,7 +2865,26 @@ async function scRenderComp(sid,sty,ytd){
   $("#scBarKey").innerHTML=seg.map(s=>'<span><i style="background:'+s[2]+'"></i>'+s[0]+(hrs?" "+money(s[1]/hrs,2)+"/hr":"")+'</span>').join("");
   $("#scEff").textContent=hrs?money(eff,2)+"/hr":"—";
   $("#scAnnual").textContent=hrs?money(eff*SC_HRS_YEAR):"—";
+  scRenderSim(ytd,n("customers_served"),tips+cash,eff,hrs);
   scWireCash(sid,sty,ytd);
+}
+// CPH → tips: more customers in the same hours means more tips. Tips per customer = (card tips + est. cash tips) ÷ customers served (YTD payroll).
+function scRenderSim(ytd,custs,allTips,eff,hrs){
+  const host=$("#scSim");if(!host)return;
+  const cph=ytd&&ytd.cph>0?ytd.cph:0, tpc=custs>0?allTips/custs:0;
+  if(!cph||!tpc){host.innerHTML='<h4>If CPH improves</h4><div class="hint">Needs this year’s CPH and customers served to estimate.</div>';return;}
+  const money=(v,d=0)=>"$"+Number(v).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+  const start=Math.round(cph*10)/10, max=Math.max(4,Math.ceil((start+1)*10)/10), goal=2.4;
+  const def=start<goal?goal:Math.min(max,Math.round((start+0.3)*10)/10);
+  host.innerHTML='<h4>If CPH improves</h4><div class="hint">More customers in the same hours means more tips. Drag to set a CPH goal.</div>'
+    +'<div class="sc-sim-row"><div class="sc-sim-cph"><div class="v">'+cph.toFixed(1)+'</div><div class="l">Now</div></div>'
+    +'<input type="range" id="scSimSlider" min="'+start.toFixed(1)+'" max="'+max.toFixed(1)+'" step="0.1" value="'+def.toFixed(1)+'" aria-label="Target cuts per hour">'
+    +'<div class="sc-sim-cph"><div class="v" id="scSimT" style="color:#0b6b4f"></div><div class="l">Goal</div></div></div>'
+    +'<div class="sc-sim-out"><div><div class="v" id="scSimHr"></div><div class="l">more tips / hour</div></div><div><div class="v" id="scSimYr"></div><div class="l">more tips / year</div></div><div><div class="v" id="scSimEff"></div><div class="l">new effective wage</div></div></div>'
+    +'<div class="sc-sim-note">Based on '+money(tpc,2)+' in tips per customer (credit card + est. cash). Year assumes 2,040 hours on the floor; productivity bonuses could add more.</div>';
+  const sl=$("#scSimSlider"),up=()=>{const t=parseFloat(sl.value),d=Math.max(0,t-cph),hr=d*tpc;
+    $("#scSimT").textContent=t.toFixed(1);$("#scSimHr").textContent="+"+money(hr,2);$("#scSimYr").textContent="+"+money(hr*SC_HRS_YEAR);$("#scSimEff").textContent=hrs?money(eff+hr,2)+"/hr":"—";};
+  sl.oninput=up;up();
 }
 function scWireCash(sid,sty,ytd){
   const inp=$("#scCashRate");if(!inp)return;
@@ -2867,6 +2898,7 @@ function scPrint(){
   const content=document.getElementById("scContent").cloneNode(true);
   content.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id"));
   content.querySelectorAll("button").forEach(b=>b.remove());
+  content.querySelectorAll("input[type=range]").forEach(i=>{const s=document.createElement("span");s.textContent="→";s.style.cssText="flex:1;text-align:center;color:#5f716d";i.replaceWith(s);});
   content.querySelectorAll("input").forEach(i=>{const s=document.createElement("b");s.textContent=Number(document.getElementById("scCashRate")?.value||i.value).toFixed(2);i.replaceWith(s);});
   const w=window.open("","_blank");if(!w)return;
   const css=`@page{size:letter landscape;margin:0.35in}
@@ -2888,11 +2920,11 @@ h3{font-size:11.5px;margin:0 0 3px;color:#073b3a}.card{border:1px solid #d7e2de;
 .sc-paytbl tr.tot td{font-weight:800;border-top:1.5px solid #ccd6d2}.sc-est{background:#fdf3dc;color:#8a5a12;border-radius:6px;padding:0 4px;font-size:7.5px;font-weight:700}
 .sc-bar{display:flex;height:16px;border-radius:4px;overflow:hidden;margin:4px 0}.sc-bar div{color:#fff;font-size:8.5px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .sc-bar-key{display:flex;flex-wrap:wrap;gap:8px;font-size:8.5px;color:#5f716d}.sc-bar-key i{display:inline-block;width:8px;height:8px;margin-right:3px}
-.sc-big{display:grid;grid-template-columns:1fr 1fr;text-align:center;margin-top:4px}.sc-big .lbl{font-size:8px;text-transform:uppercase;color:#5f716d}.sc-big .val{font-size:18px;font-weight:800;color:#073b3a}.sc-big .sub{font-size:7.5px;color:#5f716d}
+.sc-sim{margin-top:6px;padding-top:5px;border-top:1px solid #ddd}.sc-sim h4{margin:0;font-size:9.5px}.sc-sim .hint,.sc-sim-note{font-size:7.5px;color:#5f716d;margin:0}.sc-sim-row{display:flex;align-items:center;gap:6px}.sc-sim-cph .v{font-size:12px;font-weight:800}.sc-sim-cph .l{font-size:7px;color:#5f716d}.sc-sim-out{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;text-align:center;margin-top:3px}.sc-sim-out .v{font-size:11px;font-weight:800;color:#0b6b4f}.sc-sim-out .l{font-size:7px;color:#5f716d}.sc-big{display:grid;grid-template-columns:1fr 1fr;text-align:center;margin-top:4px}.sc-big .lbl{font-size:8px;text-transform:uppercase;color:#5f716d}.sc-big .val{font-size:18px;font-weight:800;color:#073b3a}.sc-big .sub{font-size:7.5px;color:#5f716d}
 .sc-ben-row{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}.sc-ben-row div{border:1px solid #d7e2de;border-radius:5px;padding:2px;text-align:center;font-size:10px}.sc-ben-row b{font-size:9px;color:#073b3a;margin-left:3px}
 .sc-ben{display:flex;align-items:center;gap:10px}.sc-ben h3{margin:0}.sc-ben-row{flex:1}.sc-ben>.sc-meta{display:none}
 .sc-goal{display:grid!important;grid-template-columns:2fr 1fr;gap:14px;font-size:9.5px;margin-top:4px}.sc-goal div{display:flex;flex-direction:column}.sc-line{display:block;border-bottom:1px solid #9aa8a3;height:14px}`;
-  w.document.write("<!DOCTYPE html><html><head><title>Scorecard — "+esc(sty)+"</title><style>"+css+"</style></head><body>"+content.innerHTML+"</body></html>");
+  w.document.write("<!DOCTYPE html><html><head><title>Stylist Scorecard — "+esc(sty)+"</title><style>"+css+"</style></head><body>"+content.innerHTML+"</body></html>");
   w.document.close();
   setTimeout(()=>w.print(),400);
 }
@@ -3389,16 +3421,16 @@ function gmSetHash(){try{history.replaceState(null,"","#manager-"+current);}catc
 // Supabase Auth email/password (same project and pattern as the Del Taco dashboard).
 // Permissions live in gc_dashboard_users: role owner | am | manager | asst_manager, salon_ids[].
 // Managers / assistant managers: Portfolio, Daily REPS, Salon Detail, Manager, Contacts — their salon(s) only,
-// no Area Manager admin hours, no Weekly Recap / Scorecard / other tools. Owners also get the Users tab.
+// no Area Manager admin hours, no Weekly Recap / other tools; Stylist Scorecard for their own salon. Owners also get the Users tab.
 // NOTE: this controls what the page shows. Report data is still read with the shared public key, as before.
 let GCU={user:null,perms:null};
 let gcSB=null,gcAuthP=null;
 const GC_ROLE_NAMES={owner:"Owner",am:"Area Manager",manager:"Salon Manager",asst_manager:"Assistant Manager"};
 const GC_MGR_TABS=["portfolio","reps","detail","manager","contacts"];
 // Areas a login can open. Tabs use data-t keys; links match on their href; adminhrs = the Area Manager admin-hours cards.
-const GC_AREAS=[["portfolio","Portfolio"],["reps","Daily REPS"],["detail","Salon Detail"],["recap","Weekly Recap"],["manager","Manager"],["contacts","Contacts"],["scorecard","Scorecard"],["crm","Stylist CRM"],["quiz","Manager Quiz"],["maint","Maintenance"],["adminhrs","AM admin hours"]];
+const GC_AREAS=[["portfolio","Portfolio"],["reps","Daily REPS"],["detail","Salon Detail"],["recap","Weekly Recap"],["manager","Manager"],["contacts","Contacts"],["scorecard","Stylist Scorecard"],["crm","Stylist CRM"],["quiz","Manager Quiz"],["maint","Maintenance"],["adminhrs","AM admin hours"]];
 const GC_LINK_AREA={"gc-crm":"crm","gc-quiz-admin":"quiz","gc-maintenance":"maint"};
-function gcRoleAreas(role){return (role==="manager"||role==="asst_manager")?GC_MGR_TABS.concat(["maint"]):GC_AREAS.map(a=>a[0]);}
+function gcRoleAreas(role){return (role==="manager"||role==="asst_manager")?GC_MGR_TABS.concat(["scorecard","maint"]):GC_AREAS.map(a=>a[0]);}
 function gcAreasFor(u){if(!u)return [];if(u.role==="owner")return GC_AREAS.map(a=>a[0]);return Array.isArray(u.access)?u.access:gcRoleAreas(u.role);}
 function gcHas(area){return !GCU.perms||gcAreasFor(GCU.perms).includes(area);}
 function gcLinkArea(href){const k=Object.keys(GC_LINK_AREA).find(x=>String(href||"").includes(x));return k?GC_LINK_AREA[k]:null;}
@@ -3499,7 +3531,7 @@ function gcAccessLabel(u){if(u.role==="owner"||!Array.isArray(u.access))return '
   return gmChip("gm-a","Custom")+' '+esc(GC_AREAS.filter(a=>u.access.includes(a[0])).map(a=>a[1]).join(", "));}
 function gcSalonList(ids){return (ids||[]).length?(ids||[]).map(s=>s+" "+(SALONS[s]||"")).join(", "):"All salons";}
 function gcUsersRender(){const host=$("#gcUsersBody");
-  let h='<div class="recap-bar"><button class="btn" id="gcAddUser">+ Add user</button><span class="gm-why">Each role starts with default access: managers and assistant managers see Portfolio, Daily REPS, Salon Detail, Manager, Contacts and Maintenance for their salon(s) only; Area Managers see everything. Click Edit to turn individual areas on or off for one person. Only Owners see this page.</span></div>';
+  let h='<div class="recap-bar"><button class="btn" id="gcAddUser">+ Add user</button><span class="gm-why">Each role starts with default access: managers and assistant managers see Portfolio, Daily REPS, Salon Detail, Manager, Contacts, Stylist Scorecard and Maintenance for their salon(s) only; Area Managers see everything. Click Edit to turn individual areas on or off for one person. Only Owners see this page.</span></div>';
   h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Salons</th><th>Access</th><th>Status</th><th></th></tr></thead><tbody>';
   GC_USERS.forEach(u=>{h+='<tr><td><b>'+esc(u.name||"—")+'</b></td><td>'+esc(u.email)+'</td><td>'+esc(GC_ROLE_NAMES[u.role]||u.role)+'</td><td class="wrap">'+esc(u.role==="owner"?"All salons":gcSalonList(u.salon_ids))+'</td>'
     +'<td class="wrap">'+gcAccessLabel(u)+'</td>'
@@ -3559,7 +3591,7 @@ function gcUserForm(u,pre){const isNew=!u;const v=u||Object.assign({email:"",nam
   const accVal=role=>{if(role==="owner")return null;const a=accSel();return sameSet(a,gcRoleAreas(role))?null:GC_AREAS.map(x=>x[0]).filter(k=>a.includes(k));};
   $("#gcUSave").onclick=async()=>{const err=$("#gcUErr");err.textContent="";const role=$("#gcURole").value,name=$("#gcUName").value.trim(),sal=salonsSel();
     if(!name){err.textContent="Enter a name.";return;}if((role==="manager"||role==="asst_manager")&&!sal.length){err.textContent="Pick the manager’s salon.";return;}
-    const access=accVal(role);if(access&&!access.some(k=>GC_AREAS.slice(0,7).some(a=>a[0]===k))){err.textContent="Turn on at least one tab (Portfolio through Scorecard).";return;}
+    const access=accVal(role);if(access&&!access.some(k=>GC_AREAS.slice(0,7).some(a=>a[0]===k))){err.textContent="Turn on at least one tab (Portfolio through Stylist Scorecard).";return;}
     const btn=$("#gcUSave");btn.disabled=true;
     try{if(isNew){const email=$("#gcUEmail").value.trim().toLowerCase(),pw=$("#gcUPw").value;
         const r=await gcFn({action:"create",email,name,role,salon_ids:sal,password:pw});

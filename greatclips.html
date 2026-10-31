@@ -2774,6 +2774,14 @@ function scAgg(sid,sty,weeks){
   const n=weeks.filter(wk=>((DATA.weeklies[wk]||{}).EPP||{})[sid]&&DATA.weeklies[wk].EPP[sid].some(x=>x[0]===sty)).length||1;
   return {avghc:r[3],cph:r[4],prod:r[5],payroll:r[8],newret:r[9],repret:r[10],mib:r[11],custwk:r[2]/n,hrswk:r[1]/n,cust:r[2],hrs:r[1],weeks:n};
 }
+// Attendance for one stylist over a date range (same data and colour rules as Salon Detail › Attendance)
+function scAtt(sid,sty,from,to){
+  const ds=(DATA.dates||[]).slice().sort(),last=ds[ds.length-1];if(!from||!last||from>last)return null;
+  const t=to>last?last:to;const r=computeAttendance(sid,from,t).find(x=>x[0]===sty)||[sty,0,0,0];
+  const days=Math.max(1,Math.round((new Date(t+"T12:00:00")-new Date(from+"T12:00:00"))/86400000)+1);
+  return {ns:r[1],late:r[2],ps:r[3],weeks:Math.max(days/7,1/7)};
+}
+function scAddDays(d,n){const x=new Date(d+"T12:00:00");x.setDate(x.getDate()+n);return x.toISOString().slice(0,10);}
 function scFmt(m,v){if(v===null||v===undefined||isNaN(v))return null;return (m.dec===0?Math.round(v).toLocaleString():v.toFixed(m.dec))+m.suf;}
 function scMargin(m,v){return m.dir==="low"?(m.t-v)/m.t:(v-m.t)/m.t;}
 function scPeriodLabel(){
@@ -2792,12 +2800,12 @@ function scRender(){
   if(SC_MODE==="weekly"){
     const all=[...DATA.weeks].sort(),sel=$("#scWeek").value,i=all.indexOf(sel);
     const wks=i<0?[]:all.slice(Math.max(0,i-3),i+1);
-    cols=wks.map(w=>({lbl:"wk "+new Date(w+"T12:00:00").toLocaleDateString("en-US",{month:"numeric",day:"numeric"}),agg:scAgg(sid,sty,[w]),sel:w===sel}));
+    cols=wks.map(w=>({lbl:"wk "+new Date(w+"T12:00:00").toLocaleDateString("en-US",{month:"numeric",day:"numeric"}),agg:scAgg(sid,sty,[w]),sel:w===sel,att:scAtt(sid,sty,scAddDays(w,-6),w)}));
     cur=scAgg(sid,sty,sel?[sel]:[]);gridNote="Selected week and the 3 weeks before it";
   } else {
     const y=scYear(),selM=$("#scMonth").value;
-    cols=SC_MON.map((mn,ix)=>{const key=y+"-"+String(ix+1).padStart(2,"0");return {lbl:mn,agg:scAgg(sid,sty,yWeeks.filter(w=>w.slice(0,7)===key)),sel:SC_MODE==="monthly"&&key===selM};});
-    cols.push({lbl:"YTD",agg:ytd,ytd:true,sel:SC_MODE==="ytd"});
+    cols=SC_MON.map((mn,ix)=>{const key=y+"-"+String(ix+1).padStart(2,"0");const end=new Date(+y,ix+1,0).getDate();return {lbl:mn,agg:scAgg(sid,sty,yWeeks.filter(w=>w.slice(0,7)===key)),sel:SC_MODE==="monthly"&&key===selM,att:scAtt(sid,sty,key+"-01",key+"-"+String(end).padStart(2,"0"))};});
+    cols.push({lbl:"YTD",agg:ytd,ytd:true,sel:SC_MODE==="ytd",att:scAtt(sid,sty,y+"-01-01",y+"-12-31")});
     cur=SC_MODE==="ytd"?ytd:scAgg(sid,sty,yWeeks.filter(w=>w.slice(0,7)===selM));
     gridNote="Months group weeks by their week-ending date";
   }
@@ -2814,7 +2822,9 @@ function scRender(){
   const focus=scored.filter(x=>x.c!=="kg"&&!well.includes(x)).sort((a,b)=>(a.c==="kr"?0:1)-(b.c==="kr"?0:1)||a.mg-b.mg).slice(0,2);
   const li=(x,txt,close)=>'<li><b>'+esc(x.m.name.replace(/ \(min\)/,""))+': '+scFmt(x.m,x.v)+(x.m.k==="avghc"?" min":"")+' <span>(goal '+x.m.tgt+')'+(close?' · close to target':'')+'</span></b><span>'+esc(txt)+'</span></li>';
   $("#scWell").innerHTML=!cur?'<li><span>No weekly summary data for this period.</span></li>':(well.length?well.map(x=>li(x,x.c==="kg"?x.m.well:"Nearly there. Recognize the progress.",x.c!=="kg")).join(""):'<li><span>Nothing at target yet. Start with the focus areas.</span></li>');
-  $("#scFocus").innerHTML=!cur?'<li><span>Pick another period with data.</span></li>':(focus.length?focus.map(x=>li(x,x.m.focus)).join(""):'<li><span>Everything is at target. Talk about keeping it up and what they want to work on next.</span></li>');
+  const selCol=cols.find(c=>c.sel)||cols[cols.length-1],sa=selCol&&selCol.att;
+  const attLi=sa&&(attRateClass(sa.ns,sa.weeks)==="kr"||attRateClass(sa.late,sa.weeks)==="kr")?'<li><b>Attendance: '+sa.ns+' no-show'+(sa.ns===1?"":"s")+', '+sa.late+' late start'+(sa.late===1?"":"s")+' <span>(goal 0)</span></b><span>Talk about reliability and how it affects guests and teammates. Agree on what will change.</span></li>':'';
+  $("#scFocus").innerHTML=(!cur?'<li><span>Pick another period with data.</span></li>':(focus.length?focus.map(x=>li(x,x.m.focus)).join(""):'<li><span>Everything is at target. Talk about keeping it up and what they want to work on next.</span></li>'))+attLi;
 
   // ---- Grid ----
   let h='<thead><tr><th>Metric</th><th>Target</th>'+cols.map(c=>'<th class="'+(c.sel?"sel ":"")+(c.ytd?"ytd":"")+'">'+c.lbl+'</th>').join("")+'</tr></thead><tbody>';
@@ -2823,9 +2833,13 @@ function scRender(){
     h+='<tr><td>'+m.name+'</td><td class="tgt">'+m.tgt+'</td>'+cols.map(c=>{const v=c.agg?c.agg[m.k]:null,s=scFmt(m,v);
       return '<td class="'+(s===null?"na ":(m.info?"":m.cls(v)+" "))+(c.sel?"sel ":"")+(c.ytd?"ytd":"")+'">'+(s===null?"—":s)+'</td>';}).join("")+'</tr>';
   });
+  h+='<tr class="grp"><td colspan="'+(cols.length+2)+'">ATTENDANCE</td></tr>';
+  [["No-shows","ns","0"],["Late starts (more than 10 min)","late","0"],["Picked-up shifts (not scheduled)","ps","info"]].forEach(([nm,k,tgt])=>{
+    h+='<tr><td>'+nm+'</td><td class="tgt">'+(tgt==="info"?"—":tgt)+'</td>'+cols.map(c=>{const a=c.agg?c.att:null;if(!a)return '<td class="na '+(c.sel?"sel ":"")+(c.ytd?"ytd":"")+'">—</td>';
+      const v=a[k],cl=tgt==="info"?"":attRateClass(v,a.weeks);return '<td class="'+cl+' '+(c.sel?"sel ":"")+(c.ytd?"ytd":"")+'">'+v+'</td>';}).join("")+'</tr>';});
   $("#scGrid").innerHTML=h+'</tbody>';
   $("#scGridTitle").textContent=SC_MODE==="weekly"?"Weekly performance":"Performance by month · "+scYear();
-  $("#scGridNote").textContent=gridNote+". Return % needs enough customers to show.";
+  $("#scGridNote").textContent=gridNote+". Return % needs enough customers to show. Attendance: green = none, yellow = up to about 1 a week, red = more; picked-up shifts are for information.";
 
   scRenderComp(sid,sty,ytd);
 }

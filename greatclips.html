@@ -2716,7 +2716,10 @@ function scYear(){const w=[...DATA.weeks].sort();return w.length?w[w.length-1].s
 function scYearWeeks(){const y=scYear();return DATA.weeks.filter(w=>w.slice(0,4)===y).sort();}
 
 function scInit(){
-  if(SC_INIT){scRender();return;}
+  if(SC_INIT&&$("#scSalon").options.length>1){scRender();return;}
+  // data not loaded yet (tab opened early): wait and retry instead of building an empty salon list
+  if(!DATA||!DATA.salons||!Object.keys(DATA.salons).length||!(DATA.weeks||[]).length){$("#scEmpty").style.display="block";$("#scEmpty").textContent="Loading…";clearTimeout(scInit._t);scInit._t=setTimeout(scInit,400);return;}
+  $("#scEmpty").textContent="Select a salon and stylist above to generate their performance scorecard.";
   SC_INIT=true;
   const salSel=$("#scSalon"),stySel=$("#scStylist");
   salSel.innerHTML="";stySel.innerHTML="";

@@ -3474,6 +3474,13 @@ function gcLoginMsg(msg,ok){const e=$("#gcLoginErr");if(e){e.textContent=msg||""
 function gcUnlock(){document.body.classList.remove("gc-locked");const l=$("#gcLogin");if(l)l.hidden=true;}
 function gcLock(){document.body.classList.add("gc-locked");const l=$("#gcLogin");if(l)l.hidden=false;}
 
+// ===== USAGE LOG: one row per sign-in, plus a "visit" each time the dashboard is opened (or brought back after 30+ min away).
+// Only owners can read it (Users page). Never blocks the page.
+let gcJustSignedIn=false;const GC_VISIT_GAP=30*60*1000;
+function gcLogVisit(ev){try{const uid=GCU&&GCU.user&&GCU.user.id;if(!uid)return;const k="gc_last_visit_"+uid;let last=0;try{last=+localStorage.getItem(k)||0;}catch(e){}
+  if(ev!=="sign_in"&&Date.now()-last<GC_VISIT_GAP)return;try{localStorage.setItem(k,String(Date.now()));}catch(e){}
+  gcClient().from("gc_dashboard_activity").insert({user_id:uid,event:ev,user_agent:(navigator.userAgent||"").slice(0,200)}).then(()=>{},()=>{});}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&typeof GCU!=="undefined"&&GCU&&GCU.user)gcLogVisit("visit");});
 function gcAuthStart(){
   if(gcAuthP)return gcAuthP;
   gcAuthP=new Promise(resolve=>{
@@ -3484,6 +3491,7 @@ function gcAuthStart(){
         if(!data||!data.is_active){gcLoginMsg("You’re signed in as "+session.user.email+", but you don’t have access to the Great Clips dashboard yet. Ask Pranav to add you.");
           $("#gcLoginForm").hidden=true;$("#gcLoginOut").hidden=false;return;}
         GCU={user:session.user,perms:data};
+        gcLogVisit(gcJustSignedIn?"sign_in":"visit");gcJustSignedIn=false;
         if(data.must_change_password){gcPwModal(true,()=>{gcUnlock();resolve(GCU);});return;}
         gcUnlock();resolve(GCU);
       }catch(e){gcLoginMsg("Couldn’t check your access: "+(e.message||e));}
@@ -3495,7 +3503,7 @@ function gcAuthStart(){
       const {data,error}=await gcClient().auth.signInWithPassword({email,password:pw});
       btn.disabled=false;btn.textContent="Sign in";
       if(error){gcLoginMsg(/invalid/i.test(error.message)?"That email and password don’t match. Check them and try again.":error.message);return;}
-      finish(data.session);});
+      gcJustSignedIn=true;finish(data.session);});
     $("#gcLoginOutBtn").onclick=()=>gcSignOut();
     gcClient().auth.getSession().then(({data})=>{if(data&&data.session)finish(data.session);else{gcLock();setTimeout(()=>{const e=$("#gcEmail");if(e)e.focus();},50);}});
   });
@@ -3551,6 +3559,7 @@ function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
 let GC_USERS=[],GC_SUGGEST=[];
 async function gcUsersLoad(){const host=$("#gcUsersBody");if(!host)return;host.innerHTML='<div class="loading">Loading users…</div>';
   try{const {data,error}=await gcClient().from("gc_dashboard_users").select("*").order("role").order("name");if(error)throw error;GC_USERS=data||[];
+    await gcUsageLoad();
     const r=await fetch(SUPA_URL+"/rest/v1/salon_contacts?select=name,email,role,salon_id&role=ilike.*manager*",{headers:supaHeaders()});const c=r.ok?await r.json():[];
     const have=new Set(GC_USERS.map(u=>u.email.toLowerCase()));const by={};
     c.forEach(x=>{const e=String(x.email||"").trim().toLowerCase();if(!e||have.has(e))return;const rl=String(x.role||"").toLowerCase();
@@ -3558,16 +3567,48 @@ async function gcUsersLoad(){const host=$("#gcUsersBody");if(!host)return;host.i
       const k=e;if(!by[k])by[k]={email:e,name:x.name,role,salon_ids:[]};if(!by[k].salon_ids.includes(String(x.salon_id)))by[k].salon_ids.push(String(x.salon_id));});
     GC_SUGGEST=Object.values(by).sort((a,b)=>(a.role==="am"?0:1)-(b.role==="am"?0:1)||a.name.localeCompare(b.name));
     gcUsersRender();}catch(e){host.innerHTML='<div class="banner warn">Could not load users: '+esc(e.message||e)+'</div>';}}
+// ---- usage (owners only) ----
+let GC_ACT={},GC_DID={};
+function gcWeekStart(d){const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-((x.getDay()+1)%7));return x;} // weeks run Sat–Fri
+async function gcUsageLoad(){GC_ACT={};GC_DID={};
+  try{const since=new Date(Date.now()-56*864e5).toISOString();
+    const {data}=await gcClient().from("gc_dashboard_activity").select("user_id,event,at").gte("at",since).order("at",{ascending:false}).limit(5000);
+    (data||[]).forEach(a=>{(GC_ACT[a.user_id]=GC_ACT[a.user_id]||[]).push(a);});}catch(e){}
+  try{const ws=gcWeekStart(new Date()).toISOString(),hd=supaHeaders();
+    const [cl,mt]=await Promise.all([fetch(SUPA_URL+"/rest/v1/gc_coaching_log?select=logged_by,kind,deleted&created_at=gte."+encodeURIComponent(ws),{headers:hd}).then(r=>r.ok?r.json():[]),
+      fetch(SUPA_URL+"/rest/v1/gc_manager_tasks?select=completed_by,period_type,completed&completed_at=gte."+encodeURIComponent(ws),{headers:hd}).then(r=>r.ok?r.json():[])]);
+    const bump=(n,k)=>{n=String(n||"").trim().toLowerCase();if(!n)return;(GC_DID[n]=GC_DID[n]||{coach:0,checks:0})[k]++;};
+    (cl||[]).forEach(r=>{if(!r.deleted)bump(r.logged_by,"coach");});(mt||[]).forEach(r=>{if(r.completed!==false)bump(r.completed_by,"checks");});}catch(e){}}
+function gcWhen(iso){if(!iso)return "Never";const d=new Date(iso),now=new Date(),t=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  const days=Math.floor((new Date(now.toDateString())-new Date(d.toDateString()))/864e5);
+  return days===0?"Today "+t:days===1?"Yesterday "+t:days<7?d.toLocaleDateString([],{weekday:"short"})+" "+t:d.toLocaleDateString([],{month:"numeric",day:"numeric"})+" "+t;}
+function gcUsageCells(u){const a=GC_ACT[u.id]||[],wk=gcWeekStart(new Date()).getTime();const thisWk=a.filter(x=>new Date(x.at).getTime()>=wk).length;
+  const did=GC_DID[String(u.name||"").trim().toLowerCase()]||GC_DID[String(u.email||"").toLowerCase()]||{coach:0,checks:0};
+  const last=a[0]?a[0].at:null,stale=!last||(Date.now()-new Date(last).getTime())>7*864e5;
+  return '<td>'+(last?(stale?gmChip("gm-r",gcWhen(last)):esc(gcWhen(last))):gmChip("gm-n","Never"))+'</td>'
+    +'<td style="text-align:center"><b>'+thisWk+'</b></td>'
+    +'<td class="wrap" style="font-size:12px">'+(did.coach||did.checks?(did.coach?did.coach+" coaching log"+(did.coach===1?"":"s"):"")+(did.coach&&did.checks?" · ":"")+(did.checks?did.checks+" checklist item"+(did.checks===1?"":"s"):""):'<span class="hint">None yet</span>')+'</td>';}
+function gcUsageModal(u){const a=GC_ACT[u.id]||[];const now=gcWeekStart(new Date());let wk='';
+  for(let i=0;i<8;i++){const s=new Date(now);s.setDate(s.getDate()-7*i);const e=new Date(s);e.setDate(e.getDate()+7);
+    const n=a.filter(x=>{const t=new Date(x.at);return t>=s&&t<e;}).length,days=new Set(a.filter(x=>{const t=new Date(x.at);return t>=s&&t<e;}).map(x=>new Date(x.at).toDateString())).size;
+    const lbl=i===0?"This week":s.toLocaleDateString([],{month:"numeric",day:"numeric"})+"–"+new Date(e-864e5).toLocaleDateString([],{month:"numeric",day:"numeric"});
+    wk+='<tr><td>'+lbl+'</td><td style="text-align:center">'+n+'</td><td style="text-align:center">'+days+'</td></tr>';}
+  const rows=a.slice(0,40).map(x=>'<tr><td>'+new Date(x.at).toLocaleString([],{weekday:"short",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})+'</td><td>'+(x.event==="sign_in"?"Signed in":"Opened dashboard")+'</td></tr>').join("");
+  gmModal('<h3>Dashboard use · '+esc(u.name||u.email)+'</h3><div class="hint" style="margin-bottom:8px">A visit is logged each time they open the dashboard (or come back to it after 30+ minutes away). Weeks run Saturday to Friday. Last 8 weeks shown.</div>'
+    +'<table class="gm-tbl"><thead><tr><th>Week</th><th style="text-align:center">Visits</th><th style="text-align:center">Days used</th></tr></thead><tbody>'+wk+'</tbody></table>'
+    +'<h4 style="margin:14px 0 6px">Recent visits</h4>'+(rows?'<div class="tbl-scroll" style="max-height:260px;overflow:auto"><table class="gm-tbl"><tbody>'+rows+'</tbody></table></div>':'<div class="hint">No visits yet.</div>')
+    +'<div class="gm-actions"><button class="btn" data-act="close" id="gcUsageDone">Done</button></div>');$("#gcUsageDone").onclick=gmClose;}
 function gcAccessLabel(u){if(u.role==="owner"||!Array.isArray(u.access))return '<span class="hint">Role default</span>';
   return gmChip("gm-a","Custom")+' '+esc(GC_AREAS.filter(a=>u.access.includes(a[0])).map(a=>a[1]).join(", "));}
 function gcSalonList(ids){return (ids||[]).length?(ids||[]).map(s=>s+" "+(SALONS[s]||"")).join(", "):"All salons";}
 function gcUsersRender(){const host=$("#gcUsersBody");
-  let h='<div class="recap-bar"><button class="btn" id="gcAddUser">+ Add user</button><span class="gm-why">Each role starts with default access: managers and assistant managers see Portfolio, Daily REPS, Salon Detail, Manager, Contacts, Stylist Scorecard and Maintenance for their salon(s) only; Area Managers see everything. Click Edit to turn individual areas on or off for one person. Only Owners see this page.</span></div>';
-  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Salons</th><th>Access</th><th>Status</th><th></th></tr></thead><tbody>';
+  let h='<div class="recap-bar"><button class="btn" id="gcAddUser">+ Add user</button><span class="gm-why">Each role starts with default access: managers and assistant managers see Portfolio, Daily REPS, Salon Detail, Manager, Contacts, Stylist Scorecard and Maintenance for their salon(s) only; Area Managers see everything. Click Edit to turn individual areas on or off for one person; click Activity to see when someone used the dashboard. A red last visit means nothing in 7 days. Only Owners see this page.</span></div>';
+  h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Salons</th><th>Access</th><th>Status</th><th>Last visit</th><th style="text-align:center">Visits this week</th><th>Done this week</th><th></th></tr></thead><tbody>';
   GC_USERS.forEach(u=>{h+='<tr><td><b>'+esc(u.name||"—")+'</b></td><td>'+esc(u.email)+'</td><td>'+esc(GC_ROLE_NAMES[u.role]||u.role)+'</td><td class="wrap">'+esc(u.role==="owner"?"All salons":gcSalonList(u.salon_ids))+'</td>'
     +'<td class="wrap">'+gcAccessLabel(u)+'</td>'
     +'<td>'+(u.is_active?(u.must_change_password?gmChip("gm-a","Temp password"):gmChip("gm-g","Active")):gmChip("gm-n","Disabled"))+'</td>'
-    +'<td><button class="gm-link" data-gcedit="'+esc(u.id)+'">Edit</button></td></tr>';});
+    +gcUsageCells(u)
+    +'<td style="white-space:nowrap"><button class="gm-link" data-gcuse="'+esc(u.id)+'">Activity</button> · <button class="gm-link" data-gcedit="'+esc(u.id)+'">Edit</button></td></tr>';});
   h+='</tbody></table></div></div>';
   if(GC_SUGGEST.length){h+='<div class="card" style="margin-top:14px"><h3>Suggested from Contacts</h3><div class="hint">Managers listed in the Contacts tab who don’t have a login yet. Check the emails, untick anyone you don’t want, then add them all at once. Each starts with the password <b>greatclips</b> and must change it at first sign-in.</div>'
       +'<div class="recap-bar"><button class="btn" id="gcAddChecked">Add checked logins</button><span class="gm-err" id="gcBulkErr"></span></div><div class="tbl-scroll"><table class="gm-tbl"><tbody>';
@@ -3578,6 +3619,7 @@ function gcUsersRender(){const host=$("#gcUsersBody");
   host.innerHTML=h;
   $("#gcAddUser").onclick=()=>gcUserForm(null);
   host.querySelectorAll("[data-gcedit]").forEach(b=>b.onclick=()=>gcUserForm(GC_USERS.find(u=>u.id===b.dataset.gcedit)));
+  host.querySelectorAll("[data-gcuse]").forEach(b=>b.onclick=()=>gcUsageModal(GC_USERS.find(u=>u.id===b.dataset.gcuse)));
   host.querySelectorAll("[data-gcsug]").forEach(b=>b.onclick=()=>{const s=GC_SUGGEST[+b.dataset.gcsug];gcUserForm(null,s);});
   const bulk=$("#gcAddChecked");if(bulk)bulk.onclick=gcBulkAdd;}
 async function gcBulkAdd(){const picks=[...document.querySelectorAll("#gcUsersBody [data-gcpick]:checked")].map(c=>GC_SUGGEST[+c.dataset.gcpick]);

@@ -272,8 +272,12 @@ const DEFAULT_RULES = {
   laborRounding: 'up',                                     // calculated labor hours in whole hours: 'up' (default) | 'nearest' | 'down'
   travel: { overnightDriveHrs: 2, overnightLaborHrs: 6, perDiem: 40, lodgingPerNight: 140, setupHrs: 0.5 },
   bonuses: { crawl: 100, contamination: 250, tightAttic: 50, crawlSpf: 100 },
-  rates: { lead: 25, installer: 25, leadOt: 37.5, installerOt: 37.5, mobilization: 25, payrollTaxPct: 10, generatorFuel: 4.3 },
-  trip: { t50: 175, t75: 250, t100: 325, perMile: 2.5, basis: { t50: 50, t75: 75, t100: 100 } },   // policy: $2.50/mi round trip 101+
+  rates: { lead: 25, installer: 25, leadOt: 37.5, installerOt: 37.5, mobilization: 25, payrollTaxPct: 10, generatorFuel: 4.12 },
+  trip: { t50: 140, t75: 210, t100: 280, perMile: 2.8, basis: { t50: 50, t75: 75, t100: 100 } },   // Nov 2026 Trip Charge Data: $140 / $210 / $280, $2.80/mi round trip 101+
+  // Pricing structure (Nov 2026 spreadsheets): 3 = crew bonuses are labor (payroll tax + margin); trip & equipment fuel are
+  // added after the margin with per diem & lodging: Total Additional Cost = (trip + fuel + per diem + lodging) × (1 + travelPct%).
+  // Quotes saved before this keep 2 (bonuses ×1.15 after pricing; trip & fuel inside Total Job Cost).
+  pricingStructure: 3,
   // Trip Charge Data tab: fleet cost build-up → Total Cost Floor per mileage bracket (trip charge may never go below it)
   fleet: { trucks: 6, milesPerTruck: 15000, ytdFuel: 28453.73, ytdInsurance: 31032.47, monthsYtd: 8, maintenance: 9973.38,
            vehicleValue: 55000, vehicleLifeMiles: 250000, avgSpeed: 45, milesAreRoundTrip: true },
@@ -1009,8 +1013,18 @@ function computeOption(opt, est, rules) {
   const mobHrs = mobOn ? installerDays * mobPerDay : 0;
   const mobWages = mobHrs * mobRate;
   const driveWages = 0;                                   // crew travel time is recovered by the trip charge (Trip Charge Data)
-  const payrollTax = (laborWages + mobWages) * R.payrollTaxPct / 100;
-  const laborTotal = laborWages + mobWages + payrollTax;
+  // Crew bonuses (Pass-through before Nov 2026; LABOR since — pricingStructure 3: payroll tax + margin, listed after Mobilization)
+  const ps3 = num(rules.pricingStructure || 2) >= 3;
+  const anyContam = scopes.some(x => x.r.bonusFlags.contamination);
+  const anyCrawl = scopes.some(x => x.r.bonusFlags.crawl);
+  const tightEntering = Math.max(0, ...scopes.map(x => x.r.bonusFlags.tightAttic || 0));
+  const bonusPer = anyContam ? rules.bonuses.contamination : anyCrawl ? rules.bonuses.crawl : 0;
+  const crewBonus = bonusPer * C, tightBonus = tightEntering * rules.bonuses.tightAttic;
+  const bonusKind = anyContam ? 'Contamination' : anyCrawl ? 'Crawlspace' : '';
+  const bonuses = crewBonus + tightBonus;
+  const laborBonuses = ps3 ? bonuses : 0;
+  const payrollTax = (laborWages + mobWages + laborBonuses) * R.payrollTaxPct / 100;
+  const laborTotal = laborWages + mobWages + laborBonuses + payrollTax;
 
   // Trip charge + generator/equipment fuel ($/hr of total job time when gas equipment is used)
   const vehicles = Math.max(1, parseInt(est.vehicles) || 1);
@@ -1019,16 +1033,10 @@ function computeOption(opt, est, rules) {
   const gasJob = scopes.some(x => GAS_EQUIPMENT.includes(x.scope.method) && x.r.sqft);
   const genHours = est.genHours === '' || est.genHours == null ? (gasJob ? H : 0) : num(est.genHours);   // auto = job hours (whole)
   const generator = genHours * R.generatorFuel;
-  const cost = matCost + miscCost + laborTotal + trip + generator;     // Total Job Cost / OH
+  // Total Job Cost / OH = Total Material Cost (insulation + supplies) + Total Labor Cost. Before Nov 2026 trip & fuel were in it too.
+  const cost = matCost + miscCost + laborTotal + (ps3 ? 0 : trip + generator);
 
   // Pass-through costs added AFTER pricing (spreadsheet "Total Additional Cost")
-  const anyContam = scopes.some(x => x.r.bonusFlags.contamination);
-  const anyCrawl = scopes.some(x => x.r.bonusFlags.crawl);
-  const tightEntering = Math.max(0, ...scopes.map(x => x.r.bonusFlags.tightAttic || 0));
-  const bonusPer = anyContam ? rules.bonuses.contamination : anyCrawl ? rules.bonuses.crawl : 0;
-  const crewBonus = bonusPer * C, tightBonus = tightEntering * rules.bonuses.tightAttic;
-  const bonusKind = anyContam ? 'Contamination' : anyCrawl ? 'Crawlspace' : '';
-  const bonuses = crewBonus + tightBonus;
   // Daily per diem: $/installer/day for every day of an overnight trip (travel days incl. → nights + 1 unless set)
   const perDiemRate = blank(est.perDiemRate) ? num(rules.travel.perDiem) : num(est.perDiemRate);
   const perDiemDays = overnight ? (blank(est.perDiemDays) ? nights + 1 : num(est.perDiemDays)) : 0;
@@ -1036,7 +1044,8 @@ function computeOption(opt, est, rules) {
   const rooms = parseInt(est.rooms) || C;
   const lodging = nights * rooms * num(est.lodgingRate || rules.travel.lodgingPerNight);
   const AM = rules.additionalMarkup || { bonusesPct: 15, travelPct: 5 };
-  const additional = bonuses * (1 + AM.bonusesPct / 100) + (perDiem + lodging) * (1 + AM.travelPct / 100);
+  const additional = ps3 ? (trip + generator + perDiem + lodging) * (1 + AM.travelPct / 100)                  // Nov 2026: no margin, + 5% royalty
+                         : bonuses * (1 + AM.bonusesPct / 100) + (perDiem + lodging) * (1 + AM.travelPct / 100);
 
   // Pricing: Revenue Before Fees = cost/(1−GP); Revenue After Fees = cost/(1−GP−royalty)
   const margin = !blank(opt.marginOverride) ? num(opt.marginOverride) : estMargin(est, rules);
@@ -1063,7 +1072,7 @@ function computeOption(opt, est, rules) {
 
   return {
     scopes, sqft, L, Llo, Lhi, H, Hlo: roundLabor(Llo / (C * eff)), Hhi: Math.max(H, roundLabor(Lhi / (C * eff))), C, eff, days, ot, reg, longHrs, otOn, otManual, mobRate, overnight, nights, trips, rooms, crewDay, installerDays, daysPerInstaller, countedInstallers, spfRaw,
-    driveHrsPerInstaller, scopeMats, autoMats, misc, matCost, miscCost, laborWages, mobHrs, mobWages, driveWages, bonuses, payrollTax, laborTotal,
+    driveHrsPerInstaller, scopeMats, autoMats, misc, matCost, miscCost, laborWages, mobHrs, mobWages, driveWages, bonuses, laborBonuses, ps: ps3 ? 3 : 2, payrollTax, laborTotal,
     perDiem, perDiemRate, perDiemDays, lodging, lodgingRate: num(est.lodgingRate || rules.travel.lodgingPerNight), crewBonus, tightBonus, bonusPer, bonusKind, tightEntering, travelPct: AM.travelPct, bonusesPct: AM.bonusesPct, additional, vehicles, tripInfo, trip, genHours, generator, cost, margin, royalty, spfSets, ...pr, warnings,
   };
 }
@@ -1156,11 +1165,12 @@ function computeActuals(est, rules) {
   const br = tripBracket(est);
   const travel = (est.tripTier || 't50') === 'none' ? { travelLabor: 0 } : tripFloor(br, est, rules);
   const travelOut = travel.travelLabor * q.trips;
-  const actTrip = Math.max(0, q.trip - travelOut) + q.generator;
+  const tripOut = q.ps === 3;                                         // Nov 2026: trip & fuel are billed at cost after the margin (not in RBF)
+  const actTrip = tripOut ? 0 : Math.max(0, q.trip - travelOut) + q.generator;
   const actMaterial = actMatOnly + actTrip;
   const actCost = actLabor + actMaterial;
   const rbf = q.revBeforeFees;
-  const estLabor = q.laborTotal, estMaterial = q.matCost + q.miscCost + q.trip + q.generator;
+  const estLabor = q.laborTotal, estMaterial = q.matCost + q.miscCost + (tripOut ? 0 : q.trip + q.generator);
   const quoted = q.margin;                                           // Combined (Final) Gross Profit %
   const actual = rbf ? (rbf - actCost) / rbf * 100 : 0;              // Actual margin on Revenue Before Fees (estimator comp basis)
   const beat = Math.round((actual - quoted) * 100) / 100;           // avoid 4.9999 vs 5 rounding misses
@@ -1170,7 +1180,7 @@ function computeActuals(est, rules) {
   const hasData = actHours > 0;                                      // Paychex hours entered (a material pre-fill alone is not actuals)
   const complete = hasData && !!A.finishedDate;                      // counted in Job Costing only when finished + hours entered
   const bonus = complete && marginDiff && A.callback === 'No' && A.crewLead && A.crewLead !== 'No Crew Lead' ? Math.max(0, overShort * rules.crewLeadBonus.sharePct / 100) : 0;
-  return { q, rbf, estLabor, estMaterial, estHours: q.C * q.H, complete, actLabor, wages, actHours, actMatOnly, actTrip, travelOut, actMaterial, actCost,
+  return { q, tripOut, rbf, estLabor, estMaterial, estHours: q.C * q.H, complete, actLabor, wages, actHours, actMatOnly, actTrip, travelOut, actMaterial, actCost,
     income: rbf - actCost, quoted, actual, marginDiff, laborDiff, matDiff, overShort, callback, bonus, hasData };
 }
 // Prefill actual materials from the estimate at TRUE cost (what we actually pay)
@@ -1258,6 +1268,7 @@ function effRules(est) {
   const frozen = est && est.quote && est.quote.rules;
   if (!est || (!est.wageScale && !frozen)) return RULES;
   const r = frozen ? deepMerge(clone(RULES), clone(frozen)) : clone(RULES);      // the rules this quote was priced with
+  if (frozen && frozen.pricingStructure == null) r.pricingStructure = 2;         // priced before the Nov 2026 structure
   if (est.wageScale && num(est.wageLead)) { r.rates.lead = num(est.wageLead); r.rates.leadOt = num(est.wageLead) * 1.5; }
   if (est.wageScale && num(est.wageInstaller)) { r.rates.installer = num(est.wageInstaller); r.rates.installerOt = num(est.wageInstaller) * 1.5; }
   return r;
@@ -1391,9 +1402,11 @@ function startEstimate(type) {
 function addOnsBox(c) {
   const row = (label, math, base, pct) => base ? `<div class="ao-row"><div><span>${label}</span><small>${math} = ${money0(base)} + ${fmtN(pct)}%</small></div><b>${money(base * (1 + pct / 100))}</b></div>` : '';
   const pl = (n, w) => `${fmtN(n)} ${w}${n === 1 ? '' : 's'}`;
-  return `<div class="ao"><div class="ao-hd"><span>Add-ons (after pricing)</span><b>+${money(c.additional)}</b></div>
-    ${row(`${c.bonusKind} crew bonus`, `${pl(c.C, 'installer')} × $${fmtN(c.bonusPer)}`, c.crewBonus, c.bonusesPct)}
-    ${row('Tight attic bonus', `${pl(c.tightEntering, 'installer')} entering × $${fmtN(c.tightEntering ? c.tightBonus / c.tightEntering : 0)}`, c.tightBonus, c.bonusesPct)}
+  return `<div class="ao"><div class="ao-hd"><span>${c.ps === 3 ? 'Total additional cost (after margin, +5% royalty)' : 'Add-ons (after pricing)'}</span><b>+${money(c.additional)}</b></div>
+    ${c.ps === 3 ? row(`Trip${c.trips > 1 || c.vehicles > 1 ? ` (${c.trips} trip${c.trips > 1 ? 's' : ''}${c.vehicles > 1 ? ` × ${c.vehicles} trucks` : ''})` : ''}`, `${money(c.tripInfo ? c.tripInfo.amount : 0)} per trip`, c.trip, c.travelPct) : ''}
+    ${c.ps === 3 ? row('Equipment fuel', `${fmtN(c.genHours, 1)} h × $${fmtN(c.generator && c.genHours ? c.generator / c.genHours : 0, 2)}`, c.generator, c.travelPct) : ''}
+    ${c.ps === 3 ? '' : row(`${c.bonusKind} crew bonus`, `${pl(c.C, 'installer')} × $${fmtN(c.bonusPer)}`, c.crewBonus, c.bonusesPct)}
+    ${c.ps === 3 ? '' : row('Tight attic bonus', `${pl(c.tightEntering, 'installer')} entering × $${fmtN(c.tightEntering ? c.tightBonus / c.tightEntering : 0)}`, c.tightBonus, c.bonusesPct)}
     ${row('Per diem', `${pl(c.perDiemDays, 'day')} × ${pl(c.C, 'installer')} × $${fmtN(c.perDiemRate)}`, c.perDiem, c.travelPct)}
     ${row('Lodging', `${pl(c.nights, 'night')} × ${pl(c.rooms, 'room')} × $${fmtN(c.lodgingRate)}`, c.lodging, c.travelPct)}
   </div>`;
@@ -1727,10 +1740,11 @@ function refreshCalc() {
     <div class="sum-row"><span>Job supplies &amp; charges</span><span>${money(c.miscCost)}</span></div>
     <div class="sum-row"><span>Labor (wages)</span><span>${money(c.laborWages)}</span></div>
     ${c.mobWages ? `<div class="sum-row sub"><span>Mobilization ${fmtN(c.mobHrs)} h (1 h/installer/day @ $${fmtN(c.mobRate, 2)}/h)</span><span>${money(c.mobWages)}</span></div>` : ''}
+    ${c.laborBonuses ? `<div class="sum-row sub"><span>${c.crewBonus ? `${esc(c.bonusKind)} crew bonus ${c.C} × $${fmtN(c.bonusPer)}` : ''}${c.crewBonus && c.tightBonus ? ' + ' : ''}${c.tightBonus ? `tight attic ${c.tightEntering} × $${fmtN(c.tightBonus / c.tightEntering)}` : ''}</span><span>${money(c.laborBonuses)}</span></div>` : ''}
     <div class="sum-row sub"><span>Payroll tax ${RULES.rates.payrollTaxPct}%</span><span>${money(c.payrollTax)}</span></div>
     <div class="sum-row"><span>Labor total</span><span>${money(c.laborTotal)}</span></div>
-    <div class="sum-row"><span>Trip ${c.trips > 1 || c.vehicles > 1 ? `(${c.trips} trip${c.trips > 1 ? 's' : ''}${c.vehicles > 1 ? ` × ${c.vehicles} trucks` : ''})` : ''}</span><span>${money(c.trip)}</span></div>
-    ${c.generator ? `<div class="sum-row"><span>Equipment fuel ${fmtN(c.genHours, 1)} h</span><span>${money(c.generator)}</span></div>` : ''}
+    ${c.ps === 3 ? '' : `<div class="sum-row"><span>Trip ${c.trips > 1 || c.vehicles > 1 ? `(${c.trips} trip${c.trips > 1 ? 's' : ''}${c.vehicles > 1 ? ` × ${c.vehicles} trucks` : ''})` : ''}</span><span>${money(c.trip)}</span></div>
+    ${c.generator ? `<div class="sum-row"><span>Equipment fuel ${fmtN(c.genHours, 1)} h</span><span>${money(c.generator)}</span></div>` : ''}`}
     <div class="sum-row tot"><span>Total job cost</span><span>${money(c.cost)}</span></div>
     `);
   setHTML('sumB', `
@@ -2562,7 +2576,7 @@ function renderSettings() {
         <tr><td>Fiberglass Jet Stream Ultra $/bag — Res · Commercial</td><td>${n('materialPricing.blow.res.jetstream', R.materialPricing.blow.res.jetstream, '0.01')} ${n('materialPricing.blow.commercial.jetstream', R.materialPricing.blow.commercial.jetstream, '0.01')}</td></tr>
         <tr><td>Closed cell $/bd ft — Res · Commercial</td><td>${n('materialPricing.spf.res.cc', R.materialPricing.spf.res.cc, '0.01')} ${n('materialPricing.spf.commercial.cc', R.materialPricing.spf.commercial.cc, '0.01')}</td></tr>
         <tr><td>Open cell $/bd ft — Res · Commercial</td><td>${n('materialPricing.spf.res.oc', R.materialPricing.spf.res.oc, '0.01')} ${n('materialPricing.spf.commercial.oc', R.materialPricing.spf.commercial.oc, '0.01')}</td></tr>
-        <tr><td>Markup on crew bonuses % · per diem &amp; lodging %</td><td>${n('additionalMarkup.bonusesPct', R.additionalMarkup.bonusesPct)} ${n('additionalMarkup.travelPct', R.additionalMarkup.travelPct)}</td></tr>
+        <tr><td>Royalty added to trip, fuel, per diem &amp; lodging % <span class="muted small">(after the margin)</span></td><td>${n('additionalMarkup.travelPct', R.additionalMarkup.travelPct)}</td></tr>
         <tr><td>Mobilization hrs per installer per day (commercial only) · flat $/hr</td><td>${n('mobilization.hrsPerInstallerPerDay', R.mobilization.hrsPerInstallerPerDay, '0.25')} ${n('rates.mobilization', R.rates.mobilization, '0.25')}</td></tr>
         <tr><td>Equipment fuel $/hr of job time</td><td>${n('rates.generatorFuel', R.rates.generatorFuel, '0.05')}</td></tr>
       </table></div>
@@ -2973,7 +2987,8 @@ function refreshActuals() {
   (A.labor || []).forEach((l, i) => { const el = $('al-' + i); if (el) el.textContent = money((num(l.hrs) * num(l.rate) + num(l.ot) * num(l.rate) * 1.5)); });
   (A.materials || []).forEach((m, i) => { const el = $('am-' + i); if (el) el.textContent = money(num(m.qty) * num(m.price)); });
   const tn = $('actTripNote');
-  if (tn) tn.innerHTML = `Trip &amp; fuel cost: ${money(r.q.trip + r.q.generator)} estimated − ${money(r.travelOut)} crew travel labor (already inside the Paychex hours) = <b>${money(r.actTrip)}</b>`;
+  if (tn && r.tripOut) tn.innerHTML = `Trip &amp; fuel (${money(r.q.trip + r.q.generator)}) are billed at cost after the margin (+5% royalty), so they are not part of revenue before fees — they are left out of estimate vs. actual.`;
+  else if (tn) tn.innerHTML = `Trip &amp; fuel cost: ${money(r.q.trip + r.q.generator)} estimated − ${money(r.travelOut)} crew travel labor (already inside the Paychex hours) = <b>${money(r.actTrip)}</b>`;
   const row = (k, est, act, invert) => { const d = est - act; return `<tr><td>${k}</td><td style="text-align:right">${money0(est)}</td><td style="text-align:right">${money0(act)}</td><td style="text-align:right;color:${d >= 0 ? 'var(--green-dark)' : 'var(--red)'}">${d >= 0 ? '+' : '−'}${money0(Math.abs(d))}</td></tr>`; };
   const beatTxt = `${r.actual >= r.quoted ? '+' : ''}${fmtN(r.actual - r.quoted, 1)} pts`;
   const bonusWhy = !r.hasData ? 'Enter Paychex hours (and materials used) to calculate.'
@@ -2992,7 +3007,7 @@ function refreshActuals() {
       <div class="stat"><div class="k">Income on job</div><div class="v">${money0(r.income)}</div><div class="s">RBF ${money0(r.rbf)}</div></div>
     </div>
     <table class="list" style="font-size:.82rem"><thead><tr><th></th><th style="text-align:right">Est.</th><th style="text-align:right">Actual</th><th style="text-align:right">Over/short</th></tr></thead><tbody>
-      ${row('Labor', r.estLabor, r.actLabor)}${row('Material + trip', r.estMaterial, r.actMaterial)}
+      ${row('Labor', r.estLabor, r.actLabor)}${row(r.tripOut ? 'Material' : 'Material + trip', r.estMaterial, r.actMaterial)}
       <tr style="font-weight:800"><td>Total</td><td style="text-align:right">${money0(r.estLabor + r.estMaterial)}</td><td style="text-align:right">${money0(r.actCost)}</td><td style="text-align:right;color:${r.overShort >= 0 ? 'var(--green-dark)' : 'var(--red)'}">${r.overShort >= 0 ? '+' : '−'}${money0(Math.abs(r.overShort))}</td></tr>
     </tbody></table>
     <div class="price-box" style="background:${r.bonus ? '#0a5a2e' : 'var(--navy)'}">
@@ -3396,7 +3411,7 @@ async function commFromV2(id, into) {
   if (a.hasData) {
     // actual materials include the trip & fuel cost less crew travel labor (Paychex hours already include travel)
     j.detail = { itemized: true, labor: (A.labor || []).filter(l => l.employee || num(l.hrs) || num(l.ot)).map(l => ({ employee: l.employee, rate: l.rate, hrs: l.hrs, ot: l.ot })),
-      materials: [...(A.materials || []).filter(m => m.name).map(m => ({ name: m.name, qty: m.qty, price: m.price })), { name: 'Trip charge / fuel (net of crew travel labor)', qty: 1, price: r2(a.actTrip) }] };
+      materials: [...(A.materials || []).filter(m => m.name).map(m => ({ name: m.name, qty: m.qty, price: m.price })), ...(a.tripOut ? [] : [{ name: 'Trip charge / fuel (net of crew travel labor)', qty: 1, price: r2(a.actTrip) }])] };   // Nov 2026 quotes: trip is outside RBF
   }
   j.pay_month = j.pay_month || (j.finished_date || '').slice(0, 7);
   return j;

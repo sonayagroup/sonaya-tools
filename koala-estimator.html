@@ -965,6 +965,7 @@ body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab
       <h3>Cost Breakdown — <span id="breakdownLabel">Option 1</span></h3>
       <div class="summary-row"><span class="label" style="font-weight:700;color:var(--navy)">Total Labor Cost</span><span class="value" id="sumLaborTotal" style="font-weight:700">$0.00</span></div>
       <div class="summary-row sub"><span class="label">Labor</span><span class="value" id="sumLabor">$0.00</span></div>
+      <div class="summary-row sub" id="rowBonusLabor"><span class="label">Crew Bonuses</span><span class="value" id="sumBonusLabor">$0.00</span></div>
       <div class="summary-row sub"><span class="label">Payroll Tax (10%)</span><span class="value" id="sumTax">$0.00</span></div>
       <hr class="divider">
       <div class="summary-row"><span class="label" style="font-weight:700;color:var(--navy)">Total Material Cost</span><span class="value" id="sumMaterials" style="font-weight:700">$0.00</span></div>
@@ -972,7 +973,7 @@ body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab
       <div class="summary-row sub"><span class="label">Spray Foam</span><span class="value" id="sumSpf">$0.00</span></div>
       <div class="summary-row sub"><span class="label">Batt / Rigid</span><span class="value" id="sumBatt">$0.00</span></div>
       <div class="summary-row sub"><span class="label">Misc Supplies</span><span class="value" id="sumMisc">$0.00</span></div>
-      <div class="summary-row sub"><span class="label">Trip / Fuel</span><span class="value" id="sumTrip">$0.00</span></div>
+      <div class="summary-row sub" id="rowTripMat"><span class="label">Trip / Fuel</span><span class="value" id="sumTrip">$0.00</span></div>
       <hr class="divider total-job-cost-row">
       <div class="summary-row total-job-cost-row" style="font-size:.95rem"><span class="label" style="font-weight:700">Total Job Cost</span><span class="value" id="sumTotal" style="color:var(--navy)">$0.00</span></div>
       <div class="summary-row total-job-cost-row"><span class="label">Gross Profit %</span><span class="value" id="sumGpPct">—</span></div>
@@ -982,7 +983,8 @@ body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab
       <div class="summary-row total-job-cost-row"><span class="label">Gross Profit</span><span class="value" id="sumGrossProfit" style="color:var(--green-dark)">$0.00</span></div>
       <div id="additionalBlock">
         <hr class="divider">
-        <div class="summary-row sub"><span class="label">Crew Bonuses <small>(+15%)</small></span><span class="value" id="sumBonus">$0.00</span></div>
+        <div class="summary-row sub" id="rowBonusAdd"><span class="label">Crew Bonuses <small>(+15%)</small></span><span class="value" id="sumBonus">$0.00</span></div>
+        <div class="summary-row sub" id="rowTripAdd"><span class="label">Trip / Fuel <small>(+5%)</small></span><span class="value" id="sumTripAdd">$0.00</span></div>
         <div class="summary-row sub"><span class="label">Crew Per Diem <small>(+5%)</small></span><span class="value" id="sumPerDiem">$0.00</span></div>
         <div class="summary-row sub"><span class="label">Crew Lodging <small>(+5%)</small></span><span class="value" id="sumLodging">$0.00</span></div>
         <div class="summary-row"><span class="label" style="font-weight:700;color:var(--navy)">Total Additional Cost</span><span class="value" id="sumAdditional" style="font-weight:700">$0.00</span></div>
@@ -1191,7 +1193,13 @@ const KG = (() => {
     let days = 1, ot = 0;
     if (H > 8) { const full = Math.floor(H / 8), rem = H - 8 * full; if (rem < 0.01) days = full; else if (rem <= R.ot.maxOtPerDay) { days = full; ot = rem; } else days = full + 1; }
     const D = n(G.driveHrs);
-    const overnight = G.overnight === 'yes' || (G.overnight !== 'no' && D > R.travel.overnightDriveHrs && H > R.travel.overnightLaborHrs);
+    // Overnight — Auto (Nov 2026): a far job (101+ mi trip, or drive one-way > 2 hrs) that runs more than one day, or a far
+    // long single day (> 2 hrs away, 6+ hrs on site), is an overnight trip: ONE round trip + lodging & per diem (added after
+    // the margin), priced exactly like Yes. Before, Auto only looked at the drive-hours box; when it was blank a 3-day 101+ mi
+    // job was planned as 3 day trips (3 trip charges, no lodging). Yes / No still force it.
+    const tierSel = typeof optPrefixFor === 'function' ? g(optPrefixFor(opt) + 'tripTier') : null;
+    const far = D > R.travel.overnightDriveHrs || (tierSel && tierSel.value === 'custom');
+    const overnight = G.overnight === 'yes' || (G.overnight !== 'no' && far && (days > 1 || (D > R.travel.overnightDriveHrs && H > R.travel.overnightLaborHrs)));
     const nights = overnight ? Math.max(1, days - 1) : 0, trips = overnight ? 1 : days;
     const crewDay = ceilHr((overnight ? D : 2 * D) + (days ? H / days : H) + R.travel.setupHrs);
     const anyC = lines.some(x => x.r.bonus.contam), anyCr = lines.some(x => x.r.bonus.crawl);
@@ -1626,7 +1634,7 @@ const JOB_AUTO_SUPPLIES = {
 };
 
 const TRIP_RATE_PER_MILE = 2.00;
-let GENERATOR_FUEL_RATE = 4.30;   // $/hr of generator/equipment time (live: app_settings.generator_fuel_rate)
+let GENERATOR_FUEL_RATE = 4.12;   // $/hr of generator/equipment time (live: app_settings.generator_fuel_rate) — Nov 2026: $4.12
 const PAYROLL_TAX_RATE = 0.10;
 
 // Default labor rates (loaded from Supabase app_settings, overridable by GM)
@@ -1635,7 +1643,14 @@ let DEFAULT_LABOR_RATE = 25;       // Installer 2+
 let DEFAULT_OT_RATE_1 = 37.5;       // Installer 1 OT
 let DEFAULT_OT_RATE = 37.50;      // Installer 2+ OT
 let DEFAULT_MOBILIZATION_RATE = 25;
-let TRIP_TIERS = { t50: 175, t75: 250, t100: 325, perMile: 2.50 };   // live: app_settings (Oct 2026: $2.50/mi for gas)
+let TRIP_TIERS = { t50: 140, t75: 210, t100: 280, perMile: 2.80 };   // live: app_settings (Nov 2026 Trip Charge Data: $140 / $210 / $280 / $2.80 per mi)
+// Older saves stored the tier as its dollar amount at the time; map those back to the tier (option order: none, 50, 75, 100, 101+)
+const LEGACY_TRIP_TIER = { '175': 1, '250': 2, '325': 3, '140': 1, '210': 2, '280': 3 };
+function setTripTierValue(sel, v) {
+  if (!sel) return; v = String(v ?? '0'); sel.value = v;
+  if (sel.value !== v && LEGACY_TRIP_TIER[v] && sel.options[LEGACY_TRIP_TIER[v]]) sel.selectedIndex = LEGACY_TRIP_TIER[v];
+  if (sel.selectedIndex < 0) sel.value = '0';
+}
 
 // ─── SUPABASE LIVE PRICING ─────────────────────────────────────────────────
 // Uses SUPABASE_URL and SUPABASE_KEY defined below in the Supabase section
@@ -1820,7 +1835,7 @@ async function loadAppSettings() {
     if (s.ot_rate_1) DEFAULT_OT_RATE_1 = parseFloat(s.ot_rate_1);
     if (s.ot_rate) DEFAULT_OT_RATE = parseFloat(s.ot_rate);
     if (s.mobilization_rate) DEFAULT_MOBILIZATION_RATE = parseFloat(s.mobilization_rate);
-    if (s.generator_fuel_rate) { GENERATOR_FUEL_RATE = parseFloat(s.generator_fuel_rate) || GENERATOR_FUEL_RATE; if (!currentEstimateId && !new URLSearchParams(location.search).get('id')) document.querySelectorAll('input[id$="fuelRate"]').forEach(i => { if (i.value === '4.30' || i.value === '4.00') i.value = GENERATOR_FUEL_RATE.toFixed(2); }); recalc(); }
+    if (s.generator_fuel_rate) { GENERATOR_FUEL_RATE = parseFloat(s.generator_fuel_rate) || GENERATOR_FUEL_RATE; if (!currentEstimateId && !new URLSearchParams(location.search).get('id')) document.querySelectorAll('input[id$="fuelRate"]').forEach(i => { if (i.value === '4.30' || i.value === '4.00' || i.value === '4.12') i.value = GENERATOR_FUEL_RATE.toFixed(2); }); recalc(); }
     if (s.trip_tier_50) TRIP_TIERS.t50 = parseFloat(s.trip_tier_50);
     if (s.trip_tier_75) TRIP_TIERS.t75 = parseFloat(s.trip_tier_75);
     if (s.trip_tier_100) TRIP_TIERS.t100 = parseFloat(s.trip_tier_100);
@@ -1835,22 +1850,13 @@ async function loadAppSettings() {
 }
 
 function updateTripDropdowns() {
+  // Options are always: No Trip Charge, 1–50, 51–75, 76–100, 101+ (values = the current $ per tier)
+  const lab = [null, ['t50', '1–50 mi — ABQ Metro & Los Lunas'], ['t75', '51–75 mi — Santa Fe & Belen'], ['t100', '76–100 mi — Espanola & Los Alamos']];
   document.querySelectorAll('select[id$="tripTier"]').forEach(sel => {
-    const opts = sel.options;
-    for (let i = 0; i < opts.length; i++) {
-      if (opts[i].value === '175' || opts[i].value == TRIP_TIERS.t50) {
-        opts[i].value = TRIP_TIERS.t50;
-        opts[i].textContent = `1–50 mi — ABQ Metro & Los Lunas ($${TRIP_TIERS.t50})`;
-      } else if (opts[i].value === '250' || opts[i].value == TRIP_TIERS.t75) {
-        opts[i].value = TRIP_TIERS.t75;
-        opts[i].textContent = `51–75 mi — Santa Fe & Belen ($${TRIP_TIERS.t75})`;
-      } else if (opts[i].value === '325' || opts[i].value == TRIP_TIERS.t100) {
-        opts[i].value = TRIP_TIERS.t100;
-        opts[i].textContent = `76–100 mi — Espanola & Los Alamos ($${TRIP_TIERS.t100})`;
-      } else if (opts[i].value === 'custom') {
-        opts[i].textContent = `101+ mi — $${TRIP_TIERS.perMile.toFixed(2)}/mile round trip`;
-      }
-    }
+    const idx = sel.selectedIndex;
+    for (let i = 1; i <= 3; i++) { const o = sel.options[i]; if (!o) continue; o.value = String(TRIP_TIERS[lab[i][0]]); o.textContent = `${lab[i][1]} ($${TRIP_TIERS[lab[i][0]]})`; }
+    const c = sel.options[4]; if (c) c.textContent = `101+ mi — $${TRIP_TIERS.perMile.toFixed(2)}/mile round trip`;
+    if (idx >= 0) sel.selectedIndex = idx;
   });
 }
 
@@ -2105,7 +2111,7 @@ function duplicateOptionInner() {
 
   // Apply trip
   if (srcData.trip) {
-    $(p + 'tripTier').value = srcData.trip.tier || '0';
+    setTripTierValue($(p + 'tripTier'), srcData.trip.tier || '0');
     onTripTierChange(p);
     $(p + 'tripMiles').value = srcData.trip.miles || '0';
     $(p + 'tripChargeAmt').value = srcData.trip.chargeAmt || '0';
@@ -2377,10 +2383,10 @@ function buildOptionContainer(opt) {
           <label>Distance Tier</label>
           <select id="${p}tripTier" onchange="onTripTierChange('${p}'); recalc()">
             <option value="0">No Trip Charge</option>
-            <option value="175">1–50 mi — ABQ Metro &amp; Los Lunas ($175)</option>
-            <option value="250">51–75 mi — Santa Fe &amp; Belen ($250)</option>
-            <option value="325">76–100 mi — Espanola &amp; Los Alamos ($325)</option>
-            <option value="custom">101+ mi — $2.50/mile round trip</option>
+            <option value="${TRIP_TIERS.t50}">1–50 mi — ABQ Metro &amp; Los Lunas ($${TRIP_TIERS.t50})</option>
+            <option value="${TRIP_TIERS.t75}">51–75 mi — Santa Fe &amp; Belen ($${TRIP_TIERS.t75})</option>
+            <option value="${TRIP_TIERS.t100}">76–100 mi — Espanola &amp; Los Alamos ($${TRIP_TIERS.t100})</option>
+            <option value="custom">101+ mi — $${TRIP_TIERS.perMile.toFixed(2)}/mile round trip</option>
           </select>
         </div>
         <div class="field" id="${p}tripMilesField" style="flex:1; display:none">
@@ -3195,7 +3201,11 @@ function setSpfQty(prefix, rowId, qty) {
 function calcOption(opt) {
   const p = optPrefixFor(opt);
   let totalBlowIn = 0, totalBatt = 0, totalSpf = 0, totalLabor = 0, totalMisc = 0, crewBonus = 0, perDiem = 0, lodging = 0;
-  const v2 = pricingV >= 2;      // spreadsheet pricing: bonuses / per diem / lodging are added AFTER the price (Total Additional Cost)
+  const v2 = pricingV >= 2;      // spreadsheet pricing: per diem / lodging (and v2: bonuses) are added AFTER the price (Total Additional Cost)
+  // v3 (Nov 2026 spreadsheets): crew bonuses are LABOR (payroll tax + margin); trip / fuel moves out of Total Material Cost
+  // into Total Additional Cost with per diem & lodging: (trip + per diem + lodging) × 1.05, added after the margin.
+  const v3 = pricingV >= 3;
+  let laborWages = 0;
 
   // Blow-in
   opt.rows.blowIn.forEach(id => {
@@ -3257,10 +3267,10 @@ function calcOption(opt) {
     const ot = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-ot[data-id="${id}"]`)?.value) || 0;
     const otRate = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-otrate[data-id="${id}"]`)?.value) || 0;
     const bonus = parseFloat(document.querySelector(`.${CSS.escape(p)}lb-bonus[data-id="${id}"]`)?.value) || 0;
-    const cost = (hrs * rate) + (ot * otRate) + (v2 ? 0 : bonus);
+    const cost = (hrs * rate) + (ot * otRate) + (v2 && !v3 ? 0 : bonus);   // v2 only: bonuses were an additional cost
     const costEl = document.querySelector(`.${CSS.escape(p)}lb-cost[data-id="${id}"]`);
-    if (costEl) costEl.textContent = fmt(cost);              // wages only — bonuses are shown under Total Additional Cost
-    totalLabor += cost; if (v2) crewBonus += bonus;
+    if (costEl) costEl.textContent = fmt(cost);
+    totalLabor += cost; laborWages += (hrs * rate) + (ot * otRate); if (v2) crewBonus += bonus;
   });
 
   // Misc — use the editable price input (may be overridden by user)
@@ -3320,12 +3330,14 @@ function calcOption(opt) {
   const totalMaterials = totalBlowIn + totalBatt + totalSpf;
   const payrollTax = totalLabor * PAYROLL_TAX_RATE;
   const totalLaborWithTax = totalLabor + payrollTax;
-  const totalMaterialCost = totalMaterials + totalMisc + tripCharge;          // spreadsheet "Total Material Cost" (incl. trip / fuel)
+  // Spreadsheet "Total Material Cost": v3 = blow-in + spray foam + batt/rigid + misc supplies (no trip); v1/v2 included trip / fuel
+  const totalMaterialCost = totalMaterials + totalMisc + (v3 ? 0 : tripCharge);
   const totalJobCost = totalMaterialCost + totalLaborWithTax;
-  // Spreadsheet: Total Additional Cost = bonuses + 15% + (per diem + lodging) + 5%, added after pricing
-  const additional = crewBonus * 1.15 + (perDiem + lodging) * 1.05;
+  // Spreadsheet Total Additional Cost, added after pricing:
+  //   v3: (trip / fuel + per diem + lodging) × 1.05     v2: bonuses × 1.15 + (per diem + lodging) × 1.05
+  const additional = v3 ? (tripCharge + perDiem + lodging) * 1.05 : crewBonus * 1.15 + (perDiem + lodging) * 1.05;
 
-  return { totalBlowIn, totalBatt, totalSpf, totalMaterials, totalLabor, payrollTax, totalLaborWithTax, totalMisc, tripCharge, totalMaterialCost, totalJobCost, crewBonus, perDiem, lodging, additional };
+  return { totalBlowIn, totalBatt, totalSpf, totalMaterials, totalLabor, laborWages, payrollTax, totalLaborWithTax, totalMisc, tripCharge, totalMaterialCost, totalJobCost, crewBonus, perDiem, lodging, additional, v3 };
 }
 
 // Foam cans (GM rule, retrofit): 1 can per 1,000 sf; 2 per 1,000 sf on removal jobs or when there is no existing
@@ -3361,7 +3373,7 @@ document.addEventListener('input', ev => {
 // they can be repriced with current prices & rules (button in the banner).
 const QUOTE_VALID_DAYS = 30;
 let quoteInfo = { pricedAt: null, loaded: false };
-let pricingV = 2;      // 2 = spreadsheet layout (additional costs after the price). Estimates saved before Oct 15 2026 keep 1.
+let pricingV = 3;      // 3 = Nov 2026 spreadsheets (bonuses in labor; trip + per diem + lodging after the margin). Saves keep the version they were priced with (1 before Oct 15 2026, 2 before Nov 2026).
 const isWonStatus = s => s === 'accepted' || s === 'completed';
 let savedStatus = 'draft';                              // status as saved (the Save dialog's select may hold an unsaved choice)
 function quoteLocked() { return !!currentEstimateId && isWonStatus(savedStatus); }
@@ -3437,7 +3449,7 @@ function repriceQuote() {
   updateTripDropdowns();                                // current trip tiers
   options.forEach(o => { const p = optPrefixFor(o), t = $(p + 'tripTier'); if (t && t.value !== 'custom' && t.value !== '0') onTripTierChange(p); });
   autoSuppliesOn = true;
-  pricingV = 2;                                         // current spreadsheet pricing
+  pricingV = 3;                                         // current spreadsheet pricing
   quoteInfo.pricedAt = new Date().toISOString();
   options.forEach(o => KG.render(o));
   recalc(); renderQuoteBanner(); scheduleAutoSave();
@@ -3517,7 +3529,13 @@ function recalc() {
   $('sumBatt').textContent = fmt(c.totalBatt);
   $('sumSpf').textContent = fmt(c.totalSpf);
   $('sumMaterials').textContent = fmt(c.totalMaterialCost);
-  $('sumLabor').textContent = fmt(c.totalLabor);
+  $('sumLabor').textContent = fmt(c.v3 ? c.laborWages : c.totalLabor);
+  $('sumBonusLabor').textContent = fmt(c.crewBonus);
+  $('rowBonusLabor').style.display = c.v3 ? '' : 'none';             // v3: bonuses are labor (taxed + margin)
+  $('rowBonusAdd').style.display = c.v3 ? 'none' : '';
+  $('rowTripMat').style.display = c.v3 ? 'none' : '';                // v3: trip / fuel is an additional cost
+  $('rowTripAdd').style.display = c.v3 ? '' : 'none';
+  $('sumTripAdd').textContent = fmt(c.tripCharge);
   $('sumTax').textContent = fmt(c.payrollTax);
   $('sumLaborTotal').textContent = fmt(c.totalLaborWithTax);
   $('sumMisc').textContent = fmt(c.totalMisc);
@@ -3879,13 +3897,13 @@ function deserializeForm(data) {
 
     // Trip
     if (optData.trip) {
-      $(p + 'tripTier').value = optData.trip.tier || '0';
+      setTripTierValue($(p + 'tripTier'), optData.trip.tier || '0');
       onTripTierChange(p);
       $(p + 'tripMiles').value = optData.trip.miles || '0';
       $(p + 'tripChargeAmt').value = optData.trip.chargeAmt || '0';
       $(p + 'tripDays').value = optData.trip.days || '1';
       $(p + 'genHours').value = optData.trip.genHours || '0';
-      $(p + 'fuelRate').value = optData.trip.fuelRate || '4.00';
+      $(p + 'fuelRate').value = optData.trip.fuelRate || '4.00';   // older saves without a rate were priced at $4.00
     }
 
     // Blow-in rows
@@ -4703,7 +4721,7 @@ function createFinalCombined() {
       totalDays += parseInt(t.days) || 1;
       totalGenHours += parseFloat(t.genHours) || 0;
     });
-    $(cp + 'tripTier').value = bestTier;
+    setTripTierValue($(cp + 'tripTier'), bestTier);
     onTripTierChange(cp);
     $(cp + 'tripMiles').value = bestMiles;
     $(cp + 'tripChargeAmt').value = maxCharge.toFixed(2);

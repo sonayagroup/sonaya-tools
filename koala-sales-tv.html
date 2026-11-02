@@ -1493,12 +1493,13 @@
     markSynced();
   }
 
-  // ---- MTD team revenue (footer, pacing report) ----
+  // ---- MTD team revenue (footer) ----
+  // 2026-11-02, per Pranav: MTD = invoiced so far this month + this month's scheduled installs not yet
+  // invoiced, from serviceminder-revenue report=mtdrevenue — the SAME figure as the ops dashboard's
+  // "MTD Revenue" tile, so the two always match. (Was invoiced-only, which read $0 on the 1st.)
   async function refreshPacing() {
-    const todayISO = todayLocalISO();
-    const monthStart = monthStartOf(todayISO);
-    const pacing = await fetchJSON(fnUrl('pacing', { from: monthStart, through: todayISO }));
-    const revenue = pacing.revenue || 0;
+    const mtd = await fetchJSON(fnUrl('mtdrevenue', {}));
+    const revenue = mtd.total || 0;
     document.getElementById('mtdTeamRevenue').textContent = fmtMoney(revenue);
     document.getElementById('mtdTeamRevenueGoal').textContent = fmtMoney(TEAM_MTD_GOAL);
 

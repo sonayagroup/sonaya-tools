@@ -554,10 +554,14 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       <span>Loading live ServiceMinder data…</span>
     </div>
 
-    <div class="section-title">Revenue Pacing <span class="section-title-sub" id="pacingSectionSub">— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. Click "On the Books" to see which jobs are included.</span></div>
+    <div class="section-title">Revenue Pacing <span class="section-title-sub" id="pacingSectionSub">— MTD = ServiceMinder invoiced so far this month + this month's scheduled installs not yet invoiced; QTD/YTD = invoiced. Plus on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. Click "On the Books" to see which jobs are included.</span></div>
     <div class="callout-row" id="pacingRow"></div>
 
-    <div class="section-title" id="nmTitle">On the Books — Next Month <span class="section-title-sub">— install jobs on the ServiceMinder calendar for next month, valued at their accepted proposal</span></div>
+    <div class="section-title" id="nmTitle">On the Books — Next Month <span class="section-title-sub">— install jobs on the ServiceMinder calendar, valued at their accepted proposal</span></div>
+    <div class="view-toggle" id="nmMonthToggle" style="margin:-4px 0 12px;">
+      <button data-nm="this" class="active" onclick="nmSetMonth('this')">This month</button>
+      <button data-nm="next" onclick="nmSetMonth('next')">Next month</button>
+    </div>
     <div class="callout-row" id="nmRow"></div>
 
     <div class="section-title">Leads &amp; Sales Performance by Period <span class="section-title-sub">— Revenue, Invoices, and Avg Deal Size are checked to the penny against ServiceMinder's own reports. Estimates Sent and Close Rate are computed here from a raw proposals pull, cohorted by the date each estimate was sent, and reflect that cohort's status as of today.</span></div>
@@ -1896,14 +1900,18 @@ async function loadLiveRevenueTiles() {
     const mtdRange = computePresetRange('month');
     const qtdRange = computePresetRange('quarter');
     const ytdRange = computePresetRange('year');
+    // MTD Revenue = invoiced this month + this month's scheduled installs not yet invoiced (2026-11-02,
+    // per Pranav). Comes from serviceminder-revenue report=mtdrevenue — the SAME figure the Sales TV's
+    // "MTD Team Revenue" footer shows, so the two always match. QTD/YTD stay invoiced-only.
     const [mtd, qtd, ytd] = await Promise.all([
-      callSMEdge({ report: 'pacing', from: mtdRange.from, through: mtdRange.through }),
+      callSMEdge({ report: 'mtdrevenue' }),
       callSMEdge({ report: 'pacing', from: qtdRange.from, through: qtdRange.through }),
       callSMEdge({ report: 'pacing', from: ytdRange.from, through: ytdRange.through }),
     ]);
     liveRevenue = {
       status: 'ready', fetchedAt: new Date(), mtdRange, qtdRange, ytdRange,
-      mtdInvoiced: mtd.revenue, mtdInvoiceCount: mtd.invoiceCount,
+      mtdInvoiced: mtd.total, mtdInvoiceCount: mtd.invoiceCount,
+      mtdBreakdown: { invoiced: mtd.invoiced, scheduled: mtd.scheduled, scheduledJobs: mtd.scheduledJobs, invoiceCount: mtd.invoiceCount },
       qtdInvoiced: qtd.revenue, ytdInvoiced: ytd.revenue,
     };
   } catch (err) {
@@ -2096,15 +2104,18 @@ function renderSalesTab() {
 
   const pacingSub = document.getElementById('pacingSectionSub');
   if (trend) {
-    pacingSub.innerHTML = `— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" = YTD + On the Books + ${fmtMoneyCompact(projectedRemaining)} projected for the rest of the year, based on a ${fmtMoney(trend.runRate)}/mo run rate (avg of ${trend.history.length} months on file, adjusted by ${trend.growthRatePct >= 0 ? '+' : ''}${trend.growthRatePct.toFixed(1)}% growth — ${trend.recentLabel} avg vs ${trend.priorLabel} avg) &times; ${remainingMonthsFraction.toFixed(1)} remaining months. Click "On the Books" to see which jobs are included.`;
+    pacingSub.innerHTML = `— MTD = ServiceMinder invoiced so far this month + this month's scheduled installs not yet invoiced; QTD/YTD = invoiced. Plus on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" = YTD + On the Books + ${fmtMoneyCompact(projectedRemaining)} projected for the rest of the year, based on a ${fmtMoney(trend.runRate)}/mo run rate (avg of ${trend.history.length} months on file, adjusted by ${trend.growthRatePct >= 0 ? '+' : ''}${trend.growthRatePct.toFixed(1)}% growth — ${trend.recentLabel} avg vs ${trend.priorLabel} avg) &times; ${remainingMonthsFraction.toFixed(1)} remaining months. Click "On the Books" to see which jobs are included.`;
   } else {
-    pacingSub.innerHTML = `— real-time actual (ServiceMinder invoiced) + on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year (not enough monthly history yet for a trend). Click "On the Books" to see which jobs are included.`;
+    pacingSub.innerHTML = `— MTD = ServiceMinder invoiced so far this month + this month's scheduled installs not yet invoiced; QTD/YTD = invoiced. Plus on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year (not enough monthly history yet for a trend). Click "On the Books" to see which jobs are included.`;
   }
 
   document.getElementById('pacingRow').innerHTML = [
     calloutTile('MTD Revenue', fmtMoneyCompact(mtdInvoiced),
-      { target: r.mtdRevenueBudget, actual: mtdInvoiced, sentiment: paceSentiment(mtdPct, elapsedPctOfPeriod('month')) }),
-    calloutTile('QTD Revenue (Q3)', fmtMoneyCompact(qtdInvoiced),
+      { target: r.mtdRevenueBudget, actual: mtdInvoiced, sentiment: paceSentiment(mtdPct, elapsedPctOfPeriod('month')) })
+      .replace(/<\/div>$/, liveRev && liveRev.mtdBreakdown
+        ? `<div class="kpi-delta neutral" style="opacity:.75;font-size:12px;">Invoiced ${fmtMoneyCompact(liveRev.mtdBreakdown.invoiced)} · Scheduled ${fmtMoneyCompact(liveRev.mtdBreakdown.scheduled)} (${liveRev.mtdBreakdown.scheduledJobs} job${liveRev.mtdBreakdown.scheduledJobs === 1 ? '' : 's'})</div></div>`
+        : '</div>'),
+    calloutTile(`QTD Revenue (Q${Math.floor((Number(localTodayISO().slice(5, 7)) - 1) / 3) + 1})`, fmtMoneyCompact(qtdInvoiced),
       { target: r.quarterlyRevenueBudget, actual: qtdInvoiced, sentiment: paceSentiment(qtdPct, elapsedPctOfPeriod('quarter')) }),
     calloutTile('YTD Revenue', fmtMoneyCompact(ytdInvoiced),
       { target: r.annualRevenueBudget, actual: ytdInvoiced, sentiment: paceSentiment(ytdPct, elapsedPctOfPeriod('year')) }),
@@ -2216,12 +2227,30 @@ function renderSalesTab() {
    proposal. Built server-side by serviceminder-revenue report=nextmonth from two saved copies (install
    appointments + proposals) — no ServiceMinder call from here. See that function for the rules
    (multi-day installs counted once, in the month they start; matched to proposals by customer name). */
+// 2026-11-02: "This month" (default) / "Next month" switch. Showing next month only meant the section
+// rolled to an empty December on Nov 1 and November's scheduled jobs disappeared from view.
 let nextMonthOTB = { status: 'idle' };
+let nmMonthChoice = 'this';
+function nmTargetMonth() {
+  const t = localTodayISO();
+  if (nmMonthChoice === 'this') return t.slice(0, 7);
+  const [y, m] = t.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+function nmSetMonth(choice) {
+  if (choice === nmMonthChoice) return;
+  nmMonthChoice = choice;
+  document.querySelectorAll('#nmMonthToggle button').forEach(b => b.classList.toggle('active', b.dataset.nm === choice));
+  nextMonthOTB = { status: 'loading' };
+  loadNextMonthOnBooks();
+}
 async function loadNextMonthOnBooks() {
   if (nextMonthOTB.status !== 'ready') nextMonthOTB = { status: 'loading' };
   renderNextMonthOnBooks();
+  const want = nmTargetMonth();
   try {
-    const r = await callSMEdge({ report: 'nextmonth' });
+    const r = await callSMEdge({ report: 'nextmonth', month: want });
+    if (want !== nmTargetMonth()) return; // switched months while this was loading
     nextMonthOTB = { status: 'ready', data: r };
   } catch (err) {
     nextMonthOTB = { status: 'error', error: err.message };
@@ -2238,8 +2267,9 @@ function renderNextMonthOnBooks() {
   const row = document.getElementById('nmRow');
   if (!row) return;
   if (nextMonthOTB.status !== 'ready') {
-    const msg = nextMonthOTB.status === 'error' ? `Couldn't load next month's schedule: ${nmEsc(nextMonthOTB.error)}` : 'Loading next month\u2019s schedule from ServiceMinder…';
-    row.innerHTML = calloutTileInfo('Scheduled next month', nextMonthOTB.status === 'error' ? '—' : '…', msg);
+    const which = nmMonthChoice === 'this' ? 'this month' : 'next month';
+    const msg = nextMonthOTB.status === 'error' ? `Couldn't load ${which}'s schedule: ${nmEsc(nextMonthOTB.error)}` : `Loading ${which}\u2019s schedule from ServiceMinder…`;
+    row.innerHTML = calloutTileInfo('Scheduled ' + which, nextMonthOTB.status === 'error' ? '—' : '…', msg);
     return;
   }
   const d = nextMonthOTB.data;

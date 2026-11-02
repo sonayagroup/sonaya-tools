@@ -659,10 +659,17 @@ const GAS_EQUIPMENT = ['open_attic', 'tight_attic', 'net_blow', 'dense_pack', 's
 
 function battWidths(spacing) { return spacing === '24' ? ['23', '24'] : ['15', '15.25', '16']; }
 
+// Exact R first. If that R isn't made in this width/facing (e.g. R-21 unfaced only comes 15″ wide — nothing for 24″ o.c.),
+// use the next R-value up that is: for Unfaced that includes Rockwool (unfaced) → R-21 UF @ 24″ = R-23 Rockwool 23″. (Nov 2026)
 function battMatches(scope) {
-  const R = num(scope.rValue);
-  return BATTS.filter(b => b.rNum === R && battWidths(scope.spacing || '16').includes(b.width) &&
-    (!scope.facing || scope.facing === 'any' || b.facing === scope.facing));
+  const R = num(scope.rValue), widths = battWidths(scope.spacing || '16'), f = scope.facing;
+  const fits = (b, facings) => widths.includes(b.width) && (!f || f === 'any' || facings.includes(b.facing));
+  const exact = BATTS.filter(b => b.rNum === R && fits(b, [f]));
+  if (exact.length || !(R > 0)) return exact;
+  const up = BATTS.filter(b => b.rNum > R && b.r !== 'S&S' && fits(b, f === 'UF' ? ['UF', 'RW'] : [f]));
+  if (!up.length) return up;
+  const nextR = Math.min(...up.map(b => b.rNum));
+  const out = up.filter(b => b.rNum === nextR); out.upsized = nextR; return out;
 }
 
 function pickBatt(scope) {
@@ -814,13 +821,14 @@ function computeScope(scope, est, rules) {
     if (m === 'net_blow') W('warn', 'Knee walls: batts recommended over Net & Blow — netting may fail over time.');
     if (m === 'spf') W('info', 'Knee wall spray foam: one side must be drywalled to spray against.');
   }
-  if ((loc.includes('band') || loc.includes('belly') || loc.includes('rim')) && m.startsWith('batt') && scope.facing && scope.facing !== 'UF' && scope.facing !== 'any')
+  if ((loc.includes('band') || loc.includes('belly') || loc.includes('rim')) && m.startsWith('batt') && scope.facing && scope.facing !== 'UF' && scope.facing !== 'RW' && scope.facing !== 'any')
     W('error', 'Belly bands / band joists with batts must be UNFACED (treated as exterior wall for R-value).');
   if (loc.includes('roof deck') && est.projectType === 'res_nc' && !(est.checklist || {}).gable) W('info', 'Roof-deck insulation: confirm gable walls are included — roof deck alone is not a complete thermal boundary.');
 
   // Batt materials
   if (m === 'batt_wall' || m === 'batt_ceiling' || m === 'crawl_batt') {
     const b = pickBatt(scope);
+    if (b && !scope.product && b.rNum > num(scope.rValue)) W('info', `R-${num(scope.rValue)}${({ UF: ' unfaced', K: ' kraft', RW: ' Rockwool' })[scope.facing] || ''} isn't made for ${scope.spacing || 16}″ o.c. — using ${b.name}, the next product up.`);
     if (b) {
       const qty = Math.ceil(sf * (1 + rules.wastePct / 100) / b.coverage);
       out.materials.unshift({ name: b.name, qty, unit: 'bag', price: battPrice(b, est, rules), kind: 'batt', note: `${b.coverage} sf/bag${priceBook(est) === 'commercial' ? ' · true cost' : ''}` });
@@ -1592,7 +1600,7 @@ function scopeFields(s) {
     if (k === 'facing') {
       add(fld('Facing', P + 'facing', s.facing, { r: 'scope', options: [['any', 'Any (cheapest)'], ['K', 'Kraft'], ['UF', 'Unfaced'], ['RW', 'Rockwool']] }));
       const m = battMatches({ ...s, facing: s.facing });
-      add(fld('Batt product', P + 'product', s.product, { r: 'scope', cls: 'span2', options: [['', m.length ? 'Auto — best $/sf' : 'No match for R/spacing'], ...m.map(b => [b.name, `${b.name} — $${b.price} (${b.coverage} sf)`])] }));
+      add(fld('Batt product', P + 'product', s.product, { r: 'scope', cls: 'span2', options: [['', m.length ? (m.upsized ? `Auto — R-${m.upsized} (R-${num(s.rValue)} not made for ${s.spacing || 16}″ o.c.)` : 'Auto — best $/sf') : 'No match for R/spacing'], ...m.map(b => [b.name, `${b.name} — $${b.price} (${b.coverage} sf)`])] }));
     }
     if (k === 'blowProduct') add(fld('Material', P + 'blowProduct', s.blowProduct, { r: 'scope', options: BLOW_IN.map(b => [b.key, b.name]) }));
     if (k === 'nettingSqft') add(fld('Netting sq ft', P + 'nettingSqft', s.nettingSqft, { type: 'number', ph: '= sq ft (gross)', hint: 'Before window/door deductions' }));

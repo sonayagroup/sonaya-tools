@@ -1056,7 +1056,7 @@ async function loadBirthdays(){
   }catch(e){console.error('Birthday widget error',e);}
 }
 
-window.onload=()=>{ gcAuthStart(); Promise.all([loadData(),loadGoogleData().catch(e=>{console.error("Google data load failed",e);})]).then(([b])=>gcAuthStart().then(()=>{onBoot(b);loadRecaps();loadDailyKpiNotes();loadBirthdays();})).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
+window.onload=()=>{ gcAuthStart(); Promise.all([loadData(),loadGoogleData().catch(e=>{console.error("Google data load failed",e);})]).then(([b])=>gcAuthStart().then(()=>{onBoot(b);loadRecaps();loadDailyKpiNotes().then(()=>{try{renderDailyKpiNotes();}catch(e){} try{const rc=$("#recap");if(rc&&rc.classList.contains("active"))renderRecap();}catch(e){}});loadBirthdays();})).catch(e=>$("#emptyBanner").innerHTML='<div class="banner warn">Could not load data from Supabase: '+e.message+'</div>'); };
 
 // WEEKS includes every week_ending with any rolled-up data, including the current
 // in-progress GC week (Sat–Fri) whose week_ending Friday hasn't happened yet — that entry
@@ -1930,7 +1930,7 @@ function loadRecaps(){return fetchRecaps().then(r=>{recaps=r||[];});}
 // --- Daily KPI Notes (save-as-you-go, feeds into Weekly Recap) ---
 function loadDailyKpiNotes(){
   if(!supaReady())return Promise.resolve();
-  return fetch(SUPA_URL+"/rest/v1/daily_kpi_notes?select=*",{headers:supaHeaders()})
+  return fetch(SUPA_URL+"/rest/v1/daily_kpi_notes?select=*&order=date.desc&date=gte."+new Date(Date.now()-90*864e5).toISOString().slice(0,10),{headers:supaHeaders()})
     .then(r=>r.ok?r.json():[]).then(rows=>{
       dailyKpiNotes={};
       (rows||[]).forEach(r=>{dailyKpiNotes[r.salon_id+"|"+r.date]=r;});

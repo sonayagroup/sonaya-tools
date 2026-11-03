@@ -249,6 +249,23 @@ tbody tr:hover{background:var(--surface-2)}
 .recipient-row .toggles{display:flex;gap:16px;align-items:center}
 .toggle-label{display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text-secondary);cursor:pointer}
 .toggle-label input[type="checkbox"]{width:16px;height:16px;accent-color:var(--blue);cursor:pointer}
+/* Activity Feed */
+.activity-feed{max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:4px 0}
+.activity-item{display:flex;gap:10px;align-items:flex-start}
+.activity-avatar{width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.activity-content{flex:1;min-width:0}
+.activity-meta{font-size:.75rem;color:var(--text-muted);margin-top:2px}
+.activity-body{font-size:.88rem;color:var(--text-primary);line-height:1.45;margin-top:4px;word-wrap:break-word}
+.activity-body .tag{color:var(--blue);font-weight:600}
+.comment-input-wrap{position:relative}
+.comment-input{width:100%;min-height:60px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text-primary);font:inherit;font-size:.88rem;resize:vertical;box-sizing:border-box}
+.comment-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light)}
+.mention-dropdown{position:absolute;bottom:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);max-height:180px;overflow-y:auto;z-index:100;display:none}
+.mention-dropdown.open{display:block}
+.mention-option{padding:8px 12px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;gap:8px}
+.mention-option:hover,.mention-option.active{background:var(--blue-light);color:var(--blue-dark)}
+.mention-option .mo-name{font-weight:600}
+.mention-option .mo-role{font-size:.75rem;color:var(--text-muted)}
 </style>
 </head>
 <body>
@@ -397,6 +414,7 @@ async function loadAll(){
     load('dt_wo_receipts','created_at',false),
     load('dt_wo_assignees','created_at',false),
     load('dt_pm_checklists','created_at',false),
+    load('dt_wo_comments','created_at',false),
   ]);
 }
 async function upsert(table, row, id){
@@ -888,11 +906,13 @@ window.openWOForm = function(id){
       ${id?`<div class="form-group"><label>Resolution Notes</label><textarea id="m-res">${w.resolution_notes||''}</textarea></div>`:''}
       ${id?photoGalleryHTML('work_order',id):'<p style="font-size:.8rem;color:var(--text-muted);margin-top:12px"><em>Save the work order first to add photos.</em></p>'}
       ${id?receiptSectionHTML(id):'<p style="font-size:.8rem;color:var(--text-muted)"><em>Save the work order first to add receipts.</em></p>'}
+      ${id?woActivityFeedHTML(id):''}
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveWO('${id||''}')">Save</button>
     </div>`);
+  if(id) initMentionInput(id);
 };
 window.saveWO = async function(id){
   const assigneeIds=[...document.querySelectorAll('.wo-assignee-cb:checked')].map(cb=>cb.value);
@@ -2111,6 +2131,179 @@ window.toggleRecipient = async function(id,field,value){
 window.deleteRecipient = async function(id){if(await remove('dt_notification_recipients',id)){await load('dt_notification_recipients','name',true);render();}};
 
 // ===== NOTIFY ON NEW WORK ORDER =====
+// ===== WORK ORDER ACTIVITY FEED =====
+function woActivityFeedHTML(woId){
+  const comments=(cache.dt_wo_comments||[]).filter(c=>c.work_order_id===woId).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  const avatarColors=['#2a78d6','#eb6834','#1baf7a','#9b59b6','#e74c3c','#f39c12'];
+  function avatarColor(name){
+    let h=0;for(let i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);
+    return avatarColors[Math.abs(h)%avatarColors.length];
+  }
+  function renderBody(body){
+    return body.replace(/@(\w[\w\s]*?\w)(?=\s|$|[.,!?])/g,'<span class="tag">@$1</span>');
+  }
+  function timeAgo(d){
+    const s=Math.floor((Date.now()-new Date(d).getTime())/1000);
+    if(s<60)return 'just now';if(s<3600)return Math.floor(s/60)+'m ago';
+    if(s<86400)return Math.floor(s/3600)+'h ago';if(s<604800)return Math.floor(s/86400)+'d ago';
+    return new Date(d).toLocaleDateString();
+  }
+  return `
+    <div class="form-group" style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+      <label style="font-size:.85rem;font-weight:700;display:flex;align-items:center;gap:6px">
+        Activity Feed
+        ${comments.length?`<span class="badge" style="background:var(--blue-light);color:var(--blue-dark);font-size:.7rem">${comments.length}</span>`:''}
+      </label>
+      <div class="comment-input-wrap" style="margin-bottom:12px">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <label style="font-size:.8rem;color:var(--text-secondary);white-space:nowrap">Posting as:</label>
+          <select id="wo-comment-author" style="font-size:.8rem;padding:4px 8px;flex:1">${(cache.dt_team_members||[]).filter(t=>t.is_active).map(t=>`<option value="${t.id}"${t.email==='pranav@sonayagroup.com'?' selected':''}>${t.name}</option>`).join('')}</select>
+        </div>
+        <div class="mention-dropdown" id="mention-dropdown"></div>
+        <textarea class="comment-input" id="wo-comment-input" placeholder="Add a comment or question... Type @ to tag someone"></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:6px">
+          <button class="btn btn-primary btn-sm" onclick="postWOComment('${woId}')">Post Comment</button>
+        </div>
+      </div>
+      <div class="activity-feed" id="wo-activity-feed">
+        ${comments.length?comments.map(c=>`
+          <div class="activity-item">
+            <div class="activity-avatar" style="background:${avatarColor(c.author_name)}">${(c.author_name||'?')[0].toUpperCase()}</div>
+            <div class="activity-content">
+              <strong style="font-size:.85rem">${c.author_name}</strong>
+              <span class="activity-meta">${timeAgo(c.created_at)}</span>
+              <div class="activity-body">${renderBody(c.body)}</div>
+            </div>
+          </div>`).join(''):'<p style="text-align:center;color:var(--text-muted);font-size:.85rem;padding:16px 0">No comments yet. Be the first to add one.</p>'}
+      </div>
+    </div>`;
+}
+
+function initMentionInput(woId){
+  const input=document.getElementById('wo-comment-input');
+  const dropdown=document.getElementById('mention-dropdown');
+  if(!input||!dropdown)return;
+  const team=(cache.dt_team_members||[]).filter(t=>t.is_active);
+  let mentionActive=false, mentionStart=-1, activeIdx=0;
+
+  input.addEventListener('input',function(){
+    const val=this.value, pos=this.selectionStart;
+    // Find @ before cursor
+    let atIdx=-1;
+    for(let i=pos-1;i>=0;i--){
+      if(val[i]==='@'){atIdx=i;break;}
+      if(val[i]===' '&&i<pos-1) break;
+      if(val[i]==='\n') break;
+    }
+    if(atIdx>=0){
+      const query=val.substring(atIdx+1,pos).toLowerCase();
+      const matches=team.filter(t=>t.name.toLowerCase().includes(query));
+      if(matches.length){
+        mentionActive=true; mentionStart=atIdx; activeIdx=0;
+        dropdown.innerHTML=matches.map((t,i)=>
+          `<div class="mention-option${i===0?' active':''}" data-name="${t.name}" data-id="${t.id}" onmousedown="selectMention('${t.name.replace(/'/g,"\\'")}','${t.id}')">
+            <span class="mo-name">${t.name}</span><span class="mo-role">${t.role||''}</span>
+          </div>`).join('');
+        dropdown.classList.add('open');
+        return;
+      }
+    }
+    mentionActive=false;
+    dropdown.classList.remove('open');
+  });
+
+  input.addEventListener('keydown',function(e){
+    if(!mentionActive)return;
+    const opts=dropdown.querySelectorAll('.mention-option');
+    if(e.key==='ArrowDown'){e.preventDefault();activeIdx=Math.min(activeIdx+1,opts.length-1);opts.forEach((o,i)=>o.classList.toggle('active',i===activeIdx));}
+    else if(e.key==='ArrowUp'){e.preventDefault();activeIdx=Math.max(activeIdx-1,0);opts.forEach((o,i)=>o.classList.toggle('active',i===activeIdx));}
+    else if(e.key==='Enter'||e.key==='Tab'){
+      e.preventDefault();
+      const sel=opts[activeIdx];
+      if(sel) selectMention(sel.dataset.name,sel.dataset.id);
+    }
+    else if(e.key==='Escape'){mentionActive=false;dropdown.classList.remove('open');}
+  });
+
+  window.selectMention=function(name,id){
+    const val=input.value, pos=input.selectionStart;
+    let atIdx=-1;
+    for(let i=pos-1;i>=0;i--){if(val[i]==='@'){atIdx=i;break;}if(val[i]===' '&&i<pos-1)break;if(val[i]==='\n')break;}
+    if(atIdx<0)return;
+    const before=val.substring(0,atIdx);
+    const after=val.substring(pos);
+    input.value=before+'@'+name+' '+after;
+    input.selectionStart=input.selectionEnd=atIdx+name.length+2;
+    mentionActive=false;
+    dropdown.classList.remove('open');
+    input.focus();
+  };
+}
+
+window.postWOComment = async function(woId){
+  const input=document.getElementById('wo-comment-input');
+  const body=(input?.value||'').trim();
+  if(!body){toast('Please enter a comment','error');return;}
+
+  // Determine author from dropdown
+  const authorSelect=document.getElementById('wo-comment-author');
+  const authorId=authorSelect?.value||null;
+  const currentUser=(cache.dt_team_members||[]).find(t=>t.id===authorId)||{name:'Admin'};
+  const authorName=currentUser.name||'Admin';
+
+  // Find tagged team members
+  const team=(cache.dt_team_members||[]).filter(t=>t.is_active);
+  const taggedIds=[];
+  const taggedMembers=[];
+  team.forEach(t=>{
+    if(body.includes('@'+t.name)){
+      taggedIds.push(t.id);
+      taggedMembers.push({id:t.id,name:t.name,email:t.email});
+    }
+  });
+
+  // Save comment
+  const row={work_order_id:woId,author_id:authorId,author_name:authorName,body:body,tagged_ids:taggedIds};
+  const res=await sb.from('dt_wo_comments').insert(row);
+  if(res.error){toast(res.error.message,'error');return;}
+  toast('Comment posted');
+
+  // Send email notifications to tagged members
+  if(taggedMembers.length){
+    const wo=(cache.dt_work_orders||[]).find(w=>w.id===woId)||{};
+    const woEnriched={wo_number:wo.wo_number,title:wo.title,location_name:locStore(wo.location_id),equipment_name:eqName(wo.equipment_id)};
+    try{
+      await fetch(SUPA_URL+'/functions/v1/send-wo-comment-notification',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPA_KEY},
+        body:JSON.stringify({comment:body,work_order:woEnriched,tagged_members:taggedMembers,author_name:authorName})
+      });
+    }catch(e){console.log('Comment notification failed:',e);}
+  }
+
+  // Reload comments and re-render the feed
+  await load('dt_wo_comments','created_at',false);
+  const feedEl=document.getElementById('wo-activity-feed');
+  const inputWrap=document.querySelector('.comment-input-wrap');
+  if(feedEl){
+    const comments=(cache.dt_wo_comments||[]).filter(c=>c.work_order_id===woId).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+    const avatarColors=['#2a78d6','#eb6834','#1baf7a','#9b59b6','#e74c3c','#f39c12'];
+    function avatarColor(name){let h=0;for(let i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return avatarColors[Math.abs(h)%avatarColors.length];}
+    function renderBody(b){return b.replace(/@(\w[\w\s]*?\w)(?=\s|$|[.,!?])/g,'<span class="tag">@$1</span>');}
+    function timeAgo(d){const s=Math.floor((Date.now()-new Date(d).getTime())/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';if(s<604800)return Math.floor(s/86400)+'d ago';return new Date(d).toLocaleDateString();}
+    feedEl.innerHTML=comments.map(c=>`
+      <div class="activity-item">
+        <div class="activity-avatar" style="background:${avatarColor(c.author_name)}">${(c.author_name||'?')[0].toUpperCase()}</div>
+        <div class="activity-content">
+          <strong style="font-size:.85rem">${c.author_name}</strong>
+          <span class="activity-meta">${timeAgo(c.created_at)}</span>
+          <div class="activity-body">${renderBody(c.body)}</div>
+        </div>
+      </div>`).join('');
+  }
+  if(input) input.value='';
+};
+
 async function notifyNewWorkOrder(woData){
   const recipients=(cache.dt_notification_recipients||[]).filter(r=>r.is_active);
   const isEmergency=woData.priority==='emergency';

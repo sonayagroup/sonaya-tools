@@ -2979,11 +2979,12 @@ const GM_REACH=[["R","Recognize their strengths","What did they excel at this pa
   ["H","How are you?","General check-in on how they're doing overall."]];
 const GM_WEEK_ITEMS=[
   {k:"sched_through",label:"Are schedules up to date and entered?",days:"Mon",due:-4},
+  {k:"recap_email",label:"Weekly recap email answered",days:"Mon",due:-4,since:"2026-11-06"},
   {k:"redo",label:"Redo log calls and service recovery",days:"Mon / Wed / Sun",due:0},
   {k:"deposits",label:"Deposits made and change ordered",days:"Tue / Fri",due:0},
   {k:"time_off",label:"Time-off requests emailed for approval and saved to Drive",days:"Wed / Sun",due:0},
   {k:"sched_posted",label:"3 weeks of schedules posted (Red Binder, breakroom, WhatsApp)",days:"Thu",due:-1},
-  {k:"eps_recap",label:"Employee Performance Summary posted on whiteboard, 1:1s as needed, weekly recap email answered",days:"Sat",due:-6}];
+  {k:"eps_recap",label:"Whiteboard updated with weekly stylist statistics",days:"Sat",due:-6}];
 const GM_DAY_ITEMS=[
   {k:"reps",label:"Post the Daily REPS",hint:"Auto-generated on the Daily REPS tab"},
   {k:"standup",label:"Review yesterday’s flags, then a 5-minute stand-up with each stylist",hint:"HC time, CPH, product %, avg mins between, payroll %. Use the Development Board for coaching focus."},
@@ -3124,7 +3125,7 @@ function gmScore(sid,today){today=today||gmToday();const R=gmRoster(sid,today);i
   c.train=td?tn/td:null;
   // weekly rhythm: last 4 completed weeks
   const curWe=gmWeekEnd(today);let rp=0,rd=0;
-  for(let i=1;i<=4;i++){const we=gmAdd(curWe,-7*i);if(we<GM_START)continue;GM_WEEK_ITEMS.forEach(it=>{rd++;rp+=gmItemPts(sid,we,it);});}
+  for(let i=1;i<=4;i++){const we=gmAdd(curWe,-7*i);if(we<GM_START)continue;GM_WEEK_ITEMS.forEach(it=>{if(!gmItemOn(it,we))return;rd++;rp+=gmItemPts(sid,we,it);});}
   c.rhythm=rd?rp/rd:null;
   // schedules: share of the last 4 completed weeks (since launch) where "Are schedules up to date and entered?" was checked; late counts half
   {let sp=0,sd=0;const it=GM_WEEK_ITEMS.find(x=>x.k==="sched_through");for(let i=1;i<=4;i++){const we=gmAdd(curWe,-7*i);if(we<GM_START)continue;sd++;sp+=gmItemPts(sid,we,it);}c.sched=sd?sp/sd:null;}
@@ -3132,6 +3133,7 @@ function gmScore(sid,today){today=today||gmToday();const R=gmRoster(sid,today);i
   const lic=gmRecapLic(sid);const comp=!lic?"none":(lic.ans==="yes"?"ok":"fail");
   return {score:den?Math.round(num/den*100):null,c,n:R.length,comp,lic};}
 function gmTask(sid,ptype,pdate,k){return GM.tasks.find(t=>String(t.salon_id)===String(sid)&&t.period_type===ptype&&t.period_date===pdate&&t.item_key===k)||null;}
+function gmItemOn(it,we){return !it.since||we>=it.since;}
 function gmItemDone(t,it){return !!t&&(it.type==="date"?!!t.value:!!t.completed);}
 function gmItemPts(sid,we,it){const t=gmTask(sid,"week",we,it.k);if(!gmItemDone(t,it))return 0;const dd=gmLocalDate(t.completed_at);return (dd&&dd>gmAdd(we,it.due))?0.5:1;}
 function gmSchedThrough(sid){const t=GM.tasks.filter(x=>String(x.salon_id)===String(sid)&&x.item_key==="sched_through"&&x.value).sort((a,b)=>(b.period_date+(b.completed_at||"")).localeCompare(a.period_date+(a.completed_at||"")))[0];return t?t.value:null;}
@@ -3376,9 +3378,9 @@ function gmRhythm(host){const sid=current,today=gmToday();const curWe=gmWeekEnd(
   h+='<div class="card" style="margin-top:14px"><h3>Weekly Rhythm history</h3><div class="hint">✓ on time · ½ late · ✗ missed · — before the Weekly Rhythm started. Week completion counts late items as half.</div><div class="tbl-scroll"><table class="gm-tbl gm-hgrid"><thead><tr><th>Check</th>'+wks.map(w=>'<th>'+gmShort(w)+'</th>').join("")+'</tr></thead><tbody>';
   GM_WEEK_ITEMS.forEach(it=>{h+='<tr><td>'+esc(it.label.length>42?it.label.slice(0,40)+"…":it.label)+'</td>'+wks.map(w=>{const t=gmTask(sid,"week",w,it.k);const p=gmItemPts(sid,w,it);
     if(it.type==="date"&&t&&t.value)return '<td><span style="color:'+(p===1?GREEN:AMBER)+';font-weight:700">'+gmShort(t.value)+'</span></td>';
-    if(w<GM_START)return '<td><span style="color:var(--muted)">—</span></td>';
+    if(w<GM_START||!gmItemOn(it,w))return '<td><span style="color:var(--muted)">—</span></td>';
     return '<td>'+(p===1?'<span style="color:'+GREEN+';font-weight:800">✓</span>':p===0.5?'<span style="color:'+AMBER+';font-weight:800">½</span>':(w===curWe?'<span style="color:var(--muted)">·</span>':'<span style="color:'+RED+';font-weight:800">✗</span>'))+'</td>';}).join("")+'</tr>';});
-  h+='<tr><td><b>Completion</b></td>'+wks.map(w=>{if(w<GM_START)return '<td><span style="color:var(--muted)">—</span></td>';let p=0;GM_WEEK_ITEMS.forEach(it=>p+=gmItemPts(sid,w,it));const pct=Math.round(p/GM_WEEK_ITEMS.length*100);return '<td><b style="color:'+(pct>=85?GREEN:pct>=60?AMBER:RED)+'">'+pct+'%</b></td>';}).join("")+'</tr>';
+  h+='<tr><td><b>Completion</b></td>'+wks.map(w=>{if(w<GM_START)return '<td><span style="color:var(--muted)">—</span></td>';let p=0,n=0;GM_WEEK_ITEMS.forEach(it=>{if(!gmItemOn(it,w))return;n++;p+=gmItemPts(sid,w,it);});const pct=n?Math.round(p/n*100):0;return '<td><b style="color:'+(pct>=85?GREEN:pct>=60?AMBER:RED)+'">'+pct+'%</b></td>';}).join("")+'</tr>';
   h+='</tbody></table></div></div>';
   host.innerHTML=h;$("#gmRWeek").onchange=function(){gmRhythmWeek=this.value;renderManager();};}
 function gmEnsureWho(){const w=gmWho();if(w.n)return Promise.resolve(w);return new Promise(res=>{gmModal('<h3>Who is checking items?</h3><div class="gm-form">'+gmWhoFields("gmW")+'</div><div class="gm-actions"><span class="gm-err" id="gmWErr"></span><button class="gm-cancel" data-act="close">Cancel</button><button class="btn" id="gmWSave">Save</button></div>');

@@ -2980,7 +2980,8 @@ const GM_REACH=[["R","Recognize their strengths","What did they excel at this pa
 const GM_WEEK_ITEMS=[
   {k:"sched_through",label:"Are schedules up to date and entered? Weekly recap email answered?",days:"Mon",due:-4},
   {k:"redo",label:"Redo log calls and service recovery",days:"Mon / Wed / Sun",due:0},
-  {k:"deposits",label:"Deposits made and change ordered",days:"Tue / Fri",due:0},
+  {k:"deposits",label:"Deposits made",days:"Tue",due:-3,oldDue:{before:"2026-11-06",due:0}},
+  {k:"deposits_fri",label:"Deposits made",days:"Fri",due:0,since:"2026-11-06"},
   {k:"time_off",label:"Time-off requests emailed for approval and saved to Drive",days:"Wed / Sun",due:0},
   {k:"sched_posted",label:"3 weeks of schedules posted (Red Binder, breakroom, WhatsApp)",days:"Thu",due:-1},
   {k:"eps_recap",label:"Whiteboard updated with weekly stylist statistics",days:"Sat",due:-6}];
@@ -3132,9 +3133,10 @@ function gmScore(sid,today){today=today||gmToday();const R=gmRoster(sid,today);i
   const lic=gmRecapLic(sid);const comp=!lic?"none":(lic.ans==="yes"?"ok":"fail");
   return {score:den?Math.round(num/den*100):null,c,n:R.length,comp,lic};}
 function gmTask(sid,ptype,pdate,k){return GM.tasks.find(t=>String(t.salon_id)===String(sid)&&t.period_type===ptype&&t.period_date===pdate&&t.item_key===k)||null;}
+function gmDue(it,we){return (it.oldDue&&we<it.oldDue.before)?it.oldDue.due:it.due;}
 function gmItemOn(it,we){return !it.since||we>=it.since;}
 function gmItemDone(t,it){return !!t&&(it.type==="date"?!!t.value:!!t.completed);}
-function gmItemPts(sid,we,it){const t=gmTask(sid,"week",we,it.k);if(!gmItemDone(t,it))return 0;const dd=gmLocalDate(t.completed_at);return (dd&&dd>gmAdd(we,it.due))?0.5:1;}
+function gmItemPts(sid,we,it){const t=gmTask(sid,"week",we,it.k);if(!gmItemDone(t,it))return 0;const dd=gmLocalDate(t.completed_at);return (dd&&dd>gmAdd(we,gmDue(it,we)))?0.5:1;}
 function gmSchedThrough(sid){const t=GM.tasks.filter(x=>String(x.salon_id)===String(sid)&&x.item_key==="sched_through"&&x.value).sort((a,b)=>(b.period_date+(b.completed_at||"")).localeCompare(a.period_date+(a.completed_at||"")))[0];return t?t.value:null;}
 function gmScoreCol(s){return s==null?"#9aa5a2":s>=80?GREEN:s>=60?AMBER:RED;}
 
@@ -3362,7 +3364,7 @@ function gmRhythm(host){const sid=current,today=gmToday();const curWe=gmWeekEnd(
     +'<span class="wk-stat">Check each item when it’s done. Items checked after their day count as late.</span></div>';
   h+='<div class="sec-title">Weekly Rhythm</div>';
   const we=gmRhythmWeek;
-  GM_WEEK_ITEMS.forEach(it=>{const t=gmTask(sid,"week",we,it.k);const done=gmItemDone(t,it);const dueD=gmAdd(we,it.due);const dd=t&&t.completed_at?gmLocalDate(t.completed_at):null;const late=done&&dd&&dd>dueD;
+  GM_WEEK_ITEMS.forEach(it=>{if(!gmItemOn(it,we))return;const t=gmTask(sid,"week",we,it.k);const done=gmItemDone(t,it);const dueD=gmAdd(we,gmDue(it,we));const dd=t&&t.completed_at?gmLocalDate(t.completed_at):null;const late=done&&dd&&dd>dueD;
     let st=done?(late?'<span class="gm-chip gm-a">Late</span> ':'<span class="gm-chip gm-g">Done</span> ')+esc(t.completed_by||"")+(t.completed_at?' · '+new Date(t.completed_at).toLocaleString([], {month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"}):""):(today>dueD?'<span class="gm-chip gm-r">Not done</span>':'<span class="gm-chip gm-n">Due '+gmShort(dueD)+'</span>');
     if(it.type==="date"){const v=t&&t.value?t.value:"";const ahead=v?gmDiff(today,v):null;
       h+='<div class="gm-item"><span style="font-size:18px">📅</span><div><div class="dy">'+esc(it.days)+'</div><div class="lb">'+esc(it.label)+'</div><div class="gm-why">'+esc(it.hint)+(v?' · <b style="color:'+(ahead>=28?GREEN:ahead>=14?AMBER:RED)+'">'+Math.max(0,Math.floor(ahead/7))+' weeks ahead</b>':'')+'</div></div>'
@@ -3375,7 +3377,7 @@ function gmRhythm(host){const sid=current,today=gmToday();const curWe=gmWeekEnd(
   // history: last 6 weeks
   const wks=[];for(let i=0;i<6;i++)wks.push(gmAdd(curWe,-7*i));wks.reverse();
   h+='<div class="card" style="margin-top:14px"><h3>Weekly Rhythm history</h3><div class="hint">✓ on time · ½ late · ✗ missed · — before the Weekly Rhythm started. Week completion counts late items as half.</div><div class="tbl-scroll"><table class="gm-tbl gm-hgrid"><thead><tr><th>Check</th>'+wks.map(w=>'<th>'+gmShort(w)+'</th>').join("")+'</tr></thead><tbody>';
-  GM_WEEK_ITEMS.forEach(it=>{h+='<tr><td>'+esc(it.label.length>42?it.label.slice(0,40)+"…":it.label)+'</td>'+wks.map(w=>{const t=gmTask(sid,"week",w,it.k);const p=gmItemPts(sid,w,it);
+  GM_WEEK_ITEMS.forEach(it=>{const hl=it.days+" · "+it.label;h+='<tr><td>'+esc(hl.length>48?hl.slice(0,46)+"…":hl)+'</td>'+wks.map(w=>{const t=gmTask(sid,"week",w,it.k);const p=gmItemPts(sid,w,it);
     if(it.type==="date"&&t&&t.value)return '<td><span style="color:'+(p===1?GREEN:AMBER)+';font-weight:700">'+gmShort(t.value)+'</span></td>';
     if(w<GM_START||!gmItemOn(it,w))return '<td><span style="color:var(--muted)">—</span></td>';
     return '<td>'+(p===1?'<span style="color:'+GREEN+';font-weight:800">✓</span>':p===0.5?'<span style="color:'+AMBER+';font-weight:800">½</span>':(w===curWe?'<span style="color:var(--muted)">·</span>':'<span style="color:'+RED+';font-weight:800">✗</span>'))+'</td>';}).join("")+'</tr>';});

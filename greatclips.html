@@ -440,6 +440,18 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .sv-prog{display:flex;flex-direction:column;font-size:13px;font-weight:700;gap:1px}.sv-btns{display:flex;gap:8px}.sv-btns button{min-height:44px;padding:10px 16px;font-size:15px}
 @media (max-width:640px){#visit .sv-top select,#visit .sv-big{flex:1 1 100%;max-width:none;width:100%}.sv-bar{border-radius:0;margin:6px -12px 0}.sv-btns{width:100%}.sv-btns button{flex:1}
   .sv-kpis{grid-template-columns:repeat(2,1fr)}.sv-formhead{align-items:flex-start}}
+/* ===== SCHEDULE CHECK ===== */
+#sched .card{margin-bottom:12px}#sched .card h3{font-size:15px;margin:0 0 10px;color:var(--ink)}#sched .card h3 span{font-weight:500;color:var(--muted);font-size:12.5px}
+.sch-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.sch-top select{font-size:15px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;min-height:44px}
+.sch-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;border:2px dashed #9cc9bb;border-radius:12px;background:#f3faf7;padding:26px 16px;cursor:pointer;color:var(--ink)}
+.sch-drop b{font-size:16px}.sch-drop span{font-size:12.5px;color:var(--muted)}.sch-drop.over{background:#dff3ea;border-color:#048667}
+.sch-cov{display:flex;flex-wrap:wrap;gap:6px}.sch-sal{display:inline-flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12.5px;background:#f6f8f7;color:var(--muted);min-width:120px}
+.sch-sal b{color:var(--ink)}.sch-sal i{font-style:normal;font-size:11px}.sch-sal.on{background:#ecfdf5;border-color:#a7e3c4;color:#065f46}
+.sch-counts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.sch-iss{display:flex;gap:10px;padding:10px 12px;border-radius:8px;margin-top:8px;border-left:4px solid #9aa5a2;background:#f6f8f7;font-size:14px;line-height:1.4}
+.sch-iss .ic{font-size:18px;line-height:1.2}.sch-iss .hd{margin-bottom:2px}.sch-iss.s-r{background:#fef2f2;border-left-color:#e4002b}.sch-iss.s-a{background:#fffbeb;border-left-color:#e9a049}
+.sch-grid td{font-size:12px;vertical-align:top;min-width:92px}.sch-grid td i{font-style:normal;color:var(--muted)}.sch-grid td.bad{background:#fde8e8}.sch-grid td .off{color:#9b1c1c;font-weight:700}
+@media (max-width:640px){.sch-sal{min-width:calc(50% - 6px)}.sch-top select{flex:1}}
 </style></head>
 <body class="gc-locked">
 <div id="gcLogin" class="gc-login">
@@ -476,6 +488,7 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
   <div class="tab" data-t="contacts">Contacts</div>
   <div class="tab" data-t="scorecard">Stylist Scorecard</div>
   <div class="tab" data-t="visit">Salon Visits</div>
+  <div class="tab" data-t="sched">Schedules</div>
   <a href="https://tools.sonayagroup.com/gc-crm.html" class="tab-link">👥 Stylist CRM</a>
   <a href="https://tools.sonayagroup.com/gc-quiz-admin.html" class="tab-link">📝 Manager Quiz</a>
   <a href="https://tools.sonayagroup.com/gc-maintenance/" class="tab-link">🔧 Maintenance</a>
@@ -745,6 +758,10 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 
 <section class="panel" id="visit">
   <div id="svBody"></div>
+</section>
+
+<section class="panel" id="sched">
+  <div id="schBody"></div>
 </section>
 
 <section class="panel" id="scorecard">
@@ -3717,6 +3734,156 @@ function svSummaryText(r){const it=svItems(r);const sc=svScore(it);const nos=svN
 (function(){const t=document.querySelector('.tab[data-t="visit"]');if(t)t.addEventListener("click",()=>{if(SV.view!=="form")SV.view=SV.viewId?"view":"home";svInit();});})();
 </script>
 <script>
+// ===== SCHEDULE CHECK (Area Managers) =====
+// AMs drop the "Weekly Schedule Report - Advanced Scheduler" CSV for their salons. Each salon/week is saved
+// to gc_schedules (raw cells), so every AM's uploads are checked together. Cross-checks:
+//  - double-booked: same person, overlapping times at two different salons
+//  - OFF conflict: marked OFF (all day or a time range) while scheduled somewhere that day
+//  - OS mismatch: "OS: 6117" on one salon's schedule doesn't match 6117's own schedule
+// OS = "other salon". Each OS entry is first paired with the named salon's own shift (same person + day,
+// start 0 or 15 min apart); paired entries are then treated as one shift before conflicts are checked.
+const SCH={rows:[],loaded:false,loading:null,week:null,msg:""};
+const SCH_TOL=15; // minutes: an OS entry starts 0 or 15 min after the shift it mirrors (setup)
+
+// ---- CSV ----
+function schCsv(text){const rows=[];let row=[],f="",q=false;text=String(text||"").replace(/^\uFEFF/,"");
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++;}else q=false;}else f+=c;}
+    else if(c==='"')q=true;else if(c===','){row.push(f);f="";}else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f="";}else f+=c;}
+  if(f!==""||row.length){row.push(f);rows.push(row);}return rows;}
+function schIsoMDY(s){const m=String(s||"").match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?m[3]+"-"+m[1].padStart(2,"0")+"-"+m[2].padStart(2,"0"):null;}
+// Parse one export (may hold several salons). Returns [{salon_id,salon_name,week_start,data}]
+function schParse(text){const R=schCsv(text);const out=[];let cur=null;
+  const num=v=>{const n=parseFloat(String(v||"").replace(/,/g,""));return isNaN(n)?null:n;};
+  R.forEach(r=>{const a=(r[0]||"").trim();
+    if(/^Weekly Schedule Report/i.test(a)){const sm=String(r[1]||"").match(/^(.*?)\s*#(\d{3,4})\s*$/);const wm=String(r[2]||"");
+      const ws=schIsoMDY(wm);cur={salon_id:sm?sm[2].padStart(4,"0"):null,salon_name:sm?sm[1].trim():String(r[1]||""),week_start:ws,data:{days:[],emps:[],open:[],rec:[],sched:[],proj:[]}};
+      if(cur.salon_id&&ws)out.push(cur);else cur=null;return;}
+    if(!cur)return;
+    if(a==="Employee"){cur.data.days=r.slice(1,8).map(schIsoMDY);return;}
+    if(a==="OPEN SHIFTS"){cur.data.open=r.slice(1,8).map(x=>(x||"").trim());return;}
+    if(a==="Recommended Floor Hours"){cur.data.rec=r.slice(1,9).map(num);return;}
+    if(a==="Scheduled Floor Hours"){cur.data.sched=r.slice(1,9).map(num);return;}
+    if(a==="Projected Customer Count"){cur.data.proj=r.slice(1,9).map(num);return;}
+    if(/^(Basis|Traffic Modifier|Revised Customer|Scheduled Non-Floor|Total Scheduled|Total Flex|Recommended Schedule|Data Through|Reset on|Recalculated|Special Days|Promotions|Floor Hours|Last Year|Actual Customers|\* Initial)/i.test(a))return;
+    if(cur.data.days.length&&a&&/\([A-Z]\)\s*$/.test(a)&&!cur._done){cur.data.emps.push({name:a,cells:r.slice(1,8).map(x=>(x||"").trim()),total:(r[8]||"").trim()});}
+    if(a==="Basis")cur._done=true;});
+  out.forEach(o=>delete o._done);return out;}
+
+// ---- shifts ----
+function schKey(n){return String(n||"").replace(/\([A-Z]\)\s*$/,"").toLowerCase().replace(/[^a-z\s'-]/g," ").split(/\s+/).filter(w=>w&&w.length>1).join(" ");}
+function schDisp(n){return String(n||"").replace(/\s*\([A-Z]\)\s*$/,"").replace(/\s+[A-Z]\s+/," ");}
+function schRole(n){const m=String(n||"").match(/\(([A-Z])\)\s*$/);return m?({M:"Manager",A:"Asst Mgr",S:"Stylist",R:"Receptionist"}[m[1]]||m[1]):"";}
+function schMin(t,endSfx){const m=String(t).match(/^(\d{1,2})(?::(\d{2}))?([ap])?$/);if(!m)return null;let h=+m[1],mi=+(m[2]||0);const s=m[3];
+  if(s){if(h===12)h=0;if(s==="p")h+=12;}else{if(h===12){}else if(h<7)h+=12;}
+  return h*60+mi;}
+function schCell(cell){const out=[];const t=String(cell||"").trim();if(!t)return out;
+  if(/^OFF$/i.test(t)){out.push({off:true,all:true});return out;}
+  const re=/(\d{1,2}(?::\d{2})?[ap]?)\s*-\s*(\d{1,2}(?::\d{2})?[ap])/g;const ms=[];let m;while((m=re.exec(t)))ms.push({i:m.index,e:re.lastIndex,a:m[1],b:m[2]});
+  ms.forEach((x,k)=>{const lbl=t.slice(x.e,k+1<ms.length?ms[k+1].i:t.length).trim();let s=schMin(x.a),e=schMin(x.b);if(s==null||e==null)return;if(e<=s&&s>=12*60)s-=12*60;
+    const os=lbl.match(/OS(?:,\s*R)?:\s*(\d{3,4})/i);
+    out.push({s,e,lbl,off:/\bOFF\b/i.test(lbl),os:os?os[1].padStart(4,"0"):null,kind:/Receptionist|,\s*R:/i.test(lbl)?"Receptionist":/Training/i.test(lbl)?"Training":/Non-Floor/i.test(lbl)?"Non-Floor":"Floor"});});
+  if(!out.length&&/\bOFF\b/i.test(t))out.push({off:true,all:true});
+  return out;}
+function schFmt(m){let h=Math.floor(m/60),mi=m%60;const p=h>=12?"p":"a";h=h%12||12;return h+(mi?":"+String(mi).padStart(2,"0"):"")+p;}
+function schRange(x){return schFmt(x.s)+"–"+schFmt(x.e);}
+function schOverlap(a,b){return a.s<b.e&&b.s<a.e;}
+function schSame(a,b){return Math.abs(a.s-b.s)<=SCH_TOL&&Math.abs(a.e-b.e)<=SCH_TOL;}
+
+// Build every shift entry for one week from the saved salon schedules
+function schEntries(rows){const E=[];rows.forEach(r=>{const d=r.data||{};(d.emps||[]).forEach(emp=>{const key=schKey(emp.name);
+    (emp.cells||[]).forEach((c,i)=>{const day=(d.days||[])[i];if(!day)return;schCell(c).forEach(x=>E.push(Object.assign({key,name:schDisp(emp.name),role:schRole(emp.name),day,src:r.salon_id,loc:x.os||r.salon_id,raw:c},x)));});});});
+  return E;}
+function schAnalyze(rows){const E=schEntries(rows);const have=new Set(rows.map(r=>r.salon_id));const issues=[];const seen=new Set();
+  const by={};E.forEach(e=>{(by[e.key+"|"+e.day]=by[e.key+"|"+e.day]||[]).push(e);});
+  const add=(sev,type,e,txt,salons,id)=>{if(seen.has(id))return;seen.add(id);issues.push({sev,type,key:e.key,name:e.name,day:e.day,txt,salons:[...new Set(salons)]});};
+  Object.values(by).forEach(list=>{const own=list.filter(x=>!x.off&&!x.os),offs=list.filter(x=>x.off);
+    // 1) pair OS entries with the named salon's own shift
+    const osE=list.filter(x=>!x.off&&x.os);osE.forEach(a=>{a.pair=own.find(b=>b.src===a.loc&&schSame(a,b))||null;});
+    const work=own.concat(osE.filter(a=>!a.pair));
+    // double-booked at two locations
+    for(let i=0;i<work.length;i++)for(let j=i+1;j<work.length;j++){const a=work[i],b=work[j];if(a.loc===b.loc||!schOverlap(a,b))continue;
+      const L=[a.loc,b.loc].sort();add("r","double",a,"Booked at "+a.loc+" ("+schRange(a)+(a.os?", per "+a.src+"’s schedule":"")+") and at "+b.loc+" ("+schRange(b)+(b.os?", per "+b.src+"’s schedule":"")+") at the same time",[a.src,b.src,a.loc,b.loc],"d|"+a.key+a.day+L.join());}
+    // OFF while working
+    offs.forEach(o=>{const hit=work.filter(w=>o.all||schOverlap(o,w));if(!hit.length)return;
+      add("r","off",o,"Marked OFF"+(o.all?"":" "+schRange(o))+" on "+o.src+"’s schedule but scheduled "+hit.map(w=>"at "+w.loc+" "+schRange(w)+(w.kind!=="Floor"?" ("+w.kind+")":"")).join(" and "),[o.src].concat(hit.map(w=>w.loc)),"o|"+o.key+o.day+o.src);});
+    // 2) OS entries with no matching shift at the named salon
+    osE.filter(a=>!a.pair).forEach(a=>{if(!have.has(a.loc)){add("n","unverified",a,a.src+" shows a shift at "+a.loc+" "+schRange(a)+", but "+a.loc+"’s schedule isn’t uploaded yet",[a.src,a.loc],"u|"+a.key+a.day+a.loc);return;}
+      const there=own.filter(b=>b.src===a.loc);
+      if(there.length)add("a","mismatch",a,a.src+" shows "+a.loc+" "+schRange(a)+", but "+a.loc+"’s schedule has "+there.map(schRange).join(", "),[a.src,a.loc],"m|"+a.key+a.day+a.src+a.loc);
+      else add("a","mismatch",a,a.src+" shows a shift at "+a.loc+" "+schRange(a)+", but they aren’t on "+a.loc+"’s schedule that day",[a.src,a.loc],"m|"+a.key+a.day+a.src+a.loc);});});
+  // weekly hours across salons (merge overlapping/mirrored shifts)
+  const people={};E.filter(e=>!e.off).forEach(e=>{const p=people[e.key]=people[e.key]||{key:e.key,name:e.name,role:e.role,days:{},locs:new Set()};p.locs.add(e.loc);(p.days[e.day]=p.days[e.day]||[]).push(e);});
+  Object.values(people).forEach(p=>{let tot=0;const byLoc={};Object.values(p.days).forEach(list=>{const iv=list.map(x=>[x.s,x.e,x.loc]).sort((a,b)=>a[0]-b[0]);let cs=null,ce=null,cl=null;
+      iv.forEach(([s,e,l])=>{if(cs==null){cs=s;ce=e;cl=l;return;}if(s<=ce){if(e>ce)ce=e;return;}tot+=ce-cs;byLoc[cl]=(byLoc[cl]||0)+ce-cs;cs=s;ce=e;cl=l;});if(cs!=null){tot+=ce-cs;byLoc[cl]=(byLoc[cl]||0)+ce-cs;}});
+    p.hours=tot/60;p.byLoc=byLoc;
+});
+  const order={r:0,a:1,n:2};issues.sort((a,b)=>order[a.sev]-order[b.sev]||String(a.day||"9").localeCompare(String(b.day||"9"))||a.name.localeCompare(b.name));
+  return {issues,people,entries:E};}
+
+// ---- data ----
+function schLoad(force){if(SCH.loading&&!force)return SCH.loading;
+  SCH.loading=gmGet("gc_schedules?select=salon_id,week_start,salon_name,data,filename,uploaded_by,uploaded_at&order=week_start.desc&limit=2000").then(r=>{SCH.rows=r||[];SCH.loaded=true;}).catch(e=>{SCH.loading=null;throw e;});return SCH.loading;}
+function schWeeks(){const s=new Set(SCH.rows.map(r=>r.week_start));const t=gmToday();let sat=gmAdd(gmWeekEnd(t),-6);for(let i=0;i<4;i++)s.add(gmAdd(sat,7*i));return [...s].sort().reverse();}
+function schInit(){const host=$("#schBody");if(!host)return;
+  if(!SCH.loaded){host.innerHTML='<div class="loading">Loading schedules…</div>';schLoad().then(schRender).catch(e=>{host.innerHTML='<div class="banner warn">Could not load schedules: '+esc(e.message)+'</div>';});return;}
+  schRender();}
+function schRender(){const host=$("#schBody");if(!host)return;try{schDraw(host);}catch(e){console.error(e);host.innerHTML='<div class="banner warn">Something went wrong: '+esc(e.message)+'</div>';}}
+async function schFiles(files){const msg=$("#schMsg");const got=[],bad=[];
+  for(const f of files){if(!/\.csv$/i.test(f.name)){bad.push(f.name+(/\.pdf$/i.test(f.name)?" (PDF — export the CSV version instead)":" (not a CSV)"));continue;}
+    try{const t=await f.text();const p=schParse(t);if(!p.length)bad.push(f.name+" (no Weekly Schedule Report found)");p.forEach(x=>{x.filename=f.name;got.push(x);});}catch(e){bad.push(f.name+" ("+e.message+")");}}
+  if(!got.length){if(msg){msg.innerHTML='<span style="color:'+RED+'">Nothing loaded. '+esc(bad.join("; "))+'</span>';}return;}
+  if(msg)msg.textContent="Saving "+got.length+" salon schedule"+(got.length===1?"":"s")+"…";
+  const who=(gmWho().n||"");const body=got.map(x=>({salon_id:x.salon_id,week_start:x.week_start,salon_name:x.salon_name,data:x.data,filename:x.filename,uploaded_by:who,uploaded_at:new Date().toISOString()}));
+  try{await gmPost("gc_schedules",body,"?on_conflict=salon_id,week_start","resolution=merge-duplicates,return=minimal");
+    body.forEach(b=>{SCH.rows=SCH.rows.filter(r=>!(r.salon_id===b.salon_id&&r.week_start===b.week_start));SCH.rows.unshift(b);});
+    const wks=[...new Set(got.map(x=>x.week_start))].sort();SCH.week=wks[wks.length-1];
+    SCH.msg="✓ Loaded "+got.map(x=>x.salon_id).sort().join(", ")+" for the week of "+wks.map(w=>gmShort(w)+"–"+gmShort(gmAdd(w,6))).join(", ")+(bad.length?". Skipped: "+bad.join("; "):"");
+    schRender();}
+  catch(e){if(msg)msg.innerHTML='<span style="color:'+RED+'">Could not save: '+esc(e.message)+'</span>';}}
+
+// ---- view ----
+const SCH_TYPES={double:["Double-booked","⛔"],off:["OFF conflict","🚫"],mismatch:["Loan mismatch","↔️"],unverified:["Other salon not uploaded","❔"]};
+function schDayLbl(d){return d?gmD(d).toLocaleDateString("en-US",{weekday:"short"})+" "+gmShort(d):"";}
+function schDraw(host){const weeks=schWeeks();if(!SCH.week||!weeks.includes(SCH.week)){const up=SCH.rows.map(r=>r.week_start).sort();const nextSat=gmAdd(gmWeekEnd(gmToday()),1);SCH.week=up.filter(w=>w>=gmAdd(nextSat,-7)).sort()[0]||up[up.length-1]||nextSat;}
+  const wk=SCH.week;const rows=SCH.rows.filter(r=>r.week_start===wk);const A=schAnalyze(rows);const have=new Set(rows.map(r=>r.salon_id));
+  let h='<div class="sch-top"><label class="gm-why" style="margin:0">Week (Sat–Fri)</label><select id="schWeek">'+weeks.map(w=>'<option value="'+w+'"'+(w===wk?" selected":"")+'>'+gmShort(w)+' – '+gmShort(gmAdd(w,6))+'/'+w.slice(2,4)+(SCH.rows.some(r=>r.week_start===w)?"":" (nothing uploaded)")+'</option>').join("")+'</select></div>';
+  h+='<label class="sch-drop" id="schDrop"><input type="file" id="schFile" accept=".csv,text/csv" multiple hidden><b>Drop schedule CSVs here</b><span>or tap to choose files · Weekly Schedule Report (Advanced Scheduler), CSV export · one file can hold any number of salons · OS = other salon</span></label>';
+  h+='<div id="schMsg" class="gm-why" style="margin:6px 0 12px">'+esc(SCH.msg||"")+'</div>';
+  // coverage
+  const all=[...new Set(Object.keys(SALONS||{}).concat([...have]))].sort();const nm=x=>{const r=SCH.rows.find(y=>y.salon_id===x&&y.salon_name);return (SALONS&&SALONS[x])||(r?r.salon_name:x);};
+  h+='<div class="card"><h3>Uploaded for this week <span>· '+have.size+' of '+all.length+' salons</span></h3><div class="sch-cov">'+all.map(s=>{const r=rows.find(x=>x.salon_id===s);
+    return '<span class="sch-sal '+(r?"on":"")+'" title="'+esc(r?("Uploaded "+(r.uploaded_by?"by "+r.uploaded_by+" ":"")+new Date(r.uploaded_at).toLocaleString()):"Not uploaded")+'"><b>'+s+'</b> '+esc(nm(s))+(r?'<i>'+esc((r.uploaded_by||"").split(" ")[0])+' · '+gmShort(gmLocalDate(r.uploaded_at))+'</i>':'<i>missing</i>')+'</span>';}).join("")+'</div>'
+    +(have.size&&have.size<all.length?'<div class="gm-why" style="margin-top:8px">Floaters are only checked against salons that are uploaded. Upload all 15 for a full check.</div>':'')+'</div>';
+  if(!rows.length){host.innerHTML=h+'<div class="card"><div class="oos-neutral">No schedules uploaded for this week yet.</div></div>';schWire(host);return;}
+  // issues
+  const iss=A.issues;const cnt=t=>iss.filter(i=>i.type===t).length;
+  h+='<div class="card"><h3>Discrepancies <span>· '+(iss.filter(i=>i.sev!=="n").length||"none found")+'</span></h3>';
+  h+='<div class="sch-counts">'+Object.keys(SCH_TYPES).map(t=>'<span class="gm-chip '+(cnt(t)?(t==="double"||t==="off"?"gm-r":t==="unverified"?"gm-n":"gm-a"):"gm-g")+'">'+SCH_TYPES[t][1]+' '+SCH_TYPES[t][0]+': '+cnt(t)+'</span>').join(" ")+'</div>';
+  if(!iss.length)h+='<div class="oos-ok">✓ No double-bookings, loan mismatches or OFF conflicts found across the '+have.size+' uploaded salon'+(have.size===1?"":"s")+'.</div>';
+  h+=iss.map(i=>'<div class="sch-iss s-'+i.sev+'"><div class="ic">'+SCH_TYPES[i.type][1]+'</div><div><div class="hd"><b>'+esc(i.name)+'</b>'+(i.day?' · '+schDayLbl(i.day):' · week')+' <span class="gm-why" style="margin:0">'+SCH_TYPES[i.type][0]+'</span></div><div>'+esc(i.txt)+'</div><div class="gm-why" style="margin:2px 0 0">Salons: '+i.salons.map(s=>esc(s+" "+nm(s))).join(" · ")+'</div></div></div>').join("");
+  if(iss.length)h+='<div class="gm-actions" style="justify-content:flex-start;margin-top:10px"><button class="gm-cancel" id="schCopy">Copy list for WhatsApp</button></div>';
+  h+='</div>';
+  // floaters grid
+  const days=[];for(let i=0;i<7;i++)days.push(gmAdd(wk,i));
+  const fl=Object.values(A.people).filter(p=>p.locs.size>1).sort((a,b)=>a.name.localeCompare(b.name));
+  const bad=new Set(iss.filter(i=>i.day).map(i=>i.key+"|"+i.day));
+  if(fl.length){h+='<div class="card"><h3>Floaters this week <span>· people scheduled at more than one salon</span></h3><div class="tbl-scroll"><table class="gm-tbl sch-grid"><thead><tr><th>Name</th>'+days.map(d=>'<th>'+schDayLbl(d)+'</th>').join("")+'</tr></thead><tbody>'
+    +fl.map(p=>'<tr><td><b>'+esc(p.name)+'</b><div class="gm-why" style="margin:0">'+esc(p.role)+'</div></td>'+days.map(d=>{const L=A.entries.filter(e=>e.key===p.key&&e.day===d);const offs=L.filter(e=>e.off);
+      const w=[];L.filter(e=>!e.off).sort((a,b)=>(a.os?1:0)-(b.os?1:0)).forEach(e=>{if(!w.some(x=>x.loc===e.loc&&schSame(x,e)))w.push(e);});
+      return '<td class="'+(bad.has(p.key+"|"+d)?"bad":"")+'">'+w.sort((a,b)=>a.s-b.s).map(e=>'<div><b>'+e.loc+'</b> '+schRange(e)+(e.kind!=="Floor"?' <i>'+e.kind+'</i>':'')+'</div>').join("")+(offs.length?'<div class="off">OFF'+(offs[0].all?"":" "+schRange(offs[0]))+' @'+offs[0].src+'</div>':'')+'</td>';}).join("")
+      +'</tr>').join("")+'</tbody></table></div></div>';}
+  host.innerHTML=h;schWire(host,iss,wk);}
+function schWire(host,iss,wk){const s=$("#schWeek");if(s)s.onchange=function(){SCH.week=this.value;SCH.msg="";schRender();};
+  const inp=$("#schFile"),drop=$("#schDrop");if(inp)inp.onchange=()=>{if(inp.files.length)schFiles([...inp.files]);inp.value="";};
+  if(drop){["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
+    ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
+    drop.addEventListener("drop",e=>{const f=[...(e.dataTransfer&&e.dataTransfer.files||[])];if(f.length)schFiles(f);});}
+  const c=$("#schCopy");if(c&&iss)c.onclick=()=>{const t="Schedule check · week of "+gmShort(wk)+"–"+gmShort(gmAdd(wk,6))+"\n\n"+iss.filter(i=>i.sev!=="n").map(i=>"• "+i.name+(i.day?" ("+schDayLbl(i.day)+")":"")+": "+i.txt).join("\n");
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>gmToast("Copied")).catch(()=>svCopyFallback(t));else svCopyFallback(t);};}
+(function(){const t=document.querySelector('.tab[data-t="sched"]');if(t)t.addEventListener("click",schInit);})();
+</script>
+<script>
 // ===== LOGIN + ACCESS CONTROL (Great Clips dashboard) =====
 // Supabase Auth email/password (same project and pattern as the Del Taco dashboard).
 // Permissions live in gc_dashboard_users: role owner | am | manager | asst_manager, salon_ids[].
@@ -3728,7 +3895,7 @@ let gcSB=null,gcAuthP=null;
 const GC_ROLE_NAMES={owner:"Owner",am:"Area Manager",manager:"Salon Manager",asst_manager:"Assistant Manager"};
 const GC_MGR_TABS=["portfolio","reps","detail","manager","contacts"];
 // Areas a login can open. Tabs use data-t keys; links match on their href; adminhrs = the Area Manager admin-hours cards.
-const GC_AREAS=[["portfolio","Portfolio"],["reps","Daily REPS"],["detail","Salon Detail"],["recap","Weekly Recap"],["manager","Manager"],["contacts","Contacts"],["scorecard","Stylist Scorecard"],["visit","Salon Visits"],["crm","Stylist CRM"],["quiz","Manager Quiz"],["maint","Maintenance"],["adminhrs","AM admin hours"]];
+const GC_AREAS=[["portfolio","Portfolio"],["reps","Daily REPS"],["detail","Salon Detail"],["recap","Weekly Recap"],["manager","Manager"],["contacts","Contacts"],["scorecard","Stylist Scorecard"],["visit","Salon Visits"],["sched","Schedules"],["crm","Stylist CRM"],["quiz","Manager Quiz"],["maint","Maintenance"],["adminhrs","AM admin hours"]];
 const GC_LINK_AREA={"gc-crm":"crm","gc-quiz-admin":"quiz","gc-maintenance":"maint"};
 function gcRoleAreas(role){return (role==="manager"||role==="asst_manager")?GC_MGR_TABS.concat(["scorecard","visit","maint"]):GC_AREAS.map(a=>a[0]);}
 function gcAreasFor(u){if(!u)return [];if(u.role==="owner")return GC_AREAS.map(a=>a[0]);return Array.isArray(u.access)?u.access:gcRoleAreas(u.role);}

@@ -19,7 +19,7 @@ header{background:linear-gradient(135deg,var(--blue),var(--blue-dk));color:#fff;
 select{font-size:13.5px;padding:5px 8px;border-radius:6px;border:1px solid #cfd8e3;background:#fff;color:var(--ink);font-weight:600}
 nav.tabs{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
 .tabs-inner{max-width:1220px;margin:0 auto;padding:0 10px;display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}.tabs-inner::-webkit-scrollbar{display:none}.tabs-inner>*{flex:0 0 auto;white-space:nowrap}
-.tab{padding:12px 12px;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;user-select:none;font-size:13px}
+.tab{padding:12px 11px;cursor:pointer;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;user-select:none;font-size:13px}
 .tab:hover{color:var(--blue)}.tab.active{color:var(--blue-dk);border-bottom-color:var(--green)}
 .tab-link{padding:12px 12px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;user-select:none;font-size:13px;text-decoration:none;display:inline-block}
 .tab-link:hover{color:var(--blue)}
@@ -452,6 +452,10 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .sch-iss .ic{font-size:18px;line-height:1.2}.sch-iss .hd{margin-bottom:2px}.sch-iss.s-r{background:#fef2f2;border-left-color:#e4002b}.sch-iss.s-a{background:#fffbeb;border-left-color:#e9a049}
 .sch-grid td{font-size:12px;vertical-align:top;min-width:92px}.sch-grid td i{font-style:normal;color:var(--muted)}.sch-grid td.bad{background:#fde8e8}.sch-grid td .off{color:#9b1c1c;font-weight:700}
 @media (max-width:640px){.sch-sal{min-width:calc(50% - 6px)}.sch-top select{flex:1}}
+.tab-morebtn{padding:12px 11px;cursor:pointer;font:inherit;font-weight:600;font-size:13px;color:var(--muted);background:none;border:0;border-bottom:3px solid transparent}
+.tab-morebtn:hover,.tab-morebtn[aria-expanded=true]{color:var(--blue)}.tab-morebtn[hidden]{display:none!important}
+.tab-menu{position:fixed;z-index:60;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(7,59,58,.16);padding:6px;min-width:190px}
+.tab-menu .tab-link{display:block;padding:10px 12px;border-bottom:0;border-radius:6px;font-size:14px}.tab-menu .tab-link:hover{background:#f1f6f4}.tab-menu[hidden]{display:none}
 </style></head>
 <body class="gc-locked">
 <div id="gcLogin" class="gc-login">
@@ -489,10 +493,13 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
   <div class="tab" data-t="scorecard">Stylist Scorecard</div>
   <div class="tab" data-t="visit">Salon Visits</div>
   <div class="tab" data-t="sched">Schedules</div>
-  <a href="https://tools.sonayagroup.com/gc-crm.html" class="tab-link">👥 Stylist CRM</a>
-  <a href="https://tools.sonayagroup.com/gc-quiz-admin.html" class="tab-link">📝 Manager Quiz</a>
-  <a href="https://tools.sonayagroup.com/gc-maintenance/" class="tab-link">🔧 Maintenance</a>
+  <button type="button" class="tab-morebtn" id="tabMoreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="tabMoreMenu">More ▾</button>
   <div class="tab" data-t="users" hidden>Users</div>
+</div>
+<div class="tab-menu" id="tabMoreMenu" role="menu" hidden>
+  <a href="https://tools.sonayagroup.com/gc-crm.html" class="tab-link" role="menuitem">👥 Stylist CRM</a>
+  <a href="https://tools.sonayagroup.com/gc-quiz-admin.html" class="tab-link" role="menuitem">📝 Manager Quiz</a>
+  <a href="https://tools.sonayagroup.com/gc-maintenance/" class="tab-link" role="menuitem">🔧 Maintenance</a>
 </div></nav>
 <div class="wrap">
 
@@ -3884,6 +3891,17 @@ function schWire(host,iss,wk){const s=$("#schWeek");if(s)s.onchange=function(){S
 (function(){const t=document.querySelector('.tab[data-t="sched"]');if(t)t.addEventListener("click",schInit);})();
 </script>
 <script>
+// "More" menu for the links that open separate pages (keeps the tab bar on one line)
+(function(){const b=document.getElementById("tabMoreBtn"),m=document.getElementById("tabMoreMenu");if(!b||!m)return;
+  const close=()=>{m.hidden=true;b.setAttribute("aria-expanded","false");};
+  const open=()=>{const r=b.getBoundingClientRect();m.hidden=false;const w=m.offsetWidth;m.style.top=(r.bottom+4)+"px";m.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+"px";b.setAttribute("aria-expanded","true");};
+  b.addEventListener("click",e=>{e.stopPropagation();m.hidden?open():close();});
+  document.addEventListener("click",e=>{if(!m.hidden&&!m.contains(e.target))close();});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")close();});
+  window.addEventListener("scroll",close,{passive:true});window.addEventListener("resize",close);
+  const strip=document.querySelector(".tabs-inner");if(strip)strip.addEventListener("scroll",close,{passive:true});})();
+</script>
+<script>
 // ===== LOGIN + ACCESS CONTROL (Great Clips dashboard) =====
 // Supabase Auth email/password (same project and pattern as the Del Taco dashboard).
 // Permissions live in gc_dashboard_users: role owner | am | manager | asst_manager, salon_ids[].
@@ -3971,7 +3989,8 @@ function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
     d.innerHTML='<span><b>'+esc(p.name||p.email)+'</b> · '+esc(GC_ROLE_NAMES[p.role]||p.role)+'</span><button type="button" id="gcPwBtn">Change password</button><button type="button" id="gcOutBtn">Sign out</button>';
     $(".hdr-inner").appendChild(d);$("#gcPwBtn").onclick=()=>gcPwModal(false);$("#gcOutBtn").onclick=gcSignOut;}
   document.querySelectorAll(".tabs-inner .tab").forEach(t=>{const k=t.dataset.t;t.hidden=k==="users"?!gcIsOwner():!gcHas(k);});
-  document.querySelectorAll(".tabs-inner .tab-link").forEach(a=>{const k=gcLinkArea(a.getAttribute("href"));a.hidden=k?!gcHas(k):false;});
+  document.querySelectorAll("nav.tabs .tab-link").forEach(a=>{const k=gcLinkArea(a.getAttribute("href"));a.hidden=k?!gcHas(k):false;});
+  {const mb=$("#tabMoreBtn");if(mb)mb.hidden=![...document.querySelectorAll("#tabMoreMenu .tab-link")].some(x=>!x.hidden);}
   if(!gcHas("adminhrs")){const a=$("#adminHrsCards");if(a)a.innerHTML="";}
   const ss=$("#salonSel");
   if(mgr){[...ss.options].forEach(o=>{if(!gcCanSalon(o.value))o.remove();});

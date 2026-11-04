@@ -416,8 +416,8 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
     <h1>Great Clips · Salon Dashboard</h1>
     <div class="sub">Sonaya Group · sign in to continue</div>
     <form id="gcLoginForm" novalidate>
-      <label for="gcEmail">Email</label><input id="gcEmail" type="email" autocomplete="username" required>
-      <label for="gcPass">Password</label><input id="gcPass" type="password" autocomplete="current-password" required>
+      <label for="gcEmail">Email</label><input id="gcEmail" type="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      <label for="gcPass">Password</label><input id="gcPass" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" required>
       <button class="btn" id="gcLoginBtn" type="submit">Sign in</button>
     </form>
     <div class="gc-login-err" id="gcLoginErr" role="alert"></div>
@@ -3503,7 +3503,8 @@ function gcAuthStart(){
       const email=$("#gcEmail").value.trim(),pw=$("#gcPass").value,btn=$("#gcLoginBtn");
       if(!email||!pw){gcLoginMsg("Enter your email and password.");return;}
       btn.disabled=true;btn.textContent="Signing in…";gcLoginMsg("");
-      const {data,error}=await gcClient().auth.signInWithPassword({email,password:pw});
+      let {data,error}=await gcClient().auth.signInWithPassword({email,password:pw});
+      if(error&&/invalid/i.test(error.message)&&pw!==GC_DEFAULT_PW&&pw.trim().toLowerCase()===GC_DEFAULT_PW){({data,error}=await gcClient().auth.signInWithPassword({email,password:GC_DEFAULT_PW}));} // phones auto-capitalize the temp password
       btn.disabled=false;btn.textContent="Sign in";
       if(error){gcLoginMsg(/invalid/i.test(error.message)?"That email and password don’t match. Check them and try again.":error.message);return;}
       gcJustSignedIn=true;finish(data.session);});

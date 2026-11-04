@@ -5020,10 +5020,18 @@ async function savePost(existingId) {
   const platformIds = fd.getAll('platform_ids').filter(Boolean); data.platform_ids = platformIds.length?platformIds:null; data.platform_id = platformIds[0]||null;
   const crewIds = fd.getAll('crew_members').filter(Boolean); data.crew_members = crewIds.length?crewIds:null;
   if (!data.title) { showToast('Title is required','error'); return; }
+  if (!platformIds.length) { showToast('Select at least one platform','error'); return; }
   if (data.status==='posted'&&!data.posted_at) data.posted_at = new Date().toISOString();
   try {
-    if (existingId) { await sb.from('sm_posts').update(data).eq('id',existingId); logAudit('edit','post',existingId,data.title,{status:data.status}); }
-    else { const { data: inserted } = await sb.from('sm_posts').insert(data).select('id').single(); logAudit('create','post',inserted?.id||'',data.title,{status:data.status}); }
+    if (existingId) {
+      const res = await sb.from('sm_posts').update(data).eq('id',existingId);
+      if (res.error) { showToast('Could not save: '+res.error.message,'error'); return; }
+      logAudit('edit','post',existingId,data.title,{status:data.status});
+    } else {
+      const res = await sb.from('sm_posts').insert(data).select('id').single();
+      if (res.error) { showToast('Could not save: '+res.error.message,'error'); return; }
+      logAudit('create','post',res.data?.id||'',data.title,{status:data.status});
+    }
     closeModal(); await loadAll(); render(); showToast(existingId?'Post updated':'Post created','success');
   } catch(e) { showToast('Error: '+e.message,'error'); }
 }

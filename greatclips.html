@@ -450,7 +450,14 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .sch-counts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
 .sch-iss{display:flex;gap:10px;padding:10px 12px;border-radius:8px;margin-top:8px;border-left:4px solid #9aa5a2;background:#f6f8f7;font-size:14px;line-height:1.4}
 .sch-iss .ic{font-size:18px;line-height:1.2}.sch-iss .hd{margin-bottom:2px}.sch-iss.s-r{background:#fef2f2;border-left-color:#e4002b}.sch-iss.s-a{background:#fffbeb;border-left-color:#e9a049}
-.sch-grid td{font-size:12px;vertical-align:top;min-width:92px}.sch-grid td i{font-style:normal;color:var(--muted)}.sch-grid td.bad{background:#fde8e8}.sch-grid td .off{color:#9b1c1c;font-weight:700}
+.sch-grid{table-layout:fixed;min-width:880px;width:100%}.sch-grid th:first-child,.sch-grid td.nm{width:140px}.sch-grid td{overflow-wrap:anywhere}
+.sch-grid td{font-size:12.5px;vertical-align:top;line-height:1.35;padding:8px 6px}.sch-grid td i{font-style:normal;color:var(--muted)}
+.sch-grid td .sh{white-space:nowrap}.sch-grid td .sh i{display:block;font-size:11px;margin-top:1px}.sch-grid td .sh+.sh{margin-top:3px}.sch-grid td .none{color:#c3ccc9}
+.sch-grid td.bad{background:#fde8e8;box-shadow:inset 3px 0 0 #e4002b}.sch-grid td .note{color:#9b1c1c;font-weight:600;font-size:11.5px;margin-top:3px;white-space:normal}
+.sch-grid td .offl{color:var(--muted);font-weight:700;margin-top:2px}.sch-grid td.bad .offl{color:#9b1c1c}
+.sch-loc{display:inline-block;font-weight:800;font-size:11px;padding:1px 6px;border-radius:5px;color:#fff;letter-spacing:.2px}
+.sch-loc.c0{background:#0b7a63}.sch-loc.c1{background:#3b5bdb}.sch-loc.c2{background:#b45309}.sch-loc.c3{background:#7c3aed}.sch-loc.c4{background:#be185d}.sch-loc.c5{background:#0e7490}.sch-loc.c6{background:#4d7c0f}.sch-loc.c7{background:#57534e}
+.sch-key{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:12.5px;margin-bottom:6px}.sch-key .sep{width:10px}
 @media (max-width:640px){.sch-sal{min-width:calc(50% - 6px)}.sch-top select{flex:1}}
 .tab-morebtn{padding:12px 11px;cursor:pointer;font:inherit;font-weight:600;font-size:13px;color:var(--muted);background:none;border:0;border-bottom:3px solid transparent}
 .tab-morebtn:hover,.tab-morebtn[aria-expanded=true]{color:var(--blue)}.tab-morebtn[hidden]{display:none!important}
@@ -3794,6 +3801,7 @@ function schCell(cell){const out=[];const t=String(cell||"").trim();if(!t)return
   return out;}
 function schFmt(m){let h=Math.floor(m/60),mi=m%60;const p=h>=12?"p":"a";h=h%12||12;return h+(mi?":"+String(mi).padStart(2,"0"):"")+p;}
 function schRange(x){return schFmt(x.s)+"–"+schFmt(x.e);}
+function schShort(x){const a=schFmt(x.s),b=schFmt(x.e);return (a.slice(-1)===b.slice(-1)?a.slice(0,-1):a)+"–"+b;}
 function schOverlap(a,b){return a.s<b.e&&b.s<a.e;}
 function schSame(a,b){return Math.abs(a.s-b.s)<=SCH_TOL&&Math.abs(a.e-b.e)<=SCH_TOL;}
 
@@ -3871,15 +3879,30 @@ function schDraw(host){const weeks=schWeeks();if(!SCH.week||!weeks.includes(SCH.
   h+=iss.map(i=>'<div class="sch-iss s-'+i.sev+'"><div class="ic">'+SCH_TYPES[i.type][1]+'</div><div><div class="hd"><b>'+esc(i.name)+'</b>'+(i.day?' · '+schDayLbl(i.day):' · week')+' <span class="gm-why" style="margin:0">'+SCH_TYPES[i.type][0]+'</span></div><div>'+esc(i.txt)+'</div><div class="gm-why" style="margin:2px 0 0">Salons: '+i.salons.map(s=>esc(s+" "+nm(s))).join(" · ")+'</div></div></div>').join("");
   if(iss.length)h+='<div class="gm-actions" style="justify-content:flex-start;margin-top:10px"><button class="gm-cancel" id="schCopy">Copy list for WhatsApp</button></div>';
   h+='</div>';
-  // floaters grid
+  // floaters grid: one line per real shift, salon color-coded, problems spelled out in the cell
   const days=[];for(let i=0;i<7;i++)days.push(gmAdd(wk,i));
   const fl=Object.values(A.people).filter(p=>p.locs.size>1).sort((a,b)=>a.name.localeCompare(b.name));
-  const bad=new Set(iss.filter(i=>i.day).map(i=>i.key+"|"+i.day));
-  if(fl.length){h+='<div class="card"><h3>Floaters this week <span>· people scheduled at more than one salon</span></h3><div class="tbl-scroll"><table class="gm-tbl sch-grid"><thead><tr><th>Name</th>'+days.map(d=>'<th>'+schDayLbl(d)+'</th>').join("")+'</tr></thead><tbody>'
-    +fl.map(p=>'<tr><td><b>'+esc(p.name)+'</b><div class="gm-why" style="margin:0">'+esc(p.role)+'</div></td>'+days.map(d=>{const L=A.entries.filter(e=>e.key===p.key&&e.day===d);const offs=L.filter(e=>e.off);
-      const w=[];L.filter(e=>!e.off).sort((a,b)=>(a.os?1:0)-(b.os?1:0)).forEach(e=>{if(!w.some(x=>x.loc===e.loc&&schSame(x,e)))w.push(e);});
-      return '<td class="'+(bad.has(p.key+"|"+d)?"bad":"")+'">'+w.sort((a,b)=>a.s-b.s).map(e=>'<div><b>'+e.loc+'</b> '+schRange(e)+(e.kind!=="Floor"?' <i>'+e.kind+'</i>':'')+'</div>').join("")+(offs.length?'<div class="off">OFF'+(offs[0].all?"":" "+schRange(offs[0]))+' @'+offs[0].src+'</div>':'')+'</td>';}).join("")
-      +'</tr>').join("")+'</tbody></table></div></div>';}
+  if(fl.length){const locs=[...new Set(fl.flatMap(p=>[...p.locs]))].sort();const col={};locs.forEach((l,k)=>col[l]=k%8);
+    const tag=l=>'<span class="sch-loc c'+col[l]+'">'+l+'</span>';const short=k=>k==="Receptionist"?"Recep.":k==="Non-Floor"?"Non-floor":k;
+    const byDay={};iss.forEach(x=>{if(x.day)(byDay[x.key+"|"+x.day]=byDay[x.key+"|"+x.day]||[]).push(x);});
+    h+='<div class="card"><h3>Floaters this week <span>· people scheduled at more than one salon</span></h3>'
+      +'<div class="sch-key">'+locs.map(l=>tag(l)+' '+esc(nm(l))).join('<span class="sep"></span>')+'</div>'
+      +'<div class="gm-why" style="margin:0 0 8px">Each box shows where that person works that day. Salons are color-coded (key above). Red boxes have a problem, explained in the box.</div>'
+      +'<div class="tbl-scroll"><table class="gm-tbl sch-grid"><thead><tr><th>Name</th>'+days.map(d=>'<th>'+schDayLbl(d)+'</th>').join("")+'</tr></thead><tbody>'
+      +fl.map(p=>'<tr><td class="nm"><b>'+esc(p.name)+'</b><div class="gm-why" style="margin:0">'+esc(p.role)+'</div></td>'+days.map(d=>{
+        const L=A.entries.filter(e=>e.key===p.key&&e.day===d);const probs=byDay[p.key+"|"+d]||[];
+        const own=L.filter(e=>!e.off&&!e.os),claims=L.filter(e=>!e.off&&e.os&&!e.pair),offs=L.filter(e=>e.off);
+        let c=own.slice().sort((a,b)=>a.s-b.s).map(e=>'<div class="sh">'+tag(e.loc)+' '+schShort(e)+(e.kind!=="Floor"?'<i>'+esc(e.kind)+'</i>':'')+'</div>').join("");
+        // OS entries with no match at the named salon
+        claims.forEach(e=>{const there=own.filter(b=>b.loc===e.loc);
+          c+=there.length?'<div class="note">↔ '+e.src+'’s schedule says '+schRange(e)+' at '+e.loc+'</div>'
+            :'<div class="sh">'+tag(e.loc)+' '+schShort(e)+'</div><div class="note">↔ only on '+e.src+'’s schedule, not on '+e.loc+'’s</div>';});
+        offs.forEach(o=>{c+='<div class="offl">OFF'+(o.all?"":" "+schRange(o))+' at '+o.src+'</div>';});
+        if(probs.some(x=>x.type==="double"))c+='<div class="note">⛔ Double-booked</div>';
+        if(probs.some(x=>x.type==="off"))c+='<div class="note">🚫 OFF but scheduled</div>';
+        const cls=probs.some(x=>x.sev!=="n")?"bad":"";
+        return '<td class="'+cls+'">'+(c||'<span class="none">—</span>')+'</td>';}).join("")+'</tr>').join("")
+      +'</tbody></table></div></div>';}
   host.innerHTML=h;schWire(host,iss,wk);}
 function schWire(host,iss,wk){const s=$("#schWeek");if(s)s.onchange=function(){SCH.week=this.value;SCH.msg="";schRender();};
   const inp=$("#schFile"),drop=$("#schDrop");if(inp)inp.onchange=()=>{if(inp.files.length)schFiles([...inp.files]);inp.value="";};

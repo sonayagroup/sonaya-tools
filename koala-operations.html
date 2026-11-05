@@ -111,6 +111,27 @@ body {
 }
 .tab-btn:hover { color: var(--text-primary); }
 .tab-btn.active { color: var(--brand-teal); border-bottom-color: var(--brand-teal); }
+/* ---------------- Quote of the Day (2026-11-05, per Pranav — shared with the Del Taco and Great Clips
+   dashboards via the gc_daily_quotes table) ---------------- */
+.qotd-wrap { max-width: min(3440px, 98vw); margin: 0 auto; padding: 16px 28px 0; }
+.qotd { display: flex; align-items: center; gap: 12px; background: linear-gradient(90deg, var(--brand-teal-light), var(--surface-card)); border: 1px solid var(--border); border-left: 4px solid var(--brand-teal); border-radius: var(--radius); padding: 12px 16px; }
+.qotd-icon { font-size: 20px; flex: 0 0 auto; opacity: .8; }
+.qotd-main { flex: 1 1 auto; min-width: 0; }
+.qotd-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--brand-teal); }
+.qotd-text { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-top: 2px; overflow-wrap: anywhere; }
+.qotd-author { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
+.qotd-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.qotd-btn { border: 1px solid var(--border); background: var(--surface-card); color: var(--text-primary); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.qotd-btn:hover { border-color: var(--text-muted); }
+.qotd-btn.primary { background: var(--brand-teal); border-color: var(--brand-teal); color: #fff; }
+.qotd-btn:disabled { opacity: .55; cursor: default; }
+.qotd-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+.qotd-form input { padding: 6px 9px; border: 1px solid var(--gridline); border-radius: var(--radius-sm); background: var(--surface-card); color: var(--text-primary); font-size: 13px; font-family: inherit; min-width: 0; }
+.qotd-form input.q { flex: 3 1 260px; }
+.qotd-form input.a { flex: 1 1 140px; }
+.qotd-msg { font-size: 12px; margin-top: 6px; color: var(--text-muted); }
+.qotd-msg.err { color: var(--status-critical); }
+@media (max-width: 700px) { .qotd { flex-wrap: wrap; } .qotd-icon { display: none; } .qotd-actions { width: 100%; justify-content: flex-end; } .qotd-wrap { padding: 12px 16px 0; } }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
@@ -546,6 +567,13 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   <button class="tab-btn" data-tab="admin" id="manageUsersTabBtn" style="display:none;">Manage Users</button>
 </nav>
 
+<!-- Quote of the Day — shared with the Del Taco / Great Clips dashboards (gc_daily_quotes) -->
+<div class="qotd-wrap"><div class="qotd" id="qotd" aria-live="polite">
+  <span class="qotd-icon" aria-hidden="true">&#128172;</span>
+  <div class="qotd-main" id="qotdMain"><div class="qotd-label">Quote of the day</div><div class="qotd-text" style="opacity:.5">Loading…</div></div>
+  <div class="qotd-actions" id="qotdActions"></div>
+</div></div>
+
 <!-- TAB: SALES PERFORMANCE -->
 <div class="tab-content active" id="tab-sales">
   <div class="container-wide">
@@ -554,7 +582,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
       <span>Loading live ServiceMinder data…</span>
     </div>
 
-    <div class="section-title">Revenue Pacing <span class="section-title-sub" id="pacingSectionSub">— MTD = ServiceMinder invoiced so far this month + this month's scheduled installs not yet invoiced; QTD/YTD = invoiced. Plus on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. Click "On the Books" to see which jobs are included.</span></div>
+    <div class="section-title">Revenue Pacing <span class="section-title-sub" id="pacingSectionSub">— MTD = ServiceMinder invoiced so far this month + this month's scheduled installs not yet invoiced; QTD/YTD = invoiced. Plus on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. Click MTD, QTD or "On the Books" to see which jobs are included.</span></div>
     <div class="callout-row" id="pacingRow"></div>
 
     <div class="section-title" id="nmTitle">On the Books — Next Month <span class="section-title-sub">— install jobs on the ServiceMinder calendar for next month, valued at their accepted proposal</span></div>
@@ -952,6 +980,7 @@ async function handleAuthedSession(session) {
 }
 
 function startApp() {
+  loadQotd();
   renderAll();
   loadLiveProposalsSummary();
   loadLiveRevenueTiles();
@@ -1889,6 +1918,7 @@ function refreshSalesRangeDefault() {
    "live fetch on page load/tab switch" mechanism Pranav approved 2026-09-03. Falls back to the
    dataStore.revenue Aug 20 snapshot on any error, same pattern as loadOnTheBooksModalData. */
 let liveRevenue = { status: 'idle' };
+let lastLiveRevenue = null;   // last successful pull — kept on screen while a tab-switch refresh runs
 async function loadLiveRevenueTiles() {
   liveRevenue = { status: 'loading' };
   renderSalesTab();
@@ -1904,10 +1934,10 @@ async function loadLiveRevenueTiles() {
       callSMEdge({ report: 'pacing', from: qtdRange.from, through: qtdRange.through }),
       callSMEdge({ report: 'pacing', from: ytdRange.from, through: ytdRange.through }),
     ]);
-    liveRevenue = {
+    liveRevenue = lastLiveRevenue = {
       status: 'ready', fetchedAt: new Date(), mtdRange, qtdRange, ytdRange,
       mtdInvoiced: mtd.total, mtdInvoiceCount: mtd.invoiceCount,
-      mtdBreakdown: { invoiced: mtd.invoiced, scheduled: mtd.scheduled, scheduledJobs: mtd.scheduledJobs, invoiceCount: mtd.invoiceCount },
+      mtdBreakdown: { invoiced: mtd.invoiced, scheduled: mtd.scheduled, scheduledJobs: mtd.scheduledJobs, invoiceCount: mtd.invoiceCount, scheduledDetail: mtd.scheduledDetail || [] },
       qtdInvoiced: qtd.revenue, ytdInvoiced: ytd.revenue,
     };
   } catch (err) {
@@ -1922,12 +1952,13 @@ async function loadLiveRevenueTiles() {
    on switching into the Sales Performance tab. Falls back to the dataStore.revenue static snapshot for
    On the Books on any error; the allProposals-derived metrics simply show as unavailable. */
 let liveProposals = { status: 'idle' };
+let lastLiveProposals = null;
 async function loadLiveProposalsSummary() {
   liveProposals = { status: 'loading' };
   renderSalesTab();
   try {
     const result = await callSMEdge({ report: 'onthebooks' });
-    liveProposals = {
+    liveProposals = lastLiveProposals = {
       status: 'ready', fetchedAt: new Date(),
       onTheBooksValue: result.totalValue, onTheBooksCount: result.count,
       openProposalsCount: result.openProposals ? result.openProposals.count : null,
@@ -2048,11 +2079,15 @@ function renderSalesTab() {
   const r = dataStore.revenue;
   const liveRev = liveRevenue.status === 'ready' ? liveRevenue : null;
   const liveProp = liveProposals.status === 'ready' ? liveProposals : null;
-  const mtdInvoiced = liveRev ? liveRev.mtdInvoiced : r.mtdInvoiced;
-  const qtdInvoiced = liveRev ? liveRev.qtdInvoiced : r.qtdInvoiced;
-  const ytdInvoiced = liveRev ? liveRev.ytdInvoiced : r.ytdInvoiced;
-  const onTheBooksValue = liveProp ? liveProp.onTheBooksValue : r.onTheBooksValue;
-  const onTheBooksCount = liveProp ? liveProp.onTheBooksCount : r.onTheBooksCount;
+  // Pacing tiles read the current pull, or the last good one while a refresh runs (see the FIX note
+  // at the pacingRow render below). The 0 defaults are never displayed — those tiles show a placeholder.
+  const pacingRev = liveRev || lastLiveRevenue;
+  const pacingProp = liveProp || lastLiveProposals;
+  const mtdInvoiced = pacingRev ? pacingRev.mtdInvoiced : 0;
+  const qtdInvoiced = pacingRev ? pacingRev.qtdInvoiced : 0;
+  const ytdInvoiced = pacingRev ? pacingRev.ytdInvoiced : 0;
+  const onTheBooksValue = pacingProp ? pacingProp.onTheBooksValue : 0;
+  const onTheBooksCount = pacingProp ? pacingProp.onTheBooksCount : 0;
   const allProposals = liveProp ? liveProp.allProposals : null;
 
   const banner = document.getElementById('salesBanner');
@@ -2066,7 +2101,7 @@ function renderSalesTab() {
   } else if (liveRevenue.status === 'error' || liveProposals.status === 'error') {
     banner.classList.remove('connected');
     const errMsg = (liveRevenue.error || liveProposals.error || 'unknown error');
-    banner.innerHTML = `<span class="banner-icon">&#9888;</span><span>Live pull failed (${errMsg}) — Revenue Pacing showing the last known snapshot; the period breakdown below is unavailable until the pull succeeds.</span>`;
+    banner.innerHTML = `<span class="banner-icon">&#9888;</span><span>Live pull failed (${errMsg}) — Revenue Pacing tiles that couldn’t load show “—” (they show the last good pull if there was one this session); the period breakdown below is unavailable until the pull succeeds.</span>`;
   } else {
     banner.classList.add('connected');
     banner.innerHTML = `<span class="banner-icon">&#10003;</span><span>Live data from ServiceMinder (org 4457).</span>`;
@@ -2100,23 +2135,32 @@ function renderSalesTab() {
 
   const pacingSub = document.getElementById('pacingSectionSub');
   if (trend) {
-    pacingSub.innerHTML = `— MTD = ServiceMinder invoiced so far this month + this month's scheduled installs not yet invoiced; QTD/YTD = invoiced. Plus on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" = YTD + On the Books + ${fmtMoneyCompact(projectedRemaining)} projected for the rest of the year, based on a ${fmtMoney(trend.runRate)}/mo run rate (avg of ${trend.history.length} months on file, adjusted by ${trend.growthRatePct >= 0 ? '+' : ''}${trend.growthRatePct.toFixed(1)}% growth — ${trend.recentLabel} avg vs ${trend.priorLabel} avg) &times; ${remainingMonthsFraction.toFixed(1)} remaining months. Click "On the Books" to see which jobs are included.`;
+    pacingSub.innerHTML = `— MTD = ServiceMinder invoiced so far this month + this month's scheduled installs not yet invoiced; QTD/YTD = invoiced. Plus on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" = YTD + On the Books + ${fmtMoneyCompact(projectedRemaining)} projected for the rest of the year, based on a ${fmtMoney(trend.runRate)}/mo run rate (avg of ${trend.history.length} months on file, adjusted by ${trend.growthRatePct >= 0 ? '+' : ''}${trend.growthRatePct.toFixed(1)}% growth — ${trend.recentLabel} avg vs ${trend.priorLabel} avg) &times; ${remainingMonthsFraction.toFixed(1)} remaining months. Click MTD, QTD or "On the Books" to see which jobs are included.`;
   } else {
-    pacingSub.innerHTML = `— MTD = ServiceMinder invoiced so far this month + this month's scheduled installs not yet invoiced; QTD/YTD = invoiced. Plus on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year (not enough monthly history yet for a trend). Click "On the Books" to see which jobs are included.`;
+    pacingSub.innerHTML = `— MTD = ServiceMinder invoiced so far this month + this month's scheduled installs not yet invoiced; QTD/YTD = invoiced. Plus on-the-books (accepted proposals since May 2026, not yet completed) vs the 2026 budget. "Projected" assumes zero additional new sales for the rest of the year (not enough monthly history yet for a trend). Click MTD, QTD or "On the Books" to see which jobs are included.`;
   }
 
+  // FIX 2026-11-05 (Pranav: "When the dashboard is loading, why does it show this MTD revenue amount?"):
+  // until the first live pull landed, these tiles showed dataStore.revenue's old static snapshot
+  // ($121.4K invoiced, from a past month). Now each tile shows the live value (or the last good one
+  // while a tab-switch refresh runs), otherwise a Loading / Couldn't-load placeholder — never a
+  // figure from another period.
+  const qLabel = `QTD Revenue (Q${Math.floor((Number(localTodayISO().slice(5, 7)) - 1) / 3) + 1})`;
+  const revFailed = !pacingRev && liveRevenue.status === 'error';
+  const propFailed = !pacingProp && liveProposals.status === 'error';
+  const pendingTile = (label, failed) => `<div class="callout"><div class="callout-label">${label}</div><div class="callout-value" style="opacity:.45;">—</div><div class="kpi-delta neutral" style="opacity:.75;">${failed ? 'Couldn’t load from ServiceMinder' : 'Loading from ServiceMinder…'}</div></div>`;
   document.getElementById('pacingRow').innerHTML = [
-    calloutTile('MTD Revenue', fmtMoneyCompact(mtdInvoiced),
-      { target: r.mtdRevenueBudget, actual: mtdInvoiced, sentiment: paceSentiment(mtdPct, elapsedPctOfPeriod('month')) })
-      .replace(/<\/div>$/, liveRev && liveRev.mtdBreakdown
-        ? `<div class="kpi-delta neutral" style="opacity:.75;font-size:12px;">Invoiced ${fmtMoneyCompact(liveRev.mtdBreakdown.invoiced)} · Scheduled ${fmtMoneyCompact(liveRev.mtdBreakdown.scheduled)} (${liveRev.mtdBreakdown.scheduledJobs} job${liveRev.mtdBreakdown.scheduledJobs === 1 ? '' : 's'})</div></div>`
+    !pacingRev ? pendingTile('MTD Revenue', revFailed) : revClickable(calloutTile('MTD Revenue', fmtMoneyCompact(mtdInvoiced),
+      { target: r.mtdRevenueBudget, actual: mtdInvoiced, sentiment: paceSentiment(mtdPct, elapsedPctOfPeriod('month')) }), 'mtd')
+      .replace(/<\/div>$/, pacingRev.mtdBreakdown
+        ? `<div class="kpi-delta neutral" style="opacity:.75;font-size:12px;">Invoiced ${fmtMoneyCompact(pacingRev.mtdBreakdown.invoiced)} · Scheduled ${fmtMoneyCompact(pacingRev.mtdBreakdown.scheduled)} (${pacingRev.mtdBreakdown.scheduledJobs} job${pacingRev.mtdBreakdown.scheduledJobs === 1 ? '' : 's'})</div></div>`
         : '</div>'),
-    calloutTile(`QTD Revenue (Q${Math.floor((Number(localTodayISO().slice(5, 7)) - 1) / 3) + 1})`, fmtMoneyCompact(qtdInvoiced),
-      { target: r.quarterlyRevenueBudget, actual: qtdInvoiced, sentiment: paceSentiment(qtdPct, elapsedPctOfPeriod('quarter')) }),
-    calloutTile('YTD Revenue', fmtMoneyCompact(ytdInvoiced),
+    !pacingRev ? pendingTile(qLabel, revFailed) : revClickable(calloutTile(qLabel, fmtMoneyCompact(qtdInvoiced),
+      { target: r.quarterlyRevenueBudget, actual: qtdInvoiced, sentiment: paceSentiment(qtdPct, elapsedPctOfPeriod('quarter')) }), 'qtd'),
+    !pacingRev ? pendingTile('YTD Revenue', revFailed) : calloutTile('YTD Revenue', fmtMoneyCompact(ytdInvoiced),
       { target: r.annualRevenueBudget, actual: ytdInvoiced, sentiment: paceSentiment(ytdPct, elapsedPctOfPeriod('year')) }),
-    calloutTileInfo('On the Books', fmtMoneyCompact(onTheBooksValue), onTheBooksCount + ' accepted proposals since May 2026, not yet complete', 'openOnTheBooksModal()'),
-    calloutTile('Projected Year-End', fmtMoneyCompact(projectedYearEnd),
+    !pacingProp ? pendingTile('On the Books', propFailed) : calloutTileInfo('On the Books', fmtMoneyCompact(onTheBooksValue), onTheBooksCount + ' accepted proposals since May 2026, not yet complete', 'openOnTheBooksModal()'),
+    !(pacingRev && pacingProp) ? pendingTile('Projected Year-End', revFailed || propFailed) : calloutTile('Projected Year-End', fmtMoneyCompact(projectedYearEnd),
       { target: r.annualRevenueBudget, actual: projectedYearEnd, sentiment: paceSentiment(projectedPct, 100) }),
   ].join('');
 
@@ -2328,6 +2372,92 @@ function closeNmModal() {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && document.getElementById('nmModalBackdrop').classList.contains('open')) closeNmModal();
 });
+
+/* ---------------- MTD / QTD Revenue drill-downs (2026-11-05, per Pranav — "just like On the Books",
+   MTD and QTD only) ----------------
+   MTD = this month's invoices (serviceminder-revenue report=invoicelist, same pull/rules as the tile's
+   invoiced half) + the scheduled, not-yet-billed installs behind the tile's scheduled half (the
+   scheduledDetail that report=mtdrevenue already returns). QTD = the quarter's invoices. Each opens with
+   a by-estimator summary, then the jobs. Reuses the next-month modal shell. */
+function revClickable(tileHtml, kind) {
+  return tileHtml.replace('<div class="callout">', `<div class="callout callout-clickable" onclick="openRevenueJobsModal('${kind}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openRevenueJobsModal('${kind}');}">`);
+}
+const revInvoiceCache = {};   // "from|through" -> { at, data }
+function revRepName(o) {
+  const n = String(o || '').trim();
+  if (!n) return null;
+  return EXCLUDED_REPS.has(n) ? 'Other' : n;   // excluded reps are never shown by name
+}
+function revShowModal(title, sub, body, footer) {
+  document.getElementById('nmModalTitle').textContent = title;
+  document.getElementById('nmModalSubtitle').textContent = sub;
+  const b = document.getElementById('nmModalBody');
+  b.innerHTML = body; b.classList.add('nm-modal-body');
+  const f = document.getElementById('nmModalFooter');
+  f.textContent = footer || ''; f.style.display = footer ? '' : 'none';
+  document.getElementById('nmModalBackdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function revByRepTable(invoices, scheduled) {
+  const byRep = new Map();
+  const bump = (k, field, v) => { const key = k || '(No rep on proposal)'; const b = byRep.get(key) || { inv: 0, sch: 0, n: 0 }; b[field] += v; b.n++; byRep.set(key, b); };
+  invoices.forEach(j => bump(revRepName(j.rep), 'inv', j.value || 0));
+  (scheduled || []).forEach(j => bump(j.owner, 'sch', j.remaining || 0));
+  const rows = [...byRep.entries()].sort((a, b) => (b[1].inv + b[1].sch) - (a[1].inv + a[1].sch));
+  const tot = rows.reduce((s, [, b]) => ({ inv: s.inv + b.inv, sch: s.sch + b.sch, n: s.n + b.n }), { inv: 0, sch: 0, n: 0 });
+  const withSched = scheduled != null;
+  const all = tot.inv + tot.sch;
+  return `<div class="nm-modal-h">By estimator</div>
+    <div class="store-table-wrap"><table class="store-table"><thead><tr><th>Estimator</th><th>Jobs</th><th style="text-align:right;">Invoiced</th>${withSched ? '<th style="text-align:right;">Scheduled</th><th style="text-align:right;">Total</th>' : ''}<th style="text-align:right;">Share</th></tr></thead><tbody>
+    ${rows.map(([k, b]) => `<tr><td>${nmEsc(k)}</td><td>${b.n}</td><td style="text-align:right;">${fmtMoney(b.inv)}</td>${withSched ? `<td style="text-align:right;">${fmtMoney(b.sch)}</td><td style="text-align:right;">${fmtMoney(b.inv + b.sch)}</td>` : ''}<td style="text-align:right;">${all ? Math.round(100 * (b.inv + b.sch) / all) + '%' : '&mdash;'}</td></tr>`).join('')}
+    <tr><td style="font-weight:700;">Total</td><td style="font-weight:700;">${tot.n}</td><td style="text-align:right;font-weight:700;">${fmtMoney(tot.inv)}</td>${withSched ? `<td style="text-align:right;font-weight:700;">${fmtMoney(tot.sch)}</td><td style="text-align:right;font-weight:700;">${fmtMoney(all)}</td>` : ''}<td></td></tr>
+    </tbody></table></div>`;
+}
+function revInvoiceTable(invoices, heading) {
+  return `<div class="nm-modal-h" style="margin-top:16px;">${heading} (${invoices.length})</div>
+    <div class="store-table-wrap" style="margin-bottom:0;"><table class="store-table"><thead><tr><th>Invoice date</th><th>Customer</th><th>Estimator</th><th>Status</th><th style="text-align:right;">Amount</th></tr></thead><tbody>
+    ${invoices.map(j => { const rp = revRepName(j.rep); return `<tr><td>${nmDate(j.date)}</td><td>${nmEsc(j.name)}</td><td>${rp ? nmEsc(rp) : '<span class="nm-muted">&mdash;</span>'}</td><td>${nmEsc(j.status)}</td><td style="text-align:right;">${fmtMoney(j.value)}</td></tr>`; }).join('') || '<tr><td colspan="5" class="nm-muted">No invoices yet in this period.</td></tr>'}
+    </tbody></table></div>`;
+}
+async function openRevenueJobsModal(kind) {
+  const rev = liveRevenue.status === 'ready' ? liveRevenue : lastLiveRevenue;
+  if (!rev) return;
+  const range = kind === 'mtd' ? rev.mtdRange : rev.qtdRange;
+  const qNum = Math.floor((Number(range.from.slice(5, 7)) - 1) / 3) + 1;
+  const periodLabel = kind === 'mtd' ? nmMonthLabel(range.from.slice(0, 7)) : `Q${qNum} ${range.from.slice(0, 4)}`;
+  const title = kind === 'mtd' ? `MTD Revenue — ${fmtMoney(rev.mtdInvoiced)}` : `QTD Revenue (${periodLabel}) — ${fmtMoney(rev.qtdInvoiced)}`;
+  const sub = kind === 'mtd'
+    ? `${periodLabel}: invoiced so far + scheduled installs not yet billed (proposal value minus anything already invoiced on it).`
+    : `Invoices dated ${nmDate(range.from)} – ${nmDate(range.through)}.`;
+  revShowModal(title, sub, '<div class="nm-muted" style="padding:16px 0;">Loading jobs from ServiceMinder…</div>');
+  const key = range.from + '|' + range.through;
+  let data;
+  try {
+    const hit = revInvoiceCache[key];
+    if (hit && Date.now() - hit.at < 5 * 60 * 1000) data = hit.data;
+    else { data = await callSMEdge({ report: 'invoicelist', from: range.from, through: range.through }); revInvoiceCache[key] = { at: Date.now(), data }; }
+  } catch (err) {
+    revShowModal(title, sub, `<div class="nm-muted" style="padding:16px 0;color:var(--status-critical);">Couldn’t load the jobs: ${nmEsc(err.message)}</div>`);
+    return;
+  }
+  if (!document.getElementById('nmModalBackdrop').classList.contains('open') || document.getElementById('nmModalTitle').textContent !== title) return;
+  const invoices = data.jobs || [];
+  let body, footer = '';
+  if (kind === 'mtd') {
+    const sched = ((rev.mtdBreakdown && rev.mtdBreakdown.scheduledDetail) || []).map(j => ({ ...j, owner: revRepName(String(j.owner || '').split(',')[0]) }));
+    body = revByRepTable(invoices, sched) + revInvoiceTable(invoices, `Invoiced — ${fmtMoney(data.total)}`) +
+      `<div class="nm-modal-h" style="margin-top:16px;">Scheduled, not yet invoiced — ${fmtMoney(sched.reduce((s, j) => s + (j.remaining || 0), 0))} (${sched.length})</div>
+      <div class="store-table-wrap" style="margin-bottom:0;"><table class="store-table"><thead><tr><th>Install starts</th><th>Customer</th><th>Estimator</th><th style="text-align:right;">Proposal</th><th style="text-align:right;">Already invoiced</th><th style="text-align:right;">Counting</th></tr></thead><tbody>
+      ${sched.slice().sort((a, b) => (a.firstDate || '').localeCompare(b.firstDate || '') || b.remaining - a.remaining).map(j => `<tr><td>${nmDate(j.firstDate)}</td><td>${nmEsc(j.name)}</td><td>${j.owner ? nmEsc(j.owner) : '<span class="nm-muted">&mdash;</span>'}</td><td style="text-align:right;">${fmtMoney(j.value)}</td><td style="text-align:right;">${j.billed ? fmtMoney(j.billed) : '<span class="nm-muted">&mdash;</span>'}</td><td style="text-align:right;">${fmtMoney(j.remaining)}</td></tr>`).join('') || '<tr><td colspan="6" class="nm-muted">No scheduled installs left to bill this month.</td></tr>'}
+      </tbody></table></div>`;
+    const diff = Math.abs((data.total || 0) - (rev.mtdBreakdown ? rev.mtdBreakdown.invoiced : 0));
+    if (diff > 1) footer = `ServiceMinder updated since the tile loaded — invoiced is now ${fmtMoney(data.total)}. Refresh the page for the latest totals.`;
+  } else {
+    body = revByRepTable(invoices, null) + revInvoiceTable(invoices, 'Invoices');
+    if (Math.abs((data.total || 0) - (rev.qtdInvoiced || 0)) > 1) footer = `ServiceMinder updated since the tile loaded — the quarter is now ${fmtMoney(data.total)}. Refresh the page for the latest totals.`;
+  }
+  revShowModal(title, sub, body, footer);
+}
 
 /* ---------------- On the Books drill-down modal ---------------- */
 /* Shows which jobs make up the "On the Books" figure (Status: Accepted, Scheduled, or Invoiced).
@@ -4524,6 +4654,164 @@ setInterval(() => {
 }, 60000);
 
 /* ---------------- Init ---------------- */
+/* ---------------- Quote of the Day (2026-11-05, per Pranav) ----------------
+   Same table the Del Taco and Great Clips dashboards use: public.gc_daily_quotes
+   (quote_date PK, quote, author, set_by, updated_at). A quote set on any of the three dashboards for a
+   date shows on all three. When nobody has set one for today, this dashboard rotates through its own
+   built-in list (the other two do the same with theirs), skipping anything set in the last 60 days. */
+const QOTD_FALLBACK = [
+  ['Act as if what you do makes a difference. It does.', 'William James'],
+  ['Well done is better than well said.', 'Benjamin Franklin'],
+  ['Diligence is the mother of good luck.', 'Benjamin Franklin'],
+  ['Do what you can, with what you have, where you are.', 'Theodore Roosevelt'],
+  ['Nothing will work unless you do.', 'Maya Angelou'],
+  ['Motivation is what gets you started. Habit is what keeps you going.', 'Jim Ryun'],
+  ['Success is the sum of small efforts, repeated day in and day out.', 'Robert Collier'],
+  ['The best way out is always through.', 'Robert Frost'],
+  ['Plans are nothing; planning is everything.', 'Dwight D. Eisenhower'],
+  ['Make a customer, not a sale.', 'Katherine Barchetti'],
+  ['Approach each customer with the idea of helping him or her solve a problem or achieve a goal, not of selling a product or service.', 'Brian Tracy'],
+  ["You don't close a sale; you open a relationship.", 'Patricia Fripp'],
+  ['Opportunities don’t happen. You create them.', 'Chris Grosser'],
+  ['Don’t watch the clock; do what it does. Keep going.', 'Sam Levenson'],
+  ['If you’re not taking care of your customer, your competitor will.', 'Bob Hooey'],
+  ['Your most unhappy customers are your greatest source of learning.', 'Bill Gates'],
+  ['Great things in business are never done by one person. They’re done by a team of people.', 'Steve Jobs'],
+  ['Talent wins games, but teamwork and intelligence win championships.', 'Michael Jordan'],
+  ['Small deeds done are better than great deeds planned.', 'Peter Marshall'],
+  ['The best time to plant a tree was 20 years ago. The second best time is now.', 'Chinese proverb'],
+  ['Hard work beats talent when talent doesn’t work hard.', 'Tim Notke'],
+  ['Effort only fully releases its reward after a person refuses to quit.', 'Napoleon Hill'],
+  ['Be so good they can’t ignore you.', 'Steve Martin'],
+  ['Energy and persistence conquer all things.', 'Benjamin Franklin'],
+  ['Every sale has five basic obstacles: no need, no money, no hurry, no desire, no trust.', 'Zig Ziglar'],
+  ['The way to get started is to quit talking and begin doing.', 'Walt Disney'],
+  ['A great day starts with a great plan — and a follow-up call.', null],
+  ['The fortune is in the follow-up.', null],
+];
+let qotdState = { status: 'loading', today: null, row: null, recent: [], editing: false, saving: false, msg: '', err: false };
+
+function qotdEsc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function qotdShift(iso, days) {
+  const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10);
+}
+function qotdLabelDate(iso) {
+  const d = new Date(iso + 'T12:00:00Z');
+  const wd = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }).toUpperCase();
+  return `${wd}, ${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+}
+// Today's fallback: a stable pick by day number, skipping quotes someone set in the last 60 days.
+function qotdFallback(todayISO, recent) {
+  const used = new Set((recent || []).map(r => String(r.quote || '').trim().toLowerCase()));
+  const pool = QOTD_FALLBACK.filter(([q]) => !used.has(q.toLowerCase()));
+  const list = pool.length ? pool : QOTD_FALLBACK;
+  const dayNum = Math.floor(Date.parse(todayISO + 'T00:00:00Z') / 86400000);
+  const [quote, author] = list[dayNum % list.length];
+  return { quote, author };
+}
+function qotdCurrent() {
+  const r = qotdState.row;
+  if (r && String(r.quote || '').trim()) return { quote: r.quote.trim(), author: (r.author || '').trim() || null, setBy: r.set_by || null, fromTable: true };
+  return { ...qotdFallback(qotdState.today, qotdState.recent), fromTable: false };
+}
+
+function renderQotd() {
+  const main = document.getElementById('qotdMain');
+  const actions = document.getElementById('qotdActions');
+  if (!main || !actions) return;
+  const today = qotdState.today || localTodayISO();
+  const label = `<div class="qotd-label">Quote of the day · ${qotdLabelDate(today)}</div>`;
+  if (qotdState.status === 'loading') {
+    main.innerHTML = label + '<div class="qotd-text" style="opacity:.5">Loading…</div>';
+    actions.innerHTML = '';
+    return;
+  }
+  const cur = qotdCurrent();
+  let body = `${label}<div class="qotd-text">“${qotdEsc(cur.quote)}”</div>` + (cur.author ? `<div class="qotd-author">— ${qotdEsc(cur.author)}</div>` : '');
+  if (qotdState.editing) {
+    const q = cur.fromTable ? cur.quote : '';
+    const a = cur.fromTable ? (cur.author || '') : '';
+    body += `<div class="qotd-form">
+      <input class="q" id="qotdQuoteInput" type="text" maxlength="300" placeholder="Today's quote" value="${qotdEsc(q)}" aria-label="Quote">
+      <input class="a" id="qotdAuthorInput" type="text" maxlength="80" placeholder="Author (optional)" value="${qotdEsc(a)}" aria-label="Author">
+      <button class="qotd-btn primary" onclick="saveQotd()" ${qotdState.saving ? 'disabled' : ''}>${qotdState.saving ? 'Saving…' : 'Save'}</button>
+      <button class="qotd-btn" onclick="cancelQotdEdit()" ${qotdState.saving ? 'disabled' : ''}>Cancel</button>
+    </div><div class="qotd-msg">Shows today on the Koala, Del Taco and Great Clips dashboards.</div>`;
+  }
+  if (qotdState.msg) body += `<div class="qotd-msg${qotdState.err ? ' err' : ''}">${qotdEsc(qotdState.msg)}</div>`;
+  main.innerHTML = body;
+  actions.innerHTML = qotdState.editing ? '' :
+    `<button class="qotd-btn" onclick="copyQotd(this)">&#128203; Copy</button><button class="qotd-btn" onclick="openQotdEdit()">&#9999;&#65039; Set a quote</button>`;
+  if (qotdState.editing) {
+    const inp = document.getElementById('qotdQuoteInput');
+    if (inp && !qotdState.saving) {
+      inp.focus();
+      inp.onkeydown = e => { if (e.key === 'Enter') saveQotd(); if (e.key === 'Escape') cancelQotdEdit(); };
+      document.getElementById('qotdAuthorInput').onkeydown = inp.onkeydown;
+    }
+  }
+}
+
+async function loadQotd() {
+  const today = localTodayISO();
+  const firstLoad = qotdState.today !== today || qotdState.status === 'loading';
+  qotdState.today = today;
+  if (firstLoad) { qotdState.status = 'loading'; renderQotd(); }
+  try {
+    const { data, error } = await sbClient.from('gc_daily_quotes')
+      .select('quote_date, quote, author, set_by, updated_at')
+      .gte('quote_date', qotdShift(today, -60)).lte('quote_date', today);
+    if (error) throw error;
+    const rows = data || [];
+    qotdState.row = rows.find(r => r.quote_date === today) || null;
+    qotdState.recent = rows.filter(r => r.quote_date !== today);
+  } catch (err) {
+    // Can't reach the table: still show today's built-in quote rather than an error banner.
+    console.error('Quote of the day load failed:', err);
+  }
+  qotdState.status = 'ready';
+  if (!qotdState.editing) renderQotd();
+}
+
+function openQotdEdit() { qotdState.editing = true; qotdState.msg = ''; qotdState.err = false; renderQotd(); }
+function cancelQotdEdit() { qotdState.editing = false; qotdState.msg = ''; qotdState.err = false; renderQotd(); }
+
+async function saveQotd() {
+  const q = (document.getElementById('qotdQuoteInput').value || '').trim();
+  const a = (document.getElementById('qotdAuthorInput').value || '').trim();
+  if (!q) { qotdState.msg = 'Type a quote first.'; qotdState.err = true; renderQotd(); return; }
+  qotdState.saving = true; qotdState.msg = ''; renderQotd();
+  const row = { quote_date: qotdState.today || localTodayISO(), quote: q.slice(0, 300), author: a ? a.slice(0, 80) : null,
+    set_by: currentUser ? currentUser.name : null, updated_at: new Date().toISOString() };
+  try {
+    const { error } = await sbClient.from('gc_daily_quotes').upsert(row, { onConflict: 'quote_date' });
+    if (error) throw error;
+    qotdState.row = row; qotdState.editing = false; qotdState.saving = false;
+    qotdState.msg = 'Saved — this is today’s quote on all three dashboards.'; qotdState.err = false;
+    renderQotd();
+    setTimeout(() => { if (!qotdState.editing) { qotdState.msg = ''; renderQotd(); } }, 4000);
+  } catch (err) {
+    qotdState.saving = false; qotdState.msg = 'Couldn’t save: ' + (err.message || err); qotdState.err = true;
+    renderQotd();
+  }
+}
+
+async function copyQotd(btn) {
+  const cur = qotdCurrent();
+  const text = `“${cur.quote}”` + (cur.author ? ` — ${cur.author}` : '');
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = '✓ Copied';
+  } catch (e) {
+    btn.textContent = 'Copy failed';
+  }
+  setTimeout(() => { if (btn.isConnected) btn.innerHTML = '&#128203; Copy'; }, 1800);
+}
+// Pick up a quote set from another dashboard, and roll over at midnight.
+setInterval(() => { if (currentUser && !qotdState.editing && !qotdState.saving) loadQotd(); }, 15 * 60 * 1000);
+
 function renderAll() {
   renderSalesTab();
   renderFinancialTab();

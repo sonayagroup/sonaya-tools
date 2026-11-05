@@ -11631,6 +11631,9 @@ const GMCL_ITEMS = {
     { key: 'taco_talk_1',    text: '1 Taco Talk per day' },
     { key: 'reps',           text: 'REPS' },
     { key: 'dayforce_ts',    text: 'Authorize Timesheets in Dayforce', note: 'Add comments for any edits made' },
+    { key: 'food_var_coach', text: 'Coach on food variance in WhatsApp' },
+    { key: 'deploy_chart',   text: 'Fill out deployment chart' },
+    { key: 'print_pars',     text: 'Print out PARS' },
   ],
   weekly: [
     { key: 'variance_rpt',   text: 'Send in Weekly Inventory Variance report' },
@@ -11725,7 +11728,8 @@ function clPastCutoff(deadlineStr) { const n = clNowParts(); return n.date > dea
 /* ===== QUOTE OF THE DAY =====
    A built-in list rotates by date (same quote for everyone that day, Mountain time).
    Owners and District Managers can set their own quote for any date; those are stored in
-   dt_daily_quotes and win over the built-in one. Saving a day blank goes back to the built-in quote. */
+   gc_daily_quotes (shared with the Great Clips dashboard, so a custom quote shows on both) and win over
+   the built-in one. Saving a day blank goes back to the built-in quote. */
 const QOD_LIST = [
   ["Act as if what you do makes a difference. It does.", "William James"],
   ["The way to get things done is not to mind who gets the credit.", "Benjamin Jowett"],
@@ -11795,7 +11799,7 @@ function qodCanEdit() { return !!(currentPerms && currentPerms.is_active && (cur
 
 async function qodLoad() {
   try {
-    const res = await sbFetch('dt_daily_quotes?select=*&quote_date=gte.' + clAddDays(clTodayStr(), -60));
+    const res = await sbFetch('gc_daily_quotes?select=*&quote_date=gte.' + clAddDays(clTodayStr(), -60));
     const rows = res.ok ? await res.json() : [];
     QOD.custom = {}; (rows || []).forEach(r => { QOD.custom[r.quote_date] = r; });
   } catch (e) { console.error('Quote of the day load error:', e); }
@@ -11849,7 +11853,7 @@ function qodEditor(day) {
       set_by: (currentPerms && currentPerms.name) || (currentUser && currentUser.email) || '', updated_at: new Date().toISOString() };
     const btn = document.getElementById('qodSave'); btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      const { error } = await supaAuth.from('dt_daily_quotes').upsert(body, { onConflict: 'quote_date' });
+      const { error } = await supaAuth.from('gc_daily_quotes').upsert(body, { onConflict: 'quote_date' });
       if (error) throw error;
       QOD.custom[d] = body; close(); qodRender();
     } catch (e) { err.textContent = e.message || 'Could not save the quote.'; btn.disabled = false; btn.textContent = 'Save'; }

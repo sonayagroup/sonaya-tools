@@ -886,6 +886,24 @@ body {
 .gmcl-banner { background:var(--status-warn-bg,rgba(179,122,0,.1)); border:1px solid rgba(179,122,0,0.2); border-radius:var(--radius,8px); padding:10px 16px; margin-bottom:16px; display:flex; align-items:center; gap:10px; font-size:13px; color:var(--status-warn,#b37a00); }
 .gmcl-banner .gmcl-banner-close { margin-left:auto; background:none; border:none; cursor:pointer; font-size:16px; color:var(--text-muted); padding:0 4px; line-height:1; }
 .gmcl-banner .gmcl-banner-close:hover { color:var(--text-primary); }
+/* ===== QUOTE OF THE DAY ===== */
+.qod{display:flex;align-items:center;gap:12px;background:linear-gradient(90deg,rgba(237,28,46,.07),rgba(255,210,1,.07));border:1px solid var(--gridline);border-left:4px solid var(--brand-red);border-radius:var(--radius,8px);padding:10px 14px;margin-bottom:16px}
+.qod:empty{display:none}.qod-ic{font-size:22px;line-height:1}.qod-body{flex:1;min-width:0}
+.qod-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--brand-red)}
+.qod-q{font-size:15px;font-weight:600;color:var(--text-primary);line-height:1.4;margin-top:1px}.qod-a{font-size:12.5px;color:var(--text-secondary);margin-top:2px}
+.qod-btns{display:flex;gap:6px;flex-shrink:0}
+.qod-btn{background:var(--surface-card);border:1px solid var(--gridline);border-radius:6px;padding:5px 9px;font:inherit;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap}.qod-btn:hover{color:var(--brand-red);border-color:var(--brand-red)}
+.qod-modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+.qod-modal-card{background:var(--surface-card);color:var(--text-primary);border-radius:12px;padding:20px 22px;width:100%;max-width:480px;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.qod-modal-card h3{margin:0 0 12px;font-size:17px}
+.qod-modal-card label{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-secondary);margin:10px 0 4px}
+.qod-modal-card input,.qod-modal-card textarea{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--gridline);border-radius:6px;background:var(--surface-page,transparent);color:var(--text-primary)}
+.qod-bi{font-size:12px;color:var(--text-muted);margin-top:10px;line-height:1.45}
+.qod-actions{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-top:16px}
+.qod-err{color:var(--status-critical,#d03b3b);font-size:12px;margin-right:auto}
+.qod-save{background:var(--brand-red);color:#fff;border:none;border-radius:6px;padding:8px 16px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+@media (max-width:640px){.qod{align-items:flex-start;flex-wrap:wrap}.qod-q{font-size:14px}.qod-btns{width:100%;justify-content:flex-end}}
+
 .gmcl-banner .gmcl-banner-stores { font-weight:600; }
 @media(max-width:600px){
   .gmcl-overview { grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; }
@@ -1293,6 +1311,7 @@ body {
 <!-- TAB 1: DAILY OPERATIONS -->
 <div class="tab-content active" id="tab-ops">
   <div class="container">
+    <div class="qod" id="qodBanner"></div>
     <div class="connection-banner" id="opsBanner" style="display:none"></div>
     <div class="gmcl-banner" id="gmclIncompleteBanner" style="display:none">
       <span>&#9888;&#65039;</span>
@@ -11688,38 +11707,167 @@ function gmclDailyPct(storeId, dateStr) {
   return items.length > 0 ? Math.round((done / items.length) * 100) : 0;
 }
 
+/* ---- Checklist clock: Mountain time, deadlines at 8pm ---- */
+const CL_TZ = 'America/Denver';
+const CL_CUTOFF_HOUR = 20; // tasks stay on time until 8:00 PM on their due day
+function clNowParts() {
+  const f = new Intl.DateTimeFormat('en-CA', { timeZone: CL_TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
+  const p = {}; f.formatToParts(new Date()).forEach(x => { p[x.type] = x.value; });
+  return { date: p.year + '-' + p.month + '-' + p.day, hour: (+p.hour) % 24 };
+}
+function clTodayStr() { return clNowParts().date; }
+function clAddDays(dateStr, n) { const d = new Date(dateStr + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function clWeekStart(dateStr) { const d = new Date(dateStr + 'T12:00:00Z'); return clAddDays(dateStr, -((d.getUTCDay() - 3 + 7) % 7)); } // Wednesday
+function clMonthEnd(ym) { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); }
+/* True once it's 8pm (Mountain) or later on the deadline day, or any later day */
+function clPastCutoff(deadlineStr) { const n = clNowParts(); return n.date > deadlineStr || (n.date === deadlineStr && n.hour >= CL_CUTOFF_HOUR); }
+
+/* ===== QUOTE OF THE DAY =====
+   A built-in list rotates by date (same quote for everyone that day, Mountain time).
+   Owners and District Managers can set their own quote for any date; those are stored in
+   dt_daily_quotes and win over the built-in one. Saving a day blank goes back to the built-in quote. */
+const QOD_LIST = [
+  ["Act as if what you do makes a difference. It does.", "William James"],
+  ["The way to get things done is not to mind who gets the credit.", "Benjamin Jowett"],
+  ["Alone we can do so little; together we can do so much.", "Helen Keller"],
+  ["Be quick, but don't hurry.", "John Wooden"],
+  ["We are what we repeatedly do. Excellence, then, is not an act, but a habit.", "Will Durant"],
+  ["Well done is better than well said.", "Benjamin Franklin"],
+  ["Little things make big things happen.", "John Wooden"],
+  ["Make each day your masterpiece.", "John Wooden"],
+  ["Talent wins games, but teamwork and intelligence win championships.", "Michael Jordan"],
+  ["Do what you can, with what you have, where you are.", "Theodore Roosevelt"],
+  ["Excellence is doing ordinary things extraordinarily well.", "John W. Gardner"],
+  ["You don't have to be great to start, but you have to start to be great.", "Zig Ziglar"],
+  ["Teamwork makes the dream work.", "John C. Maxwell"],
+  ["Success is the sum of small efforts, repeated day in and day out.", "Robert Collier"],
+  ["Great things are done by a series of small things brought together.", "Vincent van Gogh"],
+  ["The best preparation for tomorrow is doing your best today.", "H. Jackson Brown Jr."],
+  ["Perfection is not attainable, but if we chase perfection we can catch excellence.", "Vince Lombardi"],
+  ["Individual commitment to a group effort is what makes a team work.", "Vince Lombardi"],
+  ["Success isn't owned. It's leased, and rent is due every day.", "J.J. Watt"],
+  ["Leadership is action, not position.", "Donald McGannon"],
+  ["The customer's perception is your reality.", "Kate Zabriskie"],
+  ["Every order is a promise. Keep it hot, fast and right.", ""],
+  ["Greet every guest like they're a regular.", ""],
+  ["Fast is good. Fast and friendly is better.", ""],
+  ["Make it right the first time.", ""],
+  ["Smile at the speaker. Guests can hear it.", ""],
+  ["The drive-thru is our front door. Keep it moving.", ""],
+  ["Clean as you go. Your guests notice.", ""],
+  ["A great shift starts with a great huddle.", ""],
+  ["Coach the crew, not just the numbers.", ""],
+  ["Stock up before the rush, not during it.", ""],
+  ["Check the bag twice. Hand it out once.", ""],
+  ["Say thank you like you mean it.", ""],
+  ["Help a teammate before they ask.", ""],
+  ["Every guest deserves our best, even at close.", ""],
+  ["Small wins every shift add up to a great week.", ""],
+  ["Take pride in the little things. They're never little to the guest.", ""],
+  ["Lead by example. Your crew is watching.", ""],
+  ["A clean kitchen is a safe kitchen.", ""],
+  ["Great service is everyone's job.", ""],
+  ["Celebrate your crew's wins out loud.", ""],
+  ["Show up, set the tone, and finish strong.", ""],
+  ["Today's guest is tomorrow's regular.", ""],
+  ["Good food, served right, brings guests back.", ""],
+  ["Hot food, cold drinks, warm welcome.", ""],
+  ["Own your shift. Leave it better than you found it.", ""],
+  ["Speed matters. Accuracy matters more.", ""],
+  ["Treat every order like it's going to your own family.", ""],
+  ["Train today so tomorrow runs itself.", ""],
+  ["A calm leader makes a calm crew.", ""],
+  ["Listen to the guest. Then make it right.", ""],
+  ["Win the lunch rush one car at a time.", ""],
+  ["Consistency is what keeps guests coming back.", ""],
+  ["Notice the effort, not just the results.", ""],
+  ["Every shift is a chance to get a little better.", ""],
+  ["Be the reason someone's day got easier.", ""],
+  ["Thank your crew today. Then go be great.", ""]
+];
+const QOD = { custom: {}, loaded: false };
+function qodEsc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function qodDayIndex(iso) { const d = new Date(iso + 'T12:00:00Z'); const start = Date.UTC(d.getUTCFullYear(), 0, 1, 12); return Math.round((d - start) / 864e5) + d.getUTCFullYear() * 366; }
+function qodBuiltIn(iso) { const n = QOD_LIST.length; const i = ((qodDayIndex(iso) * 137) % n + n) % n; return { q: QOD_LIST[i][0], a: QOD_LIST[i][1], custom: false }; }
+function qodFor(iso) { const c = QOD.custom[iso]; if (c && String(c.quote || '').trim()) return { q: c.quote.trim(), a: (c.author || '').trim(), custom: true }; return qodBuiltIn(iso); }
+function qodText(iso) { const x = qodFor(iso || clTodayStr()); return '💬 Quote of the day: “' + x.q + '”' + (x.a ? ' — ' + x.a : ''); }
+function qodCanEdit() { return !!(currentPerms && currentPerms.is_active && (currentPerms.role === 'owner' || currentPerms.role === 'area_manager')); }
+
+async function qodLoad() {
+  try {
+    const res = await sbFetch('dt_daily_quotes?select=*&quote_date=gte.' + clAddDays(clTodayStr(), -60));
+    const rows = res.ok ? await res.json() : [];
+    QOD.custom = {}; (rows || []).forEach(r => { QOD.custom[r.quote_date] = r; });
+  } catch (e) { console.error('Quote of the day load error:', e); }
+  QOD.loaded = true;
+  qodRender();
+}
+
+function qodRender() {
+  const el = document.getElementById('qodBanner'); if (!el) return;
+  const t = clTodayStr(); const x = qodFor(t);
+  const dayLbl = new Date(t + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric', timeZone: 'UTC' });
+  el.innerHTML = '<div class="qod-ic">💬</div><div class="qod-body"><div class="qod-lbl">Quote of the day · ' + dayLbl + '</div>'
+    + '<div class="qod-q">“' + qodEsc(x.q) + '”</div>' + (x.a ? '<div class="qod-a">— ' + qodEsc(x.a) + '</div>' : '') + '</div>'
+    + '<div class="qod-btns"><button type="button" class="qod-btn" id="qodCopy" title="Copy for WhatsApp">📋 Copy</button>'
+    + (qodCanEdit() ? '<button type="button" class="qod-btn" id="qodEdit" title="Set your own quote for any day">✏️ Set a quote</button>' : '') + '</div>';
+  document.getElementById('qodCopy').onclick = qodCopy;
+  const b = document.getElementById('qodEdit'); if (b) b.onclick = () => qodEditor(t);
+}
+
+async function qodCopy() {
+  const btn = document.getElementById('qodCopy'); const text = qodText();
+  try { await navigator.clipboard.writeText(text); }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (_) {} ta.remove(); }
+  if (btn) { btn.textContent = '✓ Copied'; setTimeout(() => { if (btn.isConnected) btn.textContent = '📋 Copy'; }, 1800); }
+}
+
+function qodEditor(day) {
+  if (!qodCanEdit()) return;
+  const wrap = document.createElement('div'); wrap.className = 'qod-modal'; wrap.id = 'qodModal';
+  wrap.innerHTML = '<div class="qod-modal-card" role="dialog" aria-label="Quote of the day"><h3>Quote of the day</h3>'
+    + '<label for="qodDate">Day</label><input type="date" id="qodDate" value="' + day + '">'
+    + '<label for="qodQ">Quote</label><textarea id="qodQ" rows="3" maxlength="300" placeholder="Leave blank to use the built-in quote"></textarea>'
+    + '<label for="qodA">Who said it (optional)</label><input id="qodA" maxlength="80">'
+    + '<div class="qod-bi" id="qodBi"></div>'
+    + '<div class="qod-actions"><span class="qod-err" id="qodErr"></span><button type="button" class="qod-btn" id="qodCancel">Cancel</button><button type="button" class="qod-save" id="qodSave">Save</button></div></div>';
+  document.body.appendChild(wrap);
+  const close = () => wrap.remove();
+  const sync = () => {
+    const d = document.getElementById('qodDate').value; const c = QOD.custom[d] || {}; const b = qodBuiltIn(d || day);
+    document.getElementById('qodQ').value = c.quote || ''; document.getElementById('qodA').value = c.author || '';
+    document.getElementById('qodBi').textContent = 'Built-in for this day: “' + b.q + '”' + (b.a ? ' — ' + b.a : '');
+  };
+  sync();
+  document.getElementById('qodDate').onchange = sync;
+  document.getElementById('qodCancel').onclick = close;
+  wrap.addEventListener('click', e => { if (e.target === wrap) close(); });
+  document.getElementById('qodSave').onclick = async () => {
+    const d = document.getElementById('qodDate').value; const err = document.getElementById('qodErr');
+    if (!d) { err.textContent = 'Pick a day.'; return; }
+    const body = { quote_date: d, quote: document.getElementById('qodQ').value.trim() || null, author: document.getElementById('qodA').value.trim() || null,
+      set_by: (currentPerms && currentPerms.name) || (currentUser && currentUser.email) || '', updated_at: new Date().toISOString() };
+    const btn = document.getElementById('qodSave'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const { error } = await supaAuth.from('dt_daily_quotes').upsert(body, { onConflict: 'quote_date' });
+      if (error) throw error;
+      QOD.custom[d] = body; close(); qodRender();
+    } catch (e) { err.textContent = e.message || 'Could not save the quote.'; btn.disabled = false; btn.textContent = 'Save'; }
+  };
+  document.getElementById('qodQ').focus();
+}
+document.addEventListener('DOMContentLoaded', () => { qodRender(); qodLoad(); });
+
 /* ---- Overdue detection ---- */
 function gmclIsOverdue(type, itemKey, isChecked, selectedDate) {
   if (isChecked) return false;
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  if (type === 'daily') {
-    if (selectedDate < today) return true;
-    if (selectedDate === today && now.getHours() >= 22) return true;
-    return false;
-  }
+  if (type === 'daily') return clPastCutoff(selectedDate);               // 8pm that day
   if (type === 'weekly') {
-    const due = GMCL_WEEKLY_DUE[itemKey];
-    if (!due) return false;
-    /* Week runs Wed–Tue: find Wednesday start */
-    const sel = new Date(selectedDate + 'T12:00:00');
-    const day = sel.getDay();
-    const wedOff = (day - 3 + 7) % 7;
-    const wed = new Date(sel);
-    wed.setDate(sel.getDate() - wedOff);
-    /* Overdue only after the week ends (after Tuesday) */
-    const weekEnd = new Date(wed);
-    weekEnd.setDate(wed.getDate() + 6); // Tuesday
-    const weekEndStr = weekEnd.toISOString().slice(0, 10);
-    if (today > weekEndStr) return true;
-    return false;
+    if (!GMCL_WEEKLY_DUE[itemKey]) return false;
+    return clPastCutoff(clAddDays(clWeekStart(selectedDate), 6));         // 8pm Tuesday (week is Wed–Tue)
   }
   if (type === 'monthly') {
-    /* Only overdue once the month has ended — use month picker */
-    const periodMonth = gmclMonthVal || selectedDate.slice(0, 7);
-    const currentMonth = today.slice(0, 7);
-    if (currentMonth > periodMonth) return true;
-    return false;
+    return clPastCutoff(clMonthEnd(gmclMonthVal || selectedDate.slice(0, 7))); // 8pm last day of month
   }
   return false;
 }
@@ -11729,16 +11877,8 @@ function gmclDueTag(itemKey) {
   const due = GMCL_WEEKLY_DUE[itemKey];
   if (!due) return '';
   const dateVal = document.getElementById('gmclDate').value;
-  const selected = new Date(dateVal + 'T12:00:00');
-  const today = new Date(); today.setHours(12,0,0,0);
-  /* Week runs Wed–Tue: find Wednesday start */
-  const dayOfWeek = selected.getDay();
-  const wedDiff = (dayOfWeek - 3 + 7) % 7;
-  const wed = new Date(selected);
-  wed.setDate(wed.getDate() - wedDiff);
-  const dueDate = new Date(wed);
-  dueDate.setDate(wed.getDate() + (due.day - 1));
-  const isPast = today > dueDate;
+  /* Week runs Wed–Tue; overdue from 8pm on the due day */
+  const isPast = clPastCutoff(clAddDays(clWeekStart(dateVal), due.day - 1));
   const storeId = document.getElementById('gmclStore').value;
   const periodDate = gmclGetPeriodDate('weekly');
   const isChecked = gmclState[storeId + '|' + itemKey + '|' + periodDate] === true;
@@ -11758,10 +11898,8 @@ function gmclToggleSection(type) {
 
 /* ---- Load all stores for overview + streaks ---- */
 async function gmclLoadAllStores() {
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const d7 = new Date(today); d7.setDate(d7.getDate() - 6);
-  const startStr = d7.toISOString().slice(0, 10);
+  const todayStr = clTodayStr();
+  const startStr = clAddDays(todayStr, -6);
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_type=eq.daily&period_date=gte.' + startStr + '&period_date=lte.' + todayStr + '&select=store_id,item_key,period_date,completed', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
@@ -11774,8 +11912,7 @@ async function gmclLoadAllStores() {
   STORES.forEach(store => {
     let streak = 0;
     for (let i = 0; i < 7; i++) {
-      const dd = new Date(today); dd.setDate(dd.getDate() - i);
-      const ds = dd.toISOString().slice(0, 10);
+      const ds = clAddDays(todayStr, -i);
       if (dailyKeys.every(k => gmclState[store.id + '|' + k + '|' + ds] === true)) streak++;
       else break;
     }
@@ -11787,7 +11924,7 @@ async function gmclLoadAllStores() {
 function gmclRenderOverview() {
   const container = document.getElementById('gmclOverview');
   if (!container) return;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = clTodayStr();
   const selStore = document.getElementById('gmclStore').value;
   let html = '';
   STORES.forEach(store => {
@@ -11878,7 +12015,7 @@ async function gmclInit() {
   const sel = document.getElementById('gmclStore');
   sel.innerHTML = STORES.map(s => '<option value="' + s.id + '">' + s.id + ' - ' + s.name + '</option>').join('');
   const dateInput = document.getElementById('gmclDate');
-  dateInput.value = new Date().toISOString().slice(0, 10);
+  dateInput.value = clTodayStr();
   updateFiscalWeekLabel('gmclWeekLabel', dateInput.value);
   gmclMonthVal = dateInput.value.slice(0, 7);
   updateMonthLabel('gmclMonthLabel', gmclMonthVal);
@@ -11895,7 +12032,7 @@ async function gmclInit() {
 function gmclWeekNav(dir) {
   const dateInput = document.getElementById('gmclDate');
   if (dir === 0) {
-    dateInput.value = new Date().toISOString().slice(0, 10);
+    dateInput.value = clTodayStr();
     gmclMonthVal = dateInput.value.slice(0, 7);
     updateMonthLabel('gmclMonthLabel', gmclMonthVal);
   } else {
@@ -12080,8 +12217,7 @@ async function gmclShowIncompleteBanner() {
   const banner = document.getElementById('gmclIncompleteBanner');
   if (!banner) return;
   try {
-    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
-    const yStr = yesterday.toISOString().slice(0, 10);
+    const yStr = clAddDays(clTodayStr(), -1);
     const dailyKeys = GMCL_ITEMS.daily.map(it => it.key);
     const totalDaily = dailyKeys.length;
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_date=eq.' + yStr + '&period_type=eq.daily&completed=eq.true&select=store_id,item_key', {
@@ -12109,10 +12245,8 @@ function gmclToggleHistory() {
     if (sel.options.length === 0) {
       sel.innerHTML = '<option value="ALL">All Stores</option>' + STORES.map(s => '<option value="' + s.id + '">' + s.id + ' - ' + s.name + '</option>').join('');
     }
-    const today = new Date();
-    const d14 = new Date(today); d14.setDate(d14.getDate() - 13);
-    document.getElementById('gmclHistTo').value = today.toISOString().slice(0, 10);
-    document.getElementById('gmclHistFrom').value = d14.toISOString().slice(0, 10);
+    document.getElementById('gmclHistTo').value = clTodayStr();
+    document.getElementById('gmclHistFrom').value = clAddDays(clTodayStr(), -13);
   }
 }
 
@@ -12235,10 +12369,8 @@ function dmclToggleHistory() {
   panel.style.display = isHidden ? '' : 'none';
   document.getElementById('dmclHistBtn').textContent = isHidden ? '✕ Close History' : '📋 View History';
   if (isHidden) {
-    const today = new Date();
-    const d14 = new Date(today); d14.setDate(d14.getDate() - 13);
-    document.getElementById('dmclHistTo').value = today.toISOString().slice(0, 10);
-    document.getElementById('dmclHistFrom').value = d14.toISOString().slice(0, 10);
+    document.getElementById('dmclHistTo').value = clTodayStr();
+    document.getElementById('dmclHistFrom').value = clAddDays(clTodayStr(), -13);
   }
 }
 
@@ -12379,49 +12511,17 @@ function dmclGetPeriodDate(type) {
 
 function dmclIsOverdue(type, itemKey, isChecked, selectedDate) {
   if (isChecked) return false;
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  if (type === 'daily') {
-    if (selectedDate < today) return true;
-    if (selectedDate === today && now.getHours() >= 22) return true;
-    return false;
-  }
+  if (type === 'daily') return clPastCutoff(selectedDate);               // 8pm that day
   if (type === 'weekly') {
-    const due = DMCL_WEEKLY_DUE[itemKey];
-    if (!due) return false;
-    /* Week runs Wed–Tue: find Wednesday start */
-    const sel = new Date(selectedDate + 'T12:00:00');
-    const day = sel.getDay();
-    const wedOff = (day - 3 + 7) % 7;
-    const wed = new Date(sel); wed.setDate(sel.getDate() - wedOff);
-    /* Overdue only after the week ends (after Tuesday) */
-    const weekEnd = new Date(wed);
-    weekEnd.setDate(wed.getDate() + 6); // Tuesday
-    const weekEndStr = weekEnd.toISOString().slice(0, 10);
-    if (today > weekEndStr) return true;
-    return false;
+    if (!DMCL_WEEKLY_DUE[itemKey]) return false;
+    return clPastCutoff(clAddDays(clWeekStart(selectedDate), 6));         // 8pm Tuesday
   }
   if (type === 'biweekly') {
-    const due = DMCL_BIWEEKLY_DUE[itemKey];
-    if (!due) return false;
-    /* Week runs Wed–Tue: find Wednesday start, biweekly = 2 full weeks */
-    const sel = new Date(selectedDate + 'T12:00:00');
-    const day = sel.getDay();
-    const wedOff = (day - 3 + 7) % 7;
-    const wed = new Date(sel); wed.setDate(sel.getDate() - wedOff);
-    /* Overdue only after 2 weeks end (the following Tuesday, 13 days from Wed) */
-    const biweekEnd = new Date(wed);
-    biweekEnd.setDate(wed.getDate() + 13); // Tuesday of 2nd week
-    const biweekEndStr = biweekEnd.toISOString().slice(0, 10);
-    if (today > biweekEndStr) return true;
-    return false;
+    if (!DMCL_BIWEEKLY_DUE[itemKey]) return false;
+    return clPastCutoff(clAddDays(clWeekStart(selectedDate), 13));        // 8pm Tuesday of week 2
   }
   if (type === 'monthly') {
-    /* Only overdue once the month has ended — use month picker */
-    const periodMonth = dmclMonthVal || selectedDate.slice(0, 7);
-    const currentMonth = today.slice(0, 7);
-    if (currentMonth > periodMonth) return true;
-    return false;
+    return clPastCutoff(clMonthEnd(dmclMonthVal || selectedDate.slice(0, 7))); // 8pm last day of month
   }
   return false;
 }
@@ -12431,24 +12531,17 @@ function dmclDueTag(type, itemKey) {
   const due = dueMap[itemKey];
   if (!due) return '';
   const dateVal = document.getElementById('dmclDate').value;
-  const selected = new Date(dateVal + 'T12:00:00');
-  const today = new Date(); today.setHours(12,0,0,0);
-  /* Week runs Wed–Tue: find Wednesday start */
-  const dayOfWeek = selected.getDay();
-  const wedDiff = (dayOfWeek - 3 + 7) % 7;
-  const wed = new Date(selected); wed.setDate(wed.getDate() - wedDiff);
-  const dueDate = new Date(wed); dueDate.setDate(wed.getDate() + (due.day - 1));
+  const wedStr = clWeekStart(dateVal);
   const areaId = document.getElementById('dmclArea').value;
   const periodDate = dmclGetPeriodDate(type);
   const isChecked = dmclState[areaId + '|' + itemKey + '|' + periodDate] === true;
   if (isChecked) return '';
   /* For biweekly: only OVERDUE after 2-week period ends */
   if (type === 'biweekly') {
-    const biweekEnd = new Date(wed); biweekEnd.setDate(wed.getDate() + 13);
-    if (today > biweekEnd) return '<span class="gmcl-due-tag overdue">OVERDUE</span>';
+    if (clPastCutoff(clAddDays(wedStr, 13))) return '<span class="gmcl-due-tag overdue">OVERDUE</span>';
     return '<span class="gmcl-due-tag upcoming">Due by ' + due.label + '</span>';
   }
-  const isPast = today > dueDate;
+  const isPast = clPastCutoff(clAddDays(wedStr, due.day - 1));  /* overdue from 8pm on the due day */
   if (isPast) return '<span class="gmcl-due-tag overdue">OVERDUE</span>';
   return '<span class="gmcl-due-tag upcoming">Due by ' + due.label + '</span>';
 }
@@ -12464,7 +12557,7 @@ function dmclToggleSection(type) {
 
 async function dmclInit() {
   const dateInput = document.getElementById('dmclDate');
-  dateInput.value = new Date().toISOString().slice(0, 10);
+  dateInput.value = clTodayStr();
   updateFiscalWeekLabel('dmclWeekLabel', dateInput.value);
   dmclMonthVal = dateInput.value.slice(0, 7);
   updateMonthLabel('dmclMonthLabel', dmclMonthVal);
@@ -12480,7 +12573,7 @@ async function dmclInit() {
 function dmclWeekNav(dir) {
   const dateInput = document.getElementById('dmclDate');
   if (dir === 0) {
-    dateInput.value = new Date().toISOString().slice(0, 10);
+    dateInput.value = clTodayStr();
     dmclMonthVal = dateInput.value.slice(0, 7);
     updateMonthLabel('dmclMonthLabel', dmclMonthVal);
   } else {
@@ -12494,10 +12587,8 @@ function dmclWeekNav(dir) {
 }
 
 async function dmclLoadAllAreas() {
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const d7 = new Date(today); d7.setDate(d7.getDate() - 6);
-  const startStr = d7.toISOString().slice(0, 10);
+  const todayStr = clTodayStr();
+  const startStr = clAddDays(todayStr, -6);
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?period_type=eq.daily&period_date=gte.' + startStr + '&period_date=lte.' + todayStr + '&select=area_id,item_key,period_date,completed', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
@@ -12543,7 +12634,7 @@ async function dmclLoadData() {
 function dmclRenderOverview() {
   const container = document.getElementById('dmclOverview');
   if (!container) return;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = clTodayStr();
   const selArea = document.getElementById('dmclArea').value;
   let html = '';
   DM_AREAS.forEach(area => {
@@ -13661,6 +13752,8 @@ function applyPermissions() {
       if (changed) sel.dispatchEvent(new Event('change', { bubbles: true }));
     });
   }
+
+  if (typeof qodRender === 'function') qodRender();
 
   // Recompute the incomplete-checklist banner for only this user's stores
   if (typeof gmclShowIncompleteBanner === 'function') gmclShowIncompleteBanner();

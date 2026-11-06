@@ -338,6 +338,19 @@
   .update-name { font-size: 1.4vh; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .update-when { font-size: 1.2vh; color: var(--text-muted); font-weight: 700; white-space: nowrap; flex: 0 0 auto; }
   .update-sub { font-size: 1.15vh; color: var(--text-muted); margin-top: 2px; }
+
+  /* ---------------- Booking gong (2026-11-06, per Pranav) ---------------- */
+  .gong-overlay { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; pointer-events: none; opacity: 0; transition: opacity .35s ease; background: rgba(0,0,0,0.35); }
+  .gong-overlay.show { opacity: 1; }
+  .gong-card { text-align: center; padding: 4vh 6vw; border-radius: 2.4vh; background: var(--surface-card); border: 0.5vh solid var(--brand-teal); box-shadow: 0 0 0 1.4vh rgba(151,215,0,0.18), var(--shadow-md); transform: scale(.85); transition: transform .45s cubic-bezier(.2,1.4,.4,1); max-width: 88vw; }
+  .gong-overlay.show .gong-card { transform: scale(1); animation: gong-shake .7s ease .15s 1; }
+  @keyframes gong-shake { 0%,100% { transform: scale(1) rotate(0); } 20% { transform: scale(1.03) rotate(-1.2deg); } 45% { transform: scale(1.02) rotate(1deg); } 70% { transform: scale(1.01) rotate(-.5deg); } }
+  .gong-kicker { font-size: 6vh; font-weight: 900; letter-spacing: .06em; color: var(--brand-teal); line-height: 1; }
+  .gong-who { font-size: 4.6vh; font-weight: 800; margin-top: 2vh; color: var(--text-primary); }
+  .gong-amt { font-size: 9vh; font-weight: 900; color: var(--status-good); font-variant-numeric: tabular-nums; line-height: 1.05; margin-top: 1vh; }
+  .gong-job { font-size: 2.6vh; color: var(--text-secondary); margin-top: 1.2vh; overflow-wrap: anywhere; }
+  .gong-sound-chip { position: fixed; right: 1.4vw; bottom: 1.6vh; z-index: 1001; display: none; align-items: center; gap: .6vw; padding: .9vh 1.2vw; border-radius: 1vh; background: var(--status-warn-bg); color: var(--status-warn); border: 1px solid var(--status-warn); font-size: 1.6vh; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .gong-sound-chip.show { display: inline-flex; }
 </style>
 </head>
 <body>
@@ -680,6 +693,16 @@
 
 <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">Light mode</button>
 
+<!-- Booking gong overlay + "turn sound on" chip (2026-11-06) -->
+<div class="gong-overlay" id="gongOverlay" aria-live="assertive">
+  <div class="gong-card">
+    <div class="gong-kicker">&#128276; GONG!</div>
+    <div class="gong-who" id="gongWho"></div>
+    <div class="gong-amt" id="gongAmt"></div>
+    <div class="gong-job" id="gongJob"></div>
+  </div>
+</div>
+<button class="gong-sound-chip" id="gongSoundChip" type="button">&#128264; Gong sound is off &mdash; click or press any key to turn it on</button>
 <script>
   // ---------------------------------------------------------------------
   // Koala Insulation — Sales Floor TV dashboard
@@ -1298,6 +1321,140 @@
     return byRep;
   }
 
+  // ---------------- Booking gong (2026-11-06, per Pranav) ----------------
+  // "Every time a sales person adds another job on the books, play a gong on the Sales TV." Reuses the
+  // onthebooks pull refreshRevenue() already makes every 90s: a proposal owned by one of the four reps
+  // with a TV tile, in a won status, accepted today or yesterday (yesterday covers a midnight data lag),
+  // that this TV hasn't announced before -> gong + a 10-second banner. Proposals are tracked by their
+  // ServiceMinder proposal id, so an Accepted -> Scheduled -> Invoiced change never re-gongs. The list
+  // of already-announced proposals is kept in this browser's localStorage, so reloading the TV doesn't
+  // replay today's gongs, and bookings that land while the TV was off still gong when it comes back.
+  // The very first run on a TV (nothing saved yet) records what's already booked without gonging.
+  // The sound is synthesized with the Web Audio API — no audio file to host. Browsers block sound
+  // until someone clicks or presses a key on the page once, so if audio is blocked a small chip in
+  // the corner says so; one click/keypress turns it on (and plays a soft test gong).
+  const GONG_REPS = new Set(['Gabriel Espinosa', 'Mike Jones', 'Frank Emanuel', 'Joel Alvarado']);
+  const GONG_STATUSES = new Set(['Accepted', 'Scheduled', 'Invoiced', 'Complete']);
+  const GONG_STORE_KEY = 'koalaGong.v1';
+  const GONG_BANNER_MS = 10000;
+  let gongSeen = null;            // { key: 'YYYY-MM-DD' first seen }
+  let gongAudio = null;
+  const gongQueue = []; let gongShowing = false;
+
+  function gongLoad() {
+    try { const v = JSON.parse(localStorage.getItem(GONG_STORE_KEY) || 'null'); return v && v.seen ? v.seen : null; } catch (e) { return null; }
+  }
+  function gongSave() {
+    try {
+      const cutoff = new Date(Date.now() - 10 * 86400000).toISOString().slice(0, 10);
+      for (const k of Object.keys(gongSeen)) if (gongSeen[k] < cutoff) delete gongSeen[k];
+      localStorage.setItem(GONG_STORE_KEY, JSON.stringify({ seen: gongSeen }));
+    } catch (e) { /* storage unavailable: still works for this session */ }
+  }
+  function gongKey(p) {
+    const [value, , acceptedDate, owner, , , name, proposalId] = p;
+    return proposalId ? 'id:' + proposalId : `nm:${owner}|${name}|${acceptedDate}|${Number(value) || 0}`;
+  }
+  function gongISO(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+
+  function checkForNewBookings(allProposals) {
+    if (!Array.isArray(allProposals) || !allProposals.length) return;
+    const todayISO = todayLocalISO();
+    const y = new Date(todayISO + 'T12:00:00'); y.setDate(y.getDate() - 1);
+    const yesterdayISO = gongISO(y);
+    const recent = allProposals.filter(p => {
+      if (!GONG_REPS.has(p[3]) || !GONG_STATUSES.has(p[1])) return false;
+      const d = parseSMDate(p[2]);
+      if (!d) return false;
+      const iso = gongISO(d);
+      return iso === todayISO || iso === yesterdayISO;
+    });
+    if (gongSeen === null) {
+      gongSeen = gongLoad();
+      if (gongSeen === null) {           // first run on this TV: record, don't gong
+        gongSeen = {};
+        recent.forEach(p => { gongSeen[gongKey(p)] = todayISO; });
+        gongSave();
+        return;
+      }
+    }
+    const fresh = recent.filter(p => !gongSeen[gongKey(p)]);
+    if (!fresh.length) return;
+    fresh.forEach(p => { gongSeen[gongKey(p)] = todayISO; });
+    gongSave();
+    fresh.sort((a, b) => (Number(b[0]) || 0) - (Number(a[0]) || 0))
+      .forEach(p => gongQueue.push({ rep: p[3], value: Number(p[0]) || 0, job: p[6] || '' }));
+    gongNext();
+  }
+
+  function gongNext() {
+    if (gongShowing || !gongQueue.length) return;
+    const b = gongQueue.shift();
+    gongShowing = true;
+    document.getElementById('gongWho').textContent = `${b.rep} just booked`;
+    document.getElementById('gongAmt').textContent = fmtMoney(b.value);
+    document.getElementById('gongJob').textContent = b.job;
+    const ov = document.getElementById('gongOverlay');
+    ov.classList.remove('show'); void ov.offsetWidth; ov.classList.add('show');
+    playGong(1);
+    setTimeout(() => {
+      ov.classList.remove('show');
+      setTimeout(() => { gongShowing = false; gongNext(); }, 600);
+    }, GONG_BANNER_MS);
+  }
+
+  function gongCtx() {
+    if (!gongAudio) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      gongAudio = new AC();
+    }
+    return gongAudio;
+  }
+  function gongUpdateChip() {
+    const ctx = gongCtx();
+    document.getElementById('gongSoundChip').classList.toggle('show', !!ctx && ctx.state !== 'running');
+  }
+  // A struck gong: a low fundamental with inharmonic overtones that decay at different rates, a slight
+  // downward pitch bend, and a short filtered-noise "mallet" hit.
+  function playGong(volume) {
+    const ctx = gongCtx();
+    if (!ctx) return;
+    if (ctx.state !== 'running') { ctx.resume().catch(() => {}).finally(gongUpdateChip); if (ctx.state !== 'running') { gongUpdateChip(); return; } }
+    const t0 = ctx.currentTime + 0.02;
+    const out = ctx.createDynamicsCompressor();
+    const master = ctx.createGain(); master.gain.value = 0.9 * (volume || 1);
+    out.connect(master); master.connect(ctx.destination);
+    const base = 98;
+    [[1, 1.0, 6.5], [1.48, 0.55, 5.0], [2.09, 0.42, 4.2], [2.56, 0.30, 3.4], [3.14, 0.22, 2.8], [4.21, 0.14, 2.0], [5.43, 0.08, 1.4]]
+      .forEach(([ratio, amp, decay]) => {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(base * ratio * 1.012, t0);
+        o.frequency.exponentialRampToValueAtTime(base * ratio, t0 + 1.2);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(amp * 0.5, t0 + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + decay);
+        o.connect(g); g.connect(out);
+        o.start(t0); o.stop(t0 + decay + 0.1);
+      });
+    const len = Math.floor(ctx.sampleRate * 0.12), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    const n = ctx.createBufferSource(); n.buffer = buf;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    const ng = ctx.createGain(); ng.gain.value = 0.6;
+    n.connect(lp); lp.connect(ng); ng.connect(out); n.start(t0);
+  }
+  function gongUnlock() {
+    const ctx = gongCtx();
+    if (!ctx || ctx.state === 'running') return;
+    ctx.resume().then(() => { gongUpdateChip(); if (ctx.state === 'running') playGong(0.35); }).catch(() => {});
+  }
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, gongUnlock, { passive: true }));
+  document.getElementById('gongSoundChip').addEventListener('click', gongUnlock);
+  // Test on the TV itself: open koala-sales-tv.html?gongtest=1 (shows a sample banner + gong 4s after load).
+  window.koalaGongTest = () => { gongQueue.push({ rep: 'Test — Gabriel Espinosa', value: 12345, job: 'Sample job (test only)' }); gongNext(); };
+
   // ---- fast refresh: today's + weekly + MTD revenue per rep, team totals ----
   async function refreshRevenue() {
     const todayISO = todayLocalISO();
@@ -1380,6 +1537,7 @@
 
     fitAllHeadlines();
     markSynced();
+    try { checkForNewBookings(allProposals); } catch (e) { console.warn('gong check failed', e); }
   }
 
   // ---- slow refresh: full proposal history -> close rate / estimates sent ----
@@ -1726,6 +1884,9 @@
       .forEach(id => armAutoscroll(document.getElementById(id)));
     showTvPage(0); // also schedules the rotation (see PAGE_DWELL_MS)
 
+    gongUpdateChip();
+    setTimeout(gongUpdateChip, 1500);
+    if (/[?&]gongtest=1\b/.test(location.search)) setTimeout(() => window.koalaGongTest(), 4000);
     await loadSettings();
     await Promise.allSettled([refreshRevenue(), refreshCRM(), refreshPacing(), refreshCalendar(), refreshRecentWins()]);
     refreshFunnel(); // slow — don't block first paint

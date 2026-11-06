@@ -1448,12 +1448,37 @@
   function gongUnlock() {
     const ctx = gongCtx();
     if (!ctx || ctx.state === 'running') return;
-    ctx.resume().then(() => { gongUpdateChip(); if (ctx.state === 'running') playGong(0.35); }).catch(() => {});
+    ctx.resume().then(() => { gongUpdateChip(); if (ctx.state === 'running') { playGong(0.35); setTimeout(() => checkGongReplay().catch(() => {}), 2500); } }).catch(() => {});
   }
   ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, gongUnlock, { passive: true }));
   document.getElementById('gongSoundChip').addEventListener('click', gongUnlock);
   // Test on the TV itself: open koala-sales-tv.html?gongtest=1 (shows a sample banner + gong 4s after load).
   window.koalaGongTest = () => { gongQueue.push({ rep: 'Test — Gabriel Espinosa', value: 12345, job: 'Sample job (test only)' }); gongNext(); };
+
+  // Remote replay (2026-11-06, "we had the volume on mute — re-push the last booked job"): the TV checks
+  // public.tv_gong_replays every 30s (read-only to the TV; rows are only written server-side). A row this
+  // TV hasn't handled yet, created in the last 30 minutes, is played through the same gong + banner.
+  // Handled ids are remembered in localStorage, so reloading never replays one; the 30-minute window
+  // means a TV that was off/reloading when the request was made still catches it shortly after.
+  const GONG_REPLAY_SEEN_KEY = 'koalaGongReplaySeen.v1';
+  let gongReplaySeen = null;
+  async function checkGongReplay() {
+    // A replay exists to be HEARD: if the browser is still blocking sound (TV just reloaded, nobody has
+    // clicked yet), leave the request pending — the click that turns sound on triggers it right away.
+    const actx = gongCtx();
+    if (actx && actx.state !== 'running') { gongUpdateChip(); return; }
+    const rows = await fetchJSON(restUrl('tv_gong_replays', 'select=id,items,created_at&order=id.desc&limit=3'), { headers: REST_HEADERS });
+    if (gongReplaySeen === null) {
+      try { gongReplaySeen = new Set(JSON.parse(localStorage.getItem(GONG_REPLAY_SEEN_KEY) || '[]')); } catch (e) { gongReplaySeen = new Set(); }
+    }
+    const fresh = (rows || []).filter(r => !gongReplaySeen.has(r.id) && Date.now() - Date.parse(r.created_at) < 30 * 60 * 1000).reverse();
+    (rows || []).forEach(r => gongReplaySeen.add(r.id));
+    try { localStorage.setItem(GONG_REPLAY_SEEN_KEY, JSON.stringify([...gongReplaySeen].slice(-50))); } catch (e) {}
+    fresh.forEach(r => (Array.isArray(r.items) ? r.items : []).forEach(it => {
+      if (it && typeof it.rep === 'string') gongQueue.push({ rep: it.rep.slice(0, 60), value: Number(it.value) || 0, job: String(it.job || '').slice(0, 120) });
+    }));
+    if (fresh.length) gongNext();
+  }
 
   // ---- fast refresh: today's + weekly + MTD revenue per rep, team totals ----
   async function refreshRevenue() {
@@ -1892,6 +1917,8 @@
     refreshFunnel(); // slow — don't block first paint
 
     setInterval(() => refreshRevenue().catch(e => console.warn(e)), 90 * 1000);
+    checkGongReplay().catch(e => console.warn('gong replay check failed', e));
+    setInterval(() => checkGongReplay().catch(e => console.warn('gong replay check failed', e)), 30 * 1000);
     setInterval(() => refreshCRM().catch(e => console.warn(e)), 90 * 1000);
     setInterval(() => refreshPacing().catch(e => console.warn(e)), 5 * 60 * 1000);
     // ServiceMinder-backed, not CRM — a slower cadence than refreshCRM matches how often invoices

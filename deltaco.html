@@ -7319,42 +7319,18 @@ function foodWeekKey(store, weekEnd) {
   return (store[wed] && store[wed].length) ? wed : weekEnd;
 }
 
+const FOOD_NO_REPORT = 'No report submitted yet';
+
+/* Real Weekly Inventory Variance rows only (no sample/placeholder numbers), limited to the stores this user can see.
+   Returns [] when no store has submitted a report for the week. */
 function getFoodData(weekEnd) {
-  const realFood = dataStore.realFoodCost[foodWeekKey(dataStore.realFoodCost, weekEnd)];
-  if (realFood && realFood.length) return realFood;
-  const seed = weekEnd.split('-').reduce((a,b) => a + parseInt(b), 0);
-  const rng = (min, max, i) => { const x = Math.sin(seed * 17 + i * 11) * 10000; return min + (x - Math.floor(x)) * (max - min); };
-  return STORES.map((s, i) => {
-    const theoryCost = +(rng(4800, 9200, i*8+1)).toFixed(0);
-    const variancePct = +(rng(-4, 8, i*8+2)).toFixed(1);
-    const actualCost = +(theoryCost * (1 + variancePct/100)).toFixed(0);
-    const dollarVar = actualCost - theoryCost;
-    const theoryPct = +(rng(26, 32, i*8+3)).toFixed(1);
-    const actualPct = +(theoryPct + variancePct).toFixed(1);
-    const grossSales = theoryPct > 0 ? Math.round(theoryCost / (theoryPct / 100)) : 0;
-    return { storeId: s.id, storeName: s.name, weekEnd, theoryCost, actualCost, dollarVar, variancePct, theoryPct, actualPct, grossSales, _real: false };
-  });
+  const realFood = dataStore.realFoodCost[foodWeekKey(dataStore.realFoodCost, weekEnd)] || [];
+  return realFood.filter(d => STORES.some(st => st.id === d.storeId));
 }
 
 function getVarianceItems(weekEnd) {
-  const realItems = dataStore.realVarianceItems[foodWeekKey(dataStore.realVarianceItems, weekEnd)];
-  if (realItems && realItems.length) return realItems;
-  const items = ['Taco Meat','Steak/Asada','Chicken','Beef Patties','Cheese (shredded)','Tortillas (flour)','Tortillas (corn)','Drinks/Syrup','Lettuce','Tomatoes','Sour Cream','Avocado/Guac','Bacon','French Fries','Beans'];
-  const seed = weekEnd.split('-').reduce((a,b) => a + parseInt(b), 0);
-  const results = [];
-  items.forEach((item, ii) => {
-    STORES.forEach((s, si) => {
-      const x = Math.sin(seed * 23 + ii * 31 + si * 13) * 10000;
-      const v = (x - Math.floor(x));
-      if (v > 0.6) {
-        const theory = +(200 + v * 800).toFixed(0);
-        const pctVar = +((v - 0.5) * 10).toFixed(1);
-        const actual = +(theory * (1 + pctVar/100)).toFixed(0);
-        results.push({ item, storeId: s.id, storeName: s.name, theoryCost: theory, actualCost: actual, dollarVar: actual - theory, pctVar });
-      }
-    });
-  });
-  return results.sort((a,b) => Math.abs(b.dollarVar) - Math.abs(a.dollarVar)).slice(0, 20);
+  const realItems = dataStore.realVarianceItems[foodWeekKey(dataStore.realVarianceItems, weekEnd)] || [];
+  return realItems.filter(d => STORES.some(st => st.id === d.storeId));
 }
 
 /* ===== STATE ===== */
@@ -7445,7 +7421,7 @@ function getFoodDataForPeriod(periodStr) {
     return {
       storeId: a.storeId, storeName: a.storeName, weekEnd: periodStr,
       theoryCost: a.theoryCost, actualCost: a.actualCost, dollarVar: a.dollarVar,
-      variancePct: a.theoryCost > 0 ? +((a.dollarVar / a.theoryCost) * 100).toFixed(1) : 0,
+      variancePct: a.theoryCost > 0 ? +((a.dollarVar / a.theoryCost) * 100).toFixed(1) : (a.grossSales > 0 ? +((a.dollarVar / a.grossSales) * 100).toFixed(2) : 0),
       theoryPct: gs > 0 ? +((a.theoryCost / gs) * 100).toFixed(1) : 0,
       actualPct: gs > 0 ? +((a.actualCost / gs) * 100).toFixed(1) : 0,
       grossSales: a.grossSales, _real: hasReal
@@ -8118,16 +8094,19 @@ function renderFood() {
       <span>Data from ${parts.join(' & ')}.${pending.length ? ' Pending: ' + pending.join(', ') + '.' : ' All food cost sources connected.'}</span>`;
   }
 
-  const avgTheoryPct = (data.reduce((s,d) => s + d.theoryPct, 0) / data.length).toFixed(1);
-  const avgActualPct = (data.reduce((s,d) => s + d.actualPct, 0) / data.length).toFixed(1);
+  const hasData = data.length > 0;
+  const withPct = data.filter(d => d.theoryPct > 0 || d.actualPct > 0);
+  const avgTheoryPct = withPct.length ? (withPct.reduce((s,d) => s + d.theoryPct, 0) / withPct.length).toFixed(1) : null;
+  const avgActualPct = withPct.length ? (withPct.reduce((s,d) => s + d.actualPct, 0) / withPct.length).toFixed(1) : null;
   const totalDollarVar = data.reduce((s,d) => s + d.dollarVar, 0);
-  const avgVariancePct = (data.reduce((s,d) => s + d.variancePct, 0) / data.length).toFixed(1);
+  const avgVariancePct = hasData ? (data.reduce((s,d) => s + d.variancePct, 0) / data.length).toFixed(1) : null;
+  const reportsIn = new Set(data.map(d => d.storeId)).size;
 
   document.getElementById('foodKpiRow').innerHTML = `
-    ${kpiTile('Avg Theory Food %', avgTheoryPct + '%', null)}
-    ${kpiTile('Avg Actual Food %', avgActualPct + '%', +avgActualPct > +avgTheoryPct + 2 ? 'bad' : 'good')}
-    ${kpiTile('Total $ Variance', fmtDollar(totalDollarVar), totalDollarVar > 0 ? 'bad' : 'good', (totalDollarVar > 0 ? '+' : '') + fmtDollar(totalDollarVar))}
-    ${kpiTile('Avg Variance %', avgVariancePct + '%', +avgVariancePct > 2 ? 'bad' : 'good')}
+    ${kpiTile('Reports Submitted', reportsIn + ' of ' + STORES.length, reportsIn < STORES.length ? 'bad' : 'good')}
+    ${kpiTile('Total $ Variance', hasData ? fmtDollar(totalDollarVar) : '--', hasData ? (totalDollarVar > 0 ? 'bad' : 'good') : null, hasData ? (totalDollarVar > 0 ? '+' : '') + fmtDollar(totalDollarVar) : undefined)}
+    ${kpiTile('Avg Variance %', avgVariancePct != null ? avgVariancePct + '%' : '--', avgVariancePct != null ? (+avgVariancePct > 2 ? 'bad' : 'good') : null)}
+    ${avgActualPct != null ? kpiTile('Avg Actual Food %', avgActualPct + '%', +avgActualPct > +avgTheoryPct + 2 ? 'bad' : 'good') : ''}
   `;
 
   document.getElementById('foodTableHead').innerHTML = `<tr>
@@ -8136,21 +8115,26 @@ function renderFood() {
   </tr>`;
 
   const filtered = state.foodStore === 'all' ? data : data.filter(d => d.storeId === state.foodStore);
+  const shownStores = state.foodStore === 'all' ? STORES : STORES.filter(st => st.id === state.foodStore);
+  const missingRows = shownStores.filter(st => !filtered.some(d => d.storeId === st.id)).map(st =>
+    `<tr><td>${st.name} (${st.id})</td><td colspan="7" style="color:var(--text-muted);font-style:italic">${FOOD_NO_REPORT}</td></tr>`).join('');
+  const dash = v => (v ? fmtDollar(v) : '--');
+  const pctOrDash = v => (v ? v + '%' : '--');
   document.getElementById('foodTableBody').innerHTML = filtered.map(d => {
     const fcR = rateKPI('foodCostVar', Math.abs(d.variancePct));
     const status = fcR.cls;
     const statusLabel = fcR.label === 'Great' ? 'Normal' : fcR.label === 'Good' ? 'Normal' : fcR.label === 'NI' ? 'Watch' : 'High';
     return `<tr>
       <td>${d.storeName} (${d.storeId})</td>
-      <td>${fmtDollar(d.theoryCost)}</td>
-      <td>${fmtDollar(d.actualCost)}</td>
+      <td>${dash(d.theoryCost)}</td>
+      <td>${dash(d.actualCost)}</td>
       <td class="${d.dollarVar > 0 ? 'neg' : 'pos'}">${(d.dollarVar > 0 ? '+' : '') + fmtDollar(d.dollarVar)}</td>
       <td class="cell-${status}">${(d.variancePct > 0 ? '+' : '') + d.variancePct}%</td>
-      <td>${d.theoryPct}%</td>
-      <td>${d.actualPct}%</td>
+      <td>${pctOrDash(d.theoryPct)}</td>
+      <td>${pctOrDash(d.actualPct)}</td>
       <td><span class="status-pill ${status}"><span class="status-dot ${status}"></span>${statusLabel}</span></td>
     </tr>`;
-  }).join('');
+  }).join('') + missingRows;
 
   // Mitigation & Discounts — per-store table with Emp/Mgr columns
   const latestMitPeriod = getLatestMitigationPeriod();
@@ -8195,15 +8179,18 @@ function renderFood() {
   }
 
   // Variance items
-  document.getElementById('varianceItemsBody').innerHTML = items.map(it => {
+  const itemsShown = state.foodStore === 'all' ? items : items.filter(it => it.storeId === state.foodStore);
+  document.getElementById('varianceItemsBody').innerHTML = itemsShown.length === 0
+    ? `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted);font-style:italic">${FOOD_NO_REPORT}</td></tr>`
+    : itemsShown.map(it => {
     const impact = Math.abs(it.dollarVar) > 100 ? 'critical' : (Math.abs(it.dollarVar) > 50 ? 'warn' : 'good');
     return `<tr>
       <td>${it.item}</td>
       <td>${it.storeName} (${it.storeId})</td>
-      <td>${fmtDollar(it.theoryCost)}</td>
-      <td>${fmtDollar(it.actualCost)}</td>
+      <td>${it.theoryCost ? fmtDollar(it.theoryCost) : '--'}</td>
+      <td>${it.actualCost ? fmtDollar(it.actualCost) : '--'}</td>
       <td class="${it.dollarVar > 0 ? 'neg' : 'pos'}">${(it.dollarVar > 0 ? '+' : '') + fmtDollar(it.dollarVar)}</td>
-      <td class="${it.pctVar > 0 ? 'neg' : 'pos'}">${(it.pctVar > 0 ? '+' : '') + it.pctVar}%</td>
+      <td class="${it.pctVar > 0 ? 'neg' : 'pos'}">${it.pctVar ? (it.pctVar > 0 ? '+' : '') + it.pctVar + '%' : '--'}</td>
       <td><span class="status-pill ${impact}"><span class="status-dot ${impact}"></span>${impact === 'critical' ? 'High' : (impact === 'warn' ? 'Med' : 'Low')}</span></td>
     </tr>`;
   }).join('');
@@ -8246,13 +8233,15 @@ function renderFoodHeatmap() {
     const data = getFoodData(w);
     const label = new Date(w + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric' });
     html += `<div style="padding:6px 4px;color:var(--text-secondary);font-weight:500;white-space:nowrap">${label}</div>`;
-    data.forEach(d => {
+    STORES.forEach(st => {
+      const d = data.find(x => x.storeId === st.id);
+      if (!d) { html += `<div class="heatmap-cell" style="background:var(--surface-page,#f0f0ee);color:var(--text-muted);">—<span class="tooltip-content">${st.name}: ${FOOD_NO_REPORT}</span></div>`; return; }
       const v = Math.abs(d.variancePct);
       const hue = d.variancePct > 0 ? getSeqColor(v, 0, 8) : 'var(--status-good-bg)';
       const textColor = v > 4 ? '#fff' : 'var(--text-primary)';
       html += `<div class="heatmap-cell" style="background:${hue};color:${textColor};">
         ${d.variancePct > 0 ? '+' : ''}${d.variancePct}%
-        <span class="tooltip-content">${d.storeName}: Theory ${d.theoryPct}% / Actual ${d.actualPct}%</span>
+        <span class="tooltip-content">${d.storeName}: ${d.variancePct > 0 ? '+' : ''}${d.variancePct}% variance (${(d.dollarVar > 0 ? '+' : '') + fmtDollar(d.dollarVar)})</span>
       </div>`;
     });
   });
@@ -8270,12 +8259,16 @@ function renderFoodTrendChart() {
   const weeks = generateWeekOptions().slice(0, 8).reverse();
   const datasets = STORES.slice(0, 3).map((s, si) => ({
     label: s.name, color: `var(--cat-${si + 1})`,
-    points: weeks.map(w => { const d = getFoodData(w).find(fd => fd.storeId === s.id); return d ? d.variancePct : 0; }),
+    points: weeks.map(w => { const d = getFoodData(w).find(fd => fd.storeId === s.id); return d ? d.variancePct : null; }),
   }));
   const container = document.getElementById('chartFoodTrend');
+  if (!datasets.some(ds => ds.points.some(v => v != null))) {
+    container.innerHTML = `<div style="padding:40px 12px;text-align:center;color:var(--text-muted);font-style:italic">${FOOD_NO_REPORT}</div>`;
+    return;
+  }
   const W = 420, H = 220, pad = { t: 20, r: 90, b: 44, l: 44 };
   const plotW = W - pad.l - pad.r, plotH = H - pad.t - pad.b;
-  const allVals = datasets.flatMap(ds => ds.points);
+  const allVals = datasets.flatMap(ds => ds.points).filter(v => v != null);
   const yMin = Math.floor(Math.min(...allVals) - 1);
   const yMax = Math.ceil(Math.max(...allVals) + 1);
   let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;">`;
@@ -8292,10 +8285,12 @@ function renderFoodTrendChart() {
   });
   datasets.forEach(ds => {
     const pts = ds.points.map((v, i) => {
+      if (v == null) return null;
       const x = pad.l + (plotW / (weeks.length - 1)) * i;
       const y = pad.t + plotH * (1 - (v - yMin) / (yMax - yMin));
       return `${x},${y}`;
-    });
+    }).filter(Boolean);
+    if (!pts.length) return;
     svg += `<polyline points="${pts.join(' ')}" fill="none" stroke="${ds.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
     const lastPt = pts[pts.length - 1].split(',');
     svg += `<circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="4" fill="${ds.color}" stroke="var(--surface-chart)" stroke-width="2"/>`;

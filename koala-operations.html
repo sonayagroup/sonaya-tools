@@ -652,7 +652,8 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
         <button data-month="jun">Jun</button>
         <button data-month="jul">Jul</button>
         <button data-month="aug">Aug</button>
-        <button data-month="sep" class="active">Sep</button>
+        <button data-month="sep">Sep</button>
+        <button data-month="oct" class="active">Oct</button>
         <button data-month="ytd">YTD</button>
       </div>
     </div>
@@ -661,7 +662,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Revenue &amp; Net Income — Monthly Actuals</h3>
-        <p class="chart-subtitle" id="chartFinTrendSubtitle">Jan–Sep 2026</p>
+        <p class="chart-subtitle" id="chartFinTrendSubtitle">Jan–Oct 2026</p>
         <div class="chart-area" id="chartFinTrend"></div>
       </div>
       <div class="chart-card">
@@ -1522,8 +1523,17 @@ const dataStore = {
   // Coating" ($2,649.44), is a material COGS line so it goes in Materials. This PDF has no YTD column,
   // so there is no QuickBooks-reported Jan–Sep YTD — the official-YTD tile stays at Jan–Aug (which still
   // reconciles exactly) and the monthly-sum tile carries Jan–Sep.
+  //
+  // OCTOBER (added 2026-11-06): from the official QuickBooks P&L PDF Pranav sent (accrual basis, run
+  // Nov 4 2026). Totals tie out to the penny: income lines sum to $392,722.16, COGS lines to $145,466.86,
+  // expense lines to $113,300.65, Net Income = Gross Profit − Expenses + Other Income ($2.84 interest) =
+  // $133,957.49, and the four location columns sum to the Total column. Buckets use the same rule as
+  // August/September (the extraction script reproduces September's stored buckets exactly); no new line
+  // items this month. Cross-check: ServiceMinder invoiced October at $387,914.10 (pacing, Nov 4) vs
+  // $392,722.16 booked here — within 1.2%. No YTD column on this PDF either, so the official-YTD tile
+  // stays at Jan–Aug and the monthly-sum tile now carries Jan–Oct.
   financial: {
-    monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep'],
+    monthOrder: ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct'],
     months: {
       jan: { label: 'Jan 2026 (corrected)', revenue: 156946.51, cogs: 87608.45, grossProfit: 69338.06, grossMargin: 44.18, opex: 78306.22, netIncome: -8966.54, netMargin: -5.71,
              buckets: { materials: 56210.76, fieldLabor: 65419.94, vehicleFuel: 4614.62, marketing: 8497.93, admin: 31171.42 } },
@@ -1543,6 +1553,8 @@ const dataStore = {
              buckets: { materials: 72445.26, fieldLabor: 86207.03, vehicleFuel: 5283.20, marketing: 9331.03, admin: 47367.71 } },
       sep: { label: 'Sep 2026', revenue: 221677.85, cogs: 130187.71, grossProfit: 91490.14, grossMargin: 41.27, opex: 95712.77, netIncome: -6619.73, netMargin: -2.99,
              buckets: { materials: 86325.36, fieldLabor: 74571.16, vehicleFuel: 7093.35, marketing: 12571.00, admin: 45339.61 } },
+      oct: { label: 'Oct 2026', revenue: 392722.16, cogs: 145466.86, grossProfit: 247255.30, grossMargin: 62.96, opex: 113300.65, netIncome: 133957.49, netMargin: 34.11,
+             buckets: { materials: 75920.71, fieldLabor: 119423.54, vehicleFuel: 6136.66, marketing: 11893.00, admin: 45393.60 } },
     },
     // Officially reported cumulative YTD figures, read directly off each month's own P&L "(YTD)" column
     // (QuickBooks-computed, not derived by us). ytdThroughJul reconciles exactly against summing the 7
@@ -1578,10 +1590,22 @@ const dataStore = {
         { location: 'Corporate (overhead)', revenue: 0, netIncome: -35103.71 },
         { location: 'Not Specified', revenue: 0, netIncome: 26.72 },
       ],
+      oct: [
+        { location: 'Albuquerque', revenue: 370539.09, netIncome: 164600.16 },
+        { location: 'Las Cruces',  revenue: 22183.07,  netIncome: 3716.96 },
+        { location: 'Corporate (overhead)', revenue: 0, netIncome: -34389.06 },
+        { location: 'Not Specified', revenue: 0, netIncome: 29.43 },
+      ],
     },
   },
   // Notable flags surfaced directly from the real P&L numbers above.
   finFlags: [
+    { level: 'ok', title: 'October 2026: $392,722 revenue — the highest month of the year — and $133,957 net income',
+      body: 'Revenue edged past July ($386,385) for the best month on file; net income was 34.1% of revenue (second only to July\'s $162,468). Gross margin rebounded to 63.0% from September\'s 41.3%. BI Fiberglass ($150,497) and Batts ($107,172) were 66% of income.' },
+    { level: 'warn', title: 'September\'s weak margin and October\'s strong one look partly like materials-cost timing',
+      body: 'Batts COGS was $23,433 on $20,282 of Batts sales in September, then just $6,751 on $107,172 of Batts sales in October. Taken together, Sep + Oct gross margin is 55.1% ($338,745 on $614,400) — closer to normal than either month alone. Worth asking the bookkeeper whether some October material was booked in September.' },
+    { level: 'ok', title: 'Las Cruces revenue is back: $22,183 in October, its best month yet',
+      body: 'After $0 in September (flagged below as a likely coding issue), Las Cruces booked $22,183 of income and $3,717 of net income in October, against $9,083 of rent and $6,346 of manager wages. Corporate overhead was −$34,389, in line with prior months.' },
     { level: 'serious', title: 'September 2026 closed at a $6,620 net loss on $221,678 of revenue',
       body: 'Gross margin fell to 41.3% (Aug 49.6%, Jul 64.5%) as COGS rose to 58.7% of revenue — Batts COGS ($23,433) exceeded Batts sales ($20,282), and Installer Labor was $38,105. Operating expenses were $95,713 (43.2% of revenue), plus a −$2,400 rebate/refund in Other Income.' },
     { level: 'warn', title: 'Las Cruces shows $0 revenue in September',
@@ -2535,7 +2559,7 @@ function renderOnTheBooksModalTable(jobs, meta) {
 }
 
 /* ---------------- Render: Financial tab ---------------- */
-let finMonth = 'sep';
+let finMonth = 'oct';
 const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
 const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
 

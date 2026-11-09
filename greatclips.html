@@ -4534,7 +4534,7 @@ function gcUserForm(u,pre){const isNew=!u;const v=u||Object.assign({email:"",nam
   const salons=Object.keys(SALONS).sort();
   let h='<h3>'+(isNew?"Add user":"Edit "+esc(u.name||u.email))+'</h3><div class="gm-form">'
     +'<div class="gm-f"><label for="gcUName">Name</label><input id="gcUName" value="'+esc(v.name||"")+'"></div>'
-    +'<div class="gm-f"><label for="gcUEmail">Email</label><input id="gcUEmail" type="email" value="'+esc(v.email||"")+'"'+(isNew?"":" disabled")+'></div>'
+    +'<div class="gm-f"><label for="gcUEmail">Email</label><input id="gcUEmail" type="email" value="'+esc(v.email||"")+'" autocapitalize="none" autocorrect="off" spellcheck="false">'+(isNew?"":'<span class="hint">This is their sign-in email. Changing it keeps their password.</span>')+'</div>'
     +'<div class="gm-f"><label for="gcURole">Role</label><select id="gcURole">'+Object.keys(GC_ROLE_NAMES).map(r=>'<option value="'+r+'"'+(r===v.role?" selected":"")+'>'+GC_ROLE_NAMES[r]+'</option>').join("")+'</select></div>'
     +(isNew?'<div class="gm-f"><label for="gcUPw">Temporary password</label><input id="gcUPw" value="'+gcTempPw()+'"><span class="hint">Default is greatclips. They must choose their own at first sign-in.</span></div>'
       :'<div class="gm-f"><label for="gcUActive">Status</label><select id="gcUActive"><option value="1">Active</option><option value="0"'+(v.is_active?"":" selected")+'>Disabled</option></select></div>')
@@ -4563,8 +4563,11 @@ function gcUserForm(u,pre){const isNew=!u;const v=u||Object.assign({email:"",nam
         gmModal('<h3>Login created for '+esc(name)+'</h3>'+(r.linked_existing_login?'<p>'+esc(email)+' already had a Sonaya login (for example the Del Taco dashboard). They sign in with that same password.</p>'
           :'<p>Send them these details. They’ll be asked to choose their own password the first time they sign in.</p><div class="gm-banner info" style="margin-top:10px">Site: tools.sonayagroup.com/greatclips.html<br>Email: <b>'+esc(email)+'</b><br>Temporary password: <b>'+esc(pw)+'</b></div>')
           +'<div class="gm-actions"><button class="btn" data-act="close" id="gcDone">Done</button></div>');$("#gcDone").onclick=gmClose;}
-      else{const {error}=await gcClient().from("gc_dashboard_users").update({name,role,salon_ids:sal,access,is_active:$("#gcUActive").value==="1",updated_at:new Date().toISOString()}).eq("id",u.id);if(error)throw error;
-        gmClose();gmToast("Saved "+name);gcUsersLoad();}}
+      else{const newEmail=$("#gcUEmail").value.trim().toLowerCase();
+        if(newEmail!==String(u.email||"").toLowerCase()){if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(newEmail)){err.textContent="Enter a valid email.";btn.disabled=false;return;}
+          await gcFn({action:"change_email",user_id:u.id,email:newEmail});}
+        const {error}=await gcClient().from("gc_dashboard_users").update({name,role,salon_ids:sal,access,is_active:$("#gcUActive").value==="1",updated_at:new Date().toISOString()}).eq("id",u.id);if(error)throw error;
+        gmClose();gmToast("Saved "+name+(newEmail!==String(u.email||"").toLowerCase()?" · sign-in email is now "+newEmail:""));gcUsersLoad();}}
     catch(e){err.textContent=e.message||String(e);btn.disabled=false;}};
   if(!isNew)$("#gcUReset").onclick=async()=>{const pw=gcTempPw();const err=$("#gcUErr");
     try{await gcFn({action:"reset_password",user_id:u.id,password:pw});gmClose();gcUsersLoad();

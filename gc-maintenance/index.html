@@ -963,19 +963,13 @@ async function saveWo(){
     }
     woStagedPhotos=[];
     closeModal("woModalBg");
-    // Send email notification to assigned contacts (fire-and-forget)
-    if(assignedEmails.length){
-      sendWoNotification({
-        to:assignedEmails,
-        title:body.title,
-        salon:salonName(body.salon_id),
-        priority:body.priority,
-        category:body.category,
-        description:body.description||"",
-        reported_by:body.reported_by||"",
-        due_date:body.due_date||"",
-        is_new:!id
-      }).catch(e=>console.warn("Email notification failed:",e));
+    // Emails: new tickets are emailed automatically by the database (assigned people + owner).
+    // On edits, email only people newly added to Assigned To.
+    if(id){
+      const prev=WORKORDERS.find(x=>x.id==id);
+      const before=new Set(((prev&&prev.assigned_to_emails)||[]).map(e=>String(e).toLowerCase()));
+      const added=assignedEmails.filter(e=>!before.has(String(e).toLowerCase()));
+      if(added.length)sendWoNotification({id:woId,mode:"assigned",emails:added}).catch(e=>console.warn("Email notification failed:",e));
     }
     await loadWorkOrders(); renderWorkOrders(); renderOverview();
   }catch(e){alert("Save failed: "+e.message);}
@@ -1766,7 +1760,7 @@ function setupPhotoDrop(){
 async function sendWoNotification(data){
   // Call Supabase Edge Function to send email
   try{
-    const r=await fetch(SUPA_URL+"/functions/v1/wo-notify",{
+    const r=await fetch(SUPA_URL+"/functions/v1/gc-maint-notify",{
       method:"POST",
       headers:{"Content-Type":"application/json",Authorization:"Bearer "+SUPA_KEY},
       body:JSON.stringify(data)

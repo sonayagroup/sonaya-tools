@@ -105,6 +105,8 @@ table.mats input.ovr { background: var(--amber-light); border-color: #f0c070; }
 .sum-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: .88rem; border-bottom: 1px dotted #e3e8ee; }
 .sum-row.sub { padding-left: 12px; font-size: .8rem; color: var(--muted); border: none; }
 .sum-row.tot { font-weight: 800; color: var(--navy); border-top: 2px solid var(--navy); border-bottom: none; margin-top: 4px; padding-top: 6px; }
+.fin-sum { border-top: 2px solid #0a5a2e; margin-top: 16px; padding-top: 12px; }
+.fin-sum h2 { color: #0a5a2e; }
 .price-box { background: var(--navy); color: #fff; border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
 .price-box .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #b9cadb; }
 .price-box .big { font-size: 2rem; font-weight: 800; color: var(--green); line-height: 1.1; }
@@ -1735,26 +1737,7 @@ function refreshCalc() {
   setStart('est.perDiemDays', c.overnight ? (blank(e.perDiemDays) ? c.nights + 1 : c.perDiemDays) : 0);
   if (ti) setStart('est.tripAdjust', ti.standard);
   (c.scopes || []).forEach(x => x.scope && x.r && setStart('scope.' + x.scope.id + '.laborOverride', x.r.overridden ? x.r.guideHrs : x.r.hrs));
-  setHTML('sumA', `
-    <h2>${esc(curOpt().name)} summary</h2>
-    <div class="stat-grid">
-      <div class="stat"><div class="k">Area</div><div class="v">${fmtN(c.sqft)} sf</div><div class="s">${c.scopes.length} scope${c.scopes.length === 1 ? '' : 's'}</div></div>
-      <div class="stat"><div class="k">Labor</div><div class="v">${fmtN(c.L, 1)} hrs</div><div class="s">range ${fmtN(c.Llo, 1)}–${fmtN(c.Lhi, 1)}</div></div>
-      <div class="stat"><div class="k">On site</div><div class="v">${fmtN(c.H, 1)} hrs</div><div class="s">${c.C} installers${c.eff < 1 ? ` · ${Math.round(c.eff * 100)}% eff.` : ''}</div></div>
-      <div class="stat"><div class="k">Schedule</div><div class="v">${days} day${days === 1 ? '' : 's'}${c.ot ? ` + ${fmtN(c.ot, 1)} OT` : ''}</div><div class="s">crew day ≈ ${fmtN(c.crewDay, 1)} h${c.overnight ? ` · ${c.nights} night${c.nights > 1 ? 's' : ''}` : ''}</div></div>
-    </div>
-    <div class="small muted" style="margin:-4px 0 8px">Customer time range: <b>${esc(rangeTxt)}</b></div>
-    <div class="sum-row"><span>Insulation materials${e.projectType === 'commercial' ? ' <span class="muted">(true cost)</span>' : ''}</span><span>${money(c.matCost)}</span></div>
-    <div class="sum-row"><span>Job supplies &amp; charges</span><span>${money(c.miscCost)}</span></div>
-    <div class="sum-row"><span>Labor (wages)</span><span>${money(c.laborWages)}</span></div>
-    ${c.mobWages ? `<div class="sum-row sub"><span>Mobilization ${fmtN(c.mobHrs)} h (1 h/installer/day @ $${fmtN(c.mobRate, 2)}/h)</span><span>${money(c.mobWages)}</span></div>` : ''}
-    ${c.laborBonuses ? `<div class="sum-row sub"><span>${c.crewBonus ? `${esc(c.bonusKind)} crew bonus ${c.C} × $${fmtN(c.bonusPer)}` : ''}${c.crewBonus && c.tightBonus ? ' + ' : ''}${c.tightBonus ? `tight attic ${c.tightEntering} × $${fmtN(c.tightBonus / c.tightEntering)}` : ''}</span><span>${money(c.laborBonuses)}</span></div>` : ''}
-    <div class="sum-row sub"><span>Payroll tax ${RULES.rates.payrollTaxPct}%</span><span>${money(c.payrollTax)}</span></div>
-    <div class="sum-row"><span>Labor total</span><span>${money(c.laborTotal)}</span></div>
-    ${c.ps === 3 ? '' : `<div class="sum-row"><span>Trip ${c.trips > 1 || c.vehicles > 1 ? `(${c.trips} trip${c.trips > 1 ? 's' : ''}${c.vehicles > 1 ? ` × ${c.vehicles} trucks` : ''})` : ''}</span><span>${money(c.trip)}</span></div>
-    ${c.generator ? `<div class="sum-row"><span>Equipment fuel ${fmtN(c.genHours, 1)} h</span><span>${money(c.generator)}</span></div>` : ''}`}
-    <div class="sum-row tot"><span>Total job cost</span><span>${money(c.cost)}</span></div>
-    `);
+  setHTML('sumA', jobSummaryHtml(c, `${curOpt().name} summary`, e));
   setHTML('sumB', `
     <div class="price-box">
       <div class="lbl">Price — ${esc(curOpt().name)} · ${fmtN(c.margin, 1)}% GP</div>
@@ -1765,10 +1748,14 @@ function refreshCalc() {
     </div>
     ${e.options.length > 1 && !includedOptions(e).length ? `<div class="w warn"><span class="ic">⚠</span><span>No option is marked “Include in Final”, so there is no Final (Combined) price. Tick Include on at least one option.</span></div>` : ''}
     ${fin && fin.invalid ? fin.warnings.filter(w => w.level === 'error').map(w => `<div class="w error"><span class="ic">⛔</span><span>${esc(w.msg)}</span></div>`).join('') : ''}
-    ${fin ? `<div class="price-box" style="background:#0a5a2e">
+    ${fin ? `<div class="fin-sum">${jobSummaryHtml(fin, 'Final (Combined) summary', e)}</div>
+    <div class="price-box" style="background:#0a5a2e">
       <div class="lbl">Final (Combined) — ${fin.count} of ${e.options.length} option${e.options.length > 1 ? 's' : ''} included</div>
       <div class="big" style="color:#fff">${money(fin.price)}</div>
       <div class="gp"><span>Blended GP ${fmtN(fin.margin, 1)}% · cost ${money0(fin.cost)}</span><span>${fmtN(fin.L, 1)} h · ${fin.days} day${fin.days > 1 ? 's' : ''}</span></div>
+      <div class="gp"><span>Revenue before fees ${money0(fin.revBeforeFees)}</span><span>${fmtN(fin.effMargin, 1)}% eff.</span></div>
+      <div class="gp"><span>Gross profit ${money0(fin.gp)} · royalty ${money0(fin.royaltyAmt)}</span><span>${fin.sqft ? `$${(fin.base / fin.sqft).toFixed(2)}/sf` : ''}</span></div>
+      ${fin.additional ? addOnsBox(fin) : ''}
       <div class="gp"><span>${esc(fin.names.join(' + '))}</span></div>
     </div>` : ''}
     ${res.length > 1 ? `<div class="small" style="margin-bottom:8px">${res.map((r, i) => `<div class="sum-row"><span>${(e.options[i].includeInFinal ?? i === 0) ? '●' : '○'} ${esc(e.options[i].name)}</span><span><b>${money0(r.price)}</b> · ${fmtN(r.margin, 0)}% · ${fmtN(r.L, 1)} h</span></div>`).join('')}</div>` : ''}
@@ -1785,6 +1772,31 @@ function refreshCalc() {
   const sc = $('sumC'); if (sc) sc.innerHTML = e.crmDealId ? '<div class="small muted" style="margin-top:6px">✓ Linked to a CRM deal</div>' : '';
   renderSaveStatus();
   if (estLocked(e) || document.body.classList.contains('est-locked')) applyEstLock();
+}
+
+// Cost build-up shown in the sidebar — used for the selected option AND for the Final (Combined) job (Nov 11, 2026:
+// Pranav asked for the same summary on the Final as on each floor). `c` is a computeOption / computeFinal result.
+function jobSummaryHtml(c, title, e) {
+  return `
+    <h2>${esc(title)}</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">Area</div><div class="v">${fmtN(c.sqft)} sf</div><div class="s">${c.scopes.length} scope${c.scopes.length === 1 ? '' : 's'}</div></div>
+      <div class="stat"><div class="k">Labor</div><div class="v">${fmtN(c.L, 1)} hrs</div><div class="s">range ${fmtN(c.Llo, 1)}–${fmtN(c.Lhi, 1)}</div></div>
+      <div class="stat"><div class="k">On site</div><div class="v">${fmtN(c.H, 1)} hrs</div><div class="s">${c.C} installers${c.eff < 1 ? ` · ${Math.round(c.eff * 100)}% eff.` : ''}</div></div>
+      <div class="stat"><div class="k">Schedule</div><div class="v">${c.days} day${c.days === 1 ? '' : 's'}${c.ot ? ` + ${fmtN(c.ot, 1)} OT` : ''}</div><div class="s">crew day ≈ ${fmtN(c.crewDay, 1)} h${c.overnight ? ` · ${c.nights} night${c.nights > 1 ? 's' : ''}` : ''}</div></div>
+    </div>
+    <div class="small muted" style="margin:-4px 0 8px">Customer time range: <b>${esc(customerRange(c))}</b></div>
+    <div class="sum-row"><span>Insulation materials${e.projectType === 'commercial' ? ' <span class="muted">(true cost)</span>' : ''}</span><span>${money(c.matCost)}</span></div>
+    <div class="sum-row"><span>Job supplies &amp; charges</span><span>${money(c.miscCost)}</span></div>
+    <div class="sum-row"><span>Labor (wages)</span><span>${money(c.laborWages)}</span></div>
+    ${c.mobWages ? `<div class="sum-row sub"><span>Mobilization ${fmtN(c.mobHrs)} h (1 h/installer/day @ $${fmtN(c.mobRate, 2)}/h)</span><span>${money(c.mobWages)}</span></div>` : ''}
+    ${c.laborBonuses ? `<div class="sum-row sub"><span>${c.crewBonus ? `${esc(c.bonusKind)} crew bonus ${c.C} × $${fmtN(c.bonusPer)}` : ''}${c.crewBonus && c.tightBonus ? ' + ' : ''}${c.tightBonus ? `tight attic ${c.tightEntering} × $${fmtN(c.tightBonus / c.tightEntering)}` : ''}</span><span>${money(c.laborBonuses)}</span></div>` : ''}
+    <div class="sum-row sub"><span>Payroll tax ${RULES.rates.payrollTaxPct}%</span><span>${money(c.payrollTax)}</span></div>
+    <div class="sum-row"><span>Labor total</span><span>${money(c.laborTotal)}</span></div>
+    ${c.ps === 3 ? '' : `<div class="sum-row"><span>Trip ${c.trips > 1 || c.vehicles > 1 ? `(${c.trips} trip${c.trips > 1 ? 's' : ''}${c.vehicles > 1 ? ` × ${c.vehicles} trucks` : ''})` : ''}</span><span>${money(c.trip)}</span></div>
+    ${c.generator ? `<div class="sum-row"><span>Equipment fuel ${fmtN(c.genHours, 1)} h</span><span>${money(c.generator)}</span></div>` : ''}`}
+    <div class="sum-row tot"><span>Total job cost</span><span>${money(c.cost)}</span></div>
+    `;
 }
 
 function setHTML(id, html) { const el = $(id); if (el && el._h !== html) { el.innerHTML = html; el._h = html; } }

@@ -472,6 +472,39 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .qod-q{font-size:15px;font-weight:600;color:var(--ink);line-height:1.4;margin-top:1px}.qod-a{font-size:12.5px;color:var(--muted);margin-top:2px}
 .qod-edit{background:none;border:1px solid #cfe7dd;border-radius:6px;padding:5px 9px;font:inherit;font-size:12px;color:#048667;cursor:pointer;white-space:nowrap}.qod-edit:hover{background:#fff}
 @media (max-width:640px){.qod{align-items:flex-start}.qod-q{font-size:14px}.qod-edit{padding:4px 7px}}
+/* ===== AM WEEKLY RECAP ===== */
+#recap.amr-on > :not(#amrToggle):not(#amrWrap){display:none!important}
+#recap:not(.amr-on) #amrWrap{display:none}
+.amr-title{font-size:17px;font-weight:800;color:var(--blue-dk);margin-bottom:6px}
+.amr-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.amr-ctl select{font:inherit;font-size:13.5px;padding:5px 8px;border:1px solid var(--line);border-radius:7px}
+.amr-ack{margin-top:8px;background:#eafaf1;color:#14664f;border-radius:7px;padding:7px 10px;font-size:13px}
+.amr-salon{margin-top:12px}
+.amr-sh{font-size:15px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.amr-exn{margin-left:auto;font-size:12px;color:var(--muted)}
+.amr-kpis{display:flex;flex-wrap:wrap;gap:6px 14px;margin:8px 0 2px;font-size:13px;font-weight:700}
+.amr-kpis i{font-style:normal;font-weight:500;color:var(--muted);font-size:11.5px;margin-right:4px}
+.amr-sub{font-size:12px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);font-weight:700;margin:14px 0 6px}
+.amr-ex,.amr-prev{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.amr-ex .amr-note{grid-column:1/-1}
+.amr-cat{font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;background:#eef2f7;color:#475569;border-radius:4px;padding:1px 6px}
+.amr-seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;vertical-align:middle}
+.amr-seg button{border:0;background:#fff;padding:6px 10px;font:inherit;font-size:12.5px;cursor:pointer;border-right:1px solid var(--line)}
+.amr-seg button:last-child{border-right:0}
+.amr-seg button.on{background:var(--blue-dk,#14664f);color:#fff}
+.amr-note,.amr-c input,#amrNeeds,#amrComment{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px}
+.amr-c{display:grid;grid-template-columns:1fr 140px 150px;gap:6px;margin-bottom:6px}
+.amr-yn{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:12px;font-size:13px}
+.amr-yn label{display:flex;gap:8px;align-items:center}
+.amr-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.amr-review{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.amr-review #amrComment{flex:1;min-width:200px}
+.amr-board{margin-bottom:12px}
+.amr-bh{font-weight:800;color:var(--blue-dk);margin-bottom:8px}
+.amr-brow{display:flex;flex-wrap:wrap;gap:10px}
+.amr-bcell{flex:1;min-width:180px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.amr-bcell:hover{border-color:var(--blue-dk)}
+@media(max-width:640px){.amr-c{grid-template-columns:1fr 1fr}.amr-c input[data-cf="what"]{grid-column:1/-1}.amr-ex,.amr-prev{grid-template-columns:1fr}}
 </style></head>
 <body class="gc-locked">
 <div id="gcLogin" class="gc-login">
@@ -4659,5 +4692,171 @@ let tries=0;const iv=setInterval(()=>{tries++;
   if(ready){if(!seen())setTimeout(()=>{if(!seen()&&!modalOpen())start();},600);clearInterval(iv);}
   else if(tries>240)clearInterval(iv);},500);
 })();
+</script>
+<script>
+// ===== AM WEEKLY RECAP =====
+// One recap per Area Manager per week (instead of one form per salon).
+// Data the dashboard already has is pre-filled; the AM only answers the exceptions,
+// sets up to 3 commitments per salon, and closes out last week's commitments.
+// Due Monday 12:00 pm (local) after the Friday week-ending. Stored in gc_am_recaps.
+const AMR={rows:[],loaded:false,loading:null,am:null,wk:null,dirty:false,saving:false};
+const AMR_RESP=[["coached","Coached"],["plan","Plan set"],["ok","Not an issue"]];
+const AMR_PREV=[["done","Done"],["notdone","Not done"],["carry","Carry over"]];
+
+function amrAdd(wk,days){const d=new Date(wk+"T12:00:00");d.setDate(d.getDate()+days);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function amrDeadline(wk){const d=new Date(amrAdd(wk,3)+"T12:00:00");return d;} // Monday noon after the Friday week-ending
+function amrNameKey(n){const p=String(n||"").replace(/\s+/g," ").trim().split(" ");return (p[0]||"")+" "+(p[1]||"");} // "Last, First"
+const AMR_START="2026-11-13"; // first week on the new recap
+function amrFri(){const d=new Date(localToday()+"T12:00:00");d.setDate(d.getDate()+((5-d.getDay()+7)%7));return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");} // this GC week's Friday
+function amrWeeks(){const f=amrFri();const set=new Set((WEEKS||[]).concat([f]));return [...set].filter(w=>w>=AMR_START&&w<=f).sort().reverse().slice(0,12);}
+function amrDefaultWeek(){const t=localToday(),ws=amrWeeks();return ws.find(w=>w<=t)||ws[0];}
+function amrAms(){ // AM of record = AM_DEF. A login sees the AMs whose salons overlap theirs (owner sees all).
+  const all=Object.keys(AM_DEF).map(n=>({key:n,name:n,salons:AM_DEF[n].slice()}));
+  if(typeof gcIsOwner==="function"&&gcIsOwner())return all;
+  const p=(typeof GCU!=="undefined"&&GCU.perms)||null;if(!p)return all;
+  const mine=(p.salon_ids||[]).map(String);const first=String(p.name||"").split(" ")[0].toLowerCase();
+  const exact=all.filter(a=>a.name.split(" ")[0].toLowerCase()===first);if(exact.length)return exact;
+  return all.filter(a=>a.salons.some(s=>mine.includes(s)));}
+function amrRow(am,wk){return AMR.rows.find(r=>r.am_key===am&&String(r.week_ending)===String(wk))||null;}
+function amrLoad(force){if(AMR.loaded&&!force)return Promise.resolve();if(AMR.loading&&!force)return AMR.loading;
+  const since=amrAdd(localToday(),-120);
+  AMR.loading=fetch(SUPA_URL+"/rest/v1/gc_am_recaps?select=*&week_ending=gte."+since+"&order=week_ending.desc",{headers:supaHeaders()})
+    .then(r=>r.ok?r.json():[]).then(j=>{AMR.rows=j||[];AMR.loaded=true;}).catch(()=>{AMR.rows=[];AMR.loaded=true;});
+  return AMR.loading;}
+function amrStatus(am,wk){const r=amrRow(am,wk),dl=amrDeadline(wk),now=new Date();
+  if(r&&r.status==="final"){const late=r.submitted_at&&new Date(r.submitted_at)>dl;return {k:late?"late":"ok",lbl:late?"Submitted late":"Submitted on time",when:r.submitted_at};}
+  if(now>dl)return {k:"missing",lbl:r?"Draft · overdue":"Missing · overdue"};
+  return {k:r?"draft":"open",lbl:r?"Draft":"Not started"};}
+function amrStreak(am){let n=0;for(const w of amrWeeks()){if(new Date()<=amrDeadline(w)&&!(amrRow(am,w)||{}).submitted_at)continue;const s=amrStatus(am,w);if(s.k==="ok")n++;else break;}return n;}
+function amrChip(s){const c={ok:"gm-g",late:"gm-a",missing:"gm-r",draft:"gm-a",open:"gm-n"}[s.k]||"gm-n";return '<span class="gm-chip '+c+'">'+esc(s.lbl)+'</span>';}
+
+// ---- Exceptions: things outside standard this week, built from data already on the dashboard ----
+function amrExceptions(sid,wk){const out=[];const W=(DATA.weeklies&&DATA.weeklies[wk])||{};const ws=(W.WSAL||{})[sid];const days=weekDates(wk);
+  if(ws){const pr=ws[WS.payrollPct],cph=ws[WS.cutsHr],w15=ws[WS.waitOver15Pct];
+    if(typeof pr==="number"&&pr>40)out.push({k:"payroll",cat:"Salon",label:"Payroll "+pr.toFixed(1)+"%",detail:"Target is 40% or lower"});
+    if(typeof cph==="number"&&cph<2.0)out.push({k:"cph",cat:"Salon",label:"CPH "+cph.toFixed(1),detail:"Target is 2.0 or higher"});
+    if(typeof w15==="number"&&w15>=19)out.push({k:"wait",cat:"Salon",label:"Waits over 15 min: "+w15.toFixed(1)+"%",detail:"Target is under 19%"});}
+  const cash=[];days.forEach(d=>{const row=((DATA.days&&DATA.days[d]&&DATA.days[d].SAL)||[]).find(r=>String(r[0])===String(sid));if(row&&typeof row[14]==="number"&&Math.abs(row[14])>=5)cash.push(fmtDate(d).replace(/\/\d{4}$/,"")+" "+(row[14]<0?"−":"+")+"$"+Math.abs(row[14]).toFixed(2));});
+  if(cash.length)out.push({k:"cash",cat:"Salon",label:"Drawer off $5+ on "+cash.length+" day"+(cash.length>1?"s":""),detail:cash.join(" · ")});
+  // stylists out of standard (weekly employee performance)
+  const amKeys=(typeof gmAmKeys==="function")?gmAmKeys():new Set();
+  ((W.EPP||{})[sid]||[]).forEach(r=>{const why=[];
+    if(typeof r[3]==="number"&&r[3]>=19)why.push("Avg HC "+r[3].toFixed(1)+" min");
+    if(typeof r[4]==="number"&&r[4]<2.0)why.push("CPH "+r[4].toFixed(1));
+    if(typeof r[9]==="number"&&r[9]<21)why.push("New return "+r[9].toFixed(0)+"%");
+    if(typeof r[10]==="number"&&r[10]<72)why.push("Repeat return "+r[10].toFixed(0)+"%");
+    if(!why.length)return;
+    let coached="";if(typeof gmRecapDefault==="function"&&typeof GM!=="undefined"&&GM.loaded){const q=gmRecapDefault("qc",sid,wk,r[0])==="yes",rc=gmRecapDefault("rc",sid,wk,r[0])==="yes";coached=(q||rc)?" · "+[q?"QC":"",rc?"REACH":""].filter(Boolean).join(" + ")+" logged":" · no QC/REACH logged this week";}
+    out.push({k:"sty|"+r[0],cat:"Stylist",label:r[0],detail:why.join(" · ")+coached});});
+  // attendance: 2+ real no-shows or 3+ lates (ignores "no-shows" where the person worked at another salon that day)
+  const att={};days.forEach(d=>{const D=DATA.days&&DATA.days[d];if(!D)return;const worked=new Set();Object.values(D.STY||{}).forEach(rows=>rows.forEach(x=>{if((x[1]||0)>0||(x[8]||0)>0)worked.add(amrNameKey(x[0]));}));
+    ((D.ATT||{})[sid]||[]).forEach(x=>{const k=amrNameKey(x[0]);if(amKeys.has&&typeof gmKey==="function"&&amKeys.has(gmKey(x[0])))return;const a=att[k]=att[k]||{n:x[0],ns:0,late:0};if(x[1]&&!worked.has(k))a.ns+=x[1];a.late+=x[2]||0;});});
+  Object.values(att).forEach(a=>{if(a.ns>=2||a.late>=3)out.push({k:"att|"+a.n,cat:"Attendance",label:a.n,detail:[a.ns?a.ns+" no-show"+(a.ns>1?"s":""):"",a.late?a.late+" late arrival"+(a.late>1?"s":""):""].filter(Boolean).join(" · ")});});
+  return out;}
+
+// ---- Render ----
+function amrShow(){const host=$("#amrWrap");if(!host)return;const panel=$("#recap");
+  let mode="new";try{mode=localStorage.getItem("amrMode")||"new";}catch(e){}
+  panel.classList.toggle("amr-on",mode==="new");
+  document.querySelectorAll("#amrToggle button").forEach(b=>b.classList.toggle("active",b.dataset.m===mode));
+  if(mode!=="new")return;
+  if(!DATA.weeklies||!DATA.days){host.innerHTML='<div class="card">Loading data…</div>';return;}
+  host.innerHTML='<div class="card">Loading recaps…</div>';
+  Promise.all([amrLoad(),(typeof gmLoad==="function"?gmLoad().catch(()=>{}):null)]).then(amrRender);}
+function amrRender(){const host=$("#amrWrap");if(!host)return;const ams=amrAms();const weeks=amrWeeks();
+  if(!ams.length){host.innerHTML='<div class="card">No Area Manager is set up for your salons.</div>';return;}
+  if(!AMR.am||!ams.some(a=>a.key===AMR.am))AMR.am=ams[0].key;
+  if(!AMR.wk||!weeks.includes(AMR.wk))AMR.wk=amrDefaultWeek();
+  const am=ams.find(a=>a.key===AMR.am),wk=AMR.wk,row=amrRow(am.key,wk),D=(row&&row.data)||{},S=D.salons||{};
+  const prevRow=amrRow(am.key,amrAdd(wk,-7)),PS=((prevRow&&prevRow.data)||{}).salons||{};
+  const st=amrStatus(am.key,wk),dl=amrDeadline(wk),owner=typeof gcIsOwner==="function"&&gcIsOwner();
+  let h='<div class="amr-head card"><div class="amr-title">Area Manager Weekly Recap</div>'
+    +'<div class="amr-ctl">'+(ams.length>1?'<select id="amrAmSel">'+ams.map(a=>'<option value="'+esc(a.key)+'"'+(a.key===am.key?' selected':'')+'>'+esc(a.name)+'</option>').join("")+'</select>':'<b>'+esc(am.name)+'</b>')
+    +' <span class="hint">Week ending</span> <select id="amrWkSel">'+weeks.map(w=>'<option value="'+w+'"'+(w===wk?' selected':'')+'>'+fmtDate(w)+'</option>').join("")+'</select> '
+    +amrChip(st)+' <span class="hint">Due Mon '+fmtDate(amrAdd(wk,3))+' at noon · On-time streak: <b>'+amrStreak(am.key)+'</b></span></div>'
+    +'<div class="hint" style="margin-top:6px">The numbers are filled in for you. For each salon: answer anything flagged, close out last week’s commitments, and set up to 3 commitments for this week. About 15 minutes.</div>'
+    +(row&&row.owner_ack_at?'<div class="amr-ack">✔ Reviewed by '+esc(row.owner_ack_by||"Pranav")+' '+new Date(row.owner_ack_at).toLocaleDateString()+(row.owner_comment?' — “'+esc(row.owner_comment)+'”':'')+'</div>':'')
+    +'</div>';
+  am.salons.forEach(sid=>{const s=S[sid]||{},ex=amrExceptions(sid,wk),ws=((DATA.weeklies[wk]||{}).WSAL||{})[sid];
+    const prevC=((PS[sid]||{}).commit||[]).filter(c=>c&&c.what);
+    const kpis=ws?[["Sales","$"+Math.round(ws[WS.totalSales]||0).toLocaleString()],["Cust",ws[WS.cust]],["Payroll",(ws[WS.payrollPct]!=null?(+ws[WS.payrollPct]).toFixed(1)+"%":"—")],["CPH",ws[WS.cutsHr]!=null?(+ws[WS.cutsHr]).toFixed(1):"—"],["Wait>15",ws[WS.waitOver15Pct]!=null?(+ws[WS.waitOver15Pct]).toFixed(0)+"%":"—"],["Cust growth",ws[WS.custGrowthPct]!=null?(+ws[WS.custGrowthPct]).toFixed(1)+"%":"—"]]:[];
+    h+='<div class="card amr-salon" data-sid="'+sid+'"><div class="amr-sh"><b>'+sid+'</b> '+esc(sName(sid))+' <span class="amr-exn">'+(ex.length?ex.length+' to answer':'✓ nothing flagged')+'</span></div>'
+      +(kpis.length?'<div class="amr-kpis">'+kpis.map(k=>'<span><i>'+k[0]+'</i>'+esc(String(k[1]))+'</span>').join("")+'</div>':'<div class="hint">Week not closed yet — the weekly numbers and stylist flags fill in after the Saturday update. Drawer and attendance flags show as the week goes.</div>');
+    if(prevC.length){h+='<div class="amr-sub">Last week’s commitments</div>';prevC.forEach((c,i)=>{const v=((s.prev||{})[i]||{}).st||"";
+      h+='<div class="amr-prev"><div class="amr-what">'+esc(c.what)+'<span class="hint"> · '+esc(c.who||"")+(c.due?' · by '+fmtDate(c.due):'')+'</span></div><div class="amr-seg" data-prev="'+i+'">'+AMR_PREV.map(o=>'<button type="button" data-v="'+o[0]+'"'+(v===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join("")+'</div></div>';});}
+    if(ex.length){h+='<div class="amr-sub">Flagged this week</div>';ex.forEach(e=>{const a=((s.ex||{})[e.k])||{};
+      h+='<div class="amr-ex" data-k="'+esc(e.k)+'"><div><span class="amr-cat">'+e.cat+'</span> <b>'+esc(e.label)+'</b><div class="hint">'+esc(e.detail)+'</div></div>'
+        +'<div class="amr-seg" data-ex="'+esc(e.k)+'">'+AMR_RESP.map(o=>'<button type="button" data-v="'+o[0]+'"'+(a.r===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join("")+'</div>'
+        +'<input class="amr-note" data-exnote="'+esc(e.k)+'" placeholder="'+(a.r==="ok"?"Why it’s not an issue (required)":"Short note (optional)")+'" value="'+esc(a.note||"")+'"></div>';});}
+    const C=(s.commit&&s.commit.length?s.commit:[]).slice(0,3);
+    // carried-over items fill empty slots
+    prevC.forEach((c,i)=>{if(((s.prev||{})[i]||{}).st==="carry"&&!C.some(x=>x&&x.what===c.what)&&C.filter(x=>x&&x.what).length<3)C.push({what:c.what,who:c.who,due:""});});
+    while(C.length<3)C.push({});
+    h+='<div class="amr-sub">This week’s commitments <span class="hint">(at least 1, up to 3 — what, who, by when)</span></div>';
+    C.forEach((c,i)=>{h+='<div class="amr-c" data-ci="'+i+'"><input data-cf="what" placeholder="What will get done" value="'+esc(c.what||"")+'"><input data-cf="who" placeholder="Who" value="'+esc(c.who||"")+'"><input data-cf="due" type="date" value="'+esc(c.due||"")+'"></div>';});
+    h+='<div class="amr-yn"><label>Licenses posted &amp; current <span class="amr-seg" data-yn="lic">'+[["yes","Yes"],["no","No"]].map(o=>'<button type="button" data-v="'+o[0]+'"'+(s.lic===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join("")+'</span></label>'
+      +'<label>Schedules up to date (3 weeks out) <span class="amr-seg" data-yn="sched">'+[["yes","Yes"],["no","No"]].map(o=>'<button type="button" data-v="'+o[0]+'"'+(s.sched===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join("")+'</span></label></div>';
+    h+='</div>';});
+  h+='<div class="card"><div class="amr-sub" style="margin-top:0">Anything you need from Pranav?</div><textarea id="amrNeeds" rows="2" placeholder="Optional">'+esc(D.needs||"")+'</textarea>'
+    +'<div class="amr-actions"><button class="btn" id="amrDraft" style="background:#6b7280">Save draft</button><button class="btn" id="amrFinal">Submit recap</button><span class="savemsg" id="amrMsg"></span></div></div>';
+  if(owner&&row&&row.status==="final")h+='<div class="card amr-review"><div class="amr-sub" style="margin-top:0">Your review</div><input id="amrComment" placeholder="Comment for '+esc(am.name.split(" ")[0])+' (optional)" value="'+esc(row.owner_comment||"")+'"><button class="btn" id="amrAck">'+(row.owner_ack_at?"Update review":"Mark reviewed ✔")+'</button><span class="savemsg" id="amrAckMsg"></span></div>';
+  host.innerHTML=h;AMR.dirty=false;amrWire(am,wk,row);}
+function amrWire(am,wk,row){const host=$("#amrWrap");
+  const sel=$("#amrAmSel");if(sel)sel.onchange=()=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?")){sel.value=AMR.am;return;}AMR.am=sel.value;amrRender();};
+  $("#amrWkSel").onchange=e=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?")){e.target.value=AMR.wk;return;}AMR.wk=e.target.value;amrRender();};
+  host.querySelectorAll(".amr-seg button").forEach(b=>b.onclick=()=>{const seg=b.parentElement,on=b.classList.contains("on");seg.querySelectorAll("button").forEach(x=>x.classList.remove("on"));if(!on)b.classList.add("on");AMR.dirty=true;
+    if(seg.dataset.ex){const n=seg.parentElement.querySelector(".amr-note");if(n)n.placeholder=(!on&&b.dataset.v==="ok")?"Why it’s not an issue (required)":"Short note (optional)";}
+    if(seg.dataset.prev!=null&&b.dataset.v==="carry"&&!on){const card=seg.closest(".amr-salon"),what=seg.parentElement.querySelector(".amr-what").firstChild.textContent;const ins=[...card.querySelectorAll('.amr-c input[data-cf="what"]')];if(!ins.some(i=>i.value.trim()===what)){const empty=ins.find(i=>!i.value.trim());if(empty)empty.value=what;}}});
+  host.querySelectorAll("input,textarea").forEach(i=>i.addEventListener("input",()=>{AMR.dirty=true;}));
+  $("#amrDraft").onclick=()=>amrSave(am,wk,false);$("#amrFinal").onclick=()=>amrSave(am,wk,true);
+  const ack=$("#amrAck");if(ack)ack.onclick=()=>amrAckSave(am,wk);}
+function amrCollect(){const out={salons:{},needs:($("#amrNeeds")||{}).value||""};
+  document.querySelectorAll("#amrWrap .amr-salon").forEach(card=>{const sid=card.dataset.sid,s={ex:{},prev:{},commit:[]};
+    card.querySelectorAll(".amr-ex").forEach(x=>{const k=x.dataset.k,on=x.querySelector(".amr-seg button.on"),note=x.querySelector(".amr-note").value.trim();s.ex[k]={r:on?on.dataset.v:"",note,label:x.querySelector("b").textContent};});
+    card.querySelectorAll(".amr-seg[data-prev]").forEach(seg=>{const on=seg.querySelector("button.on");s.prev[seg.dataset.prev]={st:on?on.dataset.v:""};});
+    card.querySelectorAll(".amr-c").forEach(r=>{const g=f=>r.querySelector('[data-cf="'+f+'"]').value.trim();if(g("what"))s.commit.push({what:g("what"),who:g("who"),due:g("due")});});
+    ["lic","sched"].forEach(k=>{const on=card.querySelector('.amr-seg[data-yn="'+k+'"] button.on');s[k]=on?on.dataset.v:"";});
+    out.salons[sid]=s;});return out;}
+function amrValidate(data,order){const miss=[];(order||Object.keys(data.salons)).forEach(sid=>{const s=data.salons[sid];
+  Object.keys(s.ex).forEach(k=>{const e=s.ex[k];if(!e.r)miss.push(sid+": answer “"+e.label+"”");else if(e.r==="ok"&&!e.note)miss.push(sid+": say why “"+e.label+"” is not an issue");});
+  Object.keys(s.prev).forEach(i=>{if(!s.prev[i].st)miss.push(sid+": close out last week’s commitment #"+(+i+1));});
+  if(!s.commit.length)miss.push(sid+": add at least one commitment");
+  s.commit.forEach((c,i)=>{if(!c.who||!c.due)miss.push(sid+": commitment #"+(i+1)+" needs who and by when");});
+  if(!s.lic)miss.push(sid+": licenses Yes/No");if(!s.sched)miss.push(sid+": schedules Yes/No");});return miss;}
+async function amrSave(am,wk,final){const msg=$("#amrMsg");const data=amrCollect();
+  if(final){const miss=amrValidate(data,am.salons);if(miss.length){msg.style.color=RED;msg.innerHTML="Still needed:<br>"+miss.slice(0,8).map(esc).join("<br>")+(miss.length>8?"<br>…and "+(miss.length-8)+" more":"");return;}}
+  const prev=amrRow(am.key,wk);const who=(typeof GCU!=="undefined"&&GCU.perms&&(GCU.perms.name||GCU.perms.email))||"";
+  const body={am_key:am.key,week_ending:wk,am_name:am.name,salon_ids:am.salons,data,status:final?"final":((prev&&prev.status)||"draft"),updated_by:who,updated_at:new Date().toISOString()};
+  if(final&&!(prev&&prev.submitted_at))body.submitted_at=new Date().toISOString();
+  msg.style.color="var(--muted)";msg.textContent="Saving…";
+  try{const r=await fetch(SUPA_URL+"/rest/v1/gc_am_recaps?on_conflict=am_key,week_ending",{method:"POST",headers:supaHeaders({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=representation"}),body:JSON.stringify(body)});
+    if(!r.ok)throw new Error(await r.text());const j=await r.json();const nr=j[0];AMR.rows=AMR.rows.filter(x=>!(x.am_key===am.key&&String(x.week_ending)===String(wk)));AMR.rows.unshift(nr);
+    AMR.dirty=false;amrRender();const m2=$("#amrMsg");if(m2){m2.style.color=GREEN;m2.textContent=final?"✓ Recap submitted":"✓ Draft saved";}
+    try{amrBoard();}catch(e){}}
+  catch(e){msg.style.color=RED;msg.textContent="Error: "+e.message;}}
+async function amrAckSave(am,wk){const m=$("#amrAckMsg");const who=(GCU&&GCU.perms&&(GCU.perms.name||"Pranav"))||"Pranav";
+  try{const r=await fetch(SUPA_URL+"/rest/v1/gc_am_recaps?am_key=eq."+encodeURIComponent(am.key)+"&week_ending=eq."+wk,{method:"PATCH",headers:supaHeaders({"Content-Type":"application/json",Prefer:"return=representation"}),body:JSON.stringify({owner_ack_at:new Date().toISOString(),owner_ack_by:who,owner_comment:$("#amrComment").value.trim()||null})});
+    if(!r.ok)throw new Error(await r.text());const nr=(await r.json())[0];const i=AMR.rows.findIndex(x=>x.am_key===am.key&&String(x.week_ending)===String(wk));if(i>=0)AMR.rows[i]=nr;amrRender();try{amrBoard();}catch(e){}}
+  catch(e){m.style.color=RED;m.textContent="Error: "+e.message;}}
+
+// ---- Portfolio board (owner): who has submitted, on time, and open commitments ----
+function amrBoard(){const el=$("#amrBoard");if(!el)return;if(!(typeof gcIsOwner==="function"&&gcIsOwner())){el.innerHTML="";return;}
+  const wk=amrDefaultWeek();if(!wk){el.innerHTML="";return;}
+  amrLoad().then(()=>{let h='<div class="card amr-board"><div class="amr-bh">Area Manager recaps · week ending '+fmtDate(wk)+' <span class="hint">due Mon '+fmtDate(amrAdd(wk,3))+' at noon</span></div><div class="amr-brow">';
+    Object.keys(AM_DEF).forEach(am=>{const s=amrStatus(am,wk),r=amrRow(am,wk),n=r&&r.data&&r.data.salons?Object.values(r.data.salons).reduce((a,x)=>a+((x.commit||[]).length),0):0;
+      h+='<div class="amr-bcell" data-am="'+esc(am)+'"><b>'+esc(am)+'</b>'+amrChip(s)+'<div class="hint">'+(r&&r.status==="final"?n+' commitments'+(r.owner_ack_at?' · ✔ reviewed':' · not reviewed yet'):'')+'</div><div class="hint">On-time streak: '+amrStreak(am)+'</div></div>';});
+    h+='</div></div>';el.innerHTML=h;
+    el.querySelectorAll(".amr-bcell").forEach(c=>c.onclick=()=>{AMR.am=c.dataset.am;AMR.wk=wk;try{localStorage.setItem("amrMode","new");}catch(e){}const t=document.querySelector('.tab[data-t="recap"]');if(t)t.click();});});}
+
+// ---- wiring ----
+(function(){const panel=document.getElementById("recap");if(!panel||document.getElementById("amrWrap"))return;
+  const bar=document.createElement("div");bar.id="amrToggle";bar.className="det-mode";bar.style.marginBottom="12px";
+  bar.innerHTML='<button data-m="new">Area Manager recap</button><button data-m="classic">Salon recaps (classic)</button>';
+  const wrap=document.createElement("div");wrap.id="amrWrap";panel.insertBefore(wrap,panel.firstChild);panel.insertBefore(bar,wrap);
+  bar.querySelectorAll("button").forEach(b=>b.onclick=()=>{try{localStorage.setItem("amrMode",b.dataset.m);}catch(e){}amrShow();});
+  const tab=document.querySelector('.tab[data-t="recap"]');if(tab)tab.addEventListener("click",()=>setTimeout(amrShow,0));
+  const port=document.getElementById("portfolio");if(port&&!document.getElementById("amrBoard")){const b=document.createElement("div");b.id="amrBoard";const q=document.getElementById("qodBanner");port.insertBefore(b,q?q.nextSibling:port.firstChild);}
+  window.addEventListener("beforeunload",e=>{if(AMR.dirty){e.preventDefault();e.returnValue="";}});
+  let tries=0;const t=setInterval(()=>{tries++;if(WEEKS&&WEEKS.length&&typeof GCU!=="undefined"&&GCU.perms){clearInterval(t);amrBoard();if(panel.classList.contains("active"))amrShow();}else if(tries>60)clearInterval(t);},1000);})();
 </script>
 </body></html>

@@ -4459,12 +4459,12 @@ async function gcUsersLoad(){const host=$("#gcUsersBody");if(!host)return;host.i
     gcUsersRender();}catch(e){host.innerHTML='<div class="banner warn">Could not load users: '+esc(e.message||e)+'</div>';}}
 // ---- usage (owners only) ----
 let GC_ACT={},GC_DID={};
-function gcWeekStart(d){const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-((x.getDay()+1)%7));return x;} // weeks run Sat–Fri
+function gcUsageWeekStart(d){const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-((x.getDay()+1)%7));return x;} // weeks run Sat–Fri
 async function gcUsageLoad(){GC_ACT={};GC_DID={};
   try{const since=new Date(Date.now()-56*864e5).toISOString();
     const {data}=await gcClient().from("gc_dashboard_activity").select("user_id,event,at").gte("at",since).order("at",{ascending:false}).limit(5000);
     (data||[]).forEach(a=>{(GC_ACT[a.user_id]=GC_ACT[a.user_id]||[]).push(a);});}catch(e){}
-  try{const ws=gcWeekStart(new Date()).toISOString(),hd=supaHeaders();
+  try{const ws=gcUsageWeekStart(new Date()).toISOString(),hd=supaHeaders();
     const [cl,mt]=await Promise.all([fetch(SUPA_URL+"/rest/v1/gc_coaching_log?select=logged_by,kind,deleted&created_at=gte."+encodeURIComponent(ws),{headers:hd}).then(r=>r.ok?r.json():[]),
       fetch(SUPA_URL+"/rest/v1/gc_manager_tasks?select=completed_by,period_type,completed&completed_at=gte."+encodeURIComponent(ws),{headers:hd}).then(r=>r.ok?r.json():[])]);
     const bump=(n,k)=>{n=String(n||"").trim().toLowerCase();if(!n)return;(GC_DID[n]=GC_DID[n]||{coach:0,checks:0})[k]++;};
@@ -4472,13 +4472,13 @@ async function gcUsageLoad(){GC_ACT={};GC_DID={};
 function gcWhen(iso){if(!iso)return "Never";const d=new Date(iso),now=new Date(),t=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
   const days=Math.floor((new Date(now.toDateString())-new Date(d.toDateString()))/864e5);
   return days===0?"Today "+t:days===1?"Yesterday "+t:days<7?d.toLocaleDateString([],{weekday:"short"})+" "+t:d.toLocaleDateString([],{month:"numeric",day:"numeric"})+" "+t;}
-function gcUsageCells(u){const a=GC_ACT[u.id]||[],wk=gcWeekStart(new Date()).getTime();const thisWk=a.filter(x=>new Date(x.at).getTime()>=wk).length;
+function gcUsageCells(u){const a=GC_ACT[u.id]||[],wk=gcUsageWeekStart(new Date()).getTime();const thisWk=a.filter(x=>new Date(x.at).getTime()>=wk).length;
   const did=GC_DID[String(u.name||"").trim().toLowerCase()]||GC_DID[String(u.email||"").toLowerCase()]||{coach:0,checks:0};
   const last=a[0]?a[0].at:null,stale=!last||(Date.now()-new Date(last).getTime())>7*864e5;
   return '<td>'+(last?(stale?gmChip("gm-r",gcWhen(last)):esc(gcWhen(last))):gmChip("gm-n","Never"))+'</td>'
     +'<td style="text-align:center"><b>'+thisWk+'</b></td>'
     +'<td class="wrap" style="font-size:12px">'+(did.coach||did.checks?(did.coach?did.coach+" coaching log"+(did.coach===1?"":"s"):"")+(did.coach&&did.checks?" · ":"")+(did.checks?did.checks+" checklist item"+(did.checks===1?"":"s"):""):'<span class="hint">None yet</span>')+'</td>';}
-function gcUsageModal(u){const a=GC_ACT[u.id]||[];const now=gcWeekStart(new Date());let wk='';
+function gcUsageModal(u){const a=GC_ACT[u.id]||[];const now=gcUsageWeekStart(new Date());let wk='';
   for(let i=0;i<8;i++){const s=new Date(now);s.setDate(s.getDate()-7*i);const e=new Date(s);e.setDate(e.getDate()+7);
     const n=a.filter(x=>{const t=new Date(x.at);return t>=s&&t<e;}).length,days=new Set(a.filter(x=>{const t=new Date(x.at);return t>=s&&t<e;}).map(x=>new Date(x.at).toDateString())).size;
     const lbl=i===0?"This week":s.toLocaleDateString([],{month:"numeric",day:"numeric"})+"–"+new Date(e-864e5).toLocaleDateString([],{month:"numeric",day:"numeric"});

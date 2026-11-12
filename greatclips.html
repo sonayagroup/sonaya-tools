@@ -508,6 +508,9 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 @media(max-width:640px){.amr-c{grid-template-columns:1fr 1fr}.amr-c input[data-cf="what"]{grid-column:1/-1}.amr-ex,.amr-prev{grid-template-columns:1fr}}
 #recap.amr-on #recapStatusTbl th:nth-child(2),#recap.amr-on #recapStatusTbl tbody tr:not(.am-group-hdr) td:nth-child(2){display:none}
 #recap.amr-on .am-row .am-val .gm-chip{font-size:11px}
+body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .hdr-inner .ctrls,body.gc-linksonly #hdrMeta{display:none!important}
+#gcLinksHome{max-width:560px;margin:28px auto;padding:22px}
+.gc-lh-btn{display:inline-block;margin:0 10px 10px 0;padding:12px 18px;font-size:15px;text-decoration:none}
 </style></head>
 <body class="gc-locked">
 <div id="gcLogin" class="gc-login">
@@ -4382,12 +4385,13 @@ function qodEditor(day){const c=QOD.custom[day]||{};const bi=qodBuiltIn(day);
 // NOTE: this controls what the page shows. Report data is still read with the shared public key, as before.
 let GCU={user:null,perms:null};
 let gcSB=null,gcAuthP=null;
-const GC_ROLE_NAMES={owner:"Owner",am:"Area Manager",manager:"Salon Manager",asst_manager:"Assistant Manager"};
+const GC_ROLE_NAMES={owner:"Owner",am:"Area Manager",manager:"Salon Manager",asst_manager:"Assistant Manager",office:"Office Manager"};
 const GC_MGR_TABS=["portfolio","reps","detail","manager","contacts"];
 // Areas a login can open. Tabs use data-t keys; links match on their href; adminhrs = the Area Manager admin-hours cards.
 const GC_AREAS=[["portfolio","Portfolio"],["reps","Daily REPS"],["detail","Salon Detail"],["recap","Weekly Recap"],["manager","Manager"],["contacts","Contacts"],["scorecard","Stylist Scorecard"],["visit","Salon Visits"],["sched","Schedules"],["crm","Stylist CRM"],["quiz","Manager Quiz"],["maint","Maintenance"],["adminhrs","AM admin hours"]];
 const GC_LINK_AREA={"gc-crm":"crm","gc-quiz-admin":"quiz","gc-maintenance":"maint"};
-function gcRoleAreas(role){return (role==="manager"||role==="asst_manager")?GC_MGR_TABS.concat(["scorecard","visit","maint"]):GC_AREAS.map(a=>a[0]);}
+const GC_OFFICE_AREAS=["crm","maint"]; // Office Manager: Stylist CRM + Maintenance, all salons, no performance tabs
+function gcRoleAreas(role){return (role==="manager"||role==="asst_manager")?GC_MGR_TABS.concat(["scorecard","visit","maint"]):role==="office"?GC_OFFICE_AREAS.slice():GC_AREAS.map(a=>a[0]);}
 function gcAreasFor(u){if(!u)return [];if(u.role==="owner")return GC_AREAS.map(a=>a[0]);return Array.isArray(u.access)?u.access:gcRoleAreas(u.role);}
 function gcHas(area){return !GCU.perms||gcAreasFor(GCU.perms).includes(area);}
 function gcLinkArea(href){const k=Object.keys(GC_LINK_AREA).find(x=>String(href||"").includes(x));return k?GC_LINK_AREA[k]:null;}
@@ -4464,6 +4468,7 @@ function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
   document.querySelectorAll("nav.tabs .tab-link").forEach(a=>{const k=gcLinkArea(a.getAttribute("href"));a.hidden=k?!gcHas(k):false;});
   {const mb=$("#tabMoreBtn");if(mb)mb.hidden=![...document.querySelectorAll("#tabMoreMenu .tab-link")].some(x=>!x.hidden);}
   if(!gcHas("adminhrs")){const a=$("#adminHrsCards");if(a)a.innerHTML="";}
+  if(![...document.querySelectorAll(".tabs-inner .tab")].some(t=>!t.hidden)){gcLinksOnly(p);return;} // e.g. Office Manager: only linked tools
   const ss=$("#salonSel");
   if(mgr){[...ss.options].forEach(o=>{if(!gcCanSalon(o.value))o.remove();});
     if(!ss.options.length){$("#emptyBanner").innerHTML='<div class="banner warn">Your account isn’t assigned to a salon yet. Ask Pranav to add your salon.</div>';
@@ -4482,6 +4487,14 @@ function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
   const act=document.querySelector(".tabs-inner .tab.active");
   if(!(el&&!el.hidden)&&act&&act.hidden)el=document.querySelector(".tabs-inner .tab:not([hidden])"); // landed on a tab this login can't open
   if(el&&!el.hidden)el.click();}
+
+// Logins with no dashboard tabs (e.g. Office Manager) get a simple start page with their tools
+function gcLinksOnly(p){document.body.classList.add("gc-linksonly");try{localStorage.setItem("gc_tour_seen:"+p.id,"1");}catch(e){}
+  if($("#gcLinksHome"))return;const links=[...document.querySelectorAll("nav.tabs .tab-link")].filter(a=>!a.hidden);
+  const d=document.createElement("div");d.id="gcLinksHome";d.className="card";
+  d.innerHTML='<h3 style="margin:0 0 4px">Welcome, '+esc(String(p.name||"").split(" ")[0]||"")+'</h3><div class="hint" style="margin-bottom:14px">Your tools:</div>'
+    +(links.length?links.map(a=>'<a class="btn gc-lh-btn" href="'+esc(a.getAttribute("href"))+'">'+esc(a.textContent.trim())+'</a>').join(""):'<div class="hint">No tools are turned on for this login yet. Ask Pranav to update your access.</div>');
+  const nav=document.querySelector("nav.tabs");(nav&&nav.parentNode?nav.parentNode:document.body).insertBefore(d,nav?nav.nextSibling:null);}
 
 // ===== USERS (owners only) =====
 let GC_USERS=[],GC_SUGGEST=[];

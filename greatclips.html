@@ -473,7 +473,8 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .qod-edit{background:none;border:1px solid #cfe7dd;border-radius:6px;padding:5px 9px;font:inherit;font-size:12px;color:#048667;cursor:pointer;white-space:nowrap}.qod-edit:hover{background:#fff}
 @media (max-width:640px){.qod{align-items:flex-start}.qod-q{font-size:14px}.qod-edit{padding:4px 7px}}
 /* ===== AM WEEKLY RECAP ===== */
-#recap.amr-on > :not(#amrToggle):not(#amrWrap){display:none!important}
+#recap.amr-on > :not(#amrToggle):not(#amrWrap):not(#amOverview){display:none!important}
+#recap.amr-on #amrToggle{margin-top:14px}
 #recap:not(.amr-on) #amrWrap{display:none}
 .amr-title{font-size:17px;font-weight:800;color:var(--blue-dk);margin-bottom:6px}
 .amr-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -2270,7 +2271,8 @@ function renderRecapOverview(){
   const recapMap={};
   recaps.forEach(r=>{if(String(r.weekEnding)===wk)recapMap[String(r.salonId)]=r;});
   // Count completions for this week
-  const wkDone=allSalons.filter(s=>recapMap[s]&&recapMap[s].status==='final').length;
+  const amrF=(s,w)=>typeof amrSalonFinal==='function'&&amrSalonFinal(s,w); // new one-page AM recap counts for every salon it covers
+  const wkDone=allSalons.filter(s=>(recapMap[s]&&recapMap[s].status==='final')||amrF(s,wk)).length;
   const wkDraft=allSalons.filter(s=>recapMap[s]&&recapMap[s].status==='draft').length;
   $("#amWeekStat").innerHTML="<b>"+wkDone+"</b>/"+allSalons.length+" finalized"+(wkDraft?" · <span style='color:"+AMBER+"'>"+wkDraft+" draft</span>":"");
 
@@ -2318,13 +2320,13 @@ function renderRecapOverview(){
       salons.forEach(sid=>{
         ytdTotal++;
         const r=recaps.find(x=>String(x.salonId)===sid&&String(x.weekEnding)===f&&x.status==='final');
-        if(r)ytdDone++;
+        if(r||amrF(sid,f))ytdDone++;
       });
     });
     const recapRate=ytdTotal?Math.round((ytdDone/ytdTotal)*100):0;
 
     // This week recap count
-    const wkRecaps=salons.filter(s=>recapMap[s]&&recapMap[s].status==='final').length;
+    const wkRecaps=salons.filter(s=>(recapMap[s]&&recapMap[s].status==='final')||amrF(s,wk)).length;
 
     // Overall Grade: weighted Salon Score 60% + Recap 40%
     const overall=opsScore!=null?Math.round(opsScore*0.6+recapRate*0.4):recapRate;
@@ -2350,7 +2352,7 @@ function renderRecapOverview(){
     salons.forEach(sid=>{
       const ws=wsData[sid];
       const r=recapMap[sid];
-      const statusPill=r?(r.status==='final'?'<span class="status-pill st-final">✓ Final</span>':'<span class="status-pill st-draft">📝 Draft</span>'):'<span class="status-pill st-missing">— Missing</span>';
+      const statusPill=amrF(sid,wk)&&!(r&&r.status==='final')?'<span class="status-pill st-final">✓ Final (AM recap)</span>':r?(r.status==='final'?'<span class="status-pill st-final">✓ Final</span>':'<span class="status-pill st-draft">📝 Draft</span>'):'<span class="status-pill st-missing">— Missing</span>';
       // KPI cells
       const kpiCell=(metric,val)=>{
         if(val==null||val==='')return '<td class="na" style="color:var(--muted);font-size:12px">—</td>';
@@ -4706,10 +4708,12 @@ const AMR_PREV=[["done","Done"],["notdone","Not done"],["carry","Carry over"]];
 function amrAdd(wk,days){const d=new Date(wk+"T12:00:00");d.setDate(d.getDate()+days);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 function amrDeadline(wk){const d=new Date(amrAdd(wk,3)+"T12:00:00");return d;} // Monday noon after the Friday week-ending
 function amrNameKey(n){const p=String(n||"").replace(/\s+/g," ").trim().split(" ");return (p[0]||"")+" "+(p[1]||"");} // "Last, First"
-const AMR_START="2026-11-13"; // first week on the new recap
+const AMR_START="2026-10-30"; // earliest week selectable (AMs can back-fill)
+const AMR_TRACK="2026-11-13"; // first week counted for deadlines and on-time streaks
 function amrFri(){const d=new Date(localToday()+"T12:00:00");d.setDate(d.getDate()+((5-d.getDay()+7)%7));return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");} // this GC week's Friday
 function amrWeeks(){const f=amrFri();const set=new Set((WEEKS||[]).concat([f]));return [...set].filter(w=>w>=AMR_START&&w<=f).sort().reverse().slice(0,12);}
-function amrDefaultWeek(){const t=localToday(),ws=amrWeeks();return ws.find(w=>w<=t)||ws[0];}
+function amrDueWeeks(){const now=new Date(),asc=amrWeeks().slice().reverse();const cur=asc.find(w=>amrDeadline(w)>=now)||asc[asc.length-1];const past=asc.filter(w=>w>=AMR_TRACK&&amrDeadline(w)<now);return {cur,last:past[past.length-1]||null};}
+function amrDefaultWeek(amKey){const d=amrDueWeeks();if(amKey&&d.last){const r=amrRow(amKey,d.last);if(!(r&&r.status==="final"))return d.last;}return d.cur;} // an overdue recap opens first
 function amrAms(){ // AM of record = AM_DEF. A login sees the AMs whose salons overlap theirs (owner sees all).
   const all=Object.keys(AM_DEF).map(n=>({key:n,name:n,salons:AM_DEF[n].slice()}));
   if(typeof gcIsOwner==="function"&&gcIsOwner())return all;
@@ -4723,11 +4727,13 @@ function amrLoad(force){if(AMR.loaded&&!force)return Promise.resolve();if(AMR.lo
   AMR.loading=fetch(SUPA_URL+"/rest/v1/gc_am_recaps?select=*&week_ending=gte."+since+"&order=week_ending.desc",{headers:supaHeaders()})
     .then(r=>r.ok?r.json():[]).then(j=>{AMR.rows=j||[];AMR.loaded=true;}).catch(()=>{AMR.rows=[];AMR.loaded=true;});
   return AMR.loading;}
+function amrSalonFinal(sid,wk){return AMR.rows.some(r=>String(r.week_ending)===String(wk)&&r.status==="final"&&(r.salon_ids||[]).map(String).includes(String(sid)));}
 function amrStatus(am,wk){const r=amrRow(am,wk),dl=amrDeadline(wk),now=new Date();
+  if(wk<AMR_TRACK){if(r&&r.status==="final")return {k:"ok",lbl:"Submitted",when:r.submitted_at};return {k:r?"draft":"open",lbl:r?"Draft":"Not started"};}
   if(r&&r.status==="final"){const late=r.submitted_at&&new Date(r.submitted_at)>dl;return {k:late?"late":"ok",lbl:late?"Submitted late":"Submitted on time",when:r.submitted_at};}
   if(now>dl)return {k:"missing",lbl:r?"Draft · overdue":"Missing · overdue"};
   return {k:r?"draft":"open",lbl:r?"Draft":"Not started"};}
-function amrStreak(am){let n=0;for(const w of amrWeeks()){if(new Date()<=amrDeadline(w)&&!(amrRow(am,w)||{}).submitted_at)continue;const s=amrStatus(am,w);if(s.k==="ok")n++;else break;}return n;}
+function amrStreak(am){let n=0;for(const w of amrWeeks()){if(w<AMR_TRACK)break;if(new Date()<=amrDeadline(w)&&!(amrRow(am,w)||{}).submitted_at)continue;const s=amrStatus(am,w);if(s.k==="ok")n++;else break;}return n;}
 function amrChip(s){const c={ok:"gm-g",late:"gm-a",missing:"gm-r",draft:"gm-a",open:"gm-n"}[s.k]||"gm-n";return '<span class="gm-chip '+c+'">'+esc(s.lbl)+'</span>';}
 
 // ---- Exceptions: things outside standard this week, built from data already on the dashboard ----
@@ -4762,18 +4768,19 @@ function amrShow(){const host=$("#amrWrap");if(!host)return;const panel=$("#reca
   if(mode!=="new")return;
   if(!DATA.weeklies||!DATA.days){host.innerHTML='<div class="card">Loading data…</div>';return;}
   host.innerHTML='<div class="card">Loading recaps…</div>';
-  Promise.all([amrLoad(),(typeof gmLoad==="function"?gmLoad().catch(()=>{}):null)]).then(amrRender);}
+  Promise.all([amrLoad(),(typeof gmLoad==="function"?gmLoad().catch(()=>{}):null)]).then(()=>{amrRender();amrSyncOverview();});}
+function amrSyncOverview(){try{const sel=$("#amWeekSel");if(sel&&AMR.wk&&[...sel.options].some(o=>o.value===AMR.wk))sel.value=AMR.wk;if(typeof renderRecapOverview==="function")renderRecapOverview();}catch(e){}}
 function amrRender(){const host=$("#amrWrap");if(!host)return;const ams=amrAms();const weeks=amrWeeks();
   if(!ams.length){host.innerHTML='<div class="card">No Area Manager is set up for your salons.</div>';return;}
-  if(!AMR.am||!ams.some(a=>a.key===AMR.am))AMR.am=ams[0].key;
-  if(!AMR.wk||!weeks.includes(AMR.wk))AMR.wk=amrDefaultWeek();
+  if(!AMR.am||!ams.some(a=>a.key===AMR.am))AMR.am=ams[0].key;const am0key=()=>AMR.am;
+  if(!AMR.wk||!weeks.includes(AMR.wk))AMR.wk=amrDefaultWeek(am0key(ams));
   const am=ams.find(a=>a.key===AMR.am),wk=AMR.wk,row=amrRow(am.key,wk),D=(row&&row.data)||{},S=D.salons||{};
   const prevRow=amrRow(am.key,amrAdd(wk,-7)),PS=((prevRow&&prevRow.data)||{}).salons||{};
   const st=amrStatus(am.key,wk),dl=amrDeadline(wk),owner=typeof gcIsOwner==="function"&&gcIsOwner();
   let h='<div class="amr-head card"><div class="amr-title">Area Manager Weekly Recap</div>'
     +'<div class="amr-ctl">'+(ams.length>1?'<select id="amrAmSel">'+ams.map(a=>'<option value="'+esc(a.key)+'"'+(a.key===am.key?' selected':'')+'>'+esc(a.name)+'</option>').join("")+'</select>':'<b>'+esc(am.name)+'</b>')
     +' <span class="hint">Week ending</span> <select id="amrWkSel">'+weeks.map(w=>'<option value="'+w+'"'+(w===wk?' selected':'')+'>'+fmtDate(w)+'</option>').join("")+'</select> '
-    +amrChip(st)+' <span class="hint">Due Mon '+fmtDate(amrAdd(wk,3))+' at noon · On-time streak: <b>'+amrStreak(am.key)+'</b></span></div>'
+    +amrChip(st)+' <span class="hint">'+(wk<AMR_TRACK?'Catch-up week (not counted for deadlines)':'Due Mon '+fmtDate(amrAdd(wk,3))+' at noon')+' · On-time streak: <b>'+amrStreak(am.key)+'</b></span></div>'
     +'<div class="hint" style="margin-top:6px">The numbers are filled in for you. For each salon: answer anything flagged, close out last week’s commitments, and set up to 3 commitments for this week. About 15 minutes.</div>'
     +(row&&row.owner_ack_at?'<div class="amr-ack">✔ Reviewed by '+esc(row.owner_ack_by||"Pranav")+' '+new Date(row.owner_ack_at).toLocaleDateString()+(row.owner_comment?' — “'+esc(row.owner_comment)+'”':'')+'</div>':'')
     +'</div>';
@@ -4803,7 +4810,7 @@ function amrRender(){const host=$("#amrWrap");if(!host)return;const ams=amrAms()
   host.innerHTML=h;AMR.dirty=false;amrWire(am,wk,row);}
 function amrWire(am,wk,row){const host=$("#amrWrap");
   const sel=$("#amrAmSel");if(sel)sel.onchange=()=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?")){sel.value=AMR.am;return;}AMR.am=sel.value;amrRender();};
-  $("#amrWkSel").onchange=e=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?")){e.target.value=AMR.wk;return;}AMR.wk=e.target.value;amrRender();};
+  $("#amrWkSel").onchange=e=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?")){e.target.value=AMR.wk;return;}AMR.wk=e.target.value;amrRender();amrSyncOverview();};
   host.querySelectorAll(".amr-seg button").forEach(b=>b.onclick=()=>{const seg=b.parentElement,on=b.classList.contains("on");seg.querySelectorAll("button").forEach(x=>x.classList.remove("on"));if(!on)b.classList.add("on");AMR.dirty=true;
     if(seg.dataset.ex){const n=seg.parentElement.querySelector(".amr-note");if(n)n.placeholder=(!on&&b.dataset.v==="ok")?"Why it’s not an issue (required)":"Short note (optional)";}
     if(seg.dataset.prev!=null&&b.dataset.v==="carry"&&!on){const card=seg.closest(".amr-salon"),what=seg.parentElement.querySelector(".amr-what").firstChild.textContent;const ins=[...card.querySelectorAll('.amr-c input[data-cf="what"]')];if(!ins.some(i=>i.value.trim()===what)){const empty=ins.find(i=>!i.value.trim());if(empty)empty.value=what;}}});
@@ -4832,7 +4839,7 @@ async function amrSave(am,wk,final){const msg=$("#amrMsg");const data=amrCollect
   try{const r=await fetch(SUPA_URL+"/rest/v1/gc_am_recaps?on_conflict=am_key,week_ending",{method:"POST",headers:supaHeaders({"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=representation"}),body:JSON.stringify(body)});
     if(!r.ok)throw new Error(await r.text());const j=await r.json();const nr=j[0];AMR.rows=AMR.rows.filter(x=>!(x.am_key===am.key&&String(x.week_ending)===String(wk)));AMR.rows.unshift(nr);
     AMR.dirty=false;amrRender();const m2=$("#amrMsg");if(m2){m2.style.color=GREEN;m2.textContent=final?"✓ Recap submitted":"✓ Draft saved";}
-    try{amrBoard();}catch(e){}}
+    try{amrBoard();}catch(e){}amrSyncOverview();}
   catch(e){msg.style.color=RED;msg.textContent="Error: "+e.message;}}
 async function amrAckSave(am,wk){const m=$("#amrAckMsg");const who=(GCU&&GCU.perms&&(GCU.perms.name||"Pranav"))||"Pranav";
   try{const r=await fetch(SUPA_URL+"/rest/v1/gc_am_recaps?am_key=eq."+encodeURIComponent(am.key)+"&week_ending=eq."+wk,{method:"PATCH",headers:supaHeaders({"Content-Type":"application/json",Prefer:"return=representation"}),body:JSON.stringify({owner_ack_at:new Date().toISOString(),owner_ack_by:who,owner_comment:$("#amrComment").value.trim()||null})});
@@ -4841,18 +4848,18 @@ async function amrAckSave(am,wk){const m=$("#amrAckMsg");const who=(GCU&&GCU.per
 
 // ---- Portfolio board (owner): who has submitted, on time, and open commitments ----
 function amrBoard(){const el=$("#amrBoard");if(!el)return;if(!(typeof gcIsOwner==="function"&&gcIsOwner())){el.innerHTML="";return;}
-  const wk=amrDefaultWeek();if(!wk){el.innerHTML="";return;}
-  amrLoad().then(()=>{let h='<div class="card amr-board"><div class="amr-bh">Area Manager recaps · week ending '+fmtDate(wk)+' <span class="hint">due Mon '+fmtDate(amrAdd(wk,3))+' at noon</span></div><div class="amr-brow">';
+  const dw=amrDueWeeks();const wks=[dw.last,dw.cur].filter((w,i,a)=>w&&a.indexOf(w)===i);if(!wks.length){el.innerHTML="";return;}
+  amrLoad().then(()=>{let h='<div class="card amr-board">';wks.forEach(wk=>{h+='<div class="amr-bh">Area Manager recaps · week ending '+fmtDate(wk)+' <span class="hint">due Mon '+fmtDate(amrAdd(wk,3))+' at noon</span></div><div class="amr-brow" style="margin-bottom:10px">';
     Object.keys(AM_DEF).forEach(am=>{const s=amrStatus(am,wk),r=amrRow(am,wk),n=r&&r.data&&r.data.salons?Object.values(r.data.salons).reduce((a,x)=>a+((x.commit||[]).length),0):0;
-      h+='<div class="amr-bcell" data-am="'+esc(am)+'"><b>'+esc(am)+'</b>'+amrChip(s)+'<div class="hint">'+(r&&r.status==="final"?n+' commitments'+(r.owner_ack_at?' · ✔ reviewed':' · not reviewed yet'):'')+'</div><div class="hint">On-time streak: '+amrStreak(am)+'</div></div>';});
-    h+='</div></div>';el.innerHTML=h;
-    el.querySelectorAll(".amr-bcell").forEach(c=>c.onclick=()=>{AMR.am=c.dataset.am;AMR.wk=wk;try{localStorage.setItem("amrMode","new");}catch(e){}const t=document.querySelector('.tab[data-t="recap"]');if(t)t.click();});});}
+      h+='<div class="amr-bcell" data-am="'+esc(am)+'" data-wk="'+wk+'"><b>'+esc(am)+'</b>'+amrChip(s)+'<div class="hint">'+(r&&r.status==="final"?n+' commitments'+(r.owner_ack_at?' · ✔ reviewed':' · not reviewed yet'):'')+'</div><div class="hint">On-time streak: '+amrStreak(am)+'</div></div>';});
+    h+='</div>';});h+='</div>';el.innerHTML=h;
+    el.querySelectorAll(".amr-bcell").forEach(c=>c.onclick=()=>{AMR.am=c.dataset.am;AMR.wk=c.dataset.wk;try{localStorage.setItem("amrMode","new");}catch(e){}const t=document.querySelector('.tab[data-t="recap"]');if(t)t.click();});});}
 
 // ---- wiring ----
 (function(){const panel=document.getElementById("recap");if(!panel||document.getElementById("amrWrap"))return;
   const bar=document.createElement("div");bar.id="amrToggle";bar.className="det-mode";bar.style.marginBottom="12px";
   bar.innerHTML='<button data-m="new">Area Manager recap</button><button data-m="classic">Salon recaps (classic)</button>';
-  const wrap=document.createElement("div");wrap.id="amrWrap";panel.insertBefore(wrap,panel.firstChild);panel.insertBefore(bar,wrap);
+  const wrap=document.createElement("div");wrap.id="amrWrap";const ov=document.getElementById("amOverview");const after=ov?ov.nextSibling:panel.firstChild;panel.insertBefore(bar,after);panel.insertBefore(wrap,bar.nextSibling);
   bar.querySelectorAll("button").forEach(b=>b.onclick=()=>{try{localStorage.setItem("amrMode",b.dataset.m);}catch(e){}amrShow();});
   const tab=document.querySelector('.tab[data-t="recap"]');if(tab)tab.addEventListener("click",()=>setTimeout(amrShow,0));
   const port=document.getElementById("portfolio");if(port&&!document.getElementById("amrBoard")){const b=document.createElement("div");b.id="amrBoard";const q=document.getElementById("qodBanner");port.insertBefore(b,q?q.nextSibling:port.firstChild);}

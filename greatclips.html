@@ -473,7 +473,7 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .qod-edit{background:none;border:1px solid #cfe7dd;border-radius:6px;padding:5px 9px;font:inherit;font-size:12px;color:#048667;cursor:pointer;white-space:nowrap}.qod-edit:hover{background:#fff}
 @media (max-width:640px){.qod{align-items:flex-start}.qod-q{font-size:14px}.qod-edit{padding:4px 7px}}
 /* ===== AM WEEKLY RECAP ===== */
-#recap.amr-on > :not(#amrToggle):not(#amrWrap):not(#amOverview):not(#amrBoard){display:none!important}
+#recap.amr-on > :not(#amrToggle):not(#amrWrap):not(#amOverview){display:none!important}
 #recap.amr-on #amrToggle{margin-top:14px}
 #recap:not(.amr-on) #amrWrap{display:none}
 .amr-title{font-size:17px;font-weight:800;color:var(--blue-dk);margin-bottom:6px}
@@ -506,7 +506,8 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .amr-bcell{flex:1;min-width:180px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;cursor:pointer;display:flex;flex-direction:column;gap:4px}
 .amr-bcell:hover{border-color:var(--blue-dk)}
 @media(max-width:640px){.amr-c{grid-template-columns:1fr 1fr}.amr-c input[data-cf="what"]{grid-column:1/-1}.amr-ex,.amr-prev{grid-template-columns:1fr}}
-#recap:not(.amr-on) #amrBoard{display:none}
+#recap.amr-on #recapStatusTbl th:nth-child(2),#recap.amr-on #recapStatusTbl tbody tr:not(.am-group-hdr) td:nth-child(2){display:none}
+#recap.amr-on .am-row .am-val .gm-chip{font-size:11px}
 </style></head>
 <body class="gc-locked">
 <div id="gcLogin" class="gc-login">
@@ -4766,10 +4767,10 @@ function amrShow(){const host=$("#amrWrap");if(!host)return;const panel=$("#reca
   let mode="new";try{mode=localStorage.getItem("amrMode")||"new";}catch(e){}
   panel.classList.toggle("amr-on",mode==="new");
   document.querySelectorAll("#amrToggle button").forEach(b=>b.classList.toggle("active",b.dataset.m===mode));
-  if(mode!=="new")return;
+  if(mode!=="new"){try{if(typeof renderRecapOverview==="function"&&$("#amWeekSel").value)renderRecapOverview();}catch(e){}return;}
   if(!DATA.weeklies||!DATA.days){host.innerHTML='<div class="card">Loading data…</div>';return;}
   host.innerHTML='<div class="card">Loading recaps…</div>';
-  Promise.all([amrLoad(),(typeof gmLoad==="function"?gmLoad().catch(()=>{}):null)]).then(()=>{amrRender();amrSyncOverview();});}
+  Promise.all([amrLoad(),(typeof gmLoad==="function"?gmLoad().catch(()=>{}):null)]).then(()=>{amrRender();amrSyncOverview();amrDecorateCards();});}
 function amrSyncOverview(){try{const sel=$("#amWeekSel");if(sel&&AMR.wk&&[...sel.options].some(o=>o.value===AMR.wk))sel.value=AMR.wk;if(typeof renderRecapOverview==="function")renderRecapOverview();}catch(e){}}
 function amrRender(){const host=$("#amrWrap");if(!host)return;const ams=amrAms();const weeks=amrWeeks();
   if(!ams.length){host.innerHTML='<div class="card">No Area Manager is set up for your salons.</div>';return;}
@@ -4808,7 +4809,7 @@ function amrRender(){const host=$("#amrWrap");if(!host)return;const ams=amrAms()
   h+='<div class="card"><div class="amr-sub" style="margin-top:0">Anything you need from Pranav?</div><textarea id="amrNeeds" rows="2" placeholder="Optional">'+esc(D.needs||"")+'</textarea>'
     +'<div class="amr-actions"><button class="btn" id="amrDraft" style="background:#6b7280">Save draft</button><button class="btn" id="amrFinal">Submit recap</button><span class="savemsg" id="amrMsg"></span></div></div>';
   if(owner&&row&&row.status==="final")h+='<div class="card amr-review"><div class="amr-sub" style="margin-top:0">Your review</div><input id="amrComment" placeholder="Comment for '+esc(am.name.split(" ")[0])+' (optional)" value="'+esc(row.owner_comment||"")+'"><button class="btn" id="amrAck">'+(row.owner_ack_at?"Update review":"Mark reviewed ✔")+'</button><span class="savemsg" id="amrAckMsg"></span></div>';
-  host.innerHTML=h;AMR.dirty=false;amrWire(am,wk,row);}
+  host.innerHTML=h;AMR.dirty=false;amrWire(am,wk,row);try{amrDecorateCards();}catch(e){}}
 function amrWire(am,wk,row){const host=$("#amrWrap");
   const sel=$("#amrAmSel");if(sel)sel.onchange=()=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?")){sel.value=AMR.am;return;}AMR.am=sel.value;amrRender();};
   $("#amrWkSel").onchange=e=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?")){e.target.value=AMR.wk;return;}AMR.wk=e.target.value;amrRender();amrSyncOverview();};
@@ -4847,6 +4848,17 @@ async function amrAckSave(am,wk){const m=$("#amrAckMsg");const who=(GCU&&GCU.per
     if(!r.ok)throw new Error(await r.text());const nr=(await r.json())[0];const i=AMR.rows.findIndex(x=>x.am_key===am.key&&String(x.week_ending)===String(wk));if(i>=0)AMR.rows[i]=nr;amrRender();try{amrBoard();}catch(e){}}
   catch(e){m.style.color=RED;m.textContent="Error: "+e.message;}}
 
+// ---- Recap status inside the Area Manager score cards (new view) ----
+function amrDecorateCards(){const panel=$("#recap");if(!panel||!panel.classList.contains("amr-on"))return;
+  const wk=AMR.wk||amrDueWeeks().cur;if(!wk)return;
+  document.querySelectorAll("#amCards .am-card").forEach(card=>{const nm=(card.querySelector(".am-name").firstChild||{}).textContent;const am=Object.keys(AM_DEF).find(n=>nm&&nm.trim()===n);if(!am)return;
+    const row=[...card.querySelectorAll(".am-row")].find(r=>/This week recaps|Recap ·/.test(r.textContent));if(!row)return;
+    const r=amrRow(am,wk),st=amrStatus(am,wk);
+    row.querySelector(".am-label").textContent="Recap · WE "+fmtDate(wk).replace(/\/\d{4}$/,"");
+    row.querySelector(".am-val").innerHTML=amrChip(st)+(r&&r.owner_ack_at?' <span class="gm-chip gm-g">✔ reviewed</span>':'')+(wk>=AMR_TRACK?' <span class="hint">streak '+amrStreak(am)+'</span>':'');
+    card.style.cursor="pointer";card.title="Open "+am.split(" ")[0]+"’s recap";
+    card.onclick=()=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?"))return;AMR.am=am;AMR.wk=wk;amrRender();const w=$("#amrWrap");if(w)w.scrollIntoView({behavior:"smooth",block:"start"});};});}
+
 // ---- Portfolio board (owner): who has submitted, on time, and open commitments ----
 function amrBoard(){const el=$("#amrBoard");if(!el)return;if(!(typeof gcIsOwner==="function"&&gcIsOwner())){el.innerHTML="";return;}
   const dw=amrDueWeeks();const wks=[dw.last,dw.cur].filter((w,i,a)=>w&&a.indexOf(w)===i);if(!wks.length){el.innerHTML="";return;}
@@ -4863,7 +4875,8 @@ function amrBoard(){const el=$("#amrBoard");if(!el)return;if(!(typeof gcIsOwner=
   const wrap=document.createElement("div");wrap.id="amrWrap";const ov=document.getElementById("amOverview");const after=ov?ov.nextSibling:panel.firstChild;panel.insertBefore(bar,after);panel.insertBefore(wrap,bar.nextSibling);
   bar.querySelectorAll("button").forEach(b=>b.onclick=()=>{try{localStorage.setItem("amrMode",b.dataset.m);}catch(e){}amrShow();});
   const tab=document.querySelector('.tab[data-t="recap"]');if(tab)tab.addEventListener("click",()=>setTimeout(amrShow,0));
-  if(!document.getElementById("amrBoard")){const b=document.createElement("div");b.id="amrBoard";panel.insertBefore(b,bar);} // owner status board lives in the Weekly Recap tab, above the recap
+  // recap status is shown inside the Area Manager score cards (no separate board)
+  if(typeof renderRecapOverview==="function"){const _rro=renderRecapOverview;renderRecapOverview=function(){const r=_rro.apply(this,arguments);try{amrDecorateCards();}catch(e){}return r;};}
   window.addEventListener("beforeunload",e=>{if(AMR.dirty){e.preventDefault();e.returnValue="";}});
   let tries=0;const t=setInterval(()=>{tries++;if(WEEKS&&WEEKS.length&&typeof GCU!=="undefined"&&GCU.perms){clearInterval(t);amrBoard();if(panel.classList.contains("active"))amrShow();}else if(tries>60)clearInterval(t);},1000);})();
 </script>

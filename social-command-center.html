@@ -1447,6 +1447,26 @@ button { font-family: inherit; }
 .audit-filter-btn { padding: 5px 12px; border: 1px solid var(--surface-border); border-radius: var(--r-full);
   background: var(--surface-1); font-size: 12px; color: var(--ink-2); cursor: pointer; font-family: 'DM Sans', sans-serif; }
 .audit-filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+/* Paid Ads */
+.pa-board { display: grid; grid-template-columns: repeat(8, minmax(210px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.pa-col { min-height: 260px; }
+.pa-card .pipeline-card-top { flex-wrap: wrap; gap: 4px; }
+.pa-card .pipeline-card-brand { white-space: nowrap; }
+.pa-empty { text-align: center; padding: 20px 0; color: var(--ink-3); font-size: 12px; }
+.pa-chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: var(--r-full); font-size: 10px; font-weight: 700; background: var(--surface-2); color: var(--ink-2); letter-spacing: 0.02em; }
+.pa-meta { font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+.pa-results { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--surface-border); font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.pa-results b { color: var(--ink-1); font-weight: 700; }
+.pa-kpi-sub { font-size: 12px; color: var(--ink-3); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.pa-kpis .kpi-value { font-variant-numeric: tabular-nums; }
+.pa-section { margin: 18px 0 8px; padding-top: 14px; border-top: 1px solid var(--surface-border); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); }
+.pa-section-note { font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink-3); margin-left: 6px; }
+.pa-three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.pa-calc { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--surface-0); border: 1px solid var(--surface-border); }
+.pa-calc-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); }
+.pa-calc-value { font-size: 16px; font-weight: 700; color: var(--ink-1); font-variant-numeric: tabular-nums; margin-top: 2px; }
+.pa-source { font-size: 12px; color: var(--ink-2); background: var(--surface-0); border: 1px solid var(--surface-border); border-radius: var(--r-md); padding: 8px 10px; margin-bottom: 12px; }
+@media (max-width: 640px) { .pa-three { grid-template-columns: 1fr; } .pa-calc { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
 <body>
@@ -1508,6 +1528,7 @@ button { font-family: inherit; }
       <button class="sb-nav-link active" data-view="briefing"><span class="sb-nav-icon">&#9889;</span><span class="sb-nav-label"> Briefing</span><span class="nav-badge" id="badge-briefing" hidden></span></button>
       <button class="sb-nav-link" data-view="calendar"><span class="sb-nav-icon">&#128197;</span><span class="sb-nav-label"> Calendar</span></button>
       <button class="sb-nav-link" data-view="pipeline"><span class="sb-nav-icon">&#128203;</span><span class="sb-nav-label"> Pipeline</span><span class="nav-badge" id="badge-pipeline" hidden></span></button>
+      <button class="sb-nav-link" data-view="paidads"><span class="sb-nav-icon">&#128176;</span><span class="sb-nav-label"> Paid Ads</span></button>
       <button class="sb-nav-link" data-view="brainstorm"><span class="sb-nav-icon">&#128161;</span><span class="sb-nav-label"> Brainstorm</span><span class="nav-badge" id="badge-brainstorm" hidden></span></button>
     </nav>
 
@@ -2527,6 +2548,212 @@ function renderCalendarList() {
 // ══════════════════════════════════════════════
 // PIPELINE
 // ══════════════════════════════════════════════
+// ═══ Paid Ads ═══
+const AD_STAGES = [
+  { key:'concept',   label:'Concept',   color:'#8b5cf6' },
+  { key:'scripting', label:'Scripting', color:'#6366f1' },
+  { key:'shooting',  label:'Shooting',  color:'#0ea5e9' },
+  { key:'editing',   label:'Editing',   color:'#14b8a6' },
+  { key:'ready',     label:'Ready',     color:'#f59e0b' },
+  { key:'live',      label:'Live',      color:'#16a34a' },
+  { key:'paused',    label:'Paused',    color:'#9a9088' },
+  { key:'ended',     label:'Ended',     color:'#5c5349' }
+];
+const AD_PLATFORMS = { meta:'Meta', google:'Google', tiktok:'TikTok', nextdoor:'Nextdoor', youtube:'YouTube', other:'Other' };
+const AD_OBJECTIVES = { leads:'Leads', calls:'Calls', messages:'Messages', traffic:'Traffic', awareness:'Awareness', sales:'Sales' };
+const AD_FORMATS = { video:'Video', image:'Image', carousel:'Carousel' };
+const AD_NUM_FIELDS = ['spend','impressions','clicks','leads','booked','revenue'];
+
+function adMoney(n, dec) { if (n === null || n === undefined || !isFinite(n)) return '—'; return '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: dec ? 2 : 0, maximumFractionDigits: dec ? 2 : 0 }); }
+function adRatio(num, den) { return den > 0 ? num / den : null; }
+function adStats(list) {
+  const t = { spend:0, impressions:0, clicks:0, leads:0, booked:0, revenue:0 };
+  list.forEach(a => AD_NUM_FIELDS.forEach(k => { t[k] += Number(a[k]) || 0; }));
+  t.cpl = adRatio(t.spend, t.leads); t.cpb = adRatio(t.spend, t.booked);
+  t.ctr = adRatio(t.clicks, t.impressions); t.bookRate = adRatio(t.booked, t.leads); t.roas = adRatio(t.revenue, t.spend);
+  return t;
+}
+
+async function loadPaidAds() {
+  const res = await sb.from('sm_paid_ads').select('*').order('created_at', { ascending: true });
+  if (res.error) { showToast('Could not load ads: ' + res.error.message, 'error'); S.paidAds = S.paidAds || []; return; }
+  S.paidAds = res.data || [];
+}
+
+async function renderPaidAds() {
+  const mv = document.getElementById('main-view');
+  if (!S.paidAds) { mv.innerHTML = `<div class="v-body"><div style="padding:40px;text-align:center;color:var(--ink-3)">Loading ads…</div></div>`; await loadPaidAds(); if (S.view !== 'paidads') return; }
+  const ads = filterByBrand(S.paidAds || []);
+  const tracked = ads.filter(a => ['live','paused','ended'].includes(a.stage) || Number(a.spend) > 0);
+  const t = adStats(tracked);
+  const liveCount = ads.filter(a => a.stage === 'live').length;
+  const tile = (label, value, sub, color) => `<div class="kpi-card" style="border-top-color:${color}"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="pa-kpi-sub">${sub}</div></div>`;
+  let html = `<div class="v-header"><div class="v-header-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><h1>Paid Ads</h1><p class="v-sub">Plan ads from idea to live, then log spend, leads and booked jobs to see what each one costs.</p></div><button class="btn btn-primary btn-sm" onclick="openAdModal()">&#43; New Ad</button></div></div><div class="v-body">`;
+  html += `<div class="kpi-row pa-kpis">`;
+  html += tile('Live ads', liveCount, `${ads.length} ads in plan`, '#16a34a');
+  html += tile('Spend', adMoney(t.spend), `${t.impressions.toLocaleString()} impressions`, '#6366f1');
+  html += tile('Leads', t.leads.toLocaleString(), `CPL ${adMoney(t.cpl, true)}`, '#0ea5e9');
+  html += tile('Booked jobs', t.booked.toLocaleString(), `${adMoney(t.cpb, true)} per booked job${t.bookRate !== null ? ' · ' + Math.round(t.bookRate * 100) + '% of leads' : ''}`, '#f59e0b');
+  html += `</div>`;
+  html += `<div class="pa-board">`;
+  AD_STAGES.forEach(st => {
+    const col = ads.filter(a => a.stage === st.key);
+    html += `<div class="pipeline-col pa-col" data-stage="${st.key}" style="border-top-color:${st.color}"><div class="pipeline-col-header"><span class="pipeline-col-title" style="color:${st.color}">${st.label}</span><span class="pipeline-col-count">${col.length}</span></div>`;
+    if (!col.length) html += `<div class="pa-empty">No ads</div>`;
+    col.forEach(a => {
+      const br = brandById(a.brand_id); const s = adStats([a]);
+      const hasResults = Number(a.spend) > 0 || Number(a.leads) > 0;
+      html += `<div class="pipeline-card pa-card" draggable="true" data-ad-id="${a.id}"><div class="pipeline-card-top"><span class="pipeline-card-brand" style="background:${brandBg(br)};color:${br ? br.color : 'var(--accent)'}">${br ? escHtml(br.name) : '—'}</span><span class="pa-chip">${AD_PLATFORMS[a.ad_platform] || a.ad_platform}</span>${a.language === 'es' ? '<span class="pa-chip">ES</span>' : ''}</div><div class="pipeline-card-title">${escHtml(a.title)}</div>`;
+      const meta = [a.market, AD_FORMATS[a.format], a.daily_budget ? adMoney(a.daily_budget) + '/day' : ''].filter(Boolean).join(' · ');
+      if (meta) html += `<div class="pa-meta">${escHtml(meta)}</div>`;
+      if (hasResults) html += `<div class="pa-results"><span><b>${adMoney(s.spend)}</b> spend</span><span><b>${s.leads}</b> leads</span><span><b>${s.booked}</b> booked</span><span>CPL <b>${adMoney(s.cpl, true)}</b></span></div>`;
+      html += `</div>`;
+    });
+    html += `</div>`;
+  });
+  html += `</div></div>`;
+  mv.innerHTML = html;
+  mv.querySelectorAll('.pa-card').forEach(el => { el.onclick = () => openAdModal(el.dataset.adId); });
+  wirePaidAdsDragDrop();
+}
+
+function wirePaidAdsDragDrop() {
+  let dragId = null;
+  document.querySelectorAll('.pa-card').forEach(card => {
+    card.addEventListener('dragstart', e => { dragId = card.dataset.adId; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); requestAnimationFrame(() => card.classList.add('dragging')); });
+    card.addEventListener('dragend', () => { card.classList.remove('dragging'); document.querySelectorAll('.pa-col.drag-over').forEach(c => c.classList.remove('drag-over')); dragId = null; });
+  });
+  document.querySelectorAll('.pa-col').forEach(col => {
+    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
+    col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('drag-over'); });
+    col.addEventListener('drop', async e => {
+      e.preventDefault(); col.classList.remove('drag-over');
+      const id = dragId || e.dataTransfer.getData('text/plain'); const stage = col.dataset.stage;
+      const ad = (S.paidAds || []).find(a => a.id === id); if (!ad || ad.stage === stage) return;
+      const prev = ad.stage; ad.stage = stage; renderPaidAds();
+      const res = await sb.from('sm_paid_ads').update({ stage, updated_at: new Date().toISOString() }).eq('id', id);
+      if (res.error) { ad.stage = prev; renderPaidAds(); showToast('Could not move ad: ' + res.error.message, 'error'); return; }
+      logAudit('edit', 'paid_ad', id, ad.title, { stage: { from: prev, to: stage } });
+      showToast(`Moved to ${(AD_STAGES.find(s => s.key === stage) || {}).label || stage}`, 'success');
+    });
+  });
+}
+
+function adOptions(map, val) { return Object.entries(map).map(([k, v]) => `<option value="${k}"${k === val ? ' selected' : ''}>${v}</option>`).join(''); }
+
+async function openAdModal(adId, prefill) {
+  if (!S.paidAds) await loadPaidAds();
+  const existing = adId ? (S.paidAds || []).find(a => a.id === adId) : null;
+  const isEdit = !!existing;
+  const defBrand = S.brands.find(b => b.slug === S.brandFilter);
+  const a = Object.assign({ stage:'concept', ad_platform:'meta', objective:'leads', format:'video', language:'en', brand_id: defBrand ? defBrand.id : (S.brands[0] || {}).id }, prefill || {}, existing || {});
+  const v = k => (a[k] === null || a[k] === undefined) ? '' : escAttr(String(a[k]));
+  const tx = k => (a[k] === null || a[k] === undefined) ? '' : escHtml(String(a[k]));
+  const src = a.source_post_id ? (S.posts || []).find(p => p.id === a.source_post_id) : null;
+  const panel = document.getElementById('modal-panel'); panel.classList.remove('wide');
+  let html = `<div class="modal-header"><span class="modal-title">${isEdit ? 'Edit Ad' : 'New Ad'}</span><button class="modal-close" onclick="closeModal()">&times;</button></div><div class="modal-body"><form id="ad-form" onsubmit="return false" oninput="updateAdCalc()">`;
+  if (src) html += `<div class="pa-source">Promoted from post: <b>${escHtml(src.title)}</b></div>`;
+  html += `<input type="hidden" name="source_post_id" value="${v('source_post_id')}">`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label" for="ad-title">Ad name *</label><input class="form-input" id="ad-title" name="title" value="${v('title')}" placeholder="e.g. Your AC isn't the problem"></div></div>`;
+  html += `<div class="form-row two-col"><div class="form-group"><label class="form-label" for="ad-brand">Brand *</label><select class="form-select" id="ad-brand" name="brand_id">${S.brands.map(b => `<option value="${b.id}"${b.id === a.brand_id ? ' selected' : ''}>${escHtml(b.name)}</option>`).join('')}</select></div><div class="form-group"><label class="form-label" for="ad-stage">Stage</label><select class="form-select" id="ad-stage" name="stage">${AD_STAGES.map(s => `<option value="${s.key}"${s.key === a.stage ? ' selected' : ''}>${s.label}</option>`).join('')}</select></div></div>`;
+  html += `<div class="form-row two-col"><div class="form-group"><label class="form-label" for="ad-platform">Platform</label><select class="form-select" id="ad-platform" name="ad_platform">${adOptions(AD_PLATFORMS, a.ad_platform)}</select></div><div class="form-group"><label class="form-label" for="ad-objective">Objective</label><select class="form-select" id="ad-objective" name="objective">${adOptions(AD_OBJECTIVES, a.objective)}</select></div></div>`;
+  html += `<div class="form-row two-col"><div class="form-group"><label class="form-label" for="ad-format">Format</label><select class="form-select" id="ad-format" name="format">${adOptions(AD_FORMATS, a.format)}</select></div><div class="form-group"><label class="form-label" for="ad-language">Language</label><select class="form-select" id="ad-language" name="language">${adOptions({ en:'English', es:'Spanish' }, a.language)}</select></div></div>`;
+  html += `<div class="form-row two-col"><div class="form-group"><label class="form-label" for="ad-market">Market</label><input class="form-input" id="ad-market" name="market" value="${v('market')}" placeholder="e.g. Las Cruces"></div><div class="form-group"><label class="form-label" for="ad-owner">Owner</label><select class="form-select" id="ad-owner" name="owner_id"><option value="">—</option>${(S.members || []).map(m => `<option value="${m.id}"${m.id === a.owner_id ? ' selected' : ''}>${escHtml(m.name || m.email || '')}</option>`).join('')}</select></div></div>`;
+  html += `<div class="pa-section">Creative</div>`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label" for="ad-hook">Hook (first 3 seconds)</label><input class="form-input" id="ad-hook" name="hook" value="${v('hook')}"></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label" for="ad-primary">Primary text</label><textarea class="form-textarea" id="ad-primary" name="primary_text" rows="4">${tx('primary_text')}</textarea></div></div>`;
+  html += `<div class="form-row two-col"><div class="form-group"><label class="form-label" for="ad-headline">Headline</label><input class="form-input" id="ad-headline" name="headline" value="${v('headline')}"></div><div class="form-group"><label class="form-label" for="ad-cta">Button (CTA)</label><input class="form-input" id="ad-cta" name="cta" value="${v('cta')}" placeholder="Get Quote, Learn More…"></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label" for="ad-offer">Offer</label><input class="form-input" id="ad-offer" name="offer" value="${v('offer')}" placeholder="e.g. Free attic inspection"></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label" for="ad-script">Script / shot list</label><textarea class="form-textarea" id="ad-script" name="script" rows="4">${tx('script')}</textarea></div></div>`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label" for="ad-audience">Audience &amp; targeting</label><textarea class="form-textarea" id="ad-audience" name="audience" rows="2">${tx('audience')}</textarea></div></div>`;
+  html += `<div class="form-row two-col"><div class="form-group"><label class="form-label" for="ad-creative">Creative link</label><input class="form-input" id="ad-creative" name="creative_url" value="${v('creative_url')}" placeholder="Drive / Frame.io link"></div><div class="form-group"><label class="form-label" for="ad-landing">Landing page or form</label><input class="form-input" id="ad-landing" name="landing_url" value="${v('landing_url')}" placeholder="Instant form or URL"></div></div>`;
+  html += `<div class="pa-section">Budget &amp; flight</div>`;
+  html += `<div class="form-row pa-three"><div class="form-group"><label class="form-label" for="ad-budget">Daily budget ($)</label><input class="form-input" id="ad-budget" name="daily_budget" type="number" min="0" step="0.01" value="${v('daily_budget')}"></div><div class="form-group"><label class="form-label" for="ad-start">Start date</label><input class="form-input" id="ad-start" name="start_date" type="date" value="${v('start_date')}"></div><div class="form-group"><label class="form-label" for="ad-end">End date</label><input class="form-input" id="ad-end" name="end_date" type="date" value="${v('end_date')}"></div></div>`;
+  html += `<div class="pa-section">Results <span class="pa-section-note">Running totals to date — update them from Ads Manager and your booking records</span></div>`;
+  html += `<div class="form-row pa-three"><div class="form-group"><label class="form-label" for="ad-spend">Spend ($)</label><input class="form-input" id="ad-spend" name="spend" type="number" min="0" step="0.01" value="${v('spend')}"></div><div class="form-group"><label class="form-label" for="ad-impr">Impressions</label><input class="form-input" id="ad-impr" name="impressions" type="number" min="0" step="1" value="${v('impressions')}"></div><div class="form-group"><label class="form-label" for="ad-clicks">Clicks</label><input class="form-input" id="ad-clicks" name="clicks" type="number" min="0" step="1" value="${v('clicks')}"></div></div>`;
+  html += `<div class="form-row pa-three"><div class="form-group"><label class="form-label" for="ad-leads">Leads</label><input class="form-input" id="ad-leads" name="leads" type="number" min="0" step="1" value="${v('leads')}"></div><div class="form-group"><label class="form-label" for="ad-booked">Booked jobs</label><input class="form-input" id="ad-booked" name="booked" type="number" min="0" step="1" value="${v('booked')}"></div><div class="form-group"><label class="form-label" for="ad-revenue">Booked revenue ($)</label><input class="form-input" id="ad-revenue" name="revenue" type="number" min="0" step="0.01" value="${v('revenue')}"></div></div>`;
+  html += `<div class="pa-calc" id="ad-calc"></div>`;
+  if (a.results_updated_at) html += `<div class="pa-section-note" style="margin-top:6px">Results last updated ${new Date(a.results_updated_at).toLocaleString()}</div>`;
+  html += `<div class="form-row full"><div class="form-group"><label class="form-label" for="ad-notes">Notes</label><textarea class="form-textarea" id="ad-notes" name="notes" rows="3">${tx('notes')}</textarea></div></div>`;
+  html += `</form></div><div class="modal-footer">${isEdit ? `<button class="btn btn-danger btn-sm" onclick="deleteAd('${a.id}')">Delete</button>` : ''}<div style="flex:1"></div><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveAd('${isEdit ? a.id : ''}')">${isEdit ? 'Update ad' : 'Create ad'}</button></div>`;
+  panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
+  updateAdCalc();
+}
+
+function updateAdCalc() {
+  const f = document.getElementById('ad-form'); const out = document.getElementById('ad-calc'); if (!f || !out) return;
+  const n = k => Number(f.elements[k].value) || 0;
+  const s = { spend: n('spend'), impressions: n('impressions'), clicks: n('clicks'), leads: n('leads'), booked: n('booked'), revenue: n('revenue') };
+  const cpl = adRatio(s.spend, s.leads), cpb = adRatio(s.spend, s.booked), ctr = adRatio(s.clicks, s.impressions), br = adRatio(s.booked, s.leads), roas = adRatio(s.revenue, s.spend);
+  const cell = (l, val) => `<div><div class="pa-calc-label">${l}</div><div class="pa-calc-value">${val}</div></div>`;
+  out.innerHTML = cell('Cost per lead', adMoney(cpl, true)) + cell('Cost per booked job', adMoney(cpb, true)) + cell('Lead → booked', br === null ? '—' : Math.round(br * 100) + '%') + cell('CTR', ctr === null ? '—' : (ctr * 100).toFixed(2) + '%') + cell('Return on spend', roas === null ? '—' : roas.toFixed(1) + 'x');
+}
+
+async function saveAd(existingId) {
+  const f = document.getElementById('ad-form'); const fd = new FormData(f);
+  const txt = k => { const x = (fd.get(k) || '').toString().trim(); return x || null; };
+  const data = {
+    title: txt('title'), brand_id: txt('brand_id'), stage: txt('stage') || 'concept', ad_platform: txt('ad_platform') || 'meta',
+    objective: txt('objective') || 'leads', format: txt('format') || 'video', language: txt('language') || 'en',
+    market: txt('market'), owner_id: txt('owner_id'), hook: txt('hook'), primary_text: txt('primary_text'), headline: txt('headline'),
+    cta: txt('cta'), offer: txt('offer'), script: txt('script'), audience: txt('audience'), creative_url: txt('creative_url'),
+    landing_url: txt('landing_url'), start_date: txt('start_date'), end_date: txt('end_date'), notes: txt('notes'),
+    source_post_id: txt('source_post_id')
+  };
+  if (!data.title) { showToast('Give the ad a name', 'error'); return; }
+  if (!data.brand_id) { showToast('Pick a brand', 'error'); return; }
+  if (data.start_date && data.end_date && data.end_date < data.start_date) { showToast('End date is before the start date', 'error'); return; }
+  const bud = txt('daily_budget'); data.daily_budget = bud === null ? null : Math.max(0, Number(bud) || 0);
+  const prev = existingId ? (S.paidAds || []).find(a => a.id === existingId) : null;
+  let resultsChanged = false;
+  AD_NUM_FIELDS.forEach(k => {
+    const raw = Number(fd.get(k)) || 0; const val = ['spend','revenue'].includes(k) ? Math.max(0, Math.round(raw * 100) / 100) : Math.max(0, Math.round(raw));
+    data[k] = val; if ((Number(prev ? prev[k] : 0) || 0) !== val) resultsChanged = true;
+  });
+  if (resultsChanged) data.results_updated_at = new Date().toISOString();
+  data.updated_at = new Date().toISOString();
+  let res;
+  if (existingId) {
+    res = await sb.from('sm_paid_ads').update(data).eq('id', existingId).select('*').single();
+    if (res.error) { showToast('Could not save: ' + res.error.message, 'error'); return; }
+    logAudit('edit', 'paid_ad', existingId, data.title, { stage: data.stage });
+  } else {
+    if (AUTH_USER && (S.members || []).some(m => m.id === AUTH_USER.id)) data.created_by = AUTH_USER.id;
+    res = await sb.from('sm_paid_ads').insert(data).select('*').single();
+    if (res.error) { showToast('Could not save: ' + res.error.message, 'error'); return; }
+    logAudit('create', 'paid_ad', res.data.id, data.title, { source_post_id: data.source_post_id });
+  }
+  S.paidAds = S.paidAds || [];
+  const i = S.paidAds.findIndex(a => a.id === res.data.id);
+  if (i >= 0) S.paidAds[i] = res.data; else S.paidAds.push(res.data);
+  closeModal();
+  showToast(existingId ? 'Ad updated' : 'Ad created', 'success');
+  if (S.view === 'paidads') renderPaidAds();
+}
+
+async function deleteAd(id) {
+  const ad = (S.paidAds || []).find(a => a.id === id);
+  if (!confirm(`Delete the ad "${ad ? ad.title : ''}"? Its results will be deleted too.`)) return;
+  const res = await sb.from('sm_paid_ads').delete().eq('id', id);
+  if (res.error) { showToast('Could not delete: ' + res.error.message, 'error'); return; }
+  logAudit('delete', 'paid_ad', id, ad ? ad.title : 'Unknown');
+  S.paidAds = (S.paidAds || []).filter(a => a.id !== id);
+  closeModal(); showToast('Ad deleted', 'info');
+  if (S.view === 'paidads') renderPaidAds();
+}
+
+function promoteToAd(postId) {
+  const p = (S.posts || []).find(x => x.id === postId); if (!p) return;
+  const hookMatch = (p.notes || '').match(/HOOK:\s*([^\n]+)/i);
+  const isVideo = ['video','reel','short','story'].includes(p.media_type);
+  openAdModal(null, {
+    title: p.title, brand_id: p.brand_id, source_post_id: p.id, primary_text: p.caption || null,
+    hook: hookMatch ? hookMatch[1].trim() : null, format: isVideo ? 'video' : (p.media_type === 'carousel' ? 'carousel' : 'image'),
+    notes: 'Promoted from organic post.'
+  });
+  showToast('Review the ad details, then create it', 'info');
+}
+
 function renderPipeline() {
   const posts = filteredPosts();
   let html = `<div class="v-header"><div class="v-header-row" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px"><div><h1>Content Pipeline</h1><p class="v-sub">Track posts through your workflow</p></div><button class="btn btn-primary btn-sm" onclick="openPostModal()">&#43; New Post</button></div></div><div class="v-body"><div class="pipeline-board">`;
@@ -3987,7 +4214,7 @@ function openPostModal(postId, prefillDate, isQuickIdea) {
         `</div></div>`;
     }
   }
-  html += `</form></div><div class="modal-footer">${isEdit?`<button class="btn btn-danger btn-sm" onclick="deletePost('${post.id}')">Delete</button>`:''} ${isEdit?`<button class="btn btn-sm" onclick="generateBrief('${post.id}')" style="background:var(--accent);color:#fff;border:none">&#128203; Brief</button>`:''}<div style="flex:1"></div><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePost('${post?.id||''}')">${isEdit?'Update':'Create'} Post</button><button class="btn btn-sm" onclick="publishPostNow('${post?.id||''}')" style="background:#16a34a;color:#fff;border:none;margin-left:6px" title="Save and publish directly to connected platforms">&#9889; Publish Now</button>${republishHtml}</div>`;
+  html += `</form></div><div class="modal-footer">${isEdit?`<button class="btn btn-danger btn-sm" onclick="deletePost('${post.id}')">Delete</button>`:''} ${isEdit?`<button class="btn btn-sm" onclick="generateBrief('${post.id}')" style="background:var(--accent);color:#fff;border:none">&#128203; Brief</button>`:''} ${isEdit?`<button class="btn btn-sm" onclick="promoteToAd('${post.id}')" title="Turn this post into a paid ad">&#128176; Promote to ad</button>`:''}<div style="flex:1"></div><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="savePost('${post?.id||''}')">${isEdit?'Update':'Create'} Post</button><button class="btn btn-sm" onclick="publishPostNow('${post?.id||''}')" style="background:#16a34a;color:#fff;border:none;margin-left:6px" title="Save and publish directly to connected platforms">&#9889; Publish Now</button>${republishHtml}</div>`;
   panel.innerHTML = html; document.getElementById('modal-overlay').hidden = false;
   // Render crew members filtered by initial brand
   renderCrewForBrand(brandId, post);
@@ -5284,6 +5511,7 @@ function render() {
     case 'briefing': renderBriefing(); break;
     case 'calendar': renderCalendarView(); break;
     case 'pipeline': renderPipeline(); break;
+    case 'paidads': renderPaidAds(); break;
     case 'analytics': renderAnalytics(); break;
     case 'competitors': renderCompetitors(); break;
     case 'strategy': renderStrategy(); break;

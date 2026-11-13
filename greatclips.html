@@ -4770,10 +4770,6 @@ function amrExceptions(sid,wk){const out=[];const W=(DATA.weeklies&&DATA.weeklie
     if(!why.length)return;
     let coached="";if(typeof gmRecapDefault==="function"&&typeof GM!=="undefined"&&GM.loaded){const q=gmRecapDefault("qc",sid,wk,r[0])==="yes",rc=gmRecapDefault("rc",sid,wk,r[0])==="yes";coached=(q||rc)?" · "+[q?"QC":"",rc?"REACH":""].filter(Boolean).join(" + ")+" logged":" · no QC/REACH logged this week";}
     out.push({k:"sty|"+r[0],cat:"Stylist",label:r[0],detail:why.join(" · ")+coached});});
-  // attendance: 2+ real no-shows or 3+ lates (ignores "no-shows" where the person worked at another salon that day)
-  const att={};days.forEach(d=>{const D=DATA.days&&DATA.days[d];if(!D)return;const worked=new Set();Object.values(D.STY||{}).forEach(rows=>rows.forEach(x=>{if((x[1]||0)>0||(x[8]||0)>0)worked.add(amrNameKey(x[0]));}));
-    ((D.ATT||{})[sid]||[]).forEach(x=>{const k=amrNameKey(x[0]);if(amKeys.has&&typeof gmKey==="function"&&amKeys.has(gmKey(x[0])))return;const a=att[k]=att[k]||{n:x[0],ns:0,late:0};if(x[1]&&!worked.has(k))a.ns+=x[1];a.late+=x[2]||0;});});
-  Object.values(att).forEach(a=>{if(a.ns>=2||a.late>=3)out.push({k:"att|"+a.n,cat:"Attendance",label:a.n,detail:[a.ns?a.ns+" no-show"+(a.ns>1?"s":""):"",a.late?a.late+" late arrival"+(a.late>1?"s":""):""].filter(Boolean).join(" · ")});});
   return out;}
 
 // ---- Render ----
@@ -4804,7 +4800,7 @@ function amrRender(){const host=$("#amrWrap");if(!host)return;const ams=amrAms()
     const prevC=((PS[sid]||{}).commit||[]).filter(c=>c&&c.what);
     const kpis=ws?[["Sales","$"+Math.round(ws[WS.totalSales]||0).toLocaleString()],["Cust",ws[WS.cust]],["Payroll",(ws[WS.payrollPct]!=null?(+ws[WS.payrollPct]).toFixed(1)+"%":"—")],["CPH",ws[WS.cutsHr]!=null?(+ws[WS.cutsHr]).toFixed(1):"—"],["Wait>15",ws[WS.waitOver15Pct]!=null?(+ws[WS.waitOver15Pct]).toFixed(0)+"%":"—"],["Cust growth",ws[WS.custGrowthPct]!=null?(+ws[WS.custGrowthPct]).toFixed(1)+"%":"—"]]:[];
     h+='<div class="card amr-salon" data-sid="'+sid+'"><div class="amr-sh"><b>'+sid+'</b> '+esc(sName(sid))+' <span class="amr-exn">'+(ex.length?ex.length+' to answer':'✓ nothing flagged')+'</span></div>'
-      +(kpis.length?'<div class="amr-kpis">'+kpis.map(k=>'<span><i>'+k[0]+'</i>'+esc(String(k[1]))+'</span>').join("")+'</div>':'<div class="hint">Week not closed yet — the weekly numbers and stylist flags fill in after the Saturday update. Drawer and attendance flags show as the week goes.</div>');
+      +(kpis.length?'<div class="amr-kpis">'+kpis.map(k=>'<span><i>'+k[0]+'</i>'+esc(String(k[1]))+'</span>').join("")+'</div>':'<div class="hint">Week not closed yet — the weekly numbers and stylist flags fill in after the Saturday update. Drawer flags show as the week goes.</div>');
     if(prevC.length){h+='<div class="amr-sub">Last week’s commitments</div>';prevC.forEach((c,i)=>{const v=((s.prev||{})[i]||{}).st||"";
       h+='<div class="amr-prev"><div class="amr-what">'+esc(c.what)+'<span class="hint"> · '+esc(c.who||"")+(c.due?' · by '+fmtDate(c.due):'')+'</span></div><div class="amr-seg" data-prev="'+i+'">'+AMR_PREV.map(o=>'<button type="button" data-v="'+o[0]+'"'+(v===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join("")+'</div></div>';});}
     if(ex.length){h+='<div class="amr-sub">Flagged this week</div>';ex.forEach(e=>{const a=((s.ex||{})[e.k])||{};

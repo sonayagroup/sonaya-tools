@@ -152,6 +152,24 @@ body {
 .eh-bar { height: 6px; border-radius: 3px; background: var(--gridline); overflow: hidden; }
 .eh-bar i { display: block; height: 100%; border-radius: 3px; }
 .eh-bar i.good { background: var(--status-good); } .eh-bar i.warn { background: var(--status-warn); } .eh-bar i.bad { background: var(--status-critical); }
+.eh-part-btn { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
+.eh-part.eh-part-btn { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 40px 30px; align-items: center; gap: 8px; font-size: 12px; }
+.eh-part-btn:hover, .eh-part-btn:focus-visible { background: var(--surface-page); }
+.eh-part-btn:focus-visible { outline: 2px solid var(--brand-teal); outline-offset: 1px; }
+.eh-part-btn .eh-part-l { color: var(--text-primary); text-decoration: underline dotted var(--text-muted); text-underline-offset: 3px; }
+.eh-part-go { color: var(--brand-teal); font-weight: 700; text-decoration: none; display: inline-block; }
+.eh-mrule { font-size: 12.5px; color: var(--text-secondary); background: var(--surface-page); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 12px; }
+.eh-mfilter { width: 100%; margin-bottom: 12px; }
+.eh-mgroup .nm-modal-h { display: flex; justify-content: space-between; gap: 8px; }
+.eh-mbad { color: var(--status-critical) !important; }
+.eh-mcount { color: var(--text-muted); font-weight: 600; }
+.eh-mtable td { vertical-align: top; }
+.eh-mtable td:first-child { white-space: normal; max-width: none; min-width: 180px; }
+.eh-mtable a { color: inherit; font-weight: 600; text-decoration: none; border-bottom: 1px dotted var(--text-muted); }
+.eh-row-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+.eh-row-status { text-align: right; color: var(--text-secondary); font-size: 12px; }
+.eh-row-status.bad { color: var(--status-critical); }
+.eh-mfoot { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
 .eh-part-v { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 .eh-part-w { text-align: right; color: var(--text-muted); font-size: 11px; }
 .eh-more { margin-top: 12px; border: 1px solid var(--border); background: var(--surface-page); color: var(--text-primary); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
@@ -848,6 +866,19 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
     </div>
     <div class="modal-body" id="nmModalBody"></div>
     <div class="modal-footer-note" id="nmModalFooter"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="ehModalBackdrop" onclick="if(backdropClickShouldClose(event,this)) closeEhModal();">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="ehModalTitle">
+    <div class="modal-header">
+      <div>
+        <h3 id="ehModalTitle">Estimator Health</h3>
+        <p id="ehModalSubtitle"></p>
+      </div>
+      <button class="modal-close-btn" onclick="closeEhModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="ehModalBody"></div>
   </div>
 </div>
 
@@ -2874,12 +2905,14 @@ async function crmCreateDeal(payload) {
   const res = await fetch(CRM_REST, { method: 'POST', headers: { ...CRM_HEADERS, Prefer: 'return=representation' }, body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()));
   const rows = await res.json();
+  ehMarkDirty();
   return rows[0];
 }
 async function crmUpdateDeal(id, patch) {
   const res = await fetch(`${CRM_REST}?id=eq.${id}`, { method: 'PATCH', headers: { ...CRM_HEADERS, Prefer: 'return=representation' }, body: JSON.stringify(patch) });
   if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()));
   const rows = await res.json();
+  ehMarkDirty();
   return rows[0];
 }
 async function crmArchiveDeal(id) {
@@ -2969,6 +3002,7 @@ async function crmLogActivity(dealId, action, detail) {
   const actor = crmGetActingAs().trim() || 'Unknown';
   try {
     await fetch(CRM_ACTIVITY_REST, { method: 'POST', headers: CRM_HEADERS, body: JSON.stringify({ deal_id: dealId, actor, action, detail: detail || null }) });
+    ehMarkDirty();
   } catch (err) {
     console.warn('crm activity log failed', err);
   }
@@ -3097,6 +3131,7 @@ async function crmAddActivityNote() {
     const res = await fetch(CRM_ACTIVITY_REST, { method: 'POST', headers: CRM_HEADERS, body: JSON.stringify({ deal_id: crmEditingId, actor, action: 'note', detail }) });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     textEl.value = '';
+    ehMarkDirty();
     await crmRenderActivityPanel(crmEditingId);
   } catch (err) {
     alert('Could not add the note: ' + err.message);
@@ -3685,6 +3720,8 @@ function closeCrmStageModal() {
   crmEditingId = null;
   crmActivityEditingId = null;
   crmActivityDeletingId = null;
+  // Opened from an Estimator Health pop-up: keep the pop-up's scroll lock and refresh its list + the score.
+  if (typeof ehModalIsOpen === 'function' && ehModalIsOpen()) { document.body.style.overflow = 'hidden'; ehMarkDirty(); }
   // A deal opened from the Stand-up tab: pick up whatever was changed/logged in it.
   const su = document.getElementById('tab-standup');
   if (su && su.classList.contains('active') && typeof standupLoad === 'function') standupLoad({ quiet: true });
@@ -3804,7 +3841,7 @@ async function renderCrmTab() {
   crmRenderFollowupPanel();
   crmInitActorPicker();
   renderEstimatorHealth();
-  ehRefreshViews().catch(e => console.warn('estimator health failed', e));
+  ehRefreshViews({ maxAge: 30000 }).catch(e => console.warn('estimator health failed', e));
 
   const counts = {};
   crmDeals.forEach(d => { counts[d.stage] = (counts[d.stage] || 0) + 1; });
@@ -3973,6 +4010,7 @@ async function suGet(url) {
 async function suSend(method, url, body) {
   const res = await fetch(url, { method, headers: { ...CRM_HEADERS, Prefer: 'return=representation' }, body: body ? JSON.stringify(body) : undefined });
   if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()).slice(0, 160));
+  ehMarkDirty();
   return res.status === 204 ? [] : res.json();
 }
 async function suLoadGoals() {
@@ -4016,7 +4054,7 @@ async function standupLoad(opts = {}) {
     for (const r of STANDUP_REPS) if (standup.targets[r.name] == null) standup.targets[r.name] = suLastTarget(r.name);
     standup.loaded = true;
     standup.error = null;
-    ehRefreshViews().catch(e => console.warn('estimator health failed', e));
+    ehRefreshViews({ maxAge: 30000 }).catch(e => console.warn('estimator health failed', e));
   } catch (err) {
     standup.error = err.message;
   } finally {
@@ -4746,8 +4784,12 @@ setInterval(() => {
                    (per Pranav). 24+ hours before the deadline = 100, under 24 hours = 50, after the
                    deadline = 0; a deadline that passed while the card is still in Plans Received /
                    Takeoff = 0.
-     outcomes    — ServiceMinder estimates sent 31-120 days ago that got a decision (won or declined)
-                   instead of being left to expire. Needs 3+ to score.
+     outcomes    — ServiceMinder estimates sent 61-180 days ago (every estimate gets 2 months before it can
+                   count — new-construction decisions take a while, and many "Expired" estimates are accepted
+                   later) that were won, marked Declined, OR — for long-lead jobs that expired in ServiceMinder —
+                   whose CRM deal is closed out (Estimate Won/Lost) or still being followed up (upcoming follow-up
+                   date). Expired with none of those = counts against. Needs 3+ to score. (Changed 2026-11-13,
+                   per Pranav: keep the metric but don't penalize long lead times.)
      prospecting — prospecting touches (notes / stage moves / new cards / Trello comments on the rep's
                    prospecting deals — same rule as the stand-up) in the last 7 days vs a weekly target of
                    5 x the daily touch target set in the stand-up (default 10/day).
@@ -4768,6 +4810,8 @@ const EH_WEIGHTS = {
 };
 const EH_ROLE_LABEL = { com: 'Commercial weighting', res: 'Residential / blend weighting' };
 const EH_LABELS = { followups: 'Follow-ups set', fresh: 'Touched in 14 days', bids: 'Bids sent 24h+ early', outcomes: 'Estimates decided', prospecting: 'Prospecting touches', commitments: 'Stand-up follow-through' };
+// Components whose row opens the "all accounts" pop-up (2026-11-13, per Pranav).
+const EH_POPUP = new Set(['followups', 'fresh', 'prospecting', 'outcomes']);
 const EH_ORDER = ['followups', 'bids', 'fresh', 'outcomes', 'prospecting', 'commitments'];
 const EH_FOLLOWUP_STAGES = new Set(['Prospecting 1st Contact', 'Prospecting 2nd Contact', 'Prospecting 3rd Contact', 'Estimate Completed']);
 const EH_FRESH_STAGES = new Set(['Prospecting 1st Contact', 'Prospecting 2nd Contact', 'Prospecting 3rd Contact', 'Plans Received', 'Takeoff In Process', 'Estimate Completed']);
@@ -4775,7 +4819,7 @@ const EH_PRESEND_STAGES = new Set(['Plans Received', 'Takeoff In Process']);
 const EH_WON = new Set(['Accepted', 'Scheduled', 'Invoiced', 'Complete']);
 const EH_REST_SNAP = CRM_SUPABASE_URL + '/rest/v1/estimator_health_daily';
 const EH_CACHE_MS = 2 * 60 * 1000;
-let eh = { status: 'idle', error: null, at: 0, result: null, open: {}, savedOn: null, inflight: null };
+let eh = { status: 'idle', error: null, at: 0, result: null, open: {}, savedOn: null, inflight: null, dirty: false, dirtyTimer: null, modal: null };
 
 function ehEsc(s) { return crmEsc(s); }
 // Epoch ms for a Mountain-Time wall-clock date+time (DST-aware), e.g. a bid deadline.
@@ -4807,23 +4851,29 @@ async function ehFetchJSON(url) {
   return res.json();
 }
 // Loads everything the score needs (cached ~2 minutes; both tabs share it).
-function ehLoad(force) {
-  if (!force && eh.result && Date.now() - eh.at < EH_CACHE_MS) return Promise.resolve(eh.result);
-  if (eh.inflight) return eh.inflight;
+// opts: true = force reload; { maxAge } = reload if the cached copy is older than maxAge ms.
+function ehLoad(opts) {
+  const force = opts === true || (opts && opts.force) || eh.dirty;
+  const maxAge = (opts && opts.maxAge) || EH_CACHE_MS;
+  if (!force && eh.result && Date.now() - eh.at < maxAge) return Promise.resolve(eh.result);
+  // A change landed while a load was already running: wait for it, then load again with the new data.
+  if (eh.inflight) return eh.dirty ? eh.inflight.then(() => ehLoad(opts)) : eh.inflight;
   if (!eh.result) eh.status = 'loading';
   const today = suTodayISO();
   const iso = (days) => encodeURIComponent(new Date(Date.now() - days * 86400000).toISOString());
   eh.inflight = (async () => {
     try {
-      const [deals, moves, touches, commitments, proposals, snaps] = await Promise.all([
+      eh.dirty = false;
+      const [deals, moves, touches, commitments, proposals, snaps, archived] = await Promise.all([
         crmFetchDeals(),
         ehFetchJSON(`${CRM_ACTIVITY_REST}?action=eq.stage_change&detail=ilike.*${encodeURIComponent('to Estimate Completed')}*&created_at=gte.${iso(150)}&select=deal_id,detail,created_at&order=created_at.asc&limit=5000`),
         ehFetchJSON(`${CRM_ACTIVITY_REST}?created_at=gte.${iso(8)}&action=in.(note,stage_change,created,trello_comment)&select=deal_id,action,detail,created_at&limit=5000`),
         ehFetchJSON(`${STANDUP_REST.commitments}?due_on=gte.${suAddDays(today, -45)}&select=rep,kind,status,due_on,subject,action,target,created_at&order=created_at.asc&limit=3000`),
         liveProposals.status === 'ready' ? Promise.resolve(liveProposals.allProposals) : callSMEdge({ report: 'onthebooks' }).then(r => r.allProposals || []),
         ehFetchJSON(`${EH_REST_SNAP}?snap_date=gte.${suAddDays(today, -21)}&select=snap_date,rep,score&limit=500`).catch(() => []),
+        ehFetchJSON(`${CRM_REST}?archived=eq.true&select=id,name,stage,reps,next_followup_date&limit=3000`).catch(() => []),
       ]);
-      eh.result = ehCompute({ deals: deals || [], moves: moves || [], touches: touches || [], commitments: commitments || [], proposals: proposals || [], snaps: snaps || [], now: Date.now(), today });
+      eh.result = ehCompute({ deals: deals || [], archived: archived || [], moves: moves || [], touches: touches || [], commitments: commitments || [], proposals: proposals || [], snaps: snaps || [], now: Date.now(), today });
       eh.status = 'ready'; eh.error = null; eh.at = Date.now();
       ehSaveSnapshots(eh.result, today);
     } catch (err) {
@@ -4837,7 +4887,17 @@ function ehLoad(force) {
   return eh.inflight;
 }
 
-function ehCompute({ deals, moves, touches, commitments, proposals, snaps, now, today }) {
+// Matches a ServiceMinder customer name to a CRM deal (active or archived) — CRM names often carry a builder in
+// parentheses, e.g. "Lakins Residence (Connected Construction)". Prefers a deal owned by the same rep.
+function ehNormName(s) { return String(s || '').toLowerCase().replace(/\(.*?\)/g, ' ').replace(/[^a-z0-9]+/g, ''); }
+function ehMatchDeal(name, rep, pool) {
+  const k = ehNormName(name);
+  if (k.length < 4) return null;
+  const c = pool.filter(d => { const dk = d._nk || (d._nk = ehNormName(d.name)); return dk && (dk === k || (k.length >= 6 && dk.includes(k)) || (dk.length >= 6 && k.includes(dk))); });
+  return c.find(d => (d.reps || []).some(r => suSameRep(r, rep))) || c[0] || null;
+}
+function ehCompute({ deals, archived, moves, touches, commitments, proposals, snaps, now, today }) {
+  const matchPool = deals.concat(archived || []);
   const firstMove = new Map();   // deal id -> epoch ms of its first move into Estimate Completed
   for (const m of moves) {
     if (!/\bto Estimate Completed\b/i.test(m.detail || '')) continue;
@@ -4862,7 +4922,14 @@ function ehCompute({ deals, moves, touches, commitments, proposals, snaps, now, 
     const fuMissing = fuPool.filter(d => !d.next_followup_date);
     const fuOverdue = fuPool.filter(d => d.next_followup_date && d.next_followup_date < today);
     const fuOk = fuPool.length - fuMissing.length - fuOverdue.length;
+    const fuUpcoming = fuPool.filter(d => d.next_followup_date && d.next_followup_date >= today).sort((a, b) => a.next_followup_date.localeCompare(b.next_followup_date));
     parts.followups = fuPool.length ? { value: 100 * fuOk / fuPool.length, ok: fuOk, n: fuPool.length,
+      groups: [
+        { title: 'Follow-up overdue', bad: true, rows: fuOverdue.slice().sort((a, b) => a.next_followup_date.localeCompare(b.next_followup_date)).map(d => ({ d, status: `overdue since ${suShort(d.next_followup_date)}`, bad: true })) },
+        { title: 'No follow-up date', bad: true, rows: fuMissing.slice().sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0) || crmDaysStale(b.last_activity_at) - crmDaysStale(a.last_activity_at)).map(d => ({ d, status: 'no date set', bad: true })) },
+        { title: 'Follow-up scheduled', rows: fuUpcoming.map(d => ({ d, status: d.next_followup_date === today ? 'due today' : `on ${suShort(d.next_followup_date)}` })) },
+      ],
+      rule: 'Deals at Prospecting 1st / 2nd / 3rd Contact or Estimate Completed need an upcoming "follow up on" date. Overdue or missing dates count against the score.',
       detail: `${fuOk} of ${fuPool.length} deals have an upcoming follow-up date · ${fuOverdue.length} overdue · ${fuMissing.length} with no date`,
       items: [...fuOverdue.sort((a, b) => a.next_followup_date.localeCompare(b.next_followup_date)).map(d => ({ d, note: `follow-up overdue since ${suShort(d.next_followup_date)}`, bad: true })),
               ...fuMissing.sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0) || crmDaysStale(b.last_activity_at) - crmDaysStale(a.last_activity_at)).map(d => ({ d, note: 'no follow-up date' }))] } : null;
@@ -4870,7 +4937,13 @@ function ehCompute({ deals, moves, touches, commitments, proposals, snaps, now, 
     // Freshness
     const frPool = mine.filter(d => EH_FRESH_STAGES.has(d.stage));
     const stale = frPool.filter(d => crmDaysStale(d.last_activity_at) >= 14).sort((a, b) => crmDaysStale(b.last_activity_at) - crmDaysStale(a.last_activity_at));
+    const freshOk = frPool.filter(d => crmDaysStale(d.last_activity_at) < 14).sort((a, b) => crmDaysStale(a.last_activity_at) - crmDaysStale(b.last_activity_at));
     parts.fresh = frPool.length ? { value: 100 * (frPool.length - stale.length) / frPool.length, ok: frPool.length - stale.length, n: frPool.length,
+      groups: [
+        { title: 'Needs a touch — 14+ days', bad: true, rows: stale.map(d => ({ d, status: `${crmDaysStale(d.last_activity_at)} days since last activity`, bad: true })) },
+        { title: 'Touched in the last 14 days', rows: freshOk.map(d => { const n = crmDaysStale(d.last_activity_at); return { d, status: n === 0 ? 'today' : `${n} day${n === 1 ? '' : 's'} ago` }; }) },
+      ],
+      rule: 'Deals being worked (Prospecting 1st–3rd Contact, Plans Received, Takeoff In Process, Estimate Completed) should have CRM activity — a note, stage move or edit — at least every 14 days.',
       detail: `${frPool.length - stale.length} of ${frPool.length} worked deals touched in the last 14 days`,
       items: stale.map(d => ({ d, note: `${crmDaysStale(d.last_activity_at)} days since last activity` })) } : null;
 
@@ -4895,19 +4968,50 @@ function ehCompute({ deals, moves, touches, commitments, proposals, snaps, now, 
       items: lateBids.map(b => ({ d: b.d, note: `${b.note} (due ${ehDeadlineLabel(b.deadline, b.assumed)})`, bad: b.pts === 0 })) } : null;
 
     // Estimate outcomes (ServiceMinder)
-    const lo = suAddDays(today, -120), hi = suAddDays(today, -31);
+    const lo = suAddDays(today, -180), hi = suAddDays(today, -61);
     const smPool = [];
     for (const p of proposals) {
       if (!suSameRep(p[3], cfg.name)) continue;
       const sent = suSmISO(p[5]);
       if (!sent || sent < lo || sent > hi) continue;
-      if (EH_WON.has(p[1]) || p[1] === 'Declined') smPool.push({ p, sent, decided: true });
-      else if (p[1] === 'Expired') smPool.push({ p, sent, decided: false });
+      const base = { name: p[6], value: Number(p[0]) || 0, sent, smStatus: p[1] };
+      if (EH_WON.has(p[1])) smPool.push({ ...base, decided: true, how: 'won' });
+      else if (p[1] === 'Declined') smPool.push({ ...base, decided: true, how: 'declined' });
+      else if (p[1] === 'Expired') {
+        const d = ehMatchDeal(p[6], cfg.name, matchPool);
+        if (d && (d.stage === 'Estimate Lost' || d.stage === 'Dead Prospecting List')) smPool.push({ ...base, d, decided: true, how: 'crm-lost' });
+        else if (d && (d.stage === 'Estimate Won' || d.stage === 'Prospect Won')) smPool.push({ ...base, d, decided: true, how: 'crm-won' });
+        else if (d && (EH_PRESEND_STAGES.has(d.stage) || d.stage === 'Estimate Completed')) {
+          const fu = d.next_followup_date && d.next_followup_date >= today;
+          smPool.push({ ...base, d, decided: !!fu, how: fu ? 'crm-following' : (d.next_followup_date ? 'crm-overdue' : 'crm-nofu') });
+        } else smPool.push({ ...base, d: d || null, decided: false, how: d ? 'crm-other' : 'no-crm' });
+      }
     }
     const expired = smPool.filter(x => !x.decided).sort((a, b) => b.sent.localeCompare(a.sent));
+    const howTxt = (x) => {
+      const fu = x.d ? suShort(x.d.next_followup_date) : '';
+      switch (x.how) {
+        case 'won': return `won (${x.smStatus})`;
+        case 'declined': return 'marked Declined';
+        case 'crm-lost': return 'expired · CRM deal marked lost';
+        case 'crm-won': return 'expired · CRM deal marked won';
+        case 'crm-following': return `expired · still followed up in CRM (${fu})`;
+        case 'crm-overdue': return `expired · CRM follow-up overdue since ${fu}`;
+        case 'crm-nofu': return 'expired · CRM deal has no follow-up date';
+        case 'crm-other': return `expired · CRM deal is in ${x.d ? x.d.stage : ''}`;
+        default: return 'expired · no CRM deal or follow-up';
+      }
+    };
+    const smRow = (x) => ({ d: x.d || null, name: x.name, status: `sent ${suShort(x.sent)} · ${fmtMoney(x.value)} · ${howTxt(x)}`, bad: !x.decided });
     parts.outcomes = smPool.length >= 3 ? { value: 100 * (smPool.length - expired.length) / smPool.length, ok: smPool.length - expired.length, n: smPool.length,
-      detail: `${smPool.length - expired.length} of ${smPool.length} estimates sent ${suShort(lo)}–${suShort(hi)} got a decision · ${expired.length} expired with no answer`,
-      items: expired.map(x => ({ name: x.p[6], note: `sent ${suShort(x.sent)} · ${fmtMoney(Number(x.p[0]) || 0)} · expired in ServiceMinder` })) } : null;
+      detail: `${smPool.length - expired.length} of ${smPool.length} estimates sent ${suShort(lo)}–${suShort(hi)} were won, declined, or are closed out / still followed up in the CRM · ${expired.length} expired with no follow-up`,
+      items: expired.map(x => ({ d: x.d || null, name: x.name, note: `sent ${suShort(x.sent)} · ${fmtMoney(x.value)} · ${howTxt(x).replace(/^expired · /, '')}` })),
+      groups: [
+        { title: 'Expired — no follow-up (counts against)', bad: true, rows: expired.map(smRow) },
+        { title: 'Expired but handled in the CRM', rows: smPool.filter(x => x.decided && x.how.startsWith('crm')).sort((a, b) => b.sent.localeCompare(a.sent)).map(smRow) },
+        { title: 'Won or declined in ServiceMinder', rows: smPool.filter(x => x.how === 'won' || x.how === 'declined').sort((a, b) => b.sent.localeCompare(a.sent)).map(smRow) },
+      ],
+      rule: `ServiceMinder estimates sent ${suShort(lo)}–${suShort(hi)} (every estimate gets 2 months before it counts). Handled = won, marked Declined in ServiceMinder, or — for long-lead jobs that expired — the CRM deal is marked lost/won or still has an upcoming follow-up date. To fix one: mark it Declined in ServiceMinder, or set a follow-up date / mark it lost on its CRM deal.` } : null;
 
     // Prospecting touches (last 7 days) vs weekly target
     const targets = commitments.filter(c => c.kind === 'prospecting_target' && suSameRep(c.rep, cfg.name) && c.target != null);
@@ -4915,15 +5019,28 @@ function ehCompute({ deals, moves, touches, commitments, proposals, snaps, now, 
     const weekly = Math.max(1, daily * 5);
     let touchCount = 0;
     const since = now - 7 * 86400000;
+    const byDeal = new Map();   // deal id -> { n, last }
     for (const a of touches) {
       if (!STANDUP_TOUCH_ACTIONS.has(a.action) || Date.parse(a.created_at) < since) continue;
       const d = dealById.get(a.deal_id);
       if (!d || !owns(d, cfg.name)) continue;
       if (!(STANDUP_PROSPECT_STAGES.has(d.stage) || /prospect/i.test(a.detail || ''))) continue;
       touchCount++;
+      const t = Date.parse(a.created_at), b = byDeal.get(d.id) || { n: 0, last: 0 };
+      b.n++; b.last = Math.max(b.last, t); byDeal.set(d.id, b);
     }
+    const prospectDeals = mine.filter(d => CRM_PROSPECT_ACTIVE.includes(d.stage) || d.stage === 'Prospecting On Hold');
+    const touchedRows = [...byDeal.entries()].map(([id, b]) => ({ d: dealById.get(id), b })).sort((x, y) => y.b.last - x.b.last)
+      .map(({ d, b }) => ({ d, status: `${b.n} touch${b.n === 1 ? '' : 'es'} · last ${new Date(b.last).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })}` }));
+    const untouched = prospectDeals.filter(d => !byDeal.has(d.id)).sort((a, b) => crmDaysStale(b.last_activity_at) - crmDaysStale(a.last_activity_at))
+      .map(d => { const n = crmDaysStale(d.last_activity_at); return { d, status: d.last_activity_at ? `last activity ${n} day${n === 1 ? '' : 's'} ago` : 'no activity yet', bad: true }; });
     parts.prospecting = { value: Math.min(100, 100 * touchCount / weekly), ok: touchCount, n: weekly,
-      detail: `${touchCount} prospecting touches in the last 7 days · target ${weekly}/week (${daily}/day from the stand-up)`, items: [] };
+      detail: `${touchCount} prospecting touches in the last 7 days · target ${weekly}/week (${daily}/day from the stand-up)`, items: [],
+      groups: [
+        { title: `Touched in the last 7 days (${touchCount} touch${touchCount === 1 ? '' : 'es'})`, rows: touchedRows },
+        { title: 'Prospects not touched in the last 7 days', bad: true, rows: untouched },
+      ],
+      rule: `A touch = a note, stage move, new card or Trello comment on one of the rep's prospecting deals. Target ${weekly} a week (${daily}/day — Mark sets this in the stand-up).` };
 
     // Stand-up commitments
     // Only commitments that were actually reviewed in a stand-up (Done / Missed / Carried) count — a rep
@@ -4988,6 +5105,7 @@ function ehTrendHtml(r) {
 function ehCardHtml(r, compact) {
   const parts = EH_ORDER.filter(k => r.parts[k]).map(k => {
     const p = r.parts[k], v = Math.round(p.value);
+    if (EH_POPUP.has(k) && p.groups) return `<button type="button" class="eh-part eh-part-btn" title="${ehEsc(p.detail)} — click to see every account" onclick="ehOpenModal('${r.name}','${k}')"><span class="eh-part-l">${EH_LABELS[k]} <span class="eh-part-go">›</span></span><span class="eh-bar"><i class="${ehColor(v)}" style="width:${Math.max(2, v)}%"></i></span><span class="eh-part-v">${v}%</span><span class="eh-part-w">×${p.weight}</span></button>`;
     return `<div class="eh-part" title="${ehEsc(p.detail)}"><span class="eh-part-l">${EH_LABELS[k]}</span><span class="eh-bar"><i class="${ehColor(v)}" style="width:${Math.max(2, v)}%"></i></span><span class="eh-part-v">${v}%</span><span class="eh-part-w">×${p.weight}</span></div>`;
   }).join('');
   const open = !!eh.open[r.name];
@@ -5003,6 +5121,68 @@ function ehCardHtml(r, compact) {
   </div>`;
 }
 function ehToggle(rep) { eh.open[rep] = !eh.open[rep]; renderEstimatorHealth(); }
+
+/* ---- "All accounts" pop-up for a score component (2026-11-13) ---- */
+function ehModalIsOpen() { const m = document.getElementById('ehModalBackdrop'); return !!(m && m.classList.contains('open')); }
+function ehOpenModal(rep, key) {
+  eh.modal = { rep, key, filter: '' };
+  renderEhModal();
+  document.getElementById('ehModalBackdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  // Pull the latest CRM state behind it so the list is current.
+  ehRefreshViews(true).catch(() => {});
+}
+function closeEhModal() {
+  eh.modal = null;
+  const m = document.getElementById('ehModalBackdrop');
+  if (m) m.classList.remove('open');
+  if (!document.querySelector('.modal-backdrop.open')) document.body.style.overflow = '';
+}
+function ehModalFilter(el) { if (eh.modal) { eh.modal.filter = el.value; renderEhModal(true); } }
+function ehModalOpenDeal(id) { openCrmDealModal(id); }   // the deal window opens on top; this list refreshes when it closes
+function renderEhModal(keepFocus) {
+  if (!eh.modal || !eh.result) return;
+  const r = eh.result.reps.find(x => x.name === eh.modal.rep);
+  const p = r && r.parts[eh.modal.key];
+  const body = document.getElementById('ehModalBody');
+  if (!r || !p) { body.innerHTML = '<div class="eh-empty">Nothing to show.</div>'; return; }
+  document.getElementById('ehModalTitle').textContent = `${r.name} — ${EH_LABELS[eh.modal.key]} · ${Math.round(p.value)}%`;
+  document.getElementById('ehModalSubtitle').textContent = p.detail;
+  const q = (eh.modal.filter || '').trim().toLowerCase();
+  const rowHtml = (row) => {
+    const d = row.d;
+    const name = d ? `<a href="#" onclick="ehModalOpenDeal('${d.id}');return false;">${ehEsc(d.name)}</a>` : ehEsc(row.name || '');
+    const meta = d ? `${ehEsc(d.stage)}${d.value ? ' · ' + fmtMoney(Number(d.value)) : ''}${d.market ? ' · ' + ehEsc(d.market) : ''}` : 'ServiceMinder only';
+    return `<tr><td>${name}<div class="eh-row-meta">${meta}</div></td><td class="eh-row-status${row.bad ? ' bad' : ''}">${ehEsc(row.status)}</td></tr>`;
+  };
+  const groups = (p.groups || []).map(g => {
+    const rows = q ? g.rows.filter(x => ((x.d && x.d.name) || x.name || '').toLowerCase().includes(q)) : g.rows;
+    return `<div class="eh-mgroup"><div class="nm-modal-h${g.bad ? ' eh-mbad' : ''}">${ehEsc(g.title)} <span class="eh-mcount">${rows.length}${q ? ' of ' + g.rows.length : ''}</span></div>
+      ${rows.length ? `<div class="store-table-wrap" style="margin-bottom:12px;"><table class="store-table eh-mtable"><tbody>${rows.map(rowHtml).join('')}</tbody></table></div>` : `<div class="eh-empty">${q ? 'No matches.' : 'None.'}</div>`}</div>`;
+  }).join('');
+  const total = (p.groups || []).reduce((a, g) => a + g.rows.length, 0);
+  const prevFilter = document.getElementById('ehModalFilter');
+  const caret = prevFilter && document.activeElement === prevFilter ? prevFilter.selectionStart : null;
+  body.innerHTML = `<div class="eh-mrule">${ehEsc(p.rule || '')}</div>
+    ${total > 8 ? `<input type="search" id="ehModalFilter" class="control-select eh-mfilter" placeholder="Filter ${total} accounts…" value="${ehEsc(eh.modal.filter || '')}" oninput="ehModalFilter(this)">` : ''}
+    ${groups}
+    <div class="eh-mfoot">Click an account to open it — set a follow-up date, log a note or change the stage, and this list and the score update right away.</div>`;
+  if (keepFocus || caret != null) { const f = document.getElementById('ehModalFilter'); if (f) { f.focus(); const c = caret != null ? caret : f.value.length; f.setSelectionRange(c, c); } }
+}
+// Esc closes the pop-up only when no deal window is open on top of it (captured before the deal window's own handler).
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !ehModalIsOpen()) return;
+  const deal = document.getElementById('crmStageModalBackdrop');
+  if (deal && deal.classList.contains('open')) return;
+  closeEhModal();
+}, true);
+
+/* ---- Live updates: any CRM / stand-up change marks the score stale and recomputes it a moment later ---- */
+function ehMarkDirty() {
+  eh.dirty = true;
+  clearTimeout(eh.dirtyTimer);
+  eh.dirtyTimer = setTimeout(() => { ehRefreshViews(true).catch(e => console.warn('estimator health refresh failed', e)); }, 1200);
+}
 function ehBidsDueHtml(list, emptyText) {
   const now = Date.now();
   if (!list.length) return `<div class="eh-empty">${emptyText}</div>`;
@@ -5027,9 +5207,10 @@ function renderEstimatorHealth() {
   grid.innerHTML = eh.result.reps.map(r => ehCardHtml(r, false)).join('');
   bidsEl.innerHTML = ehBidsDueHtml(eh.result.bidsDue, 'No bids due in the next 48 hours that still need to go out.');
 }
-function ehRefreshViews() {
-  return ehLoad().then(() => {
+function ehRefreshViews(opts) {
+  return ehLoad(opts).then(() => {
     renderEstimatorHealth();
+    if (ehModalIsOpen()) renderEhModal();
     const tab = document.getElementById('tab-standup');
     if (tab && tab.classList.contains('active') && standup.loaded && !standup.openForm) renderStandup();
   });

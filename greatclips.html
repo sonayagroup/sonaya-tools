@@ -550,6 +550,12 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .mk-sal-ta:focus{outline:2px solid rgba(4,134,103,.25);border-color:var(--blue);background:#fff}
 .mk-sal.ro .mk-sal-t{font-size:13.5px;line-height:1.45;color:var(--ink)}
 .mk-ro-notes{font-size:13.5px;line-height:1.5;margin:8px 0 12px;color:var(--ink)}
+#mkRem{width:100%;box-sizing:border-box;border:1px solid #f0d58a;border-left:4px solid var(--amber);border-radius:8px;padding:10px 12px;font:inherit;font-size:13.5px;line-height:1.5;color:var(--ink);resize:vertical;background:#fffbef}
+#mkRem:focus{outline:2px solid rgba(233,160,73,.3);background:#fff}
+.mk-rem-sug{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
+.mk-sug{background:#fff7e0;border:1px solid #f0d58a;color:#8a5a00;border-radius:14px;padding:3px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.mk-sug:hover{background:#ffefc2}.mk-sug.alt{background:#fff;color:var(--muted);border-color:var(--line)}
+.mk-rem-ro{background:#fff7e0;border:1px solid #f0d58a;border-left:4px solid var(--amber);border-radius:8px;padding:10px 12px;margin:8px 0 12px;font-size:13.5px;line-height:1.5}
 /* ===== AM WEEKLY RECAP ===== */
 #recap.amr-on > :not(#amrToggle):not(#amrWrap):not(#amOverview){display:none!important}
 #recap.amr-on #amrToggle{margin-top:14px}
@@ -5198,8 +5204,8 @@ function mkSentLine(wk,readonly){const x=MK.recap[wk];
   if(x&&x.sent_at){const t=new Date(x.sent_at);return '<div class="mk-sent'+(readonly?" ro":"")+'">✉️ Recap emailed '+t.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" at "+t.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+(x.sent_by?" by "+esc(x.sent_by):"")+" to "+(x.sent_to||[]).length+" people.</div>";}
   return readonly?"":'<div class="mk-sent none">Not emailed yet for this week.</div>';}
 function mkReadNotes(wk){const x=MK.recap[wk];if(!x||!x.sent_at)return "";const sn=x.salon_notes||{};const {rows}=mkWeek(wk);
-  const items=rows.filter(r=>MK_OURS.has(r.salon_id)&&sn[r.salon_id]);if(!items.length&&!x.notes)return "";
-  return '<div class="card mk-comp"><div class="mk-comp-t">Notes from this week’s recap</div>'+(x.notes?'<div class="mk-ro-notes">'+esc(x.notes).replace(/\n/g,"<br>")+'</div>':"")+
+  const items=rows.filter(r=>MK_OURS.has(r.salon_id)&&sn[r.salon_id]);if(!items.length&&!x.notes&&!x.reminders)return "";
+  return '<div class="card mk-comp"><div class="mk-comp-t">Notes from this week’s recap</div>'+(x.reminders?'<div class="mk-rem-ro"><b>📌 Reminders</b><br>'+esc(x.reminders).replace(/\n/g,"<br>")+'</div>':"")+(x.notes?'<div class="mk-ro-notes">'+esc(x.notes).replace(/\n/g,"<br>")+'</div>':"")+
     '<div class="mk-sal-list">'+items.map(r=>'<div class="mk-sal ro"><div class="mk-sal-h"><b>#'+r.rank+' '+esc(r.salon_id)+' '+esc(mkName(r))+'</b></div><div class="mk-sal-t">'+esc(sn[r.salon_id])+'</div></div>').join("")+'</div></div>';}
 async function mkCtx(wk){MK.ctx=MK.ctx||{};if(MK.ctx[wk])return MK.ctx[wk];
   const d0=new Date(wk+"T12:00:00");d0.setDate(d0.getDate()-6);const from=d0.toISOString().slice(0,10);const h=supaHeaders();
@@ -5216,9 +5222,34 @@ function mkSalNotesHtml(wk){const x=MK.recap[wk]||{};const sn=x.salon_notes||{};
     return '<div class="mk-sal"><div class="mk-sal-h"><b>#'+r.rank+' '+esc(r.salon_id)+' '+esc(mkName(r))+'</b>'+chip("wait15_pct","Waits")+chip("cph","CPH")+chip("avg_hc","HC")+chip("payroll_pct","Payroll")+chip("new_ret_pct","New ret")+chip("cust_growth_pct","Cust gr")+
       '<button type="button" class="linkbtn mk-sal-re" data-sid="'+r.salon_id+'" title="Rewrite this note from the numbers">↻ rebuild</button></div><textarea class="mk-sal-ta" data-sid="'+r.salon_id+'" rows="2" spellcheck="true">'+esc(v)+'</textarea></div>';}).join("");}
 function mkSalNotesVal(){const o={};document.querySelectorAll(".mk-sal-ta").forEach(t=>{o[t.dataset.sid]=t.value.trim();});return o;}
+function mkNthDow(y,m,dow,n){const d=new Date(y,m,1,12);let c=0;while(true){if(d.getDay()===dow&&++c===n)return d;d.setDate(d.getDate()+1);}}
+function mkLastDow(y,m,dow){const d=new Date(y,m+1,0,12);while(d.getDay()!==dow)d.setDate(d.getDate()-1);return d;}
+function mkHolidays(y){const D=(m,d)=>new Date(y,m,d,12);return [
+  ["New Year's Day",D(0,1),"New Year's Day is a short day and a slow week after; schedule lighter and watch CPH."],
+  ["MLK Day",mkNthDow(y,0,1,3),"MLK Day: schools are out, expect a busy Monday. Staff it like a Saturday."],
+  ["Presidents Day",mkNthDow(y,1,1,3),"Presidents Day: schools are out, expect a busy Monday. Staff it like a Saturday."],
+  ["Memorial Day",mkLastDow(y,4,1),"Memorial Day weekend: confirm the holiday-hours schedule and full teams Friday and Saturday."],
+  ["Back to school",D(7,1),"Back-to-school is our busiest stretch: no time off approved, full teams every day through the first week of school."],
+  ["July 4th",D(6,4),"July 4th: confirm holiday hours, and staff the days before heavily."],
+  ["Labor Day",mkNthDow(y,8,1,1),"Labor Day weekend: confirm holiday hours and full teams Friday and Saturday."],
+  ["Thanksgiving",mkNthDow(y,10,4,4),"Thanksgiving week: schedule full teams Tuesday, Wednesday and Friday; confirm holiday hours are posted."],
+  ["Christmas",D(11,25),"Christmas: the two weeks before are a peak. Schedules should be done and time off locked; confirm Christmas Eve hours."],
+  ["New Year's Eve",D(11,31),"New Year's Eve: short day, confirm hours and schedule for the morning rush."]];}
+function mkRemSuggest(wk){const box=$("#mkRemSug");if(!box)return;const ta=$("#mkRem");
+  const start=new Date(wk+"T12:00:00"),end=new Date(start);end.setDate(end.getDate()+28);
+  const y=start.getFullYear();const hol=mkHolidays(y).concat(mkHolidays(y+1)).filter(h=>h[1]>start&&h[1]<=end);
+  const prevWk=MK.weeks.filter(w=>w<wk&&MK.recap[w]&&MK.recap[w].reminders&&MK.recap[w].reminders.trim())[0];
+  let h=hol.map((x,i)=>'<button type="button" class="mk-sug" data-i="'+i+'" title="Add this reminder">+ '+esc(x[0])+' '+(x[1].getMonth()+1)+'/'+x[1].getDate()+'</button>').join("");
+  if(prevWk)h+='<button type="button" class="mk-sug alt" data-prev="1" title="Copy the reminders from the WE '+mkMD(prevWk)+' recap">↺ Last week’s reminders</button>';
+  box.innerHTML=h;box.hidden=!h;
+  box.querySelectorAll(".mk-sug").forEach(b=>b.onclick=()=>{const add=b.dataset.prev?MK.recap[prevWk].reminders.trim():"• "+hol[+b.dataset.i][2];
+    ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,"")+"\n":"")+add;ta.oninput&&ta.oninput();ta.focus();});}
 function mkComposerHtml(wk){const x=MK.recap[wk];const notes=x&&x.notes!=null?x.notes:mkDraft(wk);
   return '<div class="card mk-comp"><div class="mk-comp-h"><div><div class="mk-comp-t">✉️ Email this recap to managers</div>'+
-    '<div class="mk-sub">The email includes your notes, the comparison tiles, the full colored ranking table, and an Excel copy. Edit the notes before sending; lines that start with • become bullets.</div></div>'+mkSentLine(wk,false)+'</div>'+
+    '<div class="mk-sub">The email has your reminders at the top, then the opening note, the comparison tiles, the colored ranking table, and the salon notes. Lines that start with • become bullets.</div></div>'+mkSentLine(wk,false)+'</div>'+
+    '<label class="mk-lab" for="mkRem">📌 Reminders &amp; announcements <span>holiday scheduling, policies, deadlines. Shown at the top of the email.</span></label>'+
+    '<div class="mk-rem-sug" id="mkRemSug"></div>'+
+    '<textarea id="mkRem" rows="4" spellcheck="true" placeholder="• Thanksgiving week: schedule full teams Wed and Fri, those are our biggest days.&#10;• Reminder: all call-ins go to the manager by phone, not text.">'+esc(x&&x.reminders!=null?x.reminders:"")+'</textarea>'+
     '<label class="mk-lab" for="mkNotes">Opening note</label><textarea id="mkNotes" rows="6" spellcheck="true">'+esc(notes)+'</textarea>'+
     '<div class="mk-lab">Salon notes <span>one short note per salon: the win, the issue the numbers point to, and what to do. Edit freely.</span></div><div id="mkSalNotes" class="mk-sal-list">Building salon notes…</div>'+
     '<div class="mk-row"><button type="button" class="btn sec" id="mkRedraft" title="Replace the opening note and every salon note with fresh ones built from this week’s numbers">↻ Rebuild all notes</button><button type="button" class="btn sec" id="mkSaveNotes">Save draft</button><span class="mk-save" id="mkSaveMsg">'+(x&&x.updated_at&&x.notes!=null?"Draft saved "+new Date(x.updated_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+(x.updated_by?" by "+esc(x.updated_by):""):"Not saved yet")+'</span></div>'+
@@ -5230,22 +5261,23 @@ async function mkFnCall(body){const {data:{session}}=await gcClient().auth.getSe
   const j=await r.json().catch(()=>({}));if(!r.ok||j.error)throw new Error(j.error||("Request failed ("+r.status+")"));return j;}
 const MK_ROLE={owner:"Owner",am:"Area Manager",manager:"Salon Manager",asst_manager:"Asst Manager"};
 function mkRecipRender(){const box=$("#mkRecip");if(!box||!MK.recip)return;
-  if(!MK.recipSel)MK.recipSel=new Set(MK.recip.filter(r=>r.default).map(r=>r.email));
-  box.innerHTML='<div class="mk-recip-act"><button type="button" class="linkbtn" data-a="all">Select all</button> · <button type="button" class="linkbtn" data-a="def">Default</button> · <button type="button" class="linkbtn" data-a="none">None</button></div><div class="mk-recip-list">'+
+  if(!MK.recipSel)MK.recipSel=new Set(MK.recip.map(r=>r.email));
+  box.innerHTML='<div class="mk-recip-act"><button type="button" class="linkbtn" data-a="all">Select all</button> · <button type="button" class="linkbtn" data-a="none">None</button></div><div class="mk-recip-list">'+
     MK.recip.map(r=>'<label class="mk-rc'+(MK.recipSel.has(r.email)?" on":"")+'"><input type="checkbox" value="'+esc(r.email)+'"'+(MK.recipSel.has(r.email)?" checked":"")+'><span><b>'+esc(r.name)+'</b> <i>'+esc(MK_ROLE[r.role]||r.role)+(r.salons&&r.salons.length?" · "+esc(r.salons.join(", ")):"")+'</i><small>'+esc(r.email)+'</small></span></label>').join("")+'</div>'+
-    '<div class="mk-sub" style="margin-top:6px">Default: every Area Manager and salon manager, plus assistant managers at salons that don’t have a salon manager on file.</div>';
+    '<div class="mk-sub" style="margin-top:6px">Everyone is checked by default: you, every Area Manager, salon manager and assistant manager. Uncheck anyone who shouldn’t get it this week.</div>';
   const cnt=()=>{const n=MK.recipSel.size;$("#mkRecipCount").textContent="("+n+" selected)";const s=$("#mkSend");if(s&&!MK.busy){s.textContent=MK.confirm?"Click again to send to "+n+(n===1?" person":" people"):"Send recap to "+n+(n===1?" person":" people");s.disabled=!n;}};
   box.querySelectorAll("input").forEach(i=>i.onchange=()=>{if(i.checked)MK.recipSel.add(i.value);else MK.recipSel.delete(i.value);i.closest("label").classList.toggle("on",i.checked);MK.confirm=false;cnt();});
-  box.querySelectorAll(".linkbtn").forEach(b=>b.onclick=()=>{const a=b.dataset.a;MK.recipSel=new Set(a==="all"?MK.recip.map(r=>r.email):a==="def"?MK.recip.filter(r=>r.default).map(r=>r.email):[]);MK.confirm=false;mkRecipRender();});
+  box.querySelectorAll(".linkbtn").forEach(b=>b.onclick=()=>{const a=b.dataset.a;MK.recipSel=new Set(a==="all"?MK.recip.map(r=>r.email):[]);MK.confirm=false;mkRecipRender();});
   cnt();}
 async function mkSaveNotes(wk,quiet){const n=$("#mkNotes");if(!n)return;const who=(GCU.perms&&(GCU.perms.name||GCU.perms.email))||"";
-  const body={week_ending:wk,notes:n.value,salon_notes:mkSalNotesVal(),updated_by:who,updated_at:new Date().toISOString()};
+  const body={week_ending:wk,notes:n.value,reminders:($("#mkRem")||{}).value||"",salon_notes:mkSalNotesVal(),updated_by:who,updated_at:new Date().toISOString()};
   const r=await fetch(SUPA_URL+"/rest/v1/market_recap?on_conflict=week_ending",{method:"POST",headers:{...supaHeaders(),"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});
   if(!r.ok)throw new Error("Couldn't save the notes ("+r.status+")");const j=await r.json();MK.recap[wk]={...(MK.recap[wk]||{}),...(j[0]||body)};MK.notesDirty=false;
   const m=$("#mkSaveMsg");if(m)m.textContent="Draft saved "+new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+(who?" by "+who:"");}
 function mkWireComposer(wk){
   const n=$("#mkNotes"),msg=$("#mkSendMsg");let t=null;
   n.oninput=()=>{MK.notesDirty=true;MK.confirm=false;mkRecipRender();$("#mkSaveMsg").textContent="Unsaved changes…";clearTimeout(t);t=setTimeout(()=>mkSaveNotes(wk,true).catch(e=>{$("#mkSaveMsg").textContent=e.message;}),1500);};
+  const rem=$("#mkRem");rem.oninput=n.oninput;mkRemSuggest(wk);
   const salBox=$("#mkSalNotes");
   const wireSal=()=>{salBox.querySelectorAll(".mk-sal-ta").forEach(ta=>{ta.oninput=n.oninput;ta.style.height="auto";ta.style.height=(ta.scrollHeight+2)+"px";});
     salBox.querySelectorAll(".mk-sal-re").forEach(b=>b.onclick=()=>{const ta=salBox.querySelector('.mk-sal-ta[data-sid="'+b.dataset.sid+'"]');ta.value=mkNoteFor(wk,b.dataset.sid);n.oninput();});};
@@ -5253,16 +5285,16 @@ function mkWireComposer(wk){
   $("#mkRedraft").onclick=()=>{n.value=mkDraft(wk);if(MK.recap[wk])MK.recap[wk].salon_notes={};salBox.innerHTML=mkSalNotesHtml(wk);wireSal();n.oninput();};
   $("#mkSaveNotes").onclick=()=>{clearTimeout(t);mkSaveNotes(wk).catch(e=>{$("#mkSaveMsg").textContent=e.message;});};
   $("#mkPrev").onclick=async()=>{const b=$("#mkPrev");b.disabled=true;b.textContent="Building preview…";
-    try{const j=await mkFnCall({action:"preview",week_ending:wk,notes:n.value,salon_notes:mkSalNotesVal()});$("#mkPrevSubj").textContent="Subject: "+j.subject;$("#mkPrevFrame").srcdoc='<!doctype html><meta charset="utf-8"><body style="margin:0;padding:14px;background:#f4f7f5">'+j.html+'</body>';$("#mkPrevWrap").hidden=false;$("#mkPrevWrap").scrollIntoView({behavior:"smooth",block:"start"});}
+    try{const j=await mkFnCall({action:"preview",week_ending:wk,notes:n.value,reminders:$("#mkRem").value,salon_notes:mkSalNotesVal()});$("#mkPrevSubj").textContent="Subject: "+j.subject;$("#mkPrevFrame").srcdoc='<!doctype html><meta charset="utf-8"><body style="margin:0;padding:14px;background:#f4f7f5">'+j.html+'</body>';$("#mkPrevWrap").hidden=false;$("#mkPrevWrap").scrollIntoView({behavior:"smooth",block:"start"});}
     catch(e){msg.textContent=e.message;msg.className="mk-save err";}finally{b.disabled=false;b.textContent="Preview email";}};
   $("#mkPrevClose").onclick=()=>{$("#mkPrevWrap").hidden=true;};
   $("#mkSend").onclick=async()=>{if(MK.busy||!MK.recipSel||!MK.recipSel.size)return;
     if(!MK.confirm){MK.confirm=true;mkRecipRender();msg.textContent="Check the notes and recipients, then click again to send.";msg.className="mk-save";return;}
     MK.busy=true;const b=$("#mkSend");b.disabled=true;b.textContent="Sending…";msg.textContent="";
     try{clearTimeout(t);await mkSaveNotes(wk,true);const emails=[...MK.recipSel];
-      const j=await mkFnCall({action:"send",week_ending:wk,notes:n.value,salon_notes:mkSalNotesVal(),emails});
+      const j=await mkFnCall({action:"send",week_ending:wk,notes:n.value,reminders:$("#mkRem").value,salon_notes:mkSalNotesVal(),emails});
       const fails=(j.results||[]).filter(r=>!r.ok);
-      msg.textContent=fails.length?"Sent to "+j.sent+"; failed for "+fails.map(f=>f.email).join(", "):"Sent to "+j.sent+(j.sent===1?" person":" people")+(j.attached?" with the Excel attached.":" (the Excel attachment couldn't be built).");
+      msg.textContent=fails.length?"Sent to "+j.sent+"; failed for "+fails.map(f=>f.email).join(", "):"Sent to "+j.sent+(j.sent===1?" person":" people")+".";
       msg.className="mk-save "+(fails.length?"err":"ok");
       MK.recap[wk]={...(MK.recap[wk]||{}),sent_at:new Date().toISOString(),sent_by:(GCU.perms.name||GCU.perms.email),sent_to:emails.filter(e=>!fails.some(f=>f.email===e))};
       const s=document.querySelector(".mk-comp .mk-sent");if(s)s.outerHTML=mkSentLine(wk,false);}

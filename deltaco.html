@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.11.13b -->
+<!-- v2026.11.14a -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
@@ -11054,27 +11054,24 @@ const RECAP_KPI_RULES = [
     severity: (v) => v < -10 ? 'critical' : v < -5 ? 'serious' : 'warn'
   },
   { key: 'laborVar', label: 'Labor % Variance',
-    desc: 'Great: ±0.10% · Good: ≤0.25% · NI: ≤0.50% · IA: >0.50%',
+    desc: 'Actual vs PowerBI target (sales-weighted daily). Great: ≤0.10% over · Good: ≤0.25% · NI: ≤0.50% · IA: >0.50% over target',
     getValue: (storeId, weekDates) => {
-      const labor = dataStore.realLaborWeekly;
-      if (!labor) return null;
-      const weekEnd = weekDates[weekDates.length - 1];
-      let best = null;
-      for (const wk in labor) {
-        if (labor[wk][storeId] !== undefined) {
-          if (!best || wk >= best) best = wk;
+      // Weekly labor % = sales-weighted average of daily actuals; target weighted the same way
+      const ld = dataStore.realLaborDaily || {}, sd = dataStore.realSalesDaily || {};
+      let wAct = 0, wTgt = 0, wSales = 0, days = 0;
+      weekDates.forEach(d => {
+        const l = ld[d] && ld[d][storeId];
+        const sales = sd[d] && sd[d][storeId] ? (sd[d][storeId].grossSales || 0) : 0;
+        if (l && l.laborPct != null && l.laborTarget != null && sales > 0) {
+          wAct += l.laborPct * sales; wTgt += l.laborTarget * sales; wSales += sales; days++;
         }
-      }
-      if (best && labor[best][storeId] !== undefined) {
-        const actual = labor[best][storeId];
-        const target = LABOR_TARGETS[storeId] || 24;
-        const variance = +(actual - target).toFixed(2);
-        return { value: Math.abs(variance), display: (variance >= 0 ? '+' : '') + variance.toFixed(2) + '%' };
-      }
-      return null;
+      });
+      if (!wSales) return null;
+      const act = wAct / wSales, tgt = wTgt / wSales, variance = +(act - tgt).toFixed(2);
+      return { value: variance, display: (variance >= 0 ? '+' : '') + variance.toFixed(2) + '% (' + act.toFixed(2) + '% vs ' + tgt.toFixed(2) + '% target' + (days < 7 ? ', ' + days + ' days' : '') + ')' };
     },
-    isFlagged: (v) => v > 0.50,
-    severity: (v) => v > 0.50 ? 'critical' : v > 0.25 ? 'serious' : 'warn'
+    isFlagged: (v) => v > 0.25,  // over target only; under target is good
+    severity: (v) => v > 0.50 ? 'critical' : 'serious'
   },
   { key: 'foodCostVar', label: 'Food Cost Variance',
     desc: 'Great: <0.25% · Good: ≤0.50% · NI: ≤1% · IA: >1%',
@@ -11111,33 +11108,33 @@ const RECAP_KPI_RULES = [
   { key: 'sos', label: 'Speed at Window',
     desc: 'Great: <110s · Good: ≤120s · NI: ≤140s · IA: >141s',
     getValue: (storeId, weekDates) => {
-      const sos = dataStore.REAL_SOS_DAILY || {};
+      const sos = (typeof REAL_SOS_DAILY !== 'undefined') ? REAL_SOS_DAILY : {};
       let total = 0, count = 0;
       weekDates.forEach(d => {
-        if (sos[d] && sos[d][storeId] !== undefined) {
-          total += sos[d][storeId];
-          count++;
-        }
+        if (sos[d] && sos[d][storeId] !== undefined) { total += sos[d][storeId]; count++; }
       });
-      if (count === 0) {
-        const fallback = dataStore.REAL_SOS || {};
-        if (fallback[storeId] !== undefined) {
-          return { value: fallback[storeId], display: fallback[storeId] + 's' };
-        }
-        return null;
-      }
+      if (count === 0) return null;
       const avg = Math.round(total / count);
-      return { value: avg, display: avg + 's' };
+      return { value: avg, display: avg + 's' + (count < 7 ? ' (' + count + ' days)' : '') };
     },
     isFlagged: (v) => v > 120,
-    severity: (v) => v > 141 ? 'critical' : v > 120 ? 'warn' : 'warn'
+    severity: (v) => v > 141 ? 'critical' : 'warn'
   },
   { key: 'voids', label: 'Overrings / Voids',
     desc: 'Great: <0.75% · Good: ≤1% · NI: ≤2% · IA: >2%',
     getValue: (storeId, weekDates) => {
-      // Pull from LP weekly data (REAL_LOSS_PREVENTION_WEEKLY)
-      const weekEnd = weekDates[weekDates.length - 1];
-      const lpStore = getLPWeeklyStoreData(weekEnd, storeId);
+      // Sum daily LP voids / gross sales for the week; fall back to weekly LP data
+      const lpd = (typeof REAL_LP_DAILY !== 'undefined') ? REAL_LP_DAILY : {};
+      let voids = 0, gross = 0, days = 0;
+      weekDates.forEach(d => {
+        const st = lpd[d] && lpd[d].stores && lpd[d].stores[storeId];
+        if (st && st.grossSales > 0) { voids += st.voids || 0; gross += st.grossSales; days++; }
+      });
+      if (gross > 0) {
+        const v = +((voids / gross) * 100).toFixed(2);
+        return { value: v, display: v.toFixed(2) + '% ($' + voids.toFixed(2) + (days < 7 ? ', ' + days + ' days' : '') + ')' };
+      }
+      const lpStore = getLPWeeklyStoreData(weekDates[weekDates.length - 1], storeId);
       if (lpStore && lpStore.grossSales > 0) {
         const v = +((lpStore.voids / lpStore.grossSales) * 100).toFixed(2);
         return { value: v, display: v.toFixed(2) + '%' };
@@ -11145,7 +11142,7 @@ const RECAP_KPI_RULES = [
       return null;
     },
     isFlagged: (v) => v > 1,
-    severity: (v) => v > 2 ? 'critical' : v > 1 ? 'serious' : 'warn'
+    severity: (v) => v > 2 ? 'critical' : 'serious'
   },
 ];
 

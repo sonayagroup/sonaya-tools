@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.11.14b -->
+<!-- v2026.11.14c -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
@@ -1069,6 +1069,17 @@ body {
 .header-right .chgpw-link{font-size:12px;color:var(--text-muted);cursor:pointer;text-decoration:underline;margin-left:4px}
 .header-right .chgpw-link:hover{color:var(--text-primary)}
 .app-header .header-right .chgpw-link{color:rgba(255,255,255,.88)}
+.charts-grid>.chart-card{min-width:0}
+#foodHeatmap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+@media (max-width:600px){
+  .app-header{height:auto;min-height:56px;flex-wrap:wrap;padding:8px 16px;row-gap:6px}
+  .app-header .header-left{gap:10px;min-width:0}
+  .app-header .header-logo{height:34px}
+  .app-header h1{font-size:15px}
+  .app-header .header-right{width:100%;flex-wrap:wrap;justify-content:flex-end;gap:8px 10px}
+  .app-header .header-right .last-updated{margin-right:auto;font-size:11px}
+  .header-right .user-name,.header-right .chgpw-link,.header-right .logout-btn{margin-left:0}
+}
 .app-header .header-right .chgpw-link:hover{color:#fff}
 
 .admin-modal-overlay{position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
@@ -1639,7 +1650,7 @@ body {
   <div class="tab-inner" style="padding:24px;">
     <div class="connection-banner connected" id="finBanner">
       <span class="banner-icon">&#10003;</span>
-      <span>Live data from QuickBooks — Patel DT LLC. Last updated: Aug 2026.</span>
+      <span id="finBannerText">QuickBooks P&amp;L — Patel DT LLC.</span>
     </div>
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
       <label style="font-size:13px;font-weight:600;">Store:</label>
@@ -6997,47 +7008,32 @@ function findSosForDate(dateStr, storeId) {
   return null;
 }
 /* Helper: find LP weekly data for a store given a date string */
+// Fiscal weeks end on Wednesday (Thu–Wed), matching how REAL_LOSS_PREVENTION_WEEKLY was keyed.
+// From FY2027-P01-W1 (9/24–9/30/2026) on, keys are computed: 4 weeks per period, 13 periods per year.
+const FISCAL_LEGACY_WEEKS = [
+  ['FY2026-P09-W1','2026-07-29','2026-08-05'], ['FY2026-P09-W2','2026-08-06','2026-08-12'],
+  ['FY2026-P09-W3','2026-08-13','2026-08-19'], ['FY2026-P09-W4','2026-08-20','2026-08-26'],
+  ['FY2026-P10-W1','2026-08-27','2026-09-02'], ['FY2026-P10-W2','2026-09-03','2026-09-09'],
+  ['FY2026-P10-W3','2026-09-10','2026-09-16'], ['FY2026-P10-W4','2026-09-17','2026-09-23'],
+];
+function fiscalWeekKey(dateStr) {
+  if (!dateStr) return null;
+  for (const [k, a, b] of FISCAL_LEGACY_WEEKS) if (dateStr >= a && dateStr <= b) return k;
+  const anchor = Date.UTC(2026, 8, 24); // Thu 9/24/2026 = FY2027-P01-W1 start
+  const t = Date.UTC(+dateStr.slice(0,4), +dateStr.slice(5,7) - 1, +dateStr.slice(8,10));
+  const w = Math.floor((t - anchor) / 864e5 / 7);
+  if (w < 0) return null;
+  const fy = 2027 + Math.floor(w / 52), inYear = w % 52;
+  return `FY${fy}-P${String(Math.floor(inYear / 4) + 1).padStart(2, '0')}-W${(inYear % 4) + 1}`;
+}
+
 function findLPWeeklyForStore(dateStr, storeId) {
   const lpw = typeof REAL_LOSS_PREVENTION_WEEKLY !== 'undefined' ? REAL_LOSS_PREVENTION_WEEKLY : null;
   if (!lpw) return null;
-  // Map date to fiscal week: P09 W1-W4 (Jul 29–Aug 26), P10 W1-W4 (Aug 27–Sep 23)
-  const d = new Date(dateStr + 'T00:00:00');
-  const weekBounds = [
-    { key: 'FY2026-P09-W1', start: new Date('2026-07-29T00:00:00'), end: new Date('2026-08-05T00:00:00') },
-    { key: 'FY2026-P09-W2', start: new Date('2026-08-06T00:00:00'), end: new Date('2026-08-12T00:00:00') },
-    { key: 'FY2026-P09-W3', start: new Date('2026-08-13T00:00:00'), end: new Date('2026-08-19T00:00:00') },
-    { key: 'FY2026-P09-W4', start: new Date('2026-08-20T00:00:00'), end: new Date('2026-08-26T00:00:00') },
-    { key: 'FY2026-P10-W1', start: new Date('2026-08-27T00:00:00'), end: new Date('2026-09-02T00:00:00') },
-    { key: 'FY2026-P10-W2', start: new Date('2026-09-03T00:00:00'), end: new Date('2026-09-09T00:00:00') },
-    { key: 'FY2026-P10-W3', start: new Date('2026-09-10T00:00:00'), end: new Date('2026-09-16T00:00:00') },
-    { key: 'FY2026-P10-W4', start: new Date('2026-09-17T00:00:00'), end: new Date('2026-09-23T00:00:00') },
-    { key: 'FY2027-P01-W1', start: new Date('2026-09-24T00:00:00'), end: new Date('2026-09-30T00:00:00') },
-    { key: 'FY2027-P01-W2', start: new Date('2026-10-01T00:00:00'), end: new Date('2026-10-07T00:00:00') },
-    { key: 'FY2027-P01-W3', start: new Date('2026-10-08T00:00:00'), end: new Date('2026-10-14T00:00:00') },
-    { key: 'FY2027-P01-W4', start: new Date('2026-10-15T00:00:00'), end: new Date('2026-10-21T00:00:00') },
-    { key: 'FY2027-P02-W1', start: new Date('2026-10-22T00:00:00'), end: new Date('2026-10-28T00:00:00') },
-    { key: 'FY2027-P02-W2', start: new Date('2026-10-29T00:00:00'), end: new Date('2026-11-04T00:00:00') },
-  ];
-  let wk = null;
-  for (const wb of weekBounds) {
-    if (d >= wb.start && d <= wb.end) { wk = wb.key; break; }
-  }
-  // For week-end dates that are Tuesdays, also check
-  if (!wk) {
-    // Try matching by week-end date (Wed start or Tue end): P09 W1-W4, P10 W1-W4
-    const endMap = { '2026-08-05': 'FY2026-P09-W1', '2026-08-12': 'FY2026-P09-W2', '2026-08-19': 'FY2026-P09-W3', '2026-08-26': 'FY2026-P09-W4', '2026-09-02': 'FY2026-P10-W1', '2026-09-09': 'FY2026-P10-W2', '2026-09-16': 'FY2026-P10-W3', '2026-09-23': 'FY2026-P10-W4', '2026-09-30': 'FY2027-P01-W1', '2026-10-07': 'FY2027-P01-W2', '2026-10-14': 'FY2027-P01-W3', '2026-10-21': 'FY2027-P01-W4', '2026-10-28': 'FY2027-P02-W1', '2026-11-04': 'FY2027-P02-W2' };
-    wk = endMap[dateStr];
-  }
-  // If no data for this week, fall back to the most recent available week
-  let effectiveWk = wk;
-  if (!effectiveWk || !lpw[effectiveWk]) {
-    // Find the most recent week that has data by checking weekBounds in reverse
-    for (let i = weekBounds.length - 1; i >= 0; i--) {
-      if (lpw[weekBounds[i].key]) { effectiveWk = weekBounds[i].key; break; }
-    }
-  }
-  if (!effectiveWk || !lpw[effectiveWk]) return null;
-  const storeData = lpw[effectiveWk].stores ? lpw[effectiveWk].stores[storeId] : null;
+  // Exact fiscal week only — no fallback to an older week (that showed stale voids as if current)
+  const wk = fiscalWeekKey(dateStr);
+  if (!wk || !lpw[wk] || !lpw[wk].stores) return null;
+  const storeData = lpw[wk].stores[storeId];
   if (!storeData) return null;
   const gs = storeData.grossSales || 0;
   return {
@@ -7046,6 +7042,30 @@ function findLPWeeklyForStore(dateStr, storeId) {
     voidsDollar: storeData.voids || 0,
     grossSales: gs,
   };
+}
+
+// Sum daily LP across a set of dates → { voidsPct, refunds, days } or null
+function lpForDates(dates, storeId) {
+  if (typeof REAL_LP_DAILY === 'undefined') return null;
+  let g = 0, v = 0, r = 0, n = 0;
+  dates.forEach(d => { const day = REAL_LP_DAILY[d]; const sd = day && day.stores && day.stores[storeId]; if (!sd) return;
+    g += sd.grossSales || 0; v += sd.voids || 0; r += Math.abs(sd.refunds || 0); n++; });
+  if (!n) return null;
+  return { voidsPct: g > 0 ? +((v / g) * 100).toFixed(2) : 0, refunds: +r.toFixed(2), days: n };
+}
+
+// Sales-weighted labor % and PowerBI target across a set of dates (daily labor only)
+function laborForDates(dates, storeId) {
+  const daily = dataStore.realLaborDaily || {};
+  let wA = 0, wT = 0, wS = 0, uA = 0, uT = 0, n = 0;
+  dates.forEach(d => { const l = daily[d] && daily[d][storeId]; if (!l || l.laborPct == null) return;
+    const tgt = l.laborTarget != null ? l.laborTarget : LABOR_TARGETS[storeId];
+    const sale = dataStore.realSalesDaily[d] && dataStore.realSalesDaily[d][storeId];
+    const gs = sale ? (sale.grossSales || 0) : 0;
+    if (gs > 0) { wA += l.laborPct * gs; wT += tgt * gs; wS += gs; }
+    uA += l.laborPct; uT += tgt; n++; });
+  if (!n) return null;
+  return wS > 0 ? { laborPct: wA / wS, laborTarget: wT / wS, days: n } : { laborPct: uA / n, laborTarget: uT / n, days: n };
 }
 
 const REAL_VOIDS = {
@@ -7821,15 +7841,15 @@ function getOpsData(dateStr) {
         gca: sale.gca || (tr > 0 ? +(netS / tr).toFixed(2) : 0),
         gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
         trans: tr,
-        laborPct: labor ? +labor.laborPct.toFixed(1) : +sampleVal(20, 28, dateStr, i, 4).toFixed(1),
+        laborPct: (labor && labor.laborPct != null) ? +labor.laborPct.toFixed(1) : null,
         laborTarget: (labor && labor.laborTarget) ? labor.laborTarget : LABOR_TARGETS[s.id],
         checklistPct: getJoltForStore(s.id, dateStr),
         googleRating: reviewData ? reviewData.rating : null,
         totalReviews: reviewData ? reviewData.totalReviews : null,
         serviceChecks: findSCForStore(dateStr, s.id),
         sos: findSosForDate(dateStr, s.id),
-        voidsPct: (() => { const lp = findLPDailyForStore(dateStr, s.id) || findLPWeeklyForStore(dateStr, s.id); return lp ? lp.voidsPct : (SAMPLE_VOIDS[s.id] || 0.5); })(),
-        refunds: (() => { const lp = findLPDailyForStore(dateStr, s.id) || findLPWeeklyForStore(dateStr, s.id); return lp ? lp.refunds : (SAMPLE_REFUNDS[s.id] || 0); })(),
+        voidsPct: (() => { const lp = findLPDailyForStore(dateStr, s.id); return lp ? lp.voidsPct : null; })(),
+        refunds: (() => { const lp = findLPDailyForStore(dateStr, s.id); return lp ? lp.refunds : null; })(),
         _real: true,
       };
     } else {
@@ -7962,7 +7982,7 @@ const state = {
   finStore: 'all',
   finPeriod: 'ytd',
   finMonth: null,
-  finQuarter: 'Q3',
+  finQuarter: null,
 };
 
 function getYesterday() { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
@@ -8108,7 +8128,8 @@ function getWeeklyOpsData(weekEndStr) {
       const avgChangePct = (() => { let curSum = 0, priorSum = 0; storeDays.forEach(d => { if (d.changePct !== undefined && d.changePct !== null) { const ns = d.netSales || 0; curSum += ns; priorSum += ns / (1 + d.changePct / 100); } }); return priorSum > 0 ? +((curSum / priorSum - 1) * 100).toFixed(2) : 0; })();
       const avgTransChangePct = (() => { let curSum = 0, priorSum = 0; storeDays.forEach(d => { if (d.transChangePct !== undefined && d.transChangePct !== null) { const t = d.trans || 0; curSum += t; priorSum += t / (1 + d.transChangePct / 100); } }); return priorSum > 0 ? +((curSum / priorSum - 1) * 100).toFixed(1) : null; })();
       const gcaVal = totalTrans > 0 ? +(totalNet / totalTrans).toFixed(2) : 0;
-      const labor = laborData ? laborData[s.id] : null;
+      const labor = laborForDates(dates, s.id) || (laborData ? laborData[s.id] : null);
+      const lpWk = lpForDates(dates, s.id) || findLPWeeklyForStore(weekEndStr, s.id);
       const reviewData = findReviewsForStore(s.id);
       return {
         storeId: s.id, storeName: s.name, date: weekEndStr,
@@ -8116,8 +8137,8 @@ function getWeeklyOpsData(weekEndStr) {
         transChangePct: avgTransChangePct,
         gca: gcaVal, gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
         trans: totalTrans,
-        laborPct: labor ? +labor.laborPct.toFixed(1) : +sampleVal(20, 28, weekEndStr, i, 4).toFixed(1),
-        laborTarget: LABOR_TARGETS[s.id],
+        laborPct: (labor && labor.laborPct != null) ? +labor.laborPct.toFixed(1) : null,
+        laborTarget: (labor && labor.laborTarget != null) ? +labor.laborTarget : LABOR_TARGETS[s.id],
         googleRating: reviewData ? reviewData.rating : null,
         totalReviews: reviewData ? reviewData.totalReviews : null,
         serviceChecks: findSCForWeek(weekEndStr, s.id) ?? 0,
@@ -8131,8 +8152,8 @@ function getWeeklyOpsData(weekEndStr) {
           dates.forEach(d => { const j = getJoltForStore(s.id, d); if (j !== null && j !== undefined) { joltSum += j; joltCount++; } });
           return joltCount > 0 ? +(joltSum / joltCount).toFixed(1) : null;
         })(),
-        voidsPct: (() => { const lp = findLPWeeklyForStore(weekEndStr, s.id); return lp ? lp.voidsPct : (SAMPLE_VOIDS[s.id] || 0.5); })(),
-        refunds: (() => { const lp = findLPWeeklyForStore(weekEndStr, s.id); return lp ? lp.refunds : (SAMPLE_REFUNDS[s.id] || 0); })(),
+        voidsPct: lpWk ? lpWk.voidsPct : null,
+        refunds: lpWk ? lpWk.refunds : null,
         _real: true, _days: storeDays.length, _totalSales: totalNet,
       };
     } else {
@@ -8276,13 +8297,15 @@ function getMonthlyOpsData(monthStr) {
     })();
     const gcaVal = totalTrans > 0 ? +(totalNet / totalTrans).toFixed(2) : 0;
     const labor = laborByStore[s.id];
-    const laborPct = labor.count > 0 ? +(labor.sum / labor.count).toFixed(1) : null;
+    const laborW = laborForDates(dates, s.id);
+    const laborPct = laborW ? +laborW.laborPct.toFixed(1) : (labor.count > 0 ? +(labor.sum / labor.count).toFixed(1) : null);
     const jolt = joltByStore[s.id];
     const joltPct = jolt.count > 0 ? +(jolt.sum / jolt.count).toFixed(1) : null;
     const sos = sosByStore[s.id];
     const sosVal = sos.count > 0 ? Math.round(sos.sum / sos.count) : null;
     const voids = voidsByStore[s.id];
-    const voidsPct = voids.count > 0 ? +(voids.sum / voids.count).toFixed(2) : null;
+    const lpMo = lpForDates(dates, s.id);
+    const voidsPct = lpMo ? lpMo.voidsPct : (voids.count > 0 ? +(voids.sum / voids.count).toFixed(2) : null);
     const reviewData = findReviewsForStore(s.id);
 
     return {
@@ -8292,14 +8315,14 @@ function getMonthlyOpsData(monthStr) {
       gca: gcaVal, gcaPrior: SAMPLE_GCA_PRIOR[s.id] || 0,
       trans: totalTrans,
       laborPct: laborPct,
-      laborTarget: LABOR_TARGETS[s.id],
+      laborTarget: laborW ? +laborW.laborTarget : LABOR_TARGETS[s.id],
       googleRating: reviewData ? reviewData.rating : null,
       totalReviews: reviewData ? reviewData.totalReviews : null,
       serviceChecks: scByStore[s.id],
       sos: sosVal,
       checklistPct: joltPct,
       voidsPct: voidsPct,
-      refunds: refundsByStore[s.id],
+      refunds: lpMo ? lpMo.refunds : (voids.count > 0 ? refundsByStore[s.id] : null),
       _real: true, _days: storeDays.length, _totalDaysInMonth: daysInMonth,
     };
   });
@@ -9384,7 +9407,7 @@ function getFinMonths() {
     return [QBO_MONTHLY[mi]].filter(Boolean);
   }
   if (period === 'quarter') {
-    const q = state.finQuarter || 'Q3';
+    const q = state.finQuarter || finDefaultQuarter();
     const qMap = { Q1: [0,1,2], Q2: [3,4,5], Q3: [6,7,8], Q4: [9,10,11] };
     return (qMap[q] || []).map(i => QBO_MONTHLY[i]).filter(Boolean);
   }
@@ -9411,11 +9434,24 @@ function getStoreMonthlyData(storeId) {
   }));
 }
 
+function finDefaultQuarter() {
+  const last = QBO_MONTHLY[QBO_MONTHLY.length - 1];
+  const m = last ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(last.monthShort) : 8;
+  return 'Q' + (Math.floor(Math.max(m, 0) / 3) + 1);
+}
+function finBannerUpdate() {
+  const el = document.getElementById('finBannerText'); if (!el) return;
+  const last = QBO_MONTHLY[QBO_MONTHLY.length - 1];
+  const lp = (typeof dataStore !== 'undefined' && dataStore.sources && dataStore.sources.qbo && dataStore.sources.qbo.lastPull) || null;
+  const loaded = lp ? new Date(lp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+  el.textContent = 'QuickBooks P&L — Patel DT LLC. Data through ' + (last ? last.month : '--') + (loaded ? ' (loaded ' + loaded + ')' : '') + '.';
+}
 function renderFinancial() {
+  finBannerUpdate();
   const storeId = state.finStore || 'all';
   const isStore = storeId !== 'all';
   const period = state.finPeriod || 'ytd';
-  const periodLabel = period === 'ytd' ? 'YTD' : period === 'quarter' ? (state.finQuarter || 'Q3') : (QBO_MONTHLY[state.finMonth != null ? state.finMonth : QBO_MONTHLY.length - 1] || {}).monthShort || '';
+  const periodLabel = period === 'ytd' ? 'YTD' : period === 'quarter' ? (state.finQuarter || finDefaultQuarter()) : (QBO_MONTHLY[state.finMonth != null ? state.finMonth : QBO_MONTHLY.length - 1] || {}).monthShort || '';
 
   // Determine data source
   let months, totals;
@@ -9427,7 +9463,7 @@ function renderFinancial() {
       months = [storeMonths[mi]].filter(Boolean);
     } else if (period === 'quarter') {
       const qMap = { Q1: [0,1,2], Q2: [3,4,5], Q3: [6,7,8], Q4: [9,10,11] };
-      months = (qMap[state.finQuarter || 'Q3'] || []).map(i => storeMonths[i]).filter(Boolean);
+      months = (qMap[state.finQuarter || finDefaultQuarter()] || []).map(i => storeMonths[i]).filter(Boolean);
     } else { months = storeMonths; }
   } else {
     months = getFinMonths();
@@ -10390,7 +10426,8 @@ async function init() {
   // Quarter picker
   const finQuarterPicker = document.getElementById('finQuarterPicker');
   if (finQuarterPicker) {
-    state.finQuarter = 'Q3';
+    state.finQuarter = finDefaultQuarter();
+    finQuarterPicker.value = state.finQuarter;
     finQuarterPicker.addEventListener('change', e => { state.finQuarter = e.target.value; renderFinancial(); });
   }
 
@@ -11009,9 +11046,8 @@ const RECAP_QUESTIONS = [
 function getLPWeeklyStoreData(weekEnd, storeId) {
   const lpw = typeof REAL_LOSS_PREVENTION_WEEKLY !== 'undefined' ? REAL_LOSS_PREVENTION_WEEKLY : null;
   if (!lpw) return null;
-  // Use the endMap from findLPWeeklyForStore to map Tuesday weekEnd dates to fiscal week keys
-  const endMap = { '2026-08-05': 'FY2026-P09-W1', '2026-08-12': 'FY2026-P09-W2', '2026-08-19': 'FY2026-P09-W3', '2026-08-26': 'FY2026-P09-W4', '2026-09-02': 'FY2026-P10-W1', '2026-09-09': 'FY2026-P10-W2', '2026-09-16': 'FY2026-P10-W3', '2026-09-23': 'FY2026-P10-W4', '2026-09-30': 'FY2027-P01-W1', '2026-10-07': 'FY2027-P01-W2', '2026-10-14': 'FY2027-P01-W3', '2026-10-21': 'FY2027-P01-W4', '2026-10-28': 'FY2027-P02-W1' };
-  const wk = endMap[weekEnd];
+  // Recap weeks end Tuesday; map to the fiscal week containing that date (was a Wed-keyed table that never matched)
+  const wk = fiscalWeekKey(weekEnd);
   if (!wk || !lpw[wk]) return null;
   if (!storeId) return lpw[wk].groupTotal || null;
   return lpw[wk].stores ? lpw[wk].stores[storeId] : null;
@@ -12907,11 +12943,12 @@ async function gmclInit() {
   sel.innerHTML = STORES.map(s => '<option value="' + s.id + '">' + s.id + ' - ' + s.name + '</option>').join('');
   const dateInput = document.getElementById('gmclDate');
   dateInput.value = clTodayStr();
+  dateInput.max = clTodayStr();
   updateFiscalWeekLabel('gmclWeekLabel', dateInput.value);
   gmclMonthVal = dateInput.value.slice(0, 7);
   updateMonthLabel('gmclMonthLabel', gmclMonthVal);
   sel.addEventListener('change', function() { _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
-  dateInput.addEventListener('change', function() { updateFiscalWeekLabel('gmclWeekLabel', dateInput.value); _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
+  dateInput.addEventListener('change', function() { if (dateInput.value > clTodayStr()) dateInput.value = clTodayStr(); updateFiscalWeekLabel('gmclWeekLabel', dateInput.value); _cacheInvalidate('gmcl'); gmclLoadData().then(function() { gmclRender(); gmclRenderOverview(); }); });
   await gmclLoadAllStores();
   await gmclLoadData();
   gmclRenderOverview();
@@ -12930,6 +12967,7 @@ function gmclWeekNav(dir) {
     const cur = new Date(dateInput.value + 'T12:00:00');
     cur.setDate(cur.getDate() + dir * 7);
     dateInput.value = cur.toISOString().slice(0, 10);
+    if (dateInput.value > clTodayStr()) dateInput.value = clTodayStr();
   }
   updateFiscalWeekLabel('gmclWeekLabel', dateInput.value);
   _cacheInvalidate('gmcl');
@@ -13064,6 +13102,11 @@ function _gmclFlush() {
 }
 
 async function gmclToggle(storeId, itemKey, periodDate, periodType, completed) {
+  if (periodDate > clTodayStr()) {
+    const st = document.getElementById('gmclSaveStatus');
+    if (st) { st.textContent = "Can't check off a future date"; setTimeout(function() { st.textContent = ''; }, 2500); }
+    gmclRender(); return;
+  }
   const k = storeId + '|' + itemKey + '|' + periodDate;
   const prevState = gmclState[k];
   gmclState[k] = completed;
@@ -13449,12 +13492,13 @@ function dmclToggleSection(type) {
 async function dmclInit() {
   const dateInput = document.getElementById('dmclDate');
   dateInput.value = clTodayStr();
+  dateInput.max = clTodayStr();
   updateFiscalWeekLabel('dmclWeekLabel', dateInput.value);
   dmclMonthVal = dateInput.value.slice(0, 7);
   updateMonthLabel('dmclMonthLabel', dmclMonthVal);
   const areaSel = document.getElementById('dmclArea');
   areaSel.addEventListener('change', function() { _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
-  dateInput.addEventListener('change', function() { updateFiscalWeekLabel('dmclWeekLabel', dateInput.value); _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
+  dateInput.addEventListener('change', function() { if (dateInput.value > clTodayStr()) dateInput.value = clTodayStr(); updateFiscalWeekLabel('dmclWeekLabel', dateInput.value); _cacheInvalidate('dmcl'); dmclLoadData().then(function() { dmclRender(); dmclRenderOverview(); }); });
   await dmclLoadAllAreas();
   await dmclLoadData();
   dmclRenderOverview();
@@ -13605,6 +13649,7 @@ function _dmclFlush() {
 }
 
 async function dmclToggle(areaId, itemKey, periodDate, periodType, completed) {
+  if (periodDate > clTodayStr()) { if (typeof dmclRender === 'function') dmclRender(); return; }
   const k = areaId + '|' + itemKey + '|' + periodDate;
   dmclState[k] = completed;
   dmclRender();

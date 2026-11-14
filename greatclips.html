@@ -2479,7 +2479,7 @@ function renderRecapOverview(){
       <div class="am-name">${esc(amName)} <span class="am-grade" style="background:${gradeCol}">${grade} (${overall})</span></div>
       <div class="am-row"><span class="am-label">Salon Score (KPI Health)</span><span class="am-val" style="color:${opsScore!=null?(opsScore>=70?GREEN:opsScore>=50?AMBER:RED):'var(--muted)'}">${opsScore!=null?opsScore+'%':'n/a'}</span></div>
       <div class="am-row am-sub"><span class="am-label">Avg Payroll</span><span class="am-val" style="color:${avgPayroll!=null?(avgPayroll<38?GREEN:avgPayroll<40?AMBER:RED):'var(--muted)'}">${avgPayroll!=null?avgPayroll.toFixed(1)+'%':'n/a'}</span></div>
-      <div class="am-row am-sub"><span class="am-label">Avg CPH</span><span class="am-val" style="color:${avgCPH!=null?(avgCPH>=2.2?GREEN:avgCPH>=2.0?AMBER:RED):'var(--muted)'}">${avgCPH!=null?avgCPH.toFixed(2):'n/a'}</span></div>
+      <div class="am-row am-sub"><span class="am-label">Avg CPH</span><span class="am-val" style="color:${avgCPH!=null?(avgCPH>=2.2?GREEN:avgCPH>=2.0?AMBER:RED):'var(--muted)'}">${avgCPH!=null?avgCPH.toFixed(1):'n/a'}</span></div>
       <div class="am-row"><span class="am-label">This week recaps</span><span class="am-val">${wkRecaps}/${salons.length}</span></div>
       <div class="am-row"><span class="am-label">YTD Recap Rate</span><span class="am-val" style="color:${recapRate>=50?GREEN:recapRate>=25?AMBER:RED}">${recapRate}%</span></div>
       <div class="am-bar-bg"><div class="am-bar-fill" style="width:${recapRate}%;background:${recapRate>=50?GREEN:recapRate>=25?AMBER:RED}"></div></div>
@@ -5064,12 +5064,13 @@ const MK_COLS=[
   {k:"wait15_pct",l:"Waits>15",t:"Waits over 15 minutes %",f:"p",hi:false,g:17,r:19},
   {k:"wknd_wait15_pct",l:"Sat/Sun>15",t:"Saturday/Sunday waits over 15 minutes %",f:"p",hi:false,g:17,r:20},
   {k:"avg_hc",l:"Avg HC",t:"Average haircut time (min)",f:"d1",hi:false,g:17,r:19},
-  {k:"cph",l:"CPH",t:"Cuts per hour",f:"d2",hi:true,g:2.35,r:2.0},
+  {k:"cph",l:"CPH",t:"Cuts per hour",f:"d1",hi:true,g:2.4,r:2.0},
   {k:"db_capture_pct",l:"DB Capt",t:"Database capture %",f:"p",hi:true,g:85,r:83}];
-function mkBand(c,v){if(v==null||isNaN(v))return "";if(c.hi)return v>=c.g?"g":v<c.r?"r":"y";
+function mkBand(c,v){if(v==null||isNaN(v))return "";v=mkRound(c,v); // compare what is shownif(c.hi)return v>=c.g?"g":v<c.r?"r":"y";
   return v<c.g?"g":(c.k==="wait15_pct"?v>=c.r:v>c.r)?"r":"y";}
+function mkRound(c,v){return c.f==="$"||c.f==="n"?Math.round(v):Math.round(v*10)/10;}
 function mkFmt(c,v){if(v==null||isNaN(v))return "—";if(c.f==="$")return "$"+Math.round(v).toLocaleString("en-US");
-  if(c.f==="n")return Math.round(v).toLocaleString("en-US");if(c.f==="p")return v.toFixed(1)+"%";if(c.f==="d1")return v.toFixed(1);return v.toFixed(2);}
+  if(c.f==="n")return Math.round(v).toLocaleString("en-US");if(c.f==="p")return v.toFixed(1)+"%";return v.toFixed(1);}
 function mkStd(c){const u=c.f==="p"?"%":"";const v=x=>c.f==="$"?"$"+x.toLocaleString():x+u;
   return c.hi?"Green ≥ "+v(c.g)+" · red < "+v(c.r):"Green < "+v(c.g)+" · red "+(c.k==="wait15_pct"?"≥ ":"> ")+v(c.r);}
 function mkMD(iso){const p=iso.split("-");return (+p[1])+"/"+(+p[2]);}
@@ -5112,12 +5113,31 @@ const MK_DAY=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 function mkDayName(iso){return MK_DAY[new Date(iso+"T12:00:00").getDay()];}
 function mkShortName(n){const p=String(n||"").split(",");if(p.length<2)return n;const first=p[1].trim().split(/\s+/)[0];return first+" "+p[0].trim().charAt(0)+".";}
 function mkP(v){return v==null||isNaN(v)?"—":(Math.round(v*10)/10).toFixed(1).replace(/\.0$/,"")+"%";}
+// ---- Coaching log tie-in (gc_coaching_log: QC = GREAT observation, REACH 1:1, academy_module) ----
+const MK_EFF=/\bhct\b|hc time|haircut time|efficien|speed|faster|timeline|\bcph\b|time per|minutes?/i;
+function mkNameKey(n){const p=String(n||"").toLowerCase().split(",");return (p[0]||"").trim()+","+((p[1]||"").trim().split(/\s+/)[0]||"");}
+function mkCoachText(l){return [l.focus,l.commitment,l.notes,l.reach?Object.values(l.reach).filter(v=>typeof v==="string").join(" "):""].join(" ");}
+function mkLev(a,b){if(a===b)return 0;const m=a.length,n=b.length;let p=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){const c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c;}return p[n];}
+function mkSameName(a,b){const x=mkNameKey(a),y=mkNameKey(b);if(x===y)return true;const [xl,xf]=x.split(","),[yl,yf]=y.split(",");return !!xf&&xf===yf&&mkLev(xl,yl)<=2;} // tolerate typos like Moralas/Morales
+function mkCoachFor(coach,name,since){return (coach||[]).filter(l=>mkSameName(l.stylist_name,name)&&l.session_date>=since);}
+function mkKindLbl(k){return k==="qc"?"QC":k==="reach"?"REACH":"Academy";}
+function mkAddDays(iso,n){const d=new Date(iso+"T12:00:00");d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);}
+function mkOverdue(coach,today){const latest={};(coach||[]).forEach(l=>{const k=mkNameKey(l.stylist_name);if(!latest[k]||l.session_date>latest[k].session_date)latest[k]=l;});
+  return Object.values(latest).filter(l=>l.follow_up&&l.follow_up<today);}
 function mkSalonNote(r,ctx){
   if(!r)return "";const {prevRank,days,epp}=ctx||{};
-  const w=r.wait15_pct,c=r.cph,hc=r.avg_hc,pay=r.payroll_pct,ncr=r.new_ret_pct,g=r.cust_growth_pct,wk=r.wknd_wait15_pct;
-  const cs=c!=null?c.toFixed(2):"—",hs=hc!=null?hc.toFixed(1):"—",ps=pay!=null?pay.toFixed(1)+"%":"—";
+  const R1=v=>v==null||isNaN(v)?v:Math.round(v*10)/10; // judge the same rounded numbers the chips show
+  const w=R1(r.wait15_pct),c=R1(r.cph),hc=R1(r.avg_hc),pay=R1(r.payroll_pct),ncr=R1(r.new_ret_pct),g=R1(r.cust_growth_pct),wk=R1(r.wknd_wait15_pct);
+  const cs=c!=null?c.toFixed(1):"—",hs=hc!=null?hc.toFixed(1):"—",ps=pay!=null?pay.toFixed(1)+"%":"—";
   const dd=(days||[]).filter(d=>d.cph!=null&&d.wait_over15_pct!=null&&d.cph<4); // >4 CPH in a day = bad data
-  const slow=(epp||[]).filter(s=>s.avg_hc>=MK_T.hcHi&&s.floor_hrs>=8).sort((a,b)=>b.avg_hc-a.avg_hc).slice(0,3).map(s=>mkShortName(s.stylist_name)+" "+Number(s.avg_hc).toFixed(1));
+  const coach=(ctx&&ctx.coach)||null,wkE=(ctx&&ctx.wk)||null,since=wkE?mkAddDays(wkE,-29):null,today=(typeof localToday==="function"?localToday():new Date().toISOString().slice(0,10));
+  const slowS=(epp||[]).filter(s=>s.avg_hc>=MK_T.hcHi&&s.floor_hrs>=8).sort((a,b)=>b.avg_hc-a.avg_hc).slice(0,3);
+  const missing=[],named=new Set();
+  const slow=slowS.map(s=>{const nm=mkShortName(s.stylist_name),base=nm+" "+(Math.round(s.avg_hc*10)/10).toFixed(1);named.add(s.stylist_name);if(!coach)return base;
+    const logs=mkCoachFor(coach,s.stylist_name,since);const eff=logs.find(l=>MK_EFF.test(mkCoachText(l)));
+    if(eff)return base+" (HCT "+mkKindLbl(eff.kind)+" "+mkMD(eff.session_date)+(eff.follow_up&&eff.follow_up<today?", follow-up overdue":"")+")";
+    missing.push(nm);return base+(logs.length?" (coached, not on HCT)":" (none logged)");});
+  const effAsk=()=>!coach?"":missing.length?" Log an HCT QC or REACH for "+(missing.length===slow.length&&slow.length>1?"all "+slow.length:missing.join(", "))+" this week.":" All have HCT coaching logged; hold them to the follow-ups.";
   const wkTxt=wk!=null&&Math.abs(wk-w)>=5?" (Sat/Sun "+mkP(wk)+")":"";
   const out=[];
   // 1) one win, or the customer trend as context
@@ -5126,13 +5146,13 @@ function mkSalonNote(r,ctx){
   else if(g!=null&&g>=10)out.push("Customers up "+mkP(g)+" vs last year.");
   else if(ncr!=null&&ncr>=MK_T.ncrHi)out.push("New-customer return "+mkP(ncr)+", strong.");
   else if(w!=null&&w<12)out.push("Waits over 15 min only "+mkP(w)+".");
-  else if(pay!=null&&pay<=38&&c>=MK_T.cph)out.push("Payroll "+ps+" at "+cs+" CPH.");
+  else if(pay!=null&&pay<=38&&c>=MK_T.cph)out.push("Payroll "+ps+".");
   else if(g!=null&&g<=-5)out.push("Customers "+mkP(g)+" vs last year.");
   // 2) the issue the numbers point to (waits read against CPH and HC)
   const issues=[];let hcDone=false;const payTail=pay>MK_T.pay?" That's why payroll was "+ps+".":"";
   const waitsHi=w>=MK_T.waitHi||(wk!=null&&wk>MK_T.wkndHi),waitsOver=w>15||(wk!=null&&wk>MK_T.wkndHi); // >15% waits → CPH should be ≥ 2.2
   if(hc>=MK_T.hcHi&&(waitsOver||c<MK_T.cph)){hcDone=true;
-    issues.push((waitsOver?"Waits "+mkP(w)+wkTxt+" with HC "+hs+" min: slow haircuts are backing up the line":"HC "+hs+" min is above the 17-minute standard")+(c<MK_T.cph?" (CPH "+cs+")":"")+"."+(c<MK_T.cph?payTail:"")+(slow.length?" Efficiency plans for "+slow.join(", ")+".":" What's the efficiency training plan?"));}
+    issues.push((waitsOver?"Waits "+mkP(w)+wkTxt+" with HC "+hs+" min: slow haircuts are backing up the line":"HC "+hs+" min is above the 17-minute standard")+(c<MK_T.cph?" (CPH "+cs+")":"")+"."+(c<MK_T.cph?payTail:"")+(slow.length?(coach&&missing.length===slow.length&&slow.length>1?" Slowest: "+slowS.map(s=>mkShortName(s.stylist_name)+" "+(Math.round(s.avg_hc*10)/10).toFixed(1)).join(", ")+", none with HCT coaching logged. Log an HCT QC or REACH for each this week.":" Efficiency: "+slow.join(", ")+"."+effAsk()):" What's the efficiency training plan?"));}
   else if(waitsOver&&c<MK_T.cph){
     const bad=dd.filter(d=>d.cph<MK_T.cph).sort((a,b)=>b.wait_over15_pct-a.wait_over15_pct)[0];
     issues.push("Waits "+mkP(w)+wkTxt+" but CPH only "+cs+" with HC in standard ("+hs+")"+(pay>MK_T.pay?", so payroll hit "+ps:"")+"."+(bad?" "+mkDayName(bad.date)+": "+mkP(bad.wait_over15_pct)+" waits at "+bad.cph.toFixed(1)+" CPH. Late starts, long breaks, or hours off-peak?":" Check for late starts, long breaks, or hours off-peak."));}
@@ -5143,22 +5163,35 @@ function mkSalonNote(r,ctx){
     issues.push("Waits "+mkP(w)+" but CPH only "+cs+": more hours than customers. Cut midday overlap and use breaks or early outs when slow to reach 2.2"+(pay>MK_T.pay?" and get payroll under 40% (was "+ps+")":"")+".");}
   if(pay>41&&c>=MK_T.cph)issues.push("Payroll "+ps+" even with "+cs+" CPH: check admin/receptionist hours and overlap.");
   if(hc!=null&&hc<MK_T.hcLo)issues.push("HC "+hs+" min is under the 12–17 standard. Slow down on the consultation and finish so customers come back.");
-  if(issues.length<2&&!hcDone&&hc>=MK_T.hcHi&&slow.length)issues.push("HC "+hs+" min; efficiency plans for "+slow.join(", ")+".");
-  if(issues.length<2&&ncr!=null&&ncr<MK_T.ncrLo)issues.push("New-customer return "+mkP(ncr)+": use QCs and observation checklists to find out why.");
+  if(issues.length<2&&!hcDone&&hc>=MK_T.hcHi&&slow.length)issues.push("HC "+hs+" min. Efficiency: "+slow.join(", ")+"."+effAsk());
+  if(issues.length<2&&ncr!=null&&ncr<MK_T.ncrLo){
+    if(!coach)issues.push("New-customer return "+mkP(ncr)+": use QCs and observation checklists to find out why.");
+    else{const team=(epp||[]).filter(s=>s.floor_hrs>=8),qcs=coach.filter(l=>l.kind==="qc"&&l.session_date>=since);
+      const cov=team.filter(s=>qcs.some(l=>mkSameName(l.stylist_name,s.stylist_name))).length;
+      issues.push("New-customer return "+mkP(ncr)+(!qcs.length?" with no QCs in 30 days: start QCs this week.":
+        team.length&&cov<Math.ceil(team.length/2)?"; QCs cover "+cov+" of "+team.length+" stylists in 30 days: get to everyone.":
+        "; "+qcs.length+" QCs in 30 days: follow through on their commitments."));}}
   if(!issues.length)issues.push("On standard for waits, CPH and payroll. Keep it going.");
-  return out.concat(issues.slice(0,2)).join(" ");
+  const od=coach?mkOverdue(coach,today).filter(l=>![...named].some(n=>mkSameName(n,l.stylist_name))):[];
+  const tail=od.length?" Overdue follow-up"+(od.length===1?"":"s")+": "+od.slice(0,3).map(l=>mkShortName(l.stylist_name)).join(", ")+(od.length>3?" +"+(od.length-3)+" more":"")+".":"";const fix=t=>t.replace(/\.\./g,".");
+  return fix(out.concat(issues.slice(0,2)).join(" ")+tail);
 }
 function mkDraft(wk,ctx){
   const {rows}=mkWeek(wk);if(!rows.length)return "";
-  const us=rows.filter(r=>MK_OURS.has(r.salon_id)),them=rows.filter(r=>!MK_OURS.has(r.salon_id));
+  const r1=v=>v==null?v:Math.round(v*10)/10;const us=rows.filter(r=>MK_OURS.has(r.salon_id)),them=rows.filter(r=>!MK_OURS.has(r.salon_id));
   const C=k=>MK_COLS.find(c=>c.k===k);const f=(k,v)=>mkFmt(C(k),v);
-  const hcCause=us.filter(r=>(r.wait15_pct>=MK_T.waitHi||r.wknd_wait15_pct>MK_T.wkndHi)&&r.avg_hc>=MK_T.hcHi),shortHrs=us.filter(r=>(r.wait15_pct>=MK_T.waitHi||r.wknd_wait15_pct>MK_T.wkndHi)&&r.avg_hc<MK_T.hcHi&&r.cph>=MK_T.cph);
-  const lowNcr=us.filter(r=>r.new_ret_pct!=null&&r.new_ret_pct<MK_T.ncrLo);
+  const hcCause=us.filter(r=>(r1(r.wait15_pct)>=MK_T.waitHi||r1(r.wknd_wait15_pct)>MK_T.wkndHi)&&r1(r.avg_hc)>=MK_T.hcHi),shortHrs=us.filter(r=>(r1(r.wait15_pct)>=MK_T.waitHi||r1(r.wknd_wait15_pct)>MK_T.wkndHi)&&r1(r.avg_hc)<MK_T.hcHi&&r1(r.cph)>=MK_T.cph);
+  const lowNcr=us.filter(r=>r1(r.new_ret_pct)!=null&&r1(r.new_ret_pct)<MK_T.ncrLo);
   const L=["Market recap for the week ending "+mkMD(wk)+"."];
   L.push("• "+us.filter(r=>r.rank<=10).length+" of our "+us.length+" salons are in the market's top 10. Customer growth "+f("cust_growth_pct",mkMean(us,"cust_growth_pct"))+" vs "+f("cust_growth_pct",mkMean(them,"cust_growth_pct"))+" for the other salons.");
   if(hcCause.length)L.push("• "+hcCause.length+" salons had high waits with HC time of 18 min or more ("+hcCause.map(r=>r.salon_id).join(", ")+"). Efficiency plans for the slowest stylists come before adding hours.");
   if(shortHrs.length)L.push("• "+shortHrs.length+" salons had high waits with CPH at 2.2 or better and HC in standard ("+shortHrs.map(r=>r.salon_id).join(", ")+"). Those teams were busy, so add floor hours on the peak days.");
   if(lowNcr.length>=4)L.push("• New-customer return was under 20% at "+lowNcr.length+" salons. Returns drive customer growth, so keep doing QCs and observation checklists.");
+  const cx=MK.ctx&&MK.ctx[wk];
+  if(cx){const since=mkAddDays(wk,-29);const all=[].concat(...Object.values(cx.coach||{})).filter(l=>l.session_date>=since);
+    const q=all.filter(l=>l.kind==="qc").length,re=all.filter(l=>l.kind==="reach").length,ac=all.filter(l=>l.kind==="academy_module").length;
+    const none=us.filter(r=>!(cx.coach[r.salon_id]||[]).some(l=>l.session_date>=since)).map(r=>r.salon_id);
+    L.push("• Coaching logged in the last 30 days: "+q+" QC"+(q===1?"":"s")+", "+re+" REACH 1:1"+(re===1?"":"s")+(ac?", "+ac+" Academy module"+(ac===1?"":"s"):"")+"."+(none.length?" Nothing logged yet at "+none.join(", ")+".":""));}
   L.push("• Salon-by-salon notes are below.");
   return L.join("\n");
 }
@@ -5209,13 +5242,15 @@ function mkReadNotes(wk){const x=MK.recap[wk];if(!x||!x.sent_at)return "";const 
     '<div class="mk-sal-list">'+items.map(r=>'<div class="mk-sal ro"><div class="mk-sal-h"><b>#'+r.rank+' '+esc(r.salon_id)+' '+esc(mkName(r))+'</b></div><div class="mk-sal-t">'+esc(sn[r.salon_id])+'</div></div>').join("")+'</div></div>';}
 async function mkCtx(wk){MK.ctx=MK.ctx||{};if(MK.ctx[wk])return MK.ctx[wk];
   const d0=new Date(wk+"T12:00:00");d0.setDate(d0.getDate()-6);const from=d0.toISOString().slice(0,10);const h=supaHeaders();
-  const [ds,ep]=await Promise.all([
+  const c0=new Date(wk+"T12:00:00");c0.setDate(c0.getDate()-45);
+  const [ds,ep,co]=await Promise.all([
     fetch(SUPA_URL+"/rest/v1/daily_salon?select=date,salon_id,cph,wait_over15_pct,payroll_pct&date=gte."+from+"&date=lte."+wk,{headers:h}).then(r=>r.ok?r.json():[]),
-    fetch(SUPA_URL+"/rest/v1/weekly_epp?select=salon_id,stylist_name,avg_hc,floor_hrs&week_ending=eq."+wk,{headers:h}).then(r=>r.ok?r.json():[])]);
+    fetch(SUPA_URL+"/rest/v1/weekly_epp?select=salon_id,stylist_name,avg_hc,floor_hrs&week_ending=eq."+wk,{headers:h}).then(r=>r.ok?r.json():[]),
+    fetch(SUPA_URL+"/rest/v1/gc_coaching_log?select=salon_id,stylist_name,session_date,kind,focus,commitment,reach,notes,follow_up&deleted=not.is.true&session_date=gte."+c0.toISOString().slice(0,10)+"&order=session_date.desc",{headers:h}).then(r=>r.ok?r.json():[]).catch(()=>[])]);
   const by=(a)=>{const m={};a.forEach(x=>{(m[x.salon_id]=m[x.salon_id]||[]).push(x);});return m;};
-  MK.ctx[wk]={days:by(ds),epp:by(ep),prevRank:mkRankMap(mkPrevWk(wk))};return MK.ctx[wk];}
+  MK.ctx[wk]={days:by(ds),epp:by(ep),coach:by(co||[]),prevRank:mkRankMap(mkPrevWk(wk))};return MK.ctx[wk];}
 function mkNoteFor(wk,sid){const c=MK.ctx&&MK.ctx[wk];const r=mkWeek(wk).rows.find(x=>x.salon_id===sid);
-  return mkSalonNote(r,c?{prevRank:c.prevRank,days:c.days[sid]||[],epp:c.epp[sid]||[]}:{prevRank:mkRankMap(mkPrevWk(wk))});}
+  return mkSalonNote(r,c?{prevRank:c.prevRank,days:c.days[sid]||[],epp:c.epp[sid]||[],coach:c.coach[sid]||[],wk}:{prevRank:mkRankMap(mkPrevWk(wk))});}
 function mkSalNotesHtml(wk){const x=MK.recap[wk]||{};const sn=x.salon_notes||{};const {rows}=mkWeek(wk);
   return rows.filter(r=>MK_OURS.has(r.salon_id)).map(r=>{const v=sn[r.salon_id]!=null?sn[r.salon_id]:mkNoteFor(wk,r.salon_id);
     const chip=(k,lab)=>{const c=MK_COLS.find(y=>y.k===k);const b=mkBand(c,r[k]);return '<span class="mk-chip '+(b?"b-"+b:"")+'">'+lab+' '+mkFmt(c,r[k])+'</span>';};
@@ -5281,7 +5316,8 @@ function mkWireComposer(wk){
   const salBox=$("#mkSalNotes");
   const wireSal=()=>{salBox.querySelectorAll(".mk-sal-ta").forEach(ta=>{ta.oninput=n.oninput;ta.style.height="auto";ta.style.height=(ta.scrollHeight+2)+"px";});
     salBox.querySelectorAll(".mk-sal-re").forEach(b=>b.onclick=()=>{const ta=salBox.querySelector('.mk-sal-ta[data-sid="'+b.dataset.sid+'"]');ta.value=mkNoteFor(wk,b.dataset.sid);n.oninput();});};
-  mkCtx(wk).catch(()=>null).then(()=>{if(MK.wk!==wk||!document.body.contains(salBox))return;salBox.innerHTML=mkSalNotesHtml(wk);wireSal();});
+  mkCtx(wk).catch(()=>null).then(()=>{if(MK.wk!==wk||!document.body.contains(salBox))return;salBox.innerHTML=mkSalNotesHtml(wk);wireSal();
+    const x=MK.recap[wk];if(!(x&&x.notes!=null)&&!MK.notesDirty)n.value=mkDraft(wk);});
   $("#mkRedraft").onclick=()=>{n.value=mkDraft(wk);if(MK.recap[wk])MK.recap[wk].salon_notes={};salBox.innerHTML=mkSalNotesHtml(wk);wireSal();n.oninput();};
   $("#mkSaveNotes").onclick=()=>{clearTimeout(t);mkSaveNotes(wk).catch(e=>{$("#mkSaveMsg").textContent=e.message;});};
   $("#mkPrev").onclick=async()=>{const b=$("#mkPrev");b.disabled=true;b.textContent="Building preview…";

@@ -5617,7 +5617,8 @@ function officePhaseChip(l) {
   switch (l.phase) {
     case 'active': return l.todo && (l.todo.call || l.todo.email)
       ? `<span class="of-chip bad">Today: ${[l.todo.call ? `${l.todo.call} call${l.todo.call > 1 ? 's' : ''}` : '', l.todo.email ? 'email' : ''].filter(Boolean).join(' + ')}</span>`
-      : `<span class="of-chip good">Day ${l.currentDay} done</span>`;
+      : (() => { const next = l.dayChecks.find(dc => dc.date > d.today && dc.state === 'upcoming'); const doneToday = l.dayChecks.some(dc => dc.date === d.today && dc.state === 'met');
+          return `<span class="of-chip ${doneToday ? 'good' : ''}">${doneToday ? 'Today done · ' : ''}${next ? `Day ${next.day} ${officeDay(next.date)}` : `Retreva ${officeDay(l.retrevaDue)}`}</span>`; })();
     case 'waiting': return `<span class="of-chip">Starts ${officeDay(l.d1)}</span>`;
     case 'retreva_due': return `<span class="of-chip bad">Send to Retreva today</span>`;
     case 'retreva_overdue': return `<span class="of-chip bad">Retreva overdue (due ${officeDay(l.retrevaDue)})</span>`;
@@ -5631,8 +5632,9 @@ function officePhaseChip(l) {
 function officeCadenceHtml(l) {
   const d = office.data;
   const pills = l.dayChecks.map(dc => {
-    const cls = { met: 'met', today: 'today', missed: 'missed', partial: 'partial', upcoming: 'up', waived: 'waived' }[dc.state] || '';
-    const tip = `Day ${dc.day} (${officeDay(dc.date)}): ${dc.got.call}/${dc.need.call} calls, ${dc.got.email}/${dc.need.email} email — ${dc.state === 'waived' ? 'not needed (scheduled or closed)' : dc.state}`;
+    const pre = dc.date < d.health.startsOn && (dc.state === 'missed' || dc.state === 'partial');
+    const cls = pre ? 'up' : ({ met: 'met', today: 'today', missed: 'missed', partial: 'partial', upcoming: 'up', waived: 'waived' }[dc.state] || '');
+    const tip = `Day ${dc.day} (${officeDay(dc.date)}): ${dc.got.call}/${dc.need.call} calls, ${dc.got.email}/${dc.need.email} email — ${pre ? 'before tracking started (not scored)' : dc.state === 'waived' ? 'not needed (scheduled or closed)' : dc.state}`;
     return `<span class="of-pill ${cls}" title="${officeEsc(tip)}"><b>D${dc.day}</b> ${officeDow(dc.date)} <span class="of-pc">☎ ${dc.got.call}/${dc.need.call}</span> <span class="of-pc">✉ ${dc.got.email}/${dc.need.email}</span></span>`;
   }).join('');
   const rCls = l.phase === 'retreva' ? 'met' : (l.phase === 'retreva_due' ? 'today' : l.phase === 'retreva_overdue' ? 'missed' : (l.phase === 'scheduled' || l.phase === 'closed' || l.phase === 'before_tracking') ? 'waived' : 'up');

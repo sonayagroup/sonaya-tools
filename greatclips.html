@@ -510,8 +510,6 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .mk-tbl td.b-g,.mk-tbl td.b-y,.mk-tbl td.b-r{box-shadow:inset 0 0 0 1px #fff}
 .mk-tbl tr.avg td{background:#e8f2ef;font-weight:800;color:var(--blue-dk);border-bottom:none}
 .mk-tbl .mv{font-size:11px;font-weight:700}.mk-tbl .mv .up{color:var(--green)}.mk-tbl .mv .dn{color:var(--red)}.mk-tbl .mv .eq{color:#c3ccca}
-.mk-tbl td.sp{color:var(--blue);padding:3px 7px}.mk-tbl tr.oth td.sp{color:#b7c2bf}
-.mk-spark{display:block;margin:0 auto}
 .mk-legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:11.5px;color:var(--muted);padding:10px 14px;border-top:1px solid var(--line)}
 .mk-legend span{padding:2px 8px;border-radius:5px}
 .mk-comp{margin-bottom:22px}
@@ -541,6 +539,17 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .mk-prev-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:14px 0 6px;font-size:13px}
 #mkPrevFrame{width:100%;height:760px;border:1px solid var(--line);border-radius:8px;background:#f4f7f5}
 @media (max-width:640px){.mk-tv{font-size:19px}.mk-recip-list{grid-template-columns:1fr}#mkPrevFrame{height:560px}}
+.mk-sal-list{display:flex;flex-direction:column;gap:8px}
+.mk-sal{border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:8px;padding:8px 10px;background:#fff}
+.mk-sal-h{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:5px;font-size:13px;color:var(--blue-dk)}
+.mk-sal-h b{margin-right:4px}
+.mk-chip{font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;background:#eef3f1;color:var(--muted);white-space:nowrap}
+.mk-chip.b-g{background:#d7f2df;color:#0b6b33}.mk-chip.b-y{background:#fff1cc;color:#8a5a00}.mk-chip.b-r{background:#fcdcdc;color:#b30020}
+.mk-sal-re{margin-left:auto;font-size:12px}
+.mk-sal-ta{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;padding:7px 9px;font:inherit;font-size:13.5px;line-height:1.45;color:var(--ink);resize:vertical;background:#fcfdfc;min-height:44px}
+.mk-sal-ta:focus{outline:2px solid rgba(4,134,103,.25);border-color:var(--blue);background:#fff}
+.mk-sal.ro .mk-sal-t{font-size:13.5px;line-height:1.45;color:var(--ink)}
+.mk-ro-notes{font-size:13.5px;line-height:1.5;margin:8px 0 12px;color:var(--ink)}
 /* ===== AM WEEKLY RECAP ===== */
 #recap.amr-on > :not(#amrToggle):not(#amrWrap):not(#amOverview){display:none!important}
 #recap.amr-on #amrToggle{margin-top:14px}
@@ -5083,39 +5092,69 @@ function mkPrevWk(wk){const i=MK.weeks.indexOf(wk);return i>=0?MK.weeks[i+1]||nu
 function mkRankMap(wk){const m={};(MK.byWk[wk]||[]).forEach(r=>{if(r.rank)m[r.salon_id]=r.rank;});return m;}
 
 // Plain-text summary the AM / owner edits before sending. Bullets start with "• ".
-function mkDraft(wk){
-  const {rows,avg}=mkWeek(wk);if(!rows.length)return "";
-  const prev=mkRankMap(mkPrevWk(wk));const us=rows.filter(r=>MK_OURS.has(r.salon_id)),them=rows.filter(r=>!MK_OURS.has(r.salon_id));
-  const C=k=>MK_COLS.find(c=>c.k===k);const f=(k,v)=>mkFmt(C(k),v);const nm=r=>r.salon_id+" "+mkName(r);
-  const L=[];
-  L.push("Here's how our salons did against the rest of the Great Clips market for the week ending "+mkMD(wk)+".");
-  const top10=us.filter(r=>r.rank<=10).length;
-  const cg=mkMean(us,"cust_growth_pct"),cgo=mkMean(them,"cust_growth_pct");
-  L.push("• "+top10+" of our "+us.length+" salons ranked in the market's top 10. Our customer growth averaged "+f("cust_growth_pct",cg)+" vs "+f("cust_growth_pct",cgo)+" for the other salons"+(avg&&avg.cust_growth_pct!=null?" (market "+f("cust_growth_pct",avg.cust_growth_pct)+")":"")+".");
-  const pp=mkMean(us,"payroll_pct"),ppo=mkMean(them,"payroll_pct"),ch=mkMean(us,"cph"),cho=mkMean(them,"cph"),w=mkMean(us,"wait15_pct"),wo=mkMean(them,"wait15_pct");
-  L.push("• Payroll "+f("payroll_pct",pp)+" (others "+f("payroll_pct",ppo)+"), CPH "+f("cph",ch)+" (others "+f("cph",cho)+"), waits over 15 min "+f("wait15_pct",w)+" (others "+f("wait15_pct",wo)+").");
-  const best=us.filter(r=>r.rank).slice(0,3).map(r=>nm(r)+" #"+r.rank).join(", ");if(best)L.push("• Our top ranked: "+best+".");
-  const mv=us.filter(r=>prev[r.salon_id]&&r.rank).map(r=>({r,d:prev[r.salon_id]-r.rank}));
-  const up=mv.filter(x=>x.d>=2).sort((a,b)=>b.d-a.d).slice(0,3),dn=mv.filter(x=>x.d<=-2).sort((a,b)=>a.d-b.d).slice(0,3);
-  if(up.length)L.push("• Moved up: "+up.map(x=>nm(x.r)+" +"+x.d+" to #"+x.r.rank).join(", ")+".");
-  if(dn.length)L.push("• Slipped: "+dn.map(x=>nm(x.r)+" "+x.d+" to #"+x.r.rank).join(", ")+".");
-  const gr=us.filter(r=>r.cust_growth_pct!=null&&r.cust_growth_pct>=10).sort((a,b)=>b.cust_growth_pct-a.cust_growth_pct).slice(0,3);
-  if(gr.length)L.push("• Strongest customer growth: "+gr.map(r=>nm(r)+" "+f("cust_growth_pct",r.cust_growth_pct)).join(", ")+".");
-  const reds=us.map(r=>({r,n:MK_COLS.filter(c=>mkBand(c,r[c.k])==="r").length})).filter(x=>x.n>=7).sort((a,b)=>b.n-a.n).slice(0,3);
-  if(reds.length)L.push("• Needs attention: "+reds.map(x=>nm(x.r)+" (below standard on "+x.n+" of 12)").join(", ")+".");
-  const comp=them[0];if(comp)L.push("• Top salon we don't own: "+nm(comp)+" at #"+comp.rank+" with "+f("cust",comp.cust)+" customers.");
-  L.push("");L.push("Comments:");
-  return L.join("\n");
+// ---- Feedback generator ----
+// Rules learned from the AM comments in Weekly_Recap_2026.xlsx. Each salon note = 1 win (if any) + the 1–2
+// issues that explain the numbers + what to do. Core logic: read waits against CPH.
+//  • waits high + CPH low  → the hours were there, the team was slow: HC ≥ 18 → efficiency plans (named stylists);
+//                            HC in standard → find the day it broke (late starts, long breaks, hours off-peak)
+//  • waits high + CPH ≥ 2.2 → the team was busy: short on floor hours at the peaks → add hours those days
+//  • waits low + CPH low    → more hours than customers: cut overlap, early outs / breaks when slow
+//  • payroll > 40 with CPH ≥ 2.2 → not a CPH problem: check admin/receptionist hours and overlap
+//  • HC < 12 → rushing: slow down (standard 12–17); new-customer return < 20% → QCs / observation checklists
+const MK_T={cph:2.2,waitHi:17,wkndHi:20,waitPeak:25,hcHi:18,hcLo:12,ncrLo:20,ncrHi:27,pay:40};
+const MK_DAY=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function mkDayName(iso){return MK_DAY[new Date(iso+"T12:00:00").getDay()];}
+function mkShortName(n){const p=String(n||"").split(",");if(p.length<2)return n;const first=p[1].trim().split(/\s+/)[0];return first+" "+p[0].trim().charAt(0)+".";}
+function mkP(v){return v==null||isNaN(v)?"—":(Math.round(v*10)/10).toFixed(1).replace(/\.0$/,"")+"%";}
+function mkSalonNote(r,ctx){
+  if(!r)return "";const {prevRank,days,epp}=ctx||{};
+  const w=r.wait15_pct,c=r.cph,hc=r.avg_hc,pay=r.payroll_pct,ncr=r.new_ret_pct,g=r.cust_growth_pct,wk=r.wknd_wait15_pct;
+  const cs=c!=null?c.toFixed(2):"—",hs=hc!=null?hc.toFixed(1):"—",ps=pay!=null?pay.toFixed(1)+"%":"—";
+  const dd=(days||[]).filter(d=>d.cph!=null&&d.wait_over15_pct!=null&&d.cph<4); // >4 CPH in a day = bad data
+  const slow=(epp||[]).filter(s=>s.avg_hc>=MK_T.hcHi&&s.floor_hrs>=8).sort((a,b)=>b.avg_hc-a.avg_hc).slice(0,3).map(s=>mkShortName(s.stylist_name)+" "+Number(s.avg_hc).toFixed(1));
+  const wkTxt=wk!=null&&Math.abs(wk-w)>=5?" (Sat/Sun "+mkP(wk)+")":"";
+  const out=[];
+  // 1) one win, or the customer trend as context
+  const pr=prevRank&&prevRank[r.salon_id],up=pr&&r.rank?pr-r.rank:0;
+  if(up>=2)out.push("Up "+up+" spots to #"+r.rank+".");
+  else if(g!=null&&g>=10)out.push("Customers up "+mkP(g)+" vs last year.");
+  else if(ncr!=null&&ncr>=MK_T.ncrHi)out.push("New-customer return "+mkP(ncr)+", strong.");
+  else if(w!=null&&w<12)out.push("Waits over 15 min only "+mkP(w)+".");
+  else if(pay!=null&&pay<=38&&c>=MK_T.cph)out.push("Payroll "+ps+" at "+cs+" CPH.");
+  else if(g!=null&&g<=-5)out.push("Customers "+mkP(g)+" vs last year.");
+  // 2) the issue the numbers point to (waits read against CPH and HC)
+  const issues=[];let hcDone=false;const payTail=pay>MK_T.pay?" That's why payroll was "+ps+".":"";
+  const waitsHi=w>=MK_T.waitHi||(wk!=null&&wk>MK_T.wkndHi),waitsOver=w>15||(wk!=null&&wk>MK_T.wkndHi); // >15% waits → CPH should be ≥ 2.2
+  if(hc>=MK_T.hcHi&&(waitsOver||c<MK_T.cph)){hcDone=true;
+    issues.push((waitsOver?"Waits "+mkP(w)+wkTxt+" with HC "+hs+" min: slow haircuts are backing up the line":"HC "+hs+" min is above the 17-minute standard")+(c<MK_T.cph?" (CPH "+cs+")":"")+"."+(c<MK_T.cph?payTail:"")+(slow.length?" Efficiency plans for "+slow.join(", ")+".":" What's the efficiency training plan?"));}
+  else if(waitsOver&&c<MK_T.cph){
+    const bad=dd.filter(d=>d.cph<MK_T.cph).sort((a,b)=>b.wait_over15_pct-a.wait_over15_pct)[0];
+    issues.push("Waits "+mkP(w)+wkTxt+" but CPH only "+cs+" with HC in standard ("+hs+")"+(pay>MK_T.pay?", so payroll hit "+ps:"")+"."+(bad?" "+mkDayName(bad.date)+": "+mkP(bad.wait_over15_pct)+" waits at "+bad.cph.toFixed(1)+" CPH. Late starts, long breaks, or hours off-peak?":" Check for late starts, long breaks, or hours off-peak."));}
+  else if(waitsHi&&c>=MK_T.cph){
+    const peaks=dd.filter(d=>d.wait_over15_pct>=MK_T.waitPeak&&d.cph>=MK_T.cph).sort((a,b)=>b.wait_over15_pct-a.wait_over15_pct).slice(0,3).map(d=>mkDayName(d.date));
+    issues.push("Waits "+mkP(w)+wkTxt+" while CPH was "+cs+": the team was busy, not slow, so we're short on floor hours."+(peaks.length?" Add hours on "+peaks.join(", ")+".":" Add hours at the peaks."));}
+  else if(w!=null&&!waitsOver&&c<MK_T.cph){
+    issues.push("Waits "+mkP(w)+" but CPH only "+cs+": more hours than customers. Cut midday overlap and use breaks or early outs when slow to reach 2.2"+(pay>MK_T.pay?" and get payroll under 40% (was "+ps+")":"")+".");}
+  if(pay>41&&c>=MK_T.cph)issues.push("Payroll "+ps+" even with "+cs+" CPH: check admin/receptionist hours and overlap.");
+  if(hc!=null&&hc<MK_T.hcLo)issues.push("HC "+hs+" min is under the 12–17 standard. Slow down on the consultation and finish so customers come back.");
+  if(issues.length<2&&!hcDone&&hc>=MK_T.hcHi&&slow.length)issues.push("HC "+hs+" min; efficiency plans for "+slow.join(", ")+".");
+  if(issues.length<2&&ncr!=null&&ncr<MK_T.ncrLo)issues.push("New-customer return "+mkP(ncr)+": use QCs and observation checklists to find out why.");
+  if(!issues.length)issues.push("On standard for waits, CPH and payroll. Keep it going.");
+  return out.concat(issues.slice(0,2)).join(" ");
 }
-
-function mkSpark(sid,wk){
-  const i=MK.weeks.indexOf(wk);const wks=MK.weeks.slice(i,i+8).reverse();
-  const pts=wks.map(w=>{const r=(MK.byWk[w]||[]).find(x=>x.salon_id===sid);return r&&r.rank?r.rank:null;});
-  const v=pts.filter(x=>x!=null);if(v.length<2)return "";
-  const W=64,H=18,max=27,min=1;const x=j=>2+j*(W-4)/Math.max(1,pts.length-1),y=r=>2+(r-min)*(H-4)/(max-min);
-  let d="";pts.forEach((r,j)=>{if(r==null)return;d+=(d?"L":"M")+x(j).toFixed(1)+" "+y(r).toFixed(1);});
-  const last=pts.length-1,lr=pts[last];
-  return '<svg class="mk-spark" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" aria-label="Rank over the last '+pts.length+' weeks"><title>Rank, last '+pts.length+' weeks: '+pts.map(p=>p==null?"–":"#"+p).join(" → ")+'</title><path d="'+d+'" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'+(lr!=null?'<circle cx="'+x(last).toFixed(1)+'" cy="'+y(lr).toFixed(1)+'" r="2.6" fill="currentColor"/>':"")+'</svg>';
+function mkDraft(wk,ctx){
+  const {rows}=mkWeek(wk);if(!rows.length)return "";
+  const us=rows.filter(r=>MK_OURS.has(r.salon_id)),them=rows.filter(r=>!MK_OURS.has(r.salon_id));
+  const C=k=>MK_COLS.find(c=>c.k===k);const f=(k,v)=>mkFmt(C(k),v);
+  const hcCause=us.filter(r=>(r.wait15_pct>=MK_T.waitHi||r.wknd_wait15_pct>MK_T.wkndHi)&&r.avg_hc>=MK_T.hcHi),shortHrs=us.filter(r=>(r.wait15_pct>=MK_T.waitHi||r.wknd_wait15_pct>MK_T.wkndHi)&&r.avg_hc<MK_T.hcHi&&r.cph>=MK_T.cph);
+  const lowNcr=us.filter(r=>r.new_ret_pct!=null&&r.new_ret_pct<MK_T.ncrLo);
+  const L=["Market recap for the week ending "+mkMD(wk)+"."];
+  L.push("• "+us.filter(r=>r.rank<=10).length+" of our "+us.length+" salons are in the market's top 10. Customer growth "+f("cust_growth_pct",mkMean(us,"cust_growth_pct"))+" vs "+f("cust_growth_pct",mkMean(them,"cust_growth_pct"))+" for the other salons.");
+  if(hcCause.length)L.push("• "+hcCause.length+" salons had high waits with HC time of 18 min or more ("+hcCause.map(r=>r.salon_id).join(", ")+"). Efficiency plans for the slowest stylists come before adding hours.");
+  if(shortHrs.length)L.push("• "+shortHrs.length+" salons had high waits with CPH at 2.2 or better and HC in standard ("+shortHrs.map(r=>r.salon_id).join(", ")+"). Those teams were busy, so add floor hours on the peak days.");
+  if(lowNcr.length>=4)L.push("• New-customer return was under 20% at "+lowNcr.length+" salons. Returns drive customer growth, so keep doing QCs and observation checklists.");
+  L.push("• Salon-by-salon notes are below.");
+  return L.join("\n");
 }
 
 function mkRender(){
@@ -5138,16 +5177,15 @@ function mkRender(){
   let list=rows.filter(r=>MK.filter==="all"||(MK.filter==="ours")===MK_OURS.has(r.salon_id));
   if(MK.sort){const c=MK_COLS.find(x=>x.k===MK.sort.k);list=list.slice().sort((a,b)=>{const x=a[c.k],y=b[c.k];if(x==null)return 1;if(y==null)return -1;return MK.sort.d*(x-y);});}
   h+='<div class="card mk-card"><div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="c">#</th><th class="c" title="Change in rank from the week before">±</th><th class="l">Salon</th>'+
-    MK_COLS.map(c=>'<th data-k="'+c.k+'" title="'+esc(c.t+" — "+mkStd(c))+'">'+c.l+(MK.sort&&MK.sort.k===c.k?(MK.sort.d<0?" ▾":" ▴"):"")+'</th>').join("")+'<th class="c" title="Market rank over the last 8 weeks">8-wk rank</th></tr></thead><tbody>';
+    MK_COLS.map(c=>'<th data-k="'+c.k+'" title="'+esc(c.t+" — "+mkStd(c))+'">'+c.l+(MK.sort&&MK.sort.k===c.k?(MK.sort.d<0?" ▾":" ▴"):"")+'</th>').join("")+'</tr></thead><tbody>';
   list.forEach(r=>{const own=MK_OURS.has(r.salon_id);const p=prev[r.salon_id];const d=p&&r.rank?p-r.rank:0;
     h+='<tr class="'+(own?"own":"oth")+'"><td class="c rk">'+(r.rank||"")+'</td><td class="c mv">'+(d>0?'<span class="up">▲'+d+'</span>':d<0?'<span class="dn">▼'+(-d)+'</span>':'<span class="eq">–</span>')+'</td>'+
       '<td class="l nm">'+esc(r.salon_id)+' <span>'+esc(mkName(r))+'</span></td>'+
-      MK_COLS.map(c=>{const v=r[c.k];const b=own?mkBand(c,v):"";return '<td class="'+(b?"b-"+b:"")+'">'+mkFmt(c,v)+'</td>';}).join("")+
-      '<td class="c sp">'+mkSpark(r.salon_id,wk)+'</td></tr>';});
-  if(avg)h+='<tr class="avg"><td></td><td></td><td class="l nm">Market average</td>'+MK_COLS.map(c=>'<td>'+mkFmt(c,avg[c.k])+'</td>').join("")+'<td></td></tr>';
+      MK_COLS.map(c=>{const v=r[c.k];const b=own?mkBand(c,v):"";return '<td class="'+(b?"b-"+b:"")+'">'+mkFmt(c,v)+'</td>';}).join("")+'</tr>';});
+  if(avg)h+='<tr class="avg"><td></td><td></td><td class="l nm">Market average</td>'+MK_COLS.map(c=>'<td>'+mkFmt(c,avg[c.k])+'</td>').join("")+'</tr>';
   h+='</tbody></table></div><div class="mk-legend"><span class="b-g">meets standard</span><span class="b-y">close</span><span class="b-r">below</span> Hover a column header to see its standard. Click a header to sort; click again to reverse.</div></div>';
   // email composer
-  h+=mkCanSend()?mkComposerHtml(wk):mkSentLine(wk,true);
+  h+=mkCanSend()?mkComposerHtml(wk):mkSentLine(wk,true)+mkReadNotes(wk);
   el.innerHTML=h;
   $("#mkWk").onchange=e=>{if(MK.notesDirty&&!mkLeaveOk())return void(e.target.value=MK.wk);MK.wk=e.target.value;MK.notesDirty=false;MK.confirm=false;mkRender();};
   el.querySelectorAll("#mkFilt button").forEach(b=>b.onclick=()=>{MK.filter=b.dataset.f;mkRender();});
@@ -5159,11 +5197,31 @@ function mkLeaveOk(){const n=$("#mkNotes");if(!n)return true;MK.notesDirty=false
 function mkSentLine(wk,readonly){const x=MK.recap[wk];
   if(x&&x.sent_at){const t=new Date(x.sent_at);return '<div class="mk-sent'+(readonly?" ro":"")+'">✉️ Recap emailed '+t.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" at "+t.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+(x.sent_by?" by "+esc(x.sent_by):"")+" to "+(x.sent_to||[]).length+" people.</div>";}
   return readonly?"":'<div class="mk-sent none">Not emailed yet for this week.</div>';}
+function mkReadNotes(wk){const x=MK.recap[wk];if(!x||!x.sent_at)return "";const sn=x.salon_notes||{};const {rows}=mkWeek(wk);
+  const items=rows.filter(r=>MK_OURS.has(r.salon_id)&&sn[r.salon_id]);if(!items.length&&!x.notes)return "";
+  return '<div class="card mk-comp"><div class="mk-comp-t">Notes from this week’s recap</div>'+(x.notes?'<div class="mk-ro-notes">'+esc(x.notes).replace(/\n/g,"<br>")+'</div>':"")+
+    '<div class="mk-sal-list">'+items.map(r=>'<div class="mk-sal ro"><div class="mk-sal-h"><b>#'+r.rank+' '+esc(r.salon_id)+' '+esc(mkName(r))+'</b></div><div class="mk-sal-t">'+esc(sn[r.salon_id])+'</div></div>').join("")+'</div></div>';}
+async function mkCtx(wk){MK.ctx=MK.ctx||{};if(MK.ctx[wk])return MK.ctx[wk];
+  const d0=new Date(wk+"T12:00:00");d0.setDate(d0.getDate()-6);const from=d0.toISOString().slice(0,10);const h=supaHeaders();
+  const [ds,ep]=await Promise.all([
+    fetch(SUPA_URL+"/rest/v1/daily_salon?select=date,salon_id,cph,wait_over15_pct,payroll_pct&date=gte."+from+"&date=lte."+wk,{headers:h}).then(r=>r.ok?r.json():[]),
+    fetch(SUPA_URL+"/rest/v1/weekly_epp?select=salon_id,stylist_name,avg_hc,floor_hrs&week_ending=eq."+wk,{headers:h}).then(r=>r.ok?r.json():[])]);
+  const by=(a)=>{const m={};a.forEach(x=>{(m[x.salon_id]=m[x.salon_id]||[]).push(x);});return m;};
+  MK.ctx[wk]={days:by(ds),epp:by(ep),prevRank:mkRankMap(mkPrevWk(wk))};return MK.ctx[wk];}
+function mkNoteFor(wk,sid){const c=MK.ctx&&MK.ctx[wk];const r=mkWeek(wk).rows.find(x=>x.salon_id===sid);
+  return mkSalonNote(r,c?{prevRank:c.prevRank,days:c.days[sid]||[],epp:c.epp[sid]||[]}:{prevRank:mkRankMap(mkPrevWk(wk))});}
+function mkSalNotesHtml(wk){const x=MK.recap[wk]||{};const sn=x.salon_notes||{};const {rows}=mkWeek(wk);
+  return rows.filter(r=>MK_OURS.has(r.salon_id)).map(r=>{const v=sn[r.salon_id]!=null?sn[r.salon_id]:mkNoteFor(wk,r.salon_id);
+    const chip=(k,lab)=>{const c=MK_COLS.find(y=>y.k===k);const b=mkBand(c,r[k]);return '<span class="mk-chip '+(b?"b-"+b:"")+'">'+lab+' '+mkFmt(c,r[k])+'</span>';};
+    return '<div class="mk-sal"><div class="mk-sal-h"><b>#'+r.rank+' '+esc(r.salon_id)+' '+esc(mkName(r))+'</b>'+chip("wait15_pct","Waits")+chip("cph","CPH")+chip("avg_hc","HC")+chip("payroll_pct","Payroll")+chip("new_ret_pct","New ret")+chip("cust_growth_pct","Cust gr")+
+      '<button type="button" class="linkbtn mk-sal-re" data-sid="'+r.salon_id+'" title="Rewrite this note from the numbers">↻ rebuild</button></div><textarea class="mk-sal-ta" data-sid="'+r.salon_id+'" rows="2" spellcheck="true">'+esc(v)+'</textarea></div>';}).join("");}
+function mkSalNotesVal(){const o={};document.querySelectorAll(".mk-sal-ta").forEach(t=>{o[t.dataset.sid]=t.value.trim();});return o;}
 function mkComposerHtml(wk){const x=MK.recap[wk];const notes=x&&x.notes!=null?x.notes:mkDraft(wk);
   return '<div class="card mk-comp"><div class="mk-comp-h"><div><div class="mk-comp-t">✉️ Email this recap to managers</div>'+
     '<div class="mk-sub">The email includes your notes, the comparison tiles, the full colored ranking table, and an Excel copy. Edit the notes before sending; lines that start with • become bullets.</div></div>'+mkSentLine(wk,false)+'</div>'+
-    '<label class="mk-lab" for="mkNotes">Notes for managers</label><textarea id="mkNotes" rows="11" spellcheck="true">'+esc(notes)+'</textarea>'+
-    '<div class="mk-row"><button type="button" class="btn sec" id="mkRedraft" title="Replace the notes with a fresh summary built from this week’s numbers">↻ Rebuild summary</button><button type="button" class="btn sec" id="mkSaveNotes">Save draft</button><span class="mk-save" id="mkSaveMsg">'+(x&&x.updated_at&&x.notes!=null?"Draft saved "+new Date(x.updated_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+(x.updated_by?" by "+esc(x.updated_by):""):"Not saved yet")+'</span></div>'+
+    '<label class="mk-lab" for="mkNotes">Opening note</label><textarea id="mkNotes" rows="6" spellcheck="true">'+esc(notes)+'</textarea>'+
+    '<div class="mk-lab">Salon notes <span>one short note per salon: the win, the issue the numbers point to, and what to do. Edit freely.</span></div><div id="mkSalNotes" class="mk-sal-list">Building salon notes…</div>'+
+    '<div class="mk-row"><button type="button" class="btn sec" id="mkRedraft" title="Replace the opening note and every salon note with fresh ones built from this week’s numbers">↻ Rebuild all notes</button><button type="button" class="btn sec" id="mkSaveNotes">Save draft</button><span class="mk-save" id="mkSaveMsg">'+(x&&x.updated_at&&x.notes!=null?"Draft saved "+new Date(x.updated_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+(x.updated_by?" by "+esc(x.updated_by):""):"Not saved yet")+'</span></div>'+
     '<div class="mk-lab">Recipients <span id="mkRecipCount"></span></div><div id="mkRecip" class="mk-recip">Loading recipients…</div>'+
     '<div class="mk-row mk-send"><button type="button" class="btn sec" id="mkPrev">Preview email</button><button type="button" class="btn" id="mkSend">Send recap</button><span class="mk-save" id="mkSendMsg"></span></div>'+
     '<div id="mkPrevWrap" hidden><div class="mk-prev-bar"><b id="mkPrevSubj"></b><button type="button" class="btn sec" id="mkPrevClose">Close preview</button></div><iframe id="mkPrevFrame" title="Email preview" sandbox=""></iframe></div></div>';}
@@ -5181,24 +5239,28 @@ function mkRecipRender(){const box=$("#mkRecip");if(!box||!MK.recip)return;
   box.querySelectorAll(".linkbtn").forEach(b=>b.onclick=()=>{const a=b.dataset.a;MK.recipSel=new Set(a==="all"?MK.recip.map(r=>r.email):a==="def"?MK.recip.filter(r=>r.default).map(r=>r.email):[]);MK.confirm=false;mkRecipRender();});
   cnt();}
 async function mkSaveNotes(wk,quiet){const n=$("#mkNotes");if(!n)return;const who=(GCU.perms&&(GCU.perms.name||GCU.perms.email))||"";
-  const body={week_ending:wk,notes:n.value,updated_by:who,updated_at:new Date().toISOString()};
+  const body={week_ending:wk,notes:n.value,salon_notes:mkSalNotesVal(),updated_by:who,updated_at:new Date().toISOString()};
   const r=await fetch(SUPA_URL+"/rest/v1/market_recap?on_conflict=week_ending",{method:"POST",headers:{...supaHeaders(),"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});
   if(!r.ok)throw new Error("Couldn't save the notes ("+r.status+")");const j=await r.json();MK.recap[wk]={...(MK.recap[wk]||{}),...(j[0]||body)};MK.notesDirty=false;
   const m=$("#mkSaveMsg");if(m)m.textContent="Draft saved "+new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+(who?" by "+who:"");}
 function mkWireComposer(wk){
   const n=$("#mkNotes"),msg=$("#mkSendMsg");let t=null;
   n.oninput=()=>{MK.notesDirty=true;MK.confirm=false;mkRecipRender();$("#mkSaveMsg").textContent="Unsaved changes…";clearTimeout(t);t=setTimeout(()=>mkSaveNotes(wk,true).catch(e=>{$("#mkSaveMsg").textContent=e.message;}),1500);};
-  $("#mkRedraft").onclick=()=>{n.value=mkDraft(wk);n.oninput();};
+  const salBox=$("#mkSalNotes");
+  const wireSal=()=>{salBox.querySelectorAll(".mk-sal-ta").forEach(ta=>{ta.oninput=n.oninput;ta.style.height="auto";ta.style.height=(ta.scrollHeight+2)+"px";});
+    salBox.querySelectorAll(".mk-sal-re").forEach(b=>b.onclick=()=>{const ta=salBox.querySelector('.mk-sal-ta[data-sid="'+b.dataset.sid+'"]');ta.value=mkNoteFor(wk,b.dataset.sid);n.oninput();});};
+  mkCtx(wk).catch(()=>null).then(()=>{if(MK.wk!==wk||!document.body.contains(salBox))return;salBox.innerHTML=mkSalNotesHtml(wk);wireSal();});
+  $("#mkRedraft").onclick=()=>{n.value=mkDraft(wk);if(MK.recap[wk])MK.recap[wk].salon_notes={};salBox.innerHTML=mkSalNotesHtml(wk);wireSal();n.oninput();};
   $("#mkSaveNotes").onclick=()=>{clearTimeout(t);mkSaveNotes(wk).catch(e=>{$("#mkSaveMsg").textContent=e.message;});};
   $("#mkPrev").onclick=async()=>{const b=$("#mkPrev");b.disabled=true;b.textContent="Building preview…";
-    try{const j=await mkFnCall({action:"preview",week_ending:wk,notes:n.value});$("#mkPrevSubj").textContent="Subject: "+j.subject;$("#mkPrevFrame").srcdoc='<!doctype html><meta charset="utf-8"><body style="margin:0;padding:14px;background:#f4f7f5">'+j.html+'</body>';$("#mkPrevWrap").hidden=false;$("#mkPrevWrap").scrollIntoView({behavior:"smooth",block:"start"});}
+    try{const j=await mkFnCall({action:"preview",week_ending:wk,notes:n.value,salon_notes:mkSalNotesVal()});$("#mkPrevSubj").textContent="Subject: "+j.subject;$("#mkPrevFrame").srcdoc='<!doctype html><meta charset="utf-8"><body style="margin:0;padding:14px;background:#f4f7f5">'+j.html+'</body>';$("#mkPrevWrap").hidden=false;$("#mkPrevWrap").scrollIntoView({behavior:"smooth",block:"start"});}
     catch(e){msg.textContent=e.message;msg.className="mk-save err";}finally{b.disabled=false;b.textContent="Preview email";}};
   $("#mkPrevClose").onclick=()=>{$("#mkPrevWrap").hidden=true;};
   $("#mkSend").onclick=async()=>{if(MK.busy||!MK.recipSel||!MK.recipSel.size)return;
     if(!MK.confirm){MK.confirm=true;mkRecipRender();msg.textContent="Check the notes and recipients, then click again to send.";msg.className="mk-save";return;}
     MK.busy=true;const b=$("#mkSend");b.disabled=true;b.textContent="Sending…";msg.textContent="";
     try{clearTimeout(t);await mkSaveNotes(wk,true);const emails=[...MK.recipSel];
-      const j=await mkFnCall({action:"send",week_ending:wk,notes:n.value,emails});
+      const j=await mkFnCall({action:"send",week_ending:wk,notes:n.value,salon_notes:mkSalNotesVal(),emails});
       const fails=(j.results||[]).filter(r=>!r.ok);
       msg.textContent=fails.length?"Sent to "+j.sent+"; failed for "+fails.map(f=>f.email).join(", "):"Sent to "+j.sent+(j.sent===1?" person":" people")+(j.attached?" with the Excel attached.":" (the Excel attachment couldn't be built).");
       msg.className="mk-save "+(fails.length?"err":"ok");

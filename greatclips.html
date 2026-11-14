@@ -5226,23 +5226,26 @@ function mkSalonNote(r,ctx){
   acts.forEach(a=>L.push("👉 "+a));
   return L.join("\n").replace(/\.\./g,".");
 }
+// Opening note: ≤4 short lines. The email already shows the header, comparison tiles, table and salon notes,
+// so this only says (1) the headline, (2) the top 2 themes across salons, (3) where coaching is missing.
 function mkDraft(wk,ctx){
   const {rows}=mkWeek(wk);if(!rows.length)return "";
   const r1=v=>v==null?v:Math.round(v*10)/10;const us=rows.filter(r=>MK_OURS.has(r.salon_id)),them=rows.filter(r=>!MK_OURS.has(r.salon_id));
-  const C=k=>MK_COLS.find(c=>c.k===k);const f=(k,v)=>mkFmt(C(k),v);
-  const hcCause=us.filter(r=>(r1(r.wait15_pct)>=MK_T.waitHi||r1(r.wknd_wait15_pct)>MK_T.wkndHi)&&r1(r.avg_hc)>=MK_T.hcHi),shortHrs=us.filter(r=>(r1(r.wait15_pct)>=MK_T.waitHi||r1(r.wknd_wait15_pct)>MK_T.wkndHi)&&r1(r.avg_hc)<MK_T.hcHi&&r1(r.cph)>=MK_T.cph);
-  const lowNcr=us.filter(r=>r1(r.new_ret_pct)!=null&&r1(r.new_ret_pct)<MK_T.ncrLo);
-  const L=["Market recap for the week ending "+mkMD(wk)+"."];
-  L.push("• "+us.filter(r=>r.rank<=10).length+" of our "+us.length+" salons are in the market's top 10. Customer growth "+f("cust_growth_pct",mkMean(us,"cust_growth_pct"))+" vs "+f("cust_growth_pct",mkMean(them,"cust_growth_pct"))+" for the other salons.");
-  if(hcCause.length)L.push("• "+hcCause.length+" salons had high waits with HC time of 18 min or more ("+hcCause.map(r=>r.salon_id).join(", ")+"). Efficiency plans for the slowest stylists come before adding hours.");
-  if(shortHrs.length)L.push("• "+shortHrs.length+" salons had high waits with CPH at 2.2 or better and HC in standard ("+shortHrs.map(r=>r.salon_id).join(", ")+"). Those teams were busy, so add floor hours on the peak days.");
-  if(lowNcr.length>=4)L.push("• New-customer return was under 20% at "+lowNcr.length+" salons. Returns drive customer growth, so keep doing QCs and observation checklists.");
+  const C=k=>MK_COLS.find(c=>c.k===k);const f=(k,v)=>mkFmt(C(k),v);const ids=a=>a.map(r=>r.salon_id).join(", ");
+  const hi=r=>r1(r.wait15_pct)>=MK_T.waitHi||r1(r.wknd_wait15_pct)>MK_T.wkndHi;
+  const themes=[
+    {n:us.filter(r=>hi(r)&&r1(r.avg_hc)>=MK_T.hcHi),t:a=>"Slow haircuts at "+ids(a)+": HCT coaching before adding hours."},
+    {n:us.filter(r=>hi(r)&&r1(r.avg_hc)<MK_T.hcHi&&r1(r.cph)>=MK_T.cph),t:a=>"Short on floor hours at "+ids(a)+": add hours on the peak days."},
+    {n:us.filter(r=>!hi(r)&&r1(r.wait15_pct)<=15&&r1(r.cph)<MK_T.cph),t:a=>"More hours than customers at "+ids(a)+": cut overlap when slow."},
+    {n:us.filter(r=>r1(r.new_ret_pct)!=null&&r1(r.new_ret_pct)<MK_T.ncrLo),t:a=>"New-customer return under 20% at "+(a.length>5?a.length+" salons":ids(a))+": QCs and observation checklists."},
+    {n:us.filter(r=>r1(r.payroll_pct)>41&&r1(r.cph)>=MK_T.cph),t:a=>"Payroll over 41% with good CPH at "+ids(a)+": check admin and receptionist hours."}
+  ].filter(x=>x.n.length).sort((a,b)=>b.n.length-a.n.length).slice(0,2);
+  const top10=us.filter(r=>r.rank<=10).length;const sg=v=>v==null?"—":(v>0?"+":"")+f("cust_growth_pct",v);
+  const L=["👍 "+top10+" of our "+us.length+" salons in the market top 10; customers "+sg(mkMean(us,"cust_growth_pct"))+" vs "+sg(mkMean(them,"cust_growth_pct"))+" for other salons."];
+  themes.forEach((x,i)=>L.push("🎯 "+(themes.length>1?"Focus "+(i+1)+": ":"Focus: ")+x.t(x.n)));
   const cx=MK.ctx&&MK.ctx[wk];
-  if(cx){const since=mkAddDays(wk,-29);const all=[].concat(...Object.values(cx.coach||{})).filter(l=>l.session_date>=since);
-    const q=all.filter(l=>l.kind==="qc").length,re=all.filter(l=>l.kind==="reach").length,ac=all.filter(l=>l.kind==="academy_module").length;
-    const none=us.filter(r=>!(cx.coach[r.salon_id]||[]).some(l=>l.session_date>=since)).map(r=>r.salon_id);
-    L.push("• Coaching logged in the last 30 days: "+q+" QC"+(q===1?"":"s")+", "+re+" REACH 1:1"+(re===1?"":"s")+(ac?", "+ac+" Academy module"+(ac===1?"":"s"):"")+"."+(none.length?" Nothing logged yet at "+none.join(", ")+".":""));}
-  L.push("• Salon-by-salon notes are below.");
+  if(cx){const since=mkAddDays(wk,-29);const none=us.filter(r=>!(cx.coach[r.salon_id]||[]).some(l=>l.session_date>=since)).map(r=>r.salon_id);
+    if(none.length)L.push("📋 No QC or REACH logged in 30 days at "+none.join(", ")+".");}
   return L.join("\n");
 }
 

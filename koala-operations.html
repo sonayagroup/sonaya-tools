@@ -5776,11 +5776,12 @@ const OFFICE_FILTERS = [
   { key: 'old', label: 'Before tracking', test: l => l.phase === 'before_tracking' },
   { key: 'all', label: 'All', test: () => true },
 ];
+function officeDoneToday(l) { const d = office.data; return !!(d && l.dayChecks.some(dc => dc.date === d.today && dc.state === 'met')); }
 function officeOwes(l) { return !!(l.phase === 'active' && l.todo && (l.todo.call || l.todo.email)); }
 // Urgency drives the card's colored edge and its sort order.
 function officeUrgency(l) {
   if (officeOwes(l) || l.phase === 'retreva_due' || l.phase === 'retreva_overdue') return 'red';
-  if (l.phase === 'active') return 'green';
+  if (l.phase === 'active') return officeDoneToday(l) ? 'green' : 'gray';
   if (l.phase === 'scheduled') return 'teal';
   return 'gray';
 }
@@ -5972,7 +5973,8 @@ function renderOffice() {
     const groups = [
       { t: 'Call or email today', rows: list.filter(officeOwes) },
       { t: 'Send to Retreva', rows: list.filter(l => l.phase === 'retreva_due' || l.phase === 'retreva_overdue') },
-      { t: 'Done for today', rows: list.filter(l => l.phase === 'active' && !officeOwes(l)) },
+      { t: 'Done for today', rows: list.filter(l => l.phase === 'active' && !officeOwes(l) && officeDoneToday(l)) },
+      { t: 'Nothing due today', rows: list.filter(l => l.phase === 'active' && !officeOwes(l) && !officeDoneToday(l)) },
       { t: 'Starts next business day', rows: list.filter(l => l.phase === 'waiting') },
     ].filter(g => g.rows.length);
     leadsHtml = groups.map(g => `<div class="of-group"><div class="of-group-h">${g.t}<span>${g.rows.length}</span></div>${g.rows.map(officeLeadHtml).join('')}</div>`).join('');

@@ -573,76 +573,225 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 .admin-role-viewer { color: var(--text-secondary); background: var(--surface-page); }
 .admin-status-active { color: var(--status-good); font-weight: 600; }
 .admin-status-inactive { color: var(--status-critical); font-weight: 600; }
-/* ---- Office tab (2026-11-14) ---- */
-.of-top { display: grid; grid-template-columns: minmax(280px, 1.1fr) 2fr; gap: 14px; align-items: start; }
-.of-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.of-tile { padding: 12px 14px; }
-.of-tile .kpi-value { font-size: 24px; }
-.of-bad { color: var(--status-critical); } .of-ok { color: var(--text-primary); }
-.of-health .eh-parts { margin-top: 10px; }
+/* ---- Front Office tab (2026-11-14, redesigned) ---- */
+#officeRoot { --of-gap: 14px; }
+.of-svg { flex-shrink: 0; vertical-align: -2px; }
+.of-page-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
+.of-title { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; margin: 0; color: var(--text-primary); }
+.of-sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.of-meta { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+.of-meta a { color: inherit; }
+.of-meta .of-svg { width: 12px; height: 12px; margin-right: 3px; }
+.of-quote { font-style: italic; }
+.of-note { display: flex; gap: 8px; align-items: center; background: var(--status-warn-bg); color: var(--text-primary); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 13px; margin-bottom: var(--of-gap); }
+.of-error { background: var(--status-critical-bg); color: var(--status-critical); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 13px; margin-bottom: var(--of-gap); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.of-loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 14px; padding: 40px 0; justify-content: center; }
+.of-spin { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--brand-teal); border-radius: 50%; animation: of-spin .8s linear infinite; }
+@keyframes of-spin { to { transform: rotate(360deg); } }
+.of-empty { color: var(--text-muted); font-size: 13px; padding: 18px; text-align: center; background: var(--surface-card); border: 1px dashed var(--border); border-radius: var(--radius); display: flex; gap: 6px; align-items: center; justify-content: center; }
+
+/* buttons */
+.of-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface-card); color: var(--text-primary); border-radius: 8px; padding: 6px 11px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; line-height: 1.2; transition: background .12s, border-color .12s; }
+.of-btn:hover { border-color: var(--text-muted); }
+.of-btn:disabled { opacity: .55; cursor: default; }
+.of-btn.primary { background: var(--brand-teal); border-color: var(--brand-teal); color: #fff; }
+.of-btn.primary:hover { filter: brightness(1.06); }
+.of-btn.ghost { background: transparent; }
+.of-btn:focus-visible, .of-filter:focus-visible, .of-task:focus-visible, .of-seg button:focus-visible { outline: 2px solid var(--brand-teal); outline-offset: 2px; }
+
+/* chips */
+.of-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; background: var(--surface-page); color: var(--text-secondary); }
+.of-chip .of-svg { width: 12px; height: 12px; }
+.of-chip.sm { padding: 1px 7px; font-size: 10.5px; }
+.of-chip.bad { background: var(--status-critical-bg); color: var(--status-critical); }
+.of-chip.good { background: var(--status-good-bg); color: var(--status-good); }
+.of-chip.warn { background: var(--status-warn-bg); color: var(--status-warn); }
+.of-chip.teal { background: color-mix(in srgb, var(--brand-teal) 14%, transparent); color: var(--brand-teal); }
+.of-chip.muted { color: var(--text-muted); font-weight: 600; }
+
+/* cards */
+.of-card { background: var(--surface-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow-sm); min-width: 0; }
+.of-card-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.of-kicker { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-muted); }
+.of-big { font-size: 20px; font-weight: 800; margin-top: 2px; letter-spacing: -0.2px; }
+.of-top { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--of-gap); margin-bottom: 22px; align-items: start; }
+
+/* today */
+.of-pct, .of-score { font-size: 34px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.of-pct span, .of-score span { font-size: 14px; font-weight: 600; color: var(--text-muted); margin-left: 2px; }
+.of-pct.good, .of-score.good { color: var(--status-good); } .of-score.warn { color: var(--status-warn); } .of-score.bad { color: var(--status-critical); }
+.of-progress { height: 8px; border-radius: 4px; background: var(--gridline); margin: 12px 0 12px; overflow: hidden; }
+.of-progress i { display: block; height: 100%; border-radius: 4px; background: var(--brand-teal); transition: width .3s; }
+.of-tasks { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.of-task { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-page); cursor: pointer; font-size: 13px; transition: border-color .12s; }
+.of-task:hover { border-color: var(--text-muted); }
+.of-task-ico { width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-card); color: var(--text-secondary); flex-shrink: 0; }
+.of-task-l { flex: 1; min-width: 0; color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.of-task-v { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.of-task.due .of-task-ico { background: var(--status-critical-bg); color: var(--status-critical); }
+.of-task.due .of-task-v { color: var(--status-critical); }
+.of-task.ok .of-task-ico { background: var(--status-good-bg); color: var(--status-good); }
+.of-task.ok .of-task-v { color: var(--status-good); }
+.of-task.none { opacity: .65; }
+.of-today-foot { margin-top: 12px; display: flex; align-items: center; gap: 4px; }
+
+/* health */
+.of-health .eh-parts { margin-top: 14px; }
+.of-weights { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.of-weights li { display: flex; justify-content: space-between; color: var(--text-secondary); padding-bottom: 6px; border-bottom: 1px dashed var(--border); }
+.of-weights li:last-child { border-bottom: none; }
+.of-weights b { color: var(--text-muted); font-weight: 600; }
+.of-weights b::before { content: '×'; }
 .of-misses { margin: 2px 0 6px; padding: 8px 10px; background: var(--surface-page); border-radius: var(--radius-sm); font-size: 12px; }
 .of-misses ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 220px; overflow: auto; }
 .of-misses li { display: flex; justify-content: space-between; gap: 8px; }
-.of-meta { font-size: 11.5px; color: var(--text-muted); }
-.of-meta a, .of-last a { color: inherit; }
-.of-note { background: var(--status-warn-bg); color: var(--text-primary); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
-.of-error { background: var(--status-critical-bg); color: var(--status-critical); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px; }
-.of-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
-.of-filter { border: 1px solid var(--border); background: var(--surface-card); color: var(--text-secondary); border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.of-filter span { color: var(--text-muted); font-weight: 500; margin-left: 3px; }
-.of-filter.on { background: var(--brand-teal); border-color: var(--brand-teal); color: #fff; }
-.of-filter.on span { color: rgba(255,255,255,.8); }
-.of-leads { display: flex; flex-direction: column; gap: 8px; }
-.of-lead { background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.of-lead.done { opacity: .85; }
+
+/* layout */
+.of-main { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(330px, 1fr); gap: 22px; align-items: start; }
+.of-col { min-width: 0; }
+.of-side { display: flex; flex-direction: column; gap: 22px; }
+.of-sec-h { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.of-sec-h h3 { font-size: 16px; font-weight: 800; margin: 0; color: var(--text-primary); }
+.of-count { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--status-critical-bg); color: var(--status-critical); font-variant-numeric: tabular-nums; }
+.of-count.good { background: var(--status-good-bg); color: var(--status-good); }
+.of-how { margin-left: auto; font-size: 12px; color: var(--text-muted); position: relative; }
+.of-how summary { cursor: pointer; list-style: none; display: inline-flex; gap: 4px; align-items: center; padding: 3px 6px; border-radius: 6px; }
+.of-how summary::-webkit-details-marker { display: none; }
+.of-how summary:hover { color: var(--text-primary); background: var(--surface-page); }
+.of-how[open] > div { position: absolute; right: 0; top: 100%; z-index: 5; width: min(360px, 80vw); background: var(--surface-card); border: 1px solid var(--border); box-shadow: var(--shadow-md); border-radius: 10px; padding: 10px 12px; color: var(--text-secondary); line-height: 1.5; font-size: 12.5px; }
+
+/* filters */
+.of-filters { display: flex; gap: 4px; margin-bottom: 12px; padding: 3px; background: var(--surface-page); border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; scrollbar-width: none; }
+.of-filter { border: none; background: transparent; color: var(--text-secondary); border-radius: 7px; padding: 6px 11px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.of-filter span { font-size: 11px; color: var(--text-muted); background: var(--surface-card); padding: 0 6px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.of-filter.on { background: var(--surface-card); color: var(--text-primary); box-shadow: var(--shadow-sm); }
+.of-filter.on span { background: var(--brand-teal); color: #fff; }
+
+/* leads */
+.of-leads { display: flex; flex-direction: column; gap: 14px; }
+.of-group { display: flex; flex-direction: column; gap: 8px; }
+.of-group-h { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-muted); display: flex; gap: 6px; align-items: center; }
+.of-group-h span { background: var(--surface-page); border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; font-size: 10.5px; }
+.of-lead { position: relative; background: var(--surface-card); border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px 12px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; box-shadow: var(--shadow-sm); overflow: visible; }
+.of-lead::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 0 3px 3px 0; background: var(--border); }
+.of-lead.u-red::before { background: var(--status-critical); }
+.of-lead.u-green::before { background: var(--status-good); }
+.of-lead.u-teal::before { background: var(--brand-teal); }
+.of-lead.is-done { box-shadow: none; }
 .of-lead-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
 .of-lead-id { min-width: 0; }
-.of-lead-name { font-size: 14.5px; font-weight: 700; }
+.of-lead-name { font-size: 15px; font-weight: 700; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.of-src { font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--surface-page); border: 1px solid var(--border); border-radius: 5px; padding: 0 6px; }
 .of-lead-status { flex-shrink: 0; }
-.of-chip { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 11.5px; font-weight: 700; white-space: nowrap; background: var(--surface-page); color: var(--text-secondary); border: 1px solid var(--border); }
-.of-chip.bad { background: var(--status-critical-bg); color: var(--status-critical); border-color: transparent; }
-.of-chip.good { background: var(--status-good-bg); color: var(--status-good); border-color: transparent; }
-.of-chip.warn { background: var(--status-warn-bg); color: var(--status-warn); border-color: transparent; }
-.of-chip.muted { color: var(--text-muted); font-weight: 600; }
-.of-cadence { display: flex; flex-wrap: wrap; gap: 5px; }
-.of-pill { display: inline-flex; gap: 5px; align-items: center; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-page); color: var(--text-secondary); white-space: nowrap; }
-.of-pill b { color: var(--text-primary); }
-.of-pc { font-variant-numeric: tabular-nums; }
-.of-pill.met { background: var(--status-good-bg); border-color: transparent; color: var(--status-good); }
-.of-pill.met b { color: var(--status-good); }
-.of-pill.today { border: 2px solid var(--status-warn); padding: 2px 7px; color: var(--text-primary); background: var(--surface-card); }
-.of-pill.partial { background: var(--status-warn-bg); border-color: transparent; color: var(--status-warn); }
-.of-pill.missed { background: var(--status-critical-bg); border-color: transparent; color: var(--status-critical); }
-.of-pill.missed b, .of-pill.partial b { color: inherit; }
-.of-pill.up { color: var(--text-muted); }
-.of-pill.waived { opacity: .45; text-decoration: line-through; }
+.of-contact { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.of-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--text-secondary); text-decoration: none; }
+.of-link:hover { color: var(--brand-teal); text-decoration: underline; }
+.of-link.sm { font-size: 12px; }
+.of-link.sm .of-svg { width: 12px; height: 12px; }
+
+/* cadence stepper */
+.of-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.of-step { border: 1px solid var(--border); border-radius: 9px; padding: 6px 8px; background: var(--surface-page); min-width: 0; }
+.of-step-h { display: flex; justify-content: space-between; gap: 4px; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.of-step-h b { color: var(--text-primary); font-weight: 700; }
+.of-step-h span { overflow: hidden; text-overflow: ellipsis; }
+.of-step-b { display: flex; gap: 10px; align-items: center; margin-top: 4px; color: var(--text-muted); font-size: 11px; }
+.of-dots { display: inline-flex; align-items: center; gap: 3px; }
+.of-dots .of-svg { width: 12px; height: 12px; margin-right: 1px; }
+.of-dots i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; opacity: .55; }
+.of-dots i.on { background: currentColor; opacity: 1; }
+.of-dots em { font-style: normal; font-size: 10px; font-weight: 700; }
+.of-step-w { font-weight: 600; }
+.of-step.s-met { background: var(--status-good-bg); border-color: transparent; }
+.of-step.s-met, .of-step.s-met .of-step-h b { color: var(--status-good); }
+.of-step.s-met .of-step-b { color: var(--status-good); }
+.of-step.s-today { background: var(--surface-card); border: 2px solid var(--status-warn); padding: 5px 7px; }
+.of-step.s-today .of-step-b { color: var(--status-warn); }
+.of-step.s-partial { background: var(--status-warn-bg); border-color: transparent; }
+.of-step.s-partial .of-step-b, .of-step.s-partial .of-step-h b { color: var(--status-warn); }
+.of-step.s-missed { background: var(--status-critical-bg); border-color: transparent; }
+.of-step.s-missed .of-step-b, .of-step.s-missed .of-step-h b { color: var(--status-critical); }
+.of-step.s-waived { opacity: .45; }
+.of-step-r.s-up { border-style: dashed; }
+
+/* lead actions */
 .of-lead-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.of-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
 .of-last { font-size: 11.5px; color: var(--text-muted); margin-left: auto; }
-.of-close-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; background: var(--surface-page); border-radius: var(--radius-sm); font-size: 12.5px; margin-top: 4px; }
-.of-input { flex: 1 1 180px; min-width: 0; border: 1px solid var(--border); background: var(--surface-card); color: var(--text-primary); border-radius: var(--radius-sm); padding: 5px 8px; font-size: 12.5px; font-family: inherit; }
-.of-table-wrap { overflow-x: auto; background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius); }
-.of-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.of-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); font-weight: 600; padding: 8px 12px; border-bottom: 1px solid var(--border); }
-.of-table td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
-.of-table tr:last-child td { border-bottom: none; }
-.of-job-act { text-align: right; white-space: nowrap; }
-.of-job-act .of-close-row { white-space: normal; justify-content: flex-end; }
-.of-checklist { display: flex; flex-direction: column; background: var(--surface-card); border: 1px solid var(--border); border-radius: var(--radius); }
-.of-ck { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border); align-items: center; font-size: 13px; }
+.of-last a { color: inherit; }
+.of-menu { position: relative; }
+.of-menu summary { list-style: none; }
+.of-menu summary::-webkit-details-marker { display: none; }
+.of-menu-list { position: absolute; left: 0; top: calc(100% + 4px); z-index: 6; min-width: 210px; background: var(--surface-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 4px; display: flex; flex-direction: column; }
+.of-menu-list button { all: unset; box-sizing: border-box; padding: 8px 10px; border-radius: 7px; font-size: 13px; cursor: pointer; color: var(--text-primary); }
+.of-menu-list button:hover, .of-menu-list button:focus-visible { background: var(--surface-page); }
+.of-inline { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 10px; background: var(--surface-page); border-radius: 9px; font-size: 12.5px; margin-top: 2px; }
+.of-input { flex: 1 1 180px; min-width: 0; border: 1px solid var(--border); background: var(--surface-card); color: var(--text-primary); border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit; }
+.of-input:focus { outline: none; border-color: var(--brand-teal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-teal) 18%, transparent); }
+
+/* jobs */
+.of-jobs { display: flex; flex-direction: column; background: var(--surface-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); }
+.of-job { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border); align-items: start; }
+.of-job:last-child { border-bottom: none; }
+.of-date { width: 48px; text-align: center; border-radius: 9px; padding: 5px 0; background: var(--surface-page); border: 1px solid var(--border); line-height: 1.15; }
+.of-date b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
+.of-date span { font-size: 15px; font-weight: 800; color: var(--text-primary); }
+.of-job.is-ok .of-date { background: var(--status-good-bg); border-color: transparent; }
+.of-job.is-warn .of-date { background: var(--status-warn-bg); border-color: transparent; }
+.of-job-name { font-weight: 700; font-size: 14px; }
+.of-job-act { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
+.of-job-act .of-btn { justify-content: center; min-width: 112px; }
+.of-job .of-inline { margin-top: 6px; }
+
+/* checklist */
+.of-checklist { display: flex; flex-direction: column; background: var(--surface-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); }
+.of-ck { padding: 11px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 7px; }
 .of-ck:last-child { border-bottom: none; }
-.of-ck.done .of-ck-l b { color: var(--status-good); }
-.of-ck-r { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.of-ck-top { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.of-ck-ico { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--text-muted); margin-top: 1px; }
+.of-ck-ico .of-svg { width: 13px; height: 13px; }
+.of-ck.s-done .of-ck-ico { background: var(--status-good); border-color: var(--status-good); color: #fff; }
+.of-ck.s-na .of-ck-ico { background: var(--surface-page); }
+.of-ck.s-issue .of-ck-ico { background: var(--status-warn); border-color: var(--status-warn); color: #fff; }
+.of-ck-name { font-size: 13.5px; font-weight: 600; }
+.of-ck.s-done .of-ck-name { color: var(--text-secondary); }
+.of-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface-page); }
+.of-seg button { border: none; background: transparent; padding: 5px 9px; font-size: 12px; font-weight: 600; color: var(--text-secondary); cursor: pointer; font-family: inherit; }
+.of-seg button + button { border-left: 1px solid var(--border); }
+.of-seg button:hover { color: var(--text-primary); }
+.of-seg button.on.s-done { background: var(--status-good); color: #fff; }
+.of-seg button.on.s-na { background: var(--text-muted); color: #fff; }
+.of-seg button.on.s-issue { background: var(--status-warn); color: #fff; }
+.of-seg button:disabled { opacity: .6; cursor: default; }
+.of-ck-note { flex: none; margin-left: 32px; padding: 6px 9px; font-size: 12.5px; background: var(--surface-page); }
+.of-foot { margin-top: 18px; }
+
+/* bright brand color in dark mode needs dark text */
+:root[data-theme="dark"] .of-btn.primary, :root[data-theme="dark"] .of-filter.on span { color: #111; }
+
+@media (max-width: 1180px) {
+  .of-main { grid-template-columns: minmax(0, 1fr); }
+  .of-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 22px; align-items: start; }
+}
 @media (max-width: 900px) {
   .of-top { grid-template-columns: 1fr; }
-  .of-ck { grid-template-columns: 1fr; gap: 6px; }
 }
-@media (max-width: 520px) {
-  .of-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .of-lead-top { flex-direction: column; }
+@media (max-width: 620px) {
+  .of-page-h { align-items: flex-start; }
+  .of-title { font-size: 20px; }
+  .of-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .of-lead { padding: 12px 12px 12px 15px; }
+  .of-lead-top { flex-direction: column; gap: 6px; }
   .of-last { margin-left: 0; width: 100%; }
-  .of-job-act { white-space: normal; text-align: left; }
-  .of-table th:nth-child(3), .of-table td:nth-child(3) { display: none; }
+  .of-side { grid-template-columns: 1fr; }
+  .of-job { grid-template-columns: 44px minmax(0, 1fr); }
+  .of-job-act { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .of-job-act .of-btn { min-width: 0; }
+  .of-ck-top { grid-template-columns: 22px minmax(0, 1fr); }
+  .of-seg { grid-column: 2; justify-self: start; }
+  .of-ck-note { margin-left: 32px; }
+  .of-tasks { grid-template-columns: 1fr; }
+  .of-how[open] > div { right: auto; left: 0; }
+  .of-menu-list { left: auto; right: 0; }
 }
 </style>
 </head>
@@ -698,7 +847,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   <button class="tab-btn" data-tab="financial">Financial Snapshot</button>
   <button class="tab-btn" data-tab="crm">CRM Pipeline</button>
   <button class="tab-btn" data-tab="standup">Stand-up</button>
-  <button class="tab-btn" data-tab="office">Office</button>
+  <button class="tab-btn" data-tab="office">Front Office</button>
   <button class="tab-btn" data-tab="admin" id="manageUsersTabBtn" style="display:none;">Manage Users</button>
 </nav>
 
@@ -893,7 +1042,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
   <div class="container-wide" id="standupRoot"></div>
 </div>
 
-<!-- TAB: OFFICE (rendered by renderOffice) -->
+<!-- TAB: FRONT OFFICE (rendered by renderOffice) -->
 <div class="tab-content" id="tab-office">
   <div class="container-wide" id="officeRoot"></div>
 </div>
@@ -5507,7 +5656,7 @@ function renderAll() {
 // runs after initAuthGate() confirms a signed-in, authorized user. See the "Auth gate" block above.
 initAuthGate();
 
-/* ================= OFFICE TAB (2026-11-14, per Pranav) =================
+/* ================= FRONT OFFICE TAB (2026-11-14, per Pranav; tab renamed from "Office") =================
    Office-manager accountability. New ServiceMinder leads + their call/email cadence, the next two business
    days of install jobs to confirm, and the daily checklist from the office email. All of the rules (which
    contacts are leads, the business-day cadence, the Office Health score) live in the koala-office edge
@@ -5605,6 +5754,21 @@ function officeDay(iso) { return iso ? `${officeDow(iso)} ${suShort(iso)}` : '';
 function officeTime(ts) { return new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Denver' }); }
 function officeJsArg(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 
+/* ---- Front Office rendering (redesign 2026-11-14) ---- */
+const OF_SVG = (d, extra) => `<svg class="of-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra || ''}>${d}</svg>`;
+const OF_ICON = {
+  phone: OF_SVG('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>'),
+  mail: OF_SVG('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>'),
+  check: OF_SVG('<path d="M20 6 9 17l-5-5"/>'),
+  send: OF_SVG('<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>'),
+  truck: OF_SVG('<path d="M1 3h15v13H1z"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>'),
+  list: OF_SVG('<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/>'),
+  refresh: OF_SVG('<path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/>'),
+  info: OF_SVG('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>'),
+  user: OF_SVG('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+  more: OF_SVG('<path d="m6 9 6 6 6-6"/>'),
+};
+
 const OFFICE_FILTERS = [
   { key: 'action', label: 'Needs action', test: l => ['active', 'retreva_due', 'retreva_overdue', 'waiting'].includes(l.phase) },
   { key: 'scheduled', label: 'Scheduled', test: l => l.phase === 'scheduled' },
@@ -5612,147 +5776,239 @@ const OFFICE_FILTERS = [
   { key: 'old', label: 'Before tracking', test: l => l.phase === 'before_tracking' },
   { key: 'all', label: 'All', test: () => true },
 ];
+function officeOwes(l) { return !!(l.phase === 'active' && l.todo && (l.todo.call || l.todo.email)); }
+// Urgency drives the card's colored edge and its sort order.
+function officeUrgency(l) {
+  if (officeOwes(l) || l.phase === 'retreva_due' || l.phase === 'retreva_overdue') return 'red';
+  if (l.phase === 'active') return 'green';
+  if (l.phase === 'scheduled') return 'teal';
+  return 'gray';
+}
 function officePhaseChip(l) {
   const d = office.data;
   switch (l.phase) {
-    case 'active': return l.todo && (l.todo.call || l.todo.email)
-      ? `<span class="of-chip bad">Today: ${[l.todo.call ? `${l.todo.call} call${l.todo.call > 1 ? 's' : ''}` : '', l.todo.email ? 'email' : ''].filter(Boolean).join(' + ')}</span>`
-      : (() => { const next = l.dayChecks.find(dc => dc.date > d.today && dc.state === 'upcoming'); const doneToday = l.dayChecks.some(dc => dc.date === d.today && dc.state === 'met');
-          return `<span class="of-chip ${doneToday ? 'good' : ''}">${doneToday ? 'Today done · ' : ''}${next ? `Day ${next.day} ${officeDay(next.date)}` : `Retreva ${officeDay(l.retrevaDue)}`}</span>`; })();
+    case 'active': {
+      if (officeOwes(l)) return `<span class="of-chip bad">Today: ${[l.todo.call ? `${l.todo.call} call${l.todo.call > 1 ? 's' : ''}` : '', l.todo.email ? 'email' : ''].filter(Boolean).join(' + ')}</span>`;
+      const next = l.dayChecks.find(dc => dc.date > d.today && dc.state === 'upcoming');
+      const doneToday = l.dayChecks.some(dc => dc.date === d.today && dc.state === 'met');
+      return `<span class="of-chip ${doneToday ? 'good' : ''}">${doneToday ? `${OF_ICON.check} Today done` : ''}${doneToday && next ? ' · ' : ''}${next ? `Next: day ${next.day}, ${officeDay(next.date)}` : (doneToday ? '' : `Retreva ${officeDay(l.retrevaDue)}`)}</span>`;
+    }
     case 'waiting': return `<span class="of-chip">Starts ${officeDay(l.d1)}</span>`;
     case 'retreva_due': return `<span class="of-chip bad">Send to Retreva today</span>`;
-    case 'retreva_overdue': return `<span class="of-chip bad">Retreva overdue (due ${officeDay(l.retrevaDue)})</span>`;
-    case 'scheduled': return `<span class="of-chip good">${l.apptService === 'served' ? 'Served' : 'Scheduled'}${l.apptDate ? ' ' + officeDay(l.apptDate) : ''}</span>`;
+    case 'retreva_overdue': return `<span class="of-chip bad">Retreva overdue · was due ${officeDay(l.retrevaDue)}</span>`;
+    case 'scheduled': return `<span class="of-chip teal">${l.apptService === 'served' ? 'Served' : 'Booked'}${l.apptDate ? ' · ' + officeDay(l.apptDate) : ''}</span>`;
     case 'retreva': return `<span class="of-chip">Sent to Retreva ${suShort(l.status.date)}${l.status.by ? ' · ' + officeEsc(l.status.by.split(' ')[0]) : ''}</span>`;
     case 'closed': return `<span class="of-chip">${l.status.status === 'lost' ? 'Lost' : 'Not a lead'} ${suShort(l.status.date)}${l.status.by ? ' · ' + officeEsc(l.status.by.split(' ')[0]) : ''}</span>`;
     case 'before_tracking': return `<span class="of-chip muted">Before tracking</span>`;
   }
   return '';
 }
-function officeCadenceHtml(l) {
+function officeDots(got, need, icon, label) {
+  const filled = Math.min(got, need);
+  let dots = '';
+  for (let i = 0; i < need; i++) dots += `<i class="${i < filled ? 'on' : ''}"></i>`;
+  return `<span class="of-dots" title="${got} of ${need} ${label}${need > 1 ? 's' : ''}">${icon}${dots}${got > need ? `<em>+${got - need}</em>` : ''}</span>`;
+}
+function officeStepsHtml(l) {
   const d = office.data;
-  const pills = l.dayChecks.map(dc => {
+  const steps = l.dayChecks.map(dc => {
     const pre = dc.date < d.health.startsOn && (dc.state === 'missed' || dc.state === 'partial');
-    const cls = pre ? 'up' : ({ met: 'met', today: 'today', missed: 'missed', partial: 'partial', upcoming: 'up', waived: 'waived' }[dc.state] || '');
-    const tip = `Day ${dc.day} (${officeDay(dc.date)}): ${dc.got.call}/${dc.need.call} calls, ${dc.got.email}/${dc.need.email} email — ${pre ? 'before tracking started (not scored)' : dc.state === 'waived' ? 'not needed (scheduled or closed)' : dc.state}`;
-    return `<span class="of-pill ${cls}" title="${officeEsc(tip)}"><b>D${dc.day}</b> ${officeDow(dc.date)} <span class="of-pc">☎ ${dc.got.call}/${dc.need.call}</span> <span class="of-pc">✉ ${dc.got.email}/${dc.need.email}</span></span>`;
+    const st = pre ? 'up' : ({ met: 'met', today: 'today', missed: 'missed', partial: 'partial', upcoming: 'up', waived: 'waived' }[dc.state] || 'up');
+    const word = pre ? 'before tracking' : { met: 'done', today: 'today', missed: 'missed', partial: 'partly done', up: 'upcoming', waived: 'not needed' }[st];
+    return `<div class="of-step s-${st}" title="Day ${dc.day}, ${officeDay(dc.date)} — ${dc.got.call}/${dc.need.call} calls, ${dc.got.email}/${dc.need.email} email · ${word}">
+      <div class="of-step-h"><b>Day ${dc.day}</b><span>${officeDay(dc.date)}</span></div>
+      <div class="of-step-b">${officeDots(dc.got.call, dc.need.call, OF_ICON.phone, 'call')}${officeDots(dc.got.email, dc.need.email, OF_ICON.mail, 'email')}</div>
+    </div>`;
   }).join('');
-  const rCls = l.phase === 'retreva' ? 'met' : (l.phase === 'retreva_due' ? 'today' : l.phase === 'retreva_overdue' ? 'missed' : (l.phase === 'scheduled' || l.phase === 'closed' || l.phase === 'before_tracking') ? 'waived' : 'up');
-  return `<div class="of-cadence">${pills}<span class="of-pill ${rCls}" title="Send to Retreva on day 5 if there's still no appointment"><b>Retreva</b> ${officeDow(l.retrevaDue)} ${suShort(l.retrevaDue)}</span></div>`;
+  const rs = l.phase === 'retreva' ? 'met' : l.phase === 'retreva_due' ? 'today' : l.phase === 'retreva_overdue' ? 'missed' : ['scheduled', 'closed', 'before_tracking'].includes(l.phase) ? 'waived' : 'up';
+  return `<div class="of-steps">${steps}<div class="of-step of-step-r s-${rs}" title="Send to Retreva on day 5 if there's still no appointment"><div class="of-step-h"><b>Retreva</b><span>${officeDay(l.retrevaDue)}</span></div><div class="of-step-b">${OF_ICON.send}<span class="of-step-w">${rs === 'met' ? 'sent' : rs === 'waived' ? '—' : 'hand off'}</span></div></div></div>`;
 }
 function officeLeadHtml(l) {
-  const d = office.data;
+  const d = office.data, p = office.pending, id = officeJsArg(l.id);
   const open = ['active', 'waiting', 'retreva_due', 'retreva_overdue'].includes(l.phase);
-  const p = office.pending;
+  const closedOut = l.phase === 'retreva' || l.phase === 'closed';
   const myToday = l.touches.filter(t => t.date === d.today && currentUser && t.userId === currentUser.id);
-  const lastTouch = l.touches.length ? l.touches[l.touches.length - 1] : null;
+  const last = l.touches.length ? l.touches[l.touches.length - 1] : null;
   const closing = office.closing && office.closing.contactId === l.id ? office.closing : null;
-  const id = officeJsArg(l.id);
-  const meta = [officeEsc(l.campaign || l.channel), `came in ${officeDay(l.createdDate)} ${officeEsc((l.createdLabel.match(/\d{1,2}:\d{2}(?::\d{2})?\s*[AP]M/i) || [''])[0].replace(/:\d{2}(\s*[AP]M)/i, '$1'))}`, officeEsc(l.createdBy), l.city ? officeEsc(l.city) : ''].filter(Boolean).join(' · ');
-  const contact = [l.phone ? `<a href="tel:${officeEsc(l.phone.replace(/[^0-9+]/g, ''))}">${officeEsc(l.phone)}</a>` : '', l.email ? `<a href="mailto:${officeEsc(l.email)}">${officeEsc(l.email)}</a>` : ''].filter(Boolean).join(' · ');
-  return `<div class="of-lead${open ? '' : ' done'}">
-    <div class="of-lead-top">
-      <div class="of-lead-id"><div class="of-lead-name">${officeEsc(l.name)}</div><div class="of-meta">${meta}</div>${contact ? `<div class="of-meta">${contact}</div>` : ''}</div>
+  const time = ((l.createdLabel || '').match(/\d{1,2}:\d{2}(?::\d{2})?\s*[AP]M/i) || [''])[0].replace(/:\d{2}(\s*[AP]M)/i, '$1');
+  const retrevaNow = l.phase === 'retreva_due' || l.phase === 'retreva_overdue';
+  return `<article class="of-lead u-${officeUrgency(l)}${open ? '' : ' is-done'}">
+    <header class="of-lead-top">
+      <div class="of-lead-id">
+        <div class="of-lead-name">${officeEsc(l.name)} <span class="of-src">${officeEsc(l.campaign || l.channel)}</span></div>
+        <div class="of-meta">Came in ${officeDay(l.createdDate)}${time ? ' · ' + officeEsc(time) : ''} · ${officeEsc(l.createdBy)}${l.city ? ' · ' + officeEsc(l.city) : ''}</div>
+      </div>
       <div class="of-lead-status">${officePhaseChip(l)}</div>
-    </div>
-    ${l.phase === 'before_tracking' ? '' : officeCadenceHtml(l)}
-    <div class="of-lead-actions">
-      ${l.phase !== 'retreva' && l.phase !== 'closed' ? `
-        <button class="su-btn${l.todo && l.todo.call ? ' primary' : ''}" ${p[`t:${l.id}:call`] ? 'disabled' : ''} onclick="officeLogTouch('${id}','call')">☎ Log call</button>
-        <button class="su-btn${l.todo && l.todo.email ? ' primary' : ''}" ${p[`t:${l.id}:email`] ? 'disabled' : ''} onclick="officeLogTouch('${id}','email')">✉ Log email</button>
-        ${l.phase !== 'scheduled' ? `<span class="of-sep"></span>
-        <button class="su-btn${l.phase === 'retreva_due' || l.phase === 'retreva_overdue' ? ' primary' : ''}" onclick="officeStartClose('${id}','retreva')">Sent to Retreva</button>
-        <button class="su-btn" onclick="officeStartClose('${id}','lost')">Lost</button>
-        <button class="su-btn" onclick="officeStartClose('${id}','not_lead')">Not a lead</button>` : ''}`
-      : `<button class="su-btn" ${p[`s:${l.id}`] ? 'disabled' : ''} onclick="officeReopen('${id}')">Undo ${l.phase === 'retreva' ? 'Retreva' : 'close-out'}</button>${l.status && l.status.note ? `<span class="of-meta">“${officeEsc(l.status.note)}”</span>` : ''}`}
-      ${lastTouch ? `<span class="of-last">Last: ${lastTouch.kind} ${officeDay(lastTouch.date)} ${officeTime(lastTouch.at)}${lastTouch.by ? ' · ' + officeEsc(lastTouch.by.split(' ')[0]) : ''}${myToday.length && myToday[myToday.length - 1].id === lastTouch.id ? ` · <a href="#" onclick="officeUndoTouch('${officeJsArg(lastTouch.id)}','${id}');return false;">undo</a>` : ''}</span>` : ''}
-    </div>
-    ${closing ? `<div class="of-close-row">
-      <b>${closing.status === 'retreva' ? 'Sent to Retreva' : closing.status === 'lost' ? 'Mark lost' : 'Not a lead'}</b>
-      <input id="officeCloseNote" class="of-input" maxlength="300" placeholder="${closing.status === 'retreva' ? 'Optional note' : closing.status === 'lost' ? 'Why? (e.g. went with another company)' : 'Why? (e.g. spam, wrong number, vendor)'}" onkeydown="if(event.key==='Enter')officeSaveClose();if(event.key==='Escape')officeCancelClose();">
-      <button class="su-btn primary" onclick="officeSaveClose()">Save</button><button class="su-btn" onclick="officeCancelClose()">Cancel</button>
+    </header>
+    ${l.phone || l.email ? `<div class="of-contact">${l.phone ? `<a class="of-link" href="tel:${officeEsc(l.phone.replace(/[^0-9+]/g, ''))}">${OF_ICON.phone}${officeEsc(l.phone)}</a>` : ''}${l.email ? `<a class="of-link" href="mailto:${officeEsc(l.email)}">${OF_ICON.mail}${officeEsc(l.email)}</a>` : ''}</div>` : ''}
+    ${l.phase === 'before_tracking' ? '' : officeStepsHtml(l)}
+    <footer class="of-lead-actions">
+      ${closedOut
+        ? `<button class="of-btn" ${p[`s:${l.id}`] ? 'disabled' : ''} onclick="officeReopen('${id}')">Undo ${l.phase === 'retreva' ? 'Retreva' : 'close-out'}</button>${l.status && l.status.note ? `<span class="of-meta of-quote">“${officeEsc(l.status.note)}”</span>` : ''}`
+        : `<button class="of-btn ${l.todo && l.todo.call ? 'primary' : ''}" ${p[`t:${l.id}:call`] ? 'disabled' : ''} onclick="officeLogTouch('${id}','call')">${OF_ICON.phone}Log call</button>
+           <button class="of-btn ${l.todo && l.todo.email ? 'primary' : ''}" ${p[`t:${l.id}:email`] ? 'disabled' : ''} onclick="officeLogTouch('${id}','email')">${OF_ICON.mail}Log email</button>
+           ${l.phase !== 'scheduled' ? `${retrevaNow ? `<button class="of-btn primary" onclick="officeStartClose('${id}','retreva')">${OF_ICON.send}Send to Retreva</button>` : ''}
+           <details class="of-menu"><summary class="of-btn ghost">Close out ${OF_ICON.more}</summary><div class="of-menu-list">
+             ${retrevaNow ? '' : `<button onclick="this.closest('details').open=false;officeStartClose('${id}','retreva')">Sent to Retreva</button>`}
+             <button onclick="this.closest('details').open=false;officeStartClose('${id}','lost')">Lost — not interested</button>
+             <button onclick="this.closest('details').open=false;officeStartClose('${id}','not_lead')">Not a lead (spam, vendor…)</button>
+           </div></details>` : ''}`}
+      ${last ? `<span class="of-last">Last ${last.kind} ${officeDay(last.date) === officeDay(d.today) ? 'today' : officeDay(last.date)} ${officeTime(last.at)}${last.by ? ' · ' + officeEsc(last.by.split(' ')[0]) : ''}${myToday.length && myToday[myToday.length - 1].id === last.id ? ` · <a href="#" onclick="officeUndoTouch('${officeJsArg(last.id)}','${id}');return false;">undo</a>` : ''}</span>` : ''}
+    </footer>
+    ${closing ? `<div class="of-inline">
+      <b>${closing.status === 'retreva' ? 'Send to Retreva' : closing.status === 'lost' ? 'Mark as lost' : 'Not a lead'}</b>
+      <input id="officeCloseNote" class="of-input" maxlength="300" placeholder="${closing.status === 'retreva' ? 'Optional note' : closing.status === 'lost' ? 'Why? (e.g. went with another company)' : 'Why? (spam, wrong number, vendor…)'}" onkeydown="if(event.key==='Enter')officeSaveClose();if(event.key==='Escape')officeCancelClose();">
+      <button class="of-btn primary" onclick="officeSaveClose()">Save</button><button class="of-btn ghost" onclick="officeCancelClose()">Cancel</button>
     </div>` : ''}
-  </div>`;
+  </article>`;
 }
 function officeHealthHtml(h) {
-  if (h.score == null) return `<div class="eh-card of-health"><div class="eh-head"><div><div class="eh-name">Office Health</div><div class="eh-role">Starts counting ${officeDay(h.startsOn)} — every business day after that is scored.</div></div><div class="eh-score">—<span>/100</span></div></div></div>`;
+  if (h.score == null) return `<section class="of-card of-health"><div class="of-card-h"><div><div class="of-kicker">Front Office Health</div><div class="of-meta">Starts counting ${officeDay(h.startsOn)}. Each business day is scored once it's over.</div></div><div class="of-score">—<span>/100</span></div></div>
+    <ul class="of-weights"><li><span>Lead calls & emails on time</span><b>45</b></li><li><span>Jobs confirmed before they start</span><b>20</b></li><li><span>Daily checklist filled in</span><b>20</b></li><li><span>Sent to Retreva on day 5</span><b>15</b></li></ul></section>`;
   const parts = Object.entries(h.parts).filter(([, p]) => p).map(([k, p]) => {
     const v = Math.round(p.value); const open = office.openPart === k;
     return `<button type="button" class="eh-part eh-part-btn" onclick="officeTogglePart('${k}')" title="${officeEsc(p.detail)}"><span class="eh-part-l">${officeEsc(p.label)} <span class="eh-part-go">${open ? '▾' : '›'}</span></span><span class="eh-bar"><i class="${ehColor(v)}" style="width:${Math.max(2, v)}%"></i></span><span class="eh-part-v">${v}%</span><span class="eh-part-w">×${p.weight}</span></button>
       ${open ? `<div class="of-misses"><div class="of-meta">${officeEsc(p.detail)}</div>${p.misses && p.misses.length ? `<ul>${p.misses.slice(0, 30).map(m => `<li><span>${officeEsc(m.lead)}</span><span class="of-meta">${officeDay(m.date)}${m.day ? ` · day ${m.day}` : ''}${m.missing ? ` · missed ${officeEsc(m.missing)}` : ''}</span></li>`).join('')}${p.misses.length > 30 ? `<li class="of-meta">+${p.misses.length - 30} more</li>` : ''}</ul>` : '<div class="of-meta">Nothing missed.</div>'}</div>` : ''}`;
   }).join('');
-  return `<div class="eh-card of-health"><div class="eh-head"><div><div class="eh-name">Office Health</div><div class="eh-role">${h.days < 10 ? `Since ${officeDay(h.from)}` : 'Last 10 business days'} · today isn't scored until it's over</div></div><div class="eh-score ${ehColor(h.score)}">${h.score}<span>/100</span></div></div><div class="eh-parts">${parts}</div></div>`;
+  return `<section class="of-card of-health"><div class="of-card-h"><div><div class="of-kicker">Front Office Health</div><div class="of-meta">${h.days < 10 ? `Since ${officeDay(h.from)}` : 'Last 10 business days'} · today counts once it's over</div></div><div class="of-score ${ehColor(h.score)}">${h.score}<span>/100</span></div></div><div class="eh-parts">${parts}</div></section>`;
 }
+// Today's work, as one progress bar + a row per kind of task.
+function officeTodayModel(d) {
+  let callN = 0, callG = 0, emN = 0, emG = 0;
+  for (const l of d.leads) {
+    if (l.phase !== 'active') continue;
+    const dc = l.dayChecks.find(x => x.date === d.today && (x.state === 'today' || x.state === 'met'));
+    if (!dc) continue;
+    callN += dc.need.call; callG += Math.min(dc.got.call, dc.need.call);
+    emN += dc.need.email; emG += Math.min(dc.got.email, dc.need.email);
+  }
+  const retOpen = d.leads.filter(l => l.phase === 'retreva_due' || l.phase === 'retreva_overdue').length;
+  const retDone = d.leads.filter(l => l.status && l.status.date === d.today && l.retrevaDue <= d.today).length;
+  const jobN = d.jobs.length, jobG = d.jobs.filter(j => j.confirm).length;
+  const ckN = d.checklist.length, ckG = d.checklist.filter(i => i.entry || (i.freq === 'weekly' && i.doneEarlier)).length;
+  const rows = [
+    { key: 'calls', icon: OF_ICON.phone, label: 'Lead calls', done: callG, total: callN, target: 'ofLeads' },
+    { key: 'emails', icon: OF_ICON.mail, label: 'Lead emails', done: emG, total: emN, target: 'ofLeads' },
+    { key: 'retreva', icon: OF_ICON.send, label: 'Send to Retreva', done: retDone, total: retOpen + retDone, target: 'ofLeads' },
+    { key: 'jobs', icon: OF_ICON.truck, label: 'Confirm jobs', done: jobG, total: jobN, target: 'ofJobs' },
+    { key: 'checklist', icon: OF_ICON.list, label: 'Daily checklist', done: ckG, total: ckN, target: 'ofChecklist' },
+  ];
+  const done = rows.reduce((s, r) => s + r.done, 0), total = rows.reduce((s, r) => s + r.total, 0);
+  return { rows, done, total };
+}
+function officeJump(id) { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function officeTodayHtml(d) {
+  const t = officeTodayModel(d);
+  const pct = t.total ? Math.round(100 * t.done / t.total) : 100;
+  const left = t.total - t.done;
+  return `<section class="of-card of-today">
+    <div class="of-card-h"><div><div class="of-kicker">Today · ${officeDay(d.today)}</div><div class="of-big">${t.total ? (left ? `${left} thing${left === 1 ? '' : 's'} left` : 'All caught up') : 'Nothing due today'}</div></div>
+      <div class="of-pct ${left ? '' : 'good'}">${t.done}<span>/${t.total}</span></div></div>
+    <div class="of-progress"><i style="width:${pct}%"></i></div>
+    <div class="of-tasks">${t.rows.map(r => {
+      const ok = r.total === 0 || r.done >= r.total;
+      return `<button type="button" class="of-task ${r.total === 0 ? 'none' : ok ? 'ok' : 'due'}" onclick="officeJump('${r.target}')">
+        <span class="of-task-ico">${ok && r.total ? OF_ICON.check : r.icon}</span><span class="of-task-l">${r.label}</span>
+        <span class="of-task-v">${r.total ? `${r.done}/${r.total}` : '—'}</span></button>`;
+    }).join('')}</div>
+    <div class="of-meta of-today-foot">${OF_ICON.mail} A summary goes to koalanm@koalainsulation.com at 4:45pm, Mon–Fri.</div>
+  </section>`;
+}
+function officeJobsHtml(d) {
+  const p = office.pending;
+  if (!d.jobs.length) return `<div class="of-empty">No install jobs start ${officeDay(d.window[0])} or ${officeDay(d.window[1])}.</div>`;
+  return `<div class="of-jobs">${d.jobs.map(j => {
+    const k = officeJsArg(j.job_key), dom = officeDomId(j.job_key), c = j.confirm;
+    return `<div class="of-job ${c ? (c.status === 'confirmed' ? 'is-ok' : 'is-warn') : ''}">
+      <div class="of-date"><b>${officeDow(j.first)}</b><span>${suShort(j.first)}</span></div>
+      <div class="of-job-main">
+        <div class="of-job-name">${officeEsc(j.customer)}</div>
+        <div class="of-meta">${officeEsc(j.service)}${j.days > 1 ? ` · ${j.days} days` : ''}${j.city ? ' · ' + officeEsc(j.city) : ''}</div>
+        <div class="of-meta">${j.agents ? `${OF_ICON.user}${officeEsc(j.agents)}` : ''}${j.phone ? `${j.agents ? ' · ' : ''}<a class="of-link sm" href="tel:${officeEsc(j.phone.replace(/[^0-9+]/g, ''))}">${OF_ICON.phone}${officeEsc(j.phone)}</a>` : ''}</div>
+        ${c && c.note ? `<div class="of-meta of-quote">“${officeEsc(c.note)}”</div>` : ''}
+        ${!c && office.jobNote === j.job_key ? `<div class="of-inline"><input id="officeJobNote-${dom}" class="of-input" maxlength="300" placeholder="What happened? (left voicemail, texted…)" onkeydown="if(event.key==='Enter')officeConfirmJob('${k}','unreachable');"><button class="of-btn primary" onclick="officeConfirmJob('${k}','unreachable')">Save</button></div>` : ''}
+      </div>
+      <div class="of-job-act">${c
+        ? `<span class="of-chip ${c.status === 'confirmed' ? 'good' : 'warn'}">${c.status === 'confirmed' ? OF_ICON.check + 'Confirmed' : "Couldn't reach"}</span><div class="of-meta">${officeEsc((c.by || '').split(' ')[0])} · <a href="#" onclick="officeClearJob('${k}');return false;">undo</a></div>`
+        : `<button class="of-btn primary" ${p[`j:${j.job_key}`] ? 'disabled' : ''} onclick="officeConfirmJob('${k}','confirmed')">${OF_ICON.check}Confirmed</button><button class="of-btn ghost" ${p[`j:${j.job_key}`] ? 'disabled' : ''} onclick="officeConfirmJob('${k}','unreachable')">Couldn't reach</button>`}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+function officeChecklistHtml(d) {
+  const p = office.pending;
+  const ph = { pipeline: 'Notes on jobs & proposals', solar_fan: 'Customer names entered', nm_gas: 'Customer names submitted', hours_ta: 'Anything off?', tax_audit: 'Findings', invoice_delivery: 'Findings', notes: 'e.g. “Frank will send Charles Phillip’s email Monday”' };
+  return `<div class="of-checklist">${d.checklist.map(it => {
+    const e = it.entry, earlier = !e && it.freq === 'weekly' ? it.doneEarlier : null;
+    const st = e ? e.status : earlier ? 'done' : null;
+    const ico = st === 'done' ? OF_ICON.check : st === 'na' ? '–' : st === 'issue' ? '!' : '';
+    const seg = (status, label) => `<button class="${e && e.status === status ? 'on s-' + status : ''}" ${p[`c:${it.key}`] ? 'disabled' : ''} onclick="officeCheck('${it.key}','${status}')">${label}</button>`;
+    return `<div class="of-ck ${st ? 's-' + st : ''}">
+      <div class="of-ck-top">
+        <span class="of-ck-ico">${ico}</span>
+        <div class="of-ck-l"><div class="of-ck-name">${officeEsc(it.label)}${it.freq === 'weekly' ? ' <span class="of-chip muted sm">weekly</span>' : ''}</div>
+          <div class="of-meta">${e ? `${st === 'done' ? 'Done' : st === 'na' ? 'N/A' : 'Issue'} · ${officeEsc((e.by || '').split(' ')[0])} ${officeTime(e.at)} · <a href="#" onclick="officeClearCheck('${it.key}');return false;">clear</a>` : earlier ? `Done ${officeDow(earlier.day)} by ${officeEsc((earlier.by || '').split(' ')[0])}${earlier.note ? ` — “${officeEsc(earlier.note)}”` : ''}` : 'Not filled in yet'}</div></div>
+        <div class="of-seg" role="group" aria-label="${officeEsc(it.label)}">${seg('done', 'Done')}${seg('na', 'N/A')}${seg('issue', 'Issue')}</div>
+      </div>
+      <input id="officeCkNote-${it.key}" class="of-input of-ck-note" maxlength="1000" placeholder="${officeEsc(ph[it.key] || 'Note')}" value="${officeEsc(e && e.note ? e.note : '')}" onblur="officeSaveCheckNote('${it.key}')" onkeydown="if(event.key==='Enter')this.blur();">
+    </div>`;
+  }).join('')}</div>`;
+}
+function officeHowHtml(text) { return `<details class="of-how"><summary>${OF_ICON.info}How it works</summary><div>${text}</div></details>`; }
 function renderOffice() {
   const root = document.getElementById('officeRoot'); if (!root) return;
   const d = office.data;
   if (!d) {
-    root.innerHTML = office.error ? `<div class="of-error">Couldn't load the Office tab: ${officeEsc(office.error)} <button class="su-btn" onclick="officeLoad({force:true})">Try again</button></div>`
-      : `<div class="eh-empty">Loading new leads and jobs from ServiceMinder…</div>`;
+    root.innerHTML = office.error ? `<div class="of-error">Couldn't load Front Office: ${officeEsc(office.error)} <button class="of-btn" onclick="officeLoad({force:true})">Try again</button></div>`
+      : `<div class="of-loading"><span class="of-spin"></span>Loading new leads and jobs from ServiceMinder…</div>`;
     return;
   }
-  // Keep typing in a note box from being wiped by a re-render.
   const focus = document.activeElement && root.contains(document.activeElement) && document.activeElement.id ? { id: document.activeElement.id, val: document.activeElement.value, s: document.activeElement.selectionStart } : null;
-  const s = d.summary;
   const f = OFFICE_FILTERS.find(x => x.key === office.filter) || OFFICE_FILTERS[0];
-  const leads = d.leads.filter(f.test);
   const counts = Object.fromEntries(OFFICE_FILTERS.map(x => [x.key, d.leads.filter(x.test).length]));
-  const tile = (label, val, bad, sub) => `<div class="kpi-tile of-tile"><div class="kpi-label">${label}</div><div class="kpi-value ${bad ? 'of-bad' : 'of-ok'}">${val}</div>${sub ? `<div class="of-meta">${sub}</div>` : ''}</div>`;
-  const p = office.pending;
-  const jobs = d.jobs.map(j => {
-    const k = officeJsArg(j.job_key), dom = officeDomId(j.job_key);
-    return `<tr>
-      <td>${officeDay(j.first)}${j.days > 1 ? `<div class="of-meta">${j.days} days</div>` : ''}</td>
-      <td><b>${officeEsc(j.customer)}</b><div class="of-meta">${officeEsc(j.service)}${j.city ? ' · ' + officeEsc(j.city) : ''}${j.phone ? ` · <a href="tel:${officeEsc(j.phone.replace(/[^0-9+]/g, ''))}">${officeEsc(j.phone)}</a>` : ''}</div></td>
-      <td class="of-meta">${officeEsc(j.agents)}</td>
-      <td class="of-job-act">${j.confirm
-        ? `<span class="of-chip ${j.confirm.status === 'confirmed' ? 'good' : 'warn'}">${j.confirm.status === 'confirmed' ? 'Confirmed' : "Couldn't reach"}${j.confirm.by ? ' · ' + officeEsc(j.confirm.by.split(' ')[0]) : ''}</span>${j.confirm.note ? `<div class="of-meta">“${officeEsc(j.confirm.note)}”</div>` : ''} <a href="#" class="of-meta" onclick="officeClearJob('${k}');return false;">undo</a>`
-        : `<button class="su-btn primary" ${p[`j:${j.job_key}`] ? 'disabled' : ''} onclick="officeConfirmJob('${k}','confirmed')">Confirmed</button> <button class="su-btn" ${p[`j:${j.job_key}`] ? 'disabled' : ''} onclick="officeConfirmJob('${k}','unreachable')">Couldn't reach</button>
-           ${office.jobNote === j.job_key ? `<div class="of-close-row"><input id="officeJobNote-${dom}" class="of-input" maxlength="300" placeholder="What happened? (left voicemail, texted…)" onkeydown="if(event.key==='Enter')officeConfirmJob('${k}','unreachable');"><button class="su-btn primary" onclick="officeConfirmJob('${k}','unreachable')">Save</button></div>` : ''}`}</td>
-    </tr>`;
-  }).join('');
-  const checklist = d.checklist.map(it => {
-    const e = it.entry, earlier = !e && it.freq === 'weekly' ? it.doneEarlier : null;
-    const st = e ? e.status : null;
-    const btn = (status, label) => `<button class="su-btn${st === status ? (status === 'issue' ? ' bad' : ' primary') : ''}" ${p[`c:${it.key}`] ? 'disabled' : ''} onclick="officeCheck('${it.key}','${status}')">${label}</button>`;
-    const ph = { pipeline: 'Notes on jobs & proposals (or N/A)', solar_fan: 'Customer names entered', nm_gas: 'Customer names submitted', hours_ta: 'Anything off?', tax_audit: 'Findings', invoice_delivery: 'Findings', notes: 'Follow-ups with reps — e.g. “Frank will send Charles Phillip’s email Monday”' }[it.key] || 'Note';
-    return `<div class="of-ck${e ? ' done' : earlier ? ' done' : ''}">
-      <div class="of-ck-l"><b>${officeEsc(it.label)}</b>${it.freq === 'weekly' ? ' <span class="of-chip muted">weekly</span>' : ''}
-        <div class="of-meta">${e ? `${st === 'done' ? 'Done' : st === 'na' ? 'N/A' : 'Issue'} · ${officeEsc((e.by || '').split(' ')[0])} ${officeTime(e.at)} · <a href="#" onclick="officeClearCheck('${it.key}');return false;">clear</a>` : earlier ? `Done ${officeDow(earlier.day)} by ${officeEsc((earlier.by || '').split(' ')[0])}${earlier.note ? ` — “${officeEsc(earlier.note)}”` : ''}` : 'Not filled in yet'}</div></div>
-      <div class="of-ck-r">${btn('done', 'Done')}${btn('na', 'N/A')}${btn('issue', 'Issue')}
-        <input id="officeCkNote-${it.key}" class="of-input" maxlength="1000" placeholder="${officeEsc(ph)}" value="${officeEsc(e && e.note ? e.note : '')}" onblur="officeSaveCheckNote('${it.key}')" onkeydown="if(event.key==='Enter')this.blur();"></div>
-    </div>`;
-  }).join('');
+  const list = d.leads.filter(f.test);
+  let leadsHtml;
+  if (!list.length) leadsHtml = `<div class="of-empty">${f.key === 'action' ? `${OF_ICON.check} Nothing needs action right now.` : 'No leads here.'}</div>`;
+  else if (f.key === 'action') {
+    const groups = [
+      { t: 'Call or email today', rows: list.filter(officeOwes) },
+      { t: 'Send to Retreva', rows: list.filter(l => l.phase === 'retreva_due' || l.phase === 'retreva_overdue') },
+      { t: 'Done for today', rows: list.filter(l => l.phase === 'active' && !officeOwes(l)) },
+      { t: 'Starts next business day', rows: list.filter(l => l.phase === 'waiting') },
+    ].filter(g => g.rows.length);
+    leadsHtml = groups.map(g => `<div class="of-group"><div class="of-group-h">${g.t}<span>${g.rows.length}</span></div>${g.rows.map(officeLeadHtml).join('')}</div>`).join('');
+  } else leadsHtml = list.map(officeLeadHtml).join('');
+  const ckDone = d.checklist.filter(i => i.entry || (i.freq === 'weekly' && i.doneEarlier)).length;
+  const jobsDone = d.jobs.filter(j => j.confirm).length;
   root.innerHTML = `
-    <div class="section-title">Office <span class="section-title-sub">— ${officeDay(d.today)}. New ServiceMinder leads, jobs to confirm and the daily checklist. A summary is emailed to koalanm@koalainsulation.com at 4:45pm Mon–Fri.</span></div>
-    ${office.error ? `<div class="of-error" style="margin-bottom:12px">${officeEsc(office.error)}</div>` : ''}
-    ${!d.isBizDay ? `<div class="of-note">It's the weekend — lead days and the checklist pick back up ${officeDay(d.window[0])}. Leads that come in now start their day 1 then.</div>` : ''}
-    <div class="of-top">
-      ${officeHealthHtml(d.health)}
-      <div class="of-tiles">
-        ${tile('Calls owed today', s.callsOwed, s.callsOwed > 0)}
-        ${tile('Emails owed today', s.emailsOwed, s.emailsOwed > 0)}
-        ${tile('Send to Retreva', s.retrevaDue, s.retrevaDue > 0)}
-        ${tile('Jobs to confirm', s.jobsToConfirm, s.jobsToConfirm > 0, `${officeDay(d.window[0])} & ${officeDay(d.window[1])}`)}
-        ${tile('Checklist open', s.checklistOpen, s.checklistOpen > 0)}
-        ${tile('New leads today', s.newToday, false)}
-      </div>
+    <div class="of-page-h">
+      <div><h2 class="of-title">Front Office</h2><div class="of-sub">New ServiceMinder leads, jobs to confirm, and the daily checklist — ${officeDay(d.today)}</div></div>
+      <button class="of-btn ghost" ${office.loading ? 'disabled' : ''} onclick="officeLoad({force:true,refresh:true})">${OF_ICON.refresh}${office.loading ? 'Refreshing…' : 'Refresh'}</button>
     </div>
-
-    <div class="section-title" style="margin-top:22px">New leads <span class="section-title-sub">— day 1: 2 calls + 1 email · days 2–4: 1 call + 1 email each (business days) · day 5: send to Retreva. Booking an appointment in ServiceMinder stops the clock. Leads after 4pm or on weekends start the next business day.</span></div>
-    <div class="of-filters">${OFFICE_FILTERS.map(x => `<button class="of-filter${x.key === f.key ? ' on' : ''}" onclick="officeSetFilter('${x.key}')">${x.label} <span>${counts[x.key]}</span></button>`).join('')}
-      <button class="su-btn" style="margin-left:auto" ${office.loading ? 'disabled' : ''} onclick="officeLoad({force:true,refresh:true})">${office.loading ? 'Refreshing…' : '↻ Refresh from ServiceMinder'}</button></div>
-    <div class="of-leads">${leads.length ? leads.map(officeLeadHtml).join('') : `<div class="eh-empty">${f.key === 'action' ? 'Nothing needs action right now. 🎉' : 'No leads here.'}</div>`}</div>
-
-    <div class="section-title" style="margin-top:22px">Jobs to confirm <span class="section-title-sub">— install jobs starting ${officeDay(d.window[0])} or ${officeDay(d.window[1])}. Confirm each one with the customer before day 1.</span></div>
-    ${d.jobs.length ? `<div class="of-table-wrap"><table class="of-table"><thead><tr><th>Starts</th><th>Customer</th><th>Crew</th><th></th></tr></thead><tbody>${jobs}</tbody></table></div>` : '<div class="eh-empty">No install jobs start in the next two business days.</div>'}
-
-    <div class="section-title" style="margin-top:22px">Daily checklist <span class="section-title-sub">— ${officeDay(d.today)}. Pick Done, N/A or Issue; add names or notes the team should see. These go straight into the 4:45pm email.</span></div>
-    <div class="of-checklist">${checklist}</div>
-    <div class="of-meta" style="margin-top:10px">ServiceMinder data as of ${d.smFetchedAt ? new Date(d.smFetchedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'}${d.smStale ? ' (ServiceMinder didn’t answer — showing the last saved copy)' : ''}. Updates every minute while this tab is open.</div>`;
+    ${office.error ? `<div class="of-error">${officeEsc(office.error)}</div>` : ''}
+    ${!d.isBizDay ? `<div class="of-note">${OF_ICON.info}It's the weekend — lead days and the checklist pick back up ${officeDay(d.window[0])}. New leads that come in now start their day 1 then.</div>` : ''}
+    <div class="of-top">${officeTodayHtml(d)}${officeHealthHtml(d.health)}</div>
+    <div class="of-main">
+      <section class="of-col" id="ofLeads">
+        <div class="of-sec-h"><h3>New leads</h3>${officeHowHtml('Day 1: <b>2 calls + 1 email</b>. Days 2–4: <b>1 call + 1 email</b> each (business days). Day 5: <b>send to Retreva</b>. Booking an appointment in ServiceMinder stops the clock. Leads that come in after 4pm or on a weekend start the next business day. A lead counts if it isn’t marked Existing, isn’t tied to a builder and isn’t a general contractor.')}</div>
+        <div class="of-filters" role="tablist">${OFFICE_FILTERS.map(x => `<button role="tab" aria-selected="${x.key === f.key}" class="of-filter${x.key === f.key ? ' on' : ''}" onclick="officeSetFilter('${x.key}')">${x.label}<span>${counts[x.key]}</span></button>`).join('')}</div>
+        <div class="of-leads">${leadsHtml}</div>
+      </section>
+      <aside class="of-col of-side">
+        <section id="ofJobs">
+          <div class="of-sec-h"><h3>Jobs to confirm</h3><span class="of-count ${jobsDone === d.jobs.length ? 'good' : ''}">${jobsDone}/${d.jobs.length}</span>${officeHowHtml(`Install jobs whose first day is ${officeDay(d.window[0])} or ${officeDay(d.window[1])}. Call each customer and mark it before day 1. Evaluations and site visits aren’t listed — estimators confirm those.`)}</div>
+          ${officeJobsHtml(d)}
+        </section>
+        <section id="ofChecklist">
+          <div class="of-sec-h"><h3>Daily checklist</h3><span class="of-count ${ckDone === d.checklist.length ? 'good' : ''}">${ckDone}/${d.checklist.length}</span>${officeHowHtml('Pick Done, N/A or Issue for each item and add names or notes the team should see — they go straight into the 4:45pm email. Weekly items only need doing once Mon–Fri. Entries can only be made for today.')}</div>
+          ${officeChecklistHtml(d)}
+        </section>
+      </aside>
+    </div>
+    <div class="of-meta of-foot">ServiceMinder data as of ${d.smFetchedAt ? new Date(d.smFetchedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'}${d.smStale ? ' (ServiceMinder didn’t answer — showing the last saved copy)' : ''} · updates every minute while this tab is open.</div>`;
   if (focus) { const el = document.getElementById(focus.id); if (el) { if (typeof focus.val === 'string' && el.value !== focus.val) el.value = focus.val; el.focus(); try { el.setSelectionRange(focus.s, focus.s); } catch (e) {} } }
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && officeIsActive() && Date.now() - office.lastAt > 30000) officeLoad(); });
+document.addEventListener('click', (e) => { document.querySelectorAll('#officeRoot details.of-menu[open]').forEach(m => { if (!m.contains(e.target)) m.open = false; }); });
 </script>
 </body>
 </html>

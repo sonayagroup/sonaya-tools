@@ -5291,7 +5291,7 @@ function mkSentLine(wk,readonly){const x=MK.recap[wk];
   return readonly?"":'<div class="mk-sent none">Not emailed yet for this week.</div>';}
 function mkReadNotes(wk){const x=MK.recap[wk];if(!x||!x.sent_at)return "";const sn=x.salon_notes||{};const {rows}=mkWeek(wk);
   const items=rows.filter(r=>MK_OURS.has(r.salon_id)&&sn[r.salon_id]);if(!items.length&&!x.notes&&!x.reminders)return "";
-  return '<div class="card mk-comp"><div class="mk-comp-t">Notes from this week’s recap</div>'+(x.reminders?'<div class="mk-rem-ro"><b>📌 Reminders</b><br>'+esc(x.reminders).replace(/\n/g,"<br>")+'</div>':"")+(x.notes?'<div class="mk-ro-notes">'+esc(x.notes).replace(/\n/g,"<br>")+'</div>':"")+
+  return '<div class="card mk-comp"><div class="mk-comp-t">Notes from this week’s recap</div>'+(()=>{const t=[x.reminders||"",x.notes||""].filter(v=>v.trim()).join("\n");return t?'<div class="mk-rem-ro"><b>📌 This week</b><br>'+esc(t).replace(/\n/g,"<br>")+'</div>':"";})()+
     '<div class="mk-sal-list">'+items.map(r=>'<div class="mk-sal ro"><div class="mk-sal-h"><b>#'+r.rank+' '+esc(r.salon_id)+' '+esc(mkName(r))+'</b></div><div class="mk-sal-t">'+mkNoteHtml(sn[r.salon_id])+'</div></div>').join("")+'</div></div>';}
 async function mkCtx(wk){MK.ctx=MK.ctx||{};if(MK.ctx[wk])return MK.ctx[wk];
   const d0=new Date(wk+"T12:00:00");d0.setDate(d0.getDate()-6);const from=d0.toISOString().slice(0,10);const h=supaHeaders();
@@ -5324,24 +5324,33 @@ function mkHolidays(y){const D=(m,d)=>new Date(y,m,d,12);return [
   ["Thanksgiving",mkNthDow(y,10,4,4),"Thanksgiving week: schedule full teams Tuesday, Wednesday and Friday; confirm holiday hours are posted."],
   ["Christmas",D(11,25),"Christmas: the two weeks before are a peak. Schedules should be done and time off locked; confirm Christmas Eve hours."],
   ["New Year's Eve",D(11,31),"New Year's Eve: short day, confirm hours and schedule for the morning rush."]];}
-function mkRemSuggest(wk){const box=$("#mkRemSug");if(!box)return;const ta=$("#mkRem");
+function mkRemSuggest(wk){const box=$("#mkRemSug");if(!box)return;const ta=$("#mkNotes");
+  const remOf=w=>{const x=MK.recap[w]||{};const t=[x.reminders||"",mkOldNote(x.notes)?"":(x.notes||"")].join("\n");return t.split(/\r?\n/).filter(l=>l.trim()&&!MK_SUM.test(l)).join("\n");};
   const start=new Date(wk+"T12:00:00"),end=new Date(start);end.setDate(end.getDate()+28);
   const y=start.getFullYear();const hol=mkHolidays(y).concat(mkHolidays(y+1)).filter(h=>h[1]>start&&h[1]<=end);
-  const prevWk=MK.weeks.filter(w=>w<wk&&MK.recap[w]&&MK.recap[w].reminders&&MK.recap[w].reminders.trim())[0];
+  const prevWk=MK.weeks.filter(w=>w<wk&&remOf(w).trim())[0];
   let h=hol.map((x,i)=>'<button type="button" class="mk-sug" data-i="'+i+'" title="Add this reminder">+ '+esc(x[0])+' '+(x[1].getMonth()+1)+'/'+x[1].getDate()+'</button>').join("");
   if(prevWk)h+='<button type="button" class="mk-sug alt" data-prev="1" title="Copy the reminders from the WE '+mkMD(prevWk)+' recap">↺ Last week’s reminders</button>';
   box.innerHTML=h;box.hidden=!h;
-  box.querySelectorAll(".mk-sug").forEach(b=>b.onclick=()=>{const add=b.dataset.prev?MK.recap[prevWk].reminders.trim():"• "+hol[+b.dataset.i][2];
-    ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,"")+"\n":"")+add;ta.oninput&&ta.oninput();ta.focus();});}
-function mkComposerHtml(wk){const x=MK.recap[wk];const notes=x&&x.notes!=null?x.notes:mkDraft(wk);
+  box.querySelectorAll(".mk-sug").forEach(b=>b.onclick=()=>{const add=b.dataset.prev?remOf(prevWk):"• "+hol[+b.dataset.i][2];
+    const lines=ta.value.split(/\r?\n/),firstSum=lines.findIndex(l=>MK_SUM.test(l)); // reminders go above the summary lines
+    if(firstSum<0)ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,"")+"\n":"")+add;else{lines.splice(firstSum,0,add);ta.value=lines.join("\n");}ta.oninput&&ta.oninput();ta.focus();});}
+// One "This week" box = reminders/announcements + the auto summary lines (👍 🎯 📋). Refreshing replaces only the summary lines.
+const MK_SUM=/^\s*(👍|🎯|📋)/;
+function mkMerge(text,wk){const keep=String(text||"").split(/\r?\n/).filter(l=>l.trim()&&!MK_SUM.test(l));return keep.concat(mkDraft(wk).split("\n")).join("\n");}
+function mkOldNote(t){return /^Market recap for the week ending/.test(String(t||""));} // long opening note from before Nov 14
+function mkCombined(wk){const x=MK.recap[wk]||{};const rem=String(x.reminders||"").trim(),notes=x.notes;
+  if(notes==null||mkOldNote(notes))return mkMerge(rem,wk);
+  return rem&&!String(notes).includes(rem)?rem+"\n"+notes:notes;}
+function mkComposerHtml(wk){const x=MK.recap[wk];const notes=mkCombined(wk);
   return '<div class="card mk-comp"><div class="mk-comp-h"><div><div class="mk-comp-t">✉️ Email this recap to managers</div>'+
-    '<div class="mk-sub">The email has your reminders at the top, then the opening note, the comparison tiles, the colored ranking table, and the salon notes. Lines that start with • become bullets.</div></div>'+mkSentLine(wk,false)+'</div>'+
-    '<label class="mk-lab" for="mkRem">📌 Reminders &amp; announcements <span>holiday scheduling, policies, deadlines. Shown at the top of the email.</span></label>'+
+    '<div class="mk-sub">The email has this week’s note at the top, then the comparison tiles, the colored ranking table, and the salon notes. Lines that start with • become bullets.</div></div>'+mkSentLine(wk,false)+'</div>'+
+    '<label class="mk-lab" for="mkNotes">📌 This week <span>reminders and announcements, plus the summary lines (👍 🎯 📋) built from the numbers. Shown at the top of the email.</span></label>'+
     '<div class="mk-rem-sug" id="mkRemSug"></div>'+
-    '<textarea id="mkRem" rows="4" spellcheck="true" placeholder="• Thanksgiving week: schedule full teams Wed and Fri, those are our biggest days.&#10;• Reminder: all call-ins go to the manager by phone, not text.">'+esc(x&&x.reminders!=null?x.reminders:"")+'</textarea>'+
-    '<label class="mk-lab" for="mkNotes">Opening note</label><textarea id="mkNotes" rows="6" spellcheck="true">'+esc(notes)+'</textarea>'+
+    '<textarea id="mkNotes" rows="7" spellcheck="true" placeholder="• Thanksgiving week: schedule full teams Wed and Fri, those are our biggest days.">'+esc(notes)+'</textarea>'+
+    '<div class="mk-row" style="margin-top:4px"><button type="button" class="linkbtn" id="mkRefreshSum" title="Replace only the 👍 🎯 📋 lines with fresh ones; your reminders stay">↻ Refresh summary lines</button></div>'+
     '<div class="mk-lab">Salon notes <span>one short note per salon: the win, the issue the numbers point to, and what to do. Edit freely.</span></div><div id="mkSalNotes" class="mk-sal-list">Building salon notes…</div>'+
-    '<div class="mk-row"><button type="button" class="btn sec" id="mkRedraft" title="Replace the opening note and every salon note with fresh ones built from this week’s numbers">↻ Rebuild all notes</button><button type="button" class="btn sec" id="mkSaveNotes">Save draft</button><span class="mk-save" id="mkSaveMsg">'+(x&&x.updated_at&&x.notes!=null?"Draft saved "+new Date(x.updated_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+(x.updated_by?" by "+esc(x.updated_by):""):"Not saved yet")+'</span></div>'+
+    '<div class="mk-row"><button type="button" class="btn sec" id="mkRedraft" title="Refresh the summary lines and rewrite every salon note from this week’s numbers. Your reminders stay.">↻ Rebuild all notes</button><button type="button" class="btn sec" id="mkSaveNotes">Save draft</button><span class="mk-save" id="mkSaveMsg">'+(x&&x.updated_at&&x.notes!=null?"Draft saved "+new Date(x.updated_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})+(x.updated_by?" by "+esc(x.updated_by):""):"Not saved yet")+'</span></div>'+
     '<div class="mk-lab">Recipients <span id="mkRecipCount"></span></div><div id="mkRecip" class="mk-recip">Loading recipients…</div>'+
     '<div class="mk-row mk-send"><button type="button" class="btn sec" id="mkPrev">Preview email</button><button type="button" class="btn" id="mkSend">Send recap</button><span class="mk-save" id="mkSendMsg"></span></div>'+
     '<div id="mkPrevWrap" hidden><div class="mk-prev-bar"><b id="mkPrevSubj"></b><button type="button" class="btn sec" id="mkPrevClose">Close preview</button></div><iframe id="mkPrevFrame" title="Email preview" sandbox=""></iframe></div></div>';}
@@ -5359,30 +5368,32 @@ function mkRecipRender(){const box=$("#mkRecip");if(!box||!MK.recip)return;
   box.querySelectorAll(".linkbtn").forEach(b=>b.onclick=()=>{const a=b.dataset.a;MK.recipSel=new Set(a==="all"?MK.recip.map(r=>r.email):[]);MK.confirm=false;mkRecipRender();});
   cnt();}
 async function mkSaveNotes(wk,quiet){const n=$("#mkNotes");if(!n)return;const who=(GCU.perms&&(GCU.perms.name||GCU.perms.email))||"";
-  const body={week_ending:wk,notes:n.value,reminders:($("#mkRem")||{}).value||"",salon_notes:mkSalNotesVal(),updated_by:who,updated_at:new Date().toISOString()};
+  const body={week_ending:wk,notes:n.value,reminders:"",salon_notes:mkSalNotesVal(),updated_by:who,updated_at:new Date().toISOString()};
   const r=await fetch(SUPA_URL+"/rest/v1/market_recap?on_conflict=week_ending",{method:"POST",headers:{...supaHeaders(),"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=representation"},body:JSON.stringify(body)});
   if(!r.ok)throw new Error("Couldn't save the notes ("+r.status+")");const j=await r.json();MK.recap[wk]={...(MK.recap[wk]||{}),...(j[0]||body)};MK.notesDirty=false;
   const m=$("#mkSaveMsg");if(m)m.textContent="Draft saved "+new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})+(who?" by "+who:"");}
 function mkWireComposer(wk){
   const n=$("#mkNotes"),msg=$("#mkSendMsg");let t=null;
   n.oninput=()=>{MK.notesDirty=true;MK.confirm=false;mkRecipRender();$("#mkSaveMsg").textContent="Unsaved changes…";clearTimeout(t);t=setTimeout(()=>mkSaveNotes(wk,true).catch(e=>{$("#mkSaveMsg").textContent=e.message;}),1500);};
-  const rem=$("#mkRem");rem.oninput=n.oninput;mkRemSuggest(wk);
+  mkRemSuggest(wk);
+  const fit=()=>{n.style.height="auto";n.style.height=Math.max(n.scrollHeight+2,120)+"px";};fit();n.addEventListener("input",fit);
+  $("#mkRefreshSum").onclick=()=>{n.value=mkMerge(n.value,wk);fit();n.oninput();};
   const salBox=$("#mkSalNotes");
   const wireSal=()=>{salBox.querySelectorAll(".mk-sal-ta").forEach(ta=>{ta.oninput=n.oninput;ta.style.height="auto";ta.style.height=(ta.scrollHeight+2)+"px";});
     salBox.querySelectorAll(".mk-sal-re").forEach(b=>b.onclick=()=>{const ta=salBox.querySelector('.mk-sal-ta[data-sid="'+b.dataset.sid+'"]');ta.value=mkNoteFor(wk,b.dataset.sid);ta.style.height="auto";ta.style.height=(ta.scrollHeight+2)+"px";n.oninput();});};
   mkCtx(wk).catch(()=>null).then(()=>{if(MK.wk!==wk||!document.body.contains(salBox))return;salBox.innerHTML=mkSalNotesHtml(wk);wireSal();
-    const x=MK.recap[wk];if(!(x&&x.notes!=null)&&!MK.notesDirty)n.value=mkDraft(wk);});
-  $("#mkRedraft").onclick=()=>{n.value=mkDraft(wk);if(MK.recap[wk])MK.recap[wk].salon_notes={};salBox.innerHTML=mkSalNotesHtml(wk);wireSal();n.oninput();};
+    const x=MK.recap[wk];if((!(x&&x.notes!=null)||mkOldNote(x&&x.notes))&&!MK.notesDirty){n.value=mkMerge(n.value,wk);fit();}});
+  $("#mkRedraft").onclick=()=>{n.value=mkMerge(n.value,wk);fit();if(MK.recap[wk])MK.recap[wk].salon_notes={};salBox.innerHTML=mkSalNotesHtml(wk);wireSal();n.oninput();};
   $("#mkSaveNotes").onclick=()=>{clearTimeout(t);mkSaveNotes(wk).catch(e=>{$("#mkSaveMsg").textContent=e.message;});};
   $("#mkPrev").onclick=async()=>{const b=$("#mkPrev");b.disabled=true;b.textContent="Building preview…";
-    try{const j=await mkFnCall({action:"preview",week_ending:wk,notes:n.value,reminders:$("#mkRem").value,salon_notes:mkSalNotesVal()});$("#mkPrevSubj").textContent="Subject: "+j.subject;$("#mkPrevFrame").srcdoc='<!doctype html><meta charset="utf-8"><body style="margin:0;padding:14px;background:#f4f7f5">'+j.html+'</body>';$("#mkPrevWrap").hidden=false;$("#mkPrevWrap").scrollIntoView({behavior:"smooth",block:"start"});}
+    try{const j=await mkFnCall({action:"preview",week_ending:wk,notes:n.value,reminders:"",salon_notes:mkSalNotesVal()});$("#mkPrevSubj").textContent="Subject: "+j.subject;$("#mkPrevFrame").srcdoc='<!doctype html><meta charset="utf-8"><body style="margin:0;padding:14px;background:#f4f7f5">'+j.html+'</body>';$("#mkPrevWrap").hidden=false;$("#mkPrevWrap").scrollIntoView({behavior:"smooth",block:"start"});}
     catch(e){msg.textContent=e.message;msg.className="mk-save err";}finally{b.disabled=false;b.textContent="Preview email";}};
   $("#mkPrevClose").onclick=()=>{$("#mkPrevWrap").hidden=true;};
   $("#mkSend").onclick=async()=>{if(MK.busy||!MK.recipSel||!MK.recipSel.size)return;
     if(!MK.confirm){MK.confirm=true;mkRecipRender();msg.textContent="Check the notes and recipients, then click again to send.";msg.className="mk-save";return;}
     MK.busy=true;const b=$("#mkSend");b.disabled=true;b.textContent="Sending…";msg.textContent="";
     try{clearTimeout(t);await mkSaveNotes(wk,true);const emails=[...MK.recipSel];
-      const j=await mkFnCall({action:"send",week_ending:wk,notes:n.value,reminders:$("#mkRem").value,salon_notes:mkSalNotesVal(),emails});
+      const j=await mkFnCall({action:"send",week_ending:wk,notes:n.value,reminders:"",salon_notes:mkSalNotesVal(),emails});
       const fails=(j.results||[]).filter(r=>!r.ok);
       msg.textContent=fails.length?"Sent to "+j.sent+"; failed for "+fails.map(f=>f.email).join(", "):"Sent to "+j.sent+(j.sent===1?" person":" people")+".";
       msg.className="mk-save "+(fails.length?"err":"ok");

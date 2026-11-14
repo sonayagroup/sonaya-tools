@@ -576,6 +576,7 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 /* ---- Front Office tab (2026-11-14, redesigned) ---- */
 #officeRoot { --of-gap: 14px; }
 .of-svg { flex-shrink: 0; vertical-align: -2px; }
+.of-head-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .of-page-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 4px 0 14px; }
 .of-title { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; margin: 0; color: var(--text-primary); }
 .of-sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
@@ -767,6 +768,32 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 
 /* bright brand color in dark mode needs dark text */
 :root[data-theme="dark"] .of-btn.primary, :root[data-theme="dark"] .of-filter.on span { color: #111; }
+/* ---- Front Office walkthrough ---- */
+#ofTour { position: fixed; inset: 0; z-index: 200; }
+.of-tour-shade { position: absolute; inset: 0; background: transparent; }
+#ofTour.centered .of-tour-shade { background: rgba(11, 11, 11, .55); }
+.of-tour-hole { position: fixed; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(11, 11, 11, .55), 0 0 0 3px var(--brand-teal); pointer-events: none; transition: top .25s, left .25s, width .25s, height .25s; }
+.of-tour-card { position: fixed; width: min(380px, calc(100vw - 24px)); background: var(--surface-card); color: var(--text-primary); border-radius: 14px; box-shadow: 0 18px 50px rgba(0,0,0,.35); border: 1px solid var(--border); transition: top .25s, left .25s; }
+#ofTour.centered .of-tour-card { left: 50% !important; top: 50% !important; transform: translate(-50%, -50%); width: min(460px, calc(100vw - 24px)); }
+.of-tour-in { padding: 18px 20px 16px; }
+.of-tour-step { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--brand-teal); }
+.of-tour-in h3 { margin: 4px 0 8px; font-size: 18px; font-weight: 800; letter-spacing: -0.2px; }
+.of-tour-body { font-size: 13.5px; line-height: 1.55; color: var(--text-secondary); max-height: 46vh; overflow: auto; }
+.of-tour-body b { color: var(--text-primary); }
+.of-tour-body ul, .of-tour-body ol { margin: 6px 0; padding-left: 20px; }
+.of-tour-body li { margin: 3px 0; }
+.of-tour-note { margin-top: 8px; font-size: 12px; color: var(--text-muted); font-style: italic; }
+.of-tour-dots { display: flex; gap: 5px; margin: 14px 0 12px; }
+.of-tour-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+.of-tour-dots i.past { background: color-mix(in srgb, var(--brand-teal) 45%, var(--border)); }
+.of-tour-dots i.on { background: var(--brand-teal); width: 18px; border-radius: 4px; }
+.of-tour-nav { display: flex; gap: 8px; align-items: center; }
+body.of-touring { overflow-x: hidden; }
+@media (max-width: 620px) {
+  #ofTour:not(.centered) .of-tour-card { left: 8px !important; right: 8px; top: auto !important; bottom: 8px; width: auto; }
+  .of-tour-body { max-height: 38vh; }
+}
+@media (prefers-reduced-motion: reduce) { .of-tour-hole, .of-tour-card { transition: none; } }
 
 @media (max-width: 1180px) {
   .of-main { grid-template-columns: minmax(0, 1fr); }
@@ -5984,7 +6011,8 @@ function renderOffice() {
   root.innerHTML = `
     <div class="of-page-h">
       <div><h2 class="of-title">Front Office</h2><div class="of-sub">New ServiceMinder leads, jobs to confirm, and the daily checklist — ${officeDay(d.today)}</div></div>
-      <button class="of-btn ghost" ${office.loading ? 'disabled' : ''} onclick="officeLoad({force:true,refresh:true})">${OF_ICON.refresh}${office.loading ? 'Refreshing…' : 'Refresh'}</button>
+      <div class="of-head-btns"><button class="of-btn ghost" id="ofTourBtn" onclick="officeStartTour()">${OF_ICON.info}Take the tour</button>
+      <button class="of-btn ghost" ${office.loading ? 'disabled' : ''} onclick="officeLoad({force:true,refresh:true})">${OF_ICON.refresh}${office.loading ? 'Refreshing…' : 'Refresh'}</button></div>
     </div>
     ${office.error ? `<div class="of-error">${officeEsc(office.error)}</div>` : ''}
     ${!d.isBizDay ? `<div class="of-note">${OF_ICON.info}It's the weekend — lead days and the checklist pick back up ${officeDay(d.window[0])}. New leads that come in now start their day 1 then.</div>` : ''}
@@ -6008,9 +6036,162 @@ function renderOffice() {
     </div>
     <div class="of-meta of-foot">ServiceMinder data as of ${d.smFetchedAt ? new Date(d.smFetchedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '—'}${d.smStale ? ' (ServiceMinder didn’t answer — showing the last saved copy)' : ''} · updates every minute while this tab is open.</div>`;
   if (focus) { const el = document.getElementById(focus.id); if (el) { if (typeof focus.val === 'string' && el.value !== focus.val) el.value = focus.val; el.focus(); try { el.setSelectionRange(focus.s, focus.s); } catch (e) {} } }
+  officeTourAfterRender();
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && officeIsActive() && Date.now() - office.lastAt > 30000) officeLoad(); });
 document.addEventListener('click', (e) => { document.querySelectorAll('#officeRoot details.of-menu[open]').forEach(m => { if (!m.contains(e.target)) m.open = false; }); });
+
+/* ---- Front Office first-time walkthrough (2026-11-14) ----
+   Starts automatically the first time someone opens Front Office (remembered per user in this browser),
+   and can be replayed any time from the "Take the tour" button. Each step spotlights one part of the tab;
+   if that part isn't on screen right now (e.g. no leads today) the step shows as a centered card instead. */
+const OF_TOUR_KEY = () => `koala_front_office_tour_v1_${currentUser ? currentUser.id : 'anon'}`;
+let ofTour = { i: -1, raf: null };
+function ofTourSeen() { try { return localStorage.getItem(OF_TOUR_KEY()) === 'done'; } catch (e) { return true; } }
+function ofTourMarkSeen() { try { localStorage.setItem(OF_TOUR_KEY(), 'done'); } catch (e) {} }
+function ofTourSteps() {
+  const first = currentUser && currentUser.name ? currentUser.name.split(' ')[0] : '';
+  const d = office.data || {};
+  const win = d.window ? `${officeDay(d.window[0])} and ${officeDay(d.window[1])}` : 'the next two business days';
+  return [
+    { title: `Welcome to Front Office${first ? ', ' + officeEsc(first) : ''}!`, center: true,
+      body: `This is where you keep track of the daily office work in one place:
+        <ul><li><b>New leads</b> — who to call and email today</li><li><b>Jobs to confirm</b> for the next two business days</li><li>Your <b>daily checklist</b></li></ul>
+        Everything you log here builds the <b>4:45pm daily update email</b> automatically. This quick tour takes about a minute.` },
+    { sel: '.of-today', title: 'Start here every day',
+      body: `This card is your to-do list for today. The bar fills up as you go, and each row turns green when it's finished.<br><br>Click any row to jump straight to that section.` },
+    { sel: '#ofLeads .of-filters', title: 'New leads come in on their own',
+      body: `New leads are pulled from ServiceMinder automatically — you don't have to add them.<br><br><b>Needs action</b> is where you'll work most of the day. The other tabs show leads that are booked, sent to Retreva or closed out.` },
+    { sel: '#ofLeads .of-steps', title: 'The follow-up plan for every lead', fallback: true,
+      body: `Each lead has the same plan:
+        <ul><li><b>Day 1:</b> 2 calls + 1 email</li><li><b>Days 2, 3 and 4:</b> 1 call + 1 email each day</li><li><b>Day 5:</b> send it to Retreva if there's still no appointment</li></ul>
+        Only business days count. A lead that comes in after 4pm or on a weekend starts the next business day. Today's box is outlined, and the dots fill in as you log calls and emails.<br><br>As soon as an appointment is booked in ServiceMinder, the lead moves to <b>Scheduled</b> and the follow-up stops.` },
+    { sel: '#ofLeads .of-lead-actions', title: 'Log every call and email', fallback: true,
+      body: `Each time you call or email a lead, click <b>Log call</b> or <b>Log email</b>. It records the time and your name. The buttons turn green when that lead still needs one today.<br><br>Clicked by mistake? Use <b>undo</b> next to "Last call" (same day only).<br><br>Tip: click the phone number or email to call or write them right from here.` },
+    { sel: '#ofLeads .of-menu', title: 'Send to Retreva or close it out', fallback: true,
+      body: `On day 5, a <b>Send to Retreva</b> button appears on the lead. Click it once you've sent it over.<br><br>Use <b>Close out</b> for anything else: <b>Lost</b> (not interested) or <b>Not a lead</b> (spam, a vendor, a wrong number). You can add a short note, and you can always undo it.` },
+    { sel: '#ofJobs', title: 'Confirm upcoming jobs',
+      body: `These are the install jobs starting ${win}. Call each customer before the job starts, then click <b>Confirmed</b>.<br><br>If you can't reach them, click <b>Couldn't reach</b> and say what you tried (voicemail, text…). Evaluations aren't listed here — the estimators confirm those.` },
+    { sel: '#ofChecklist', title: 'Your daily checklist',
+      body: `For each item, pick <b>Done</b>, <b>N/A</b> or <b>Issue</b>, then type any names or notes the team should see — for example, which NM Gas rebates you submitted.<br><br>Notes save when you click away. Weekly items only need doing once between Monday and Friday. You can only fill in today's checklist, so do it before 4:45.` },
+    { sel: '.of-health', title: 'Your Front Office Health score',
+      body: `This 0–100 score shows how consistently the work gets done. It's based on:
+        <ul><li>Lead calls and emails made on the right day (most of the score)</li><li>Jobs confirmed before they start</li><li>The daily checklist being filled in</li><li>Leads sent to Retreva on day 5</li></ul>
+        Each day is scored once it's over, so you always have the whole day to finish.` },
+    { title: `You're all set${first ? ', ' + officeEsc(first) : ''}!`, center: true,
+      body: `The daily routine:
+        <ol><li>Open <b>Front Office</b> and check the <b>Today</b> card.</li><li>Work the leads under <b>Call or email today</b>, logging each call and email.</li><li>Confirm the upcoming jobs.</li><li>Fill in the checklist before 4:45pm.</li></ol>
+        The page updates by itself every minute. You can replay this tour anytime with the <b>Take the tour</b> button at the top.` },
+  ];
+}
+function officeStartTour() {
+  if (!office.data) return;
+  ofTour.i = 0;
+  document.body.classList.add('of-touring');
+  if (!document.getElementById('ofTour')) {
+    const w = document.createElement('div');
+    w.id = 'ofTour';
+    w.innerHTML = `<div class="of-tour-shade" onclick="event.stopPropagation()"></div><div class="of-tour-hole"></div>
+      <div class="of-tour-card" role="dialog" aria-modal="true" aria-labelledby="ofTourTitle"><div class="of-tour-in"></div></div>`;
+    document.body.appendChild(w);
+    document.addEventListener('keydown', ofTourKey, true);
+    window.addEventListener('resize', ofTourPlace);
+    window.addEventListener('scroll', ofTourPlace, true);
+  }
+  ofTourShow();
+}
+function ofTourKey(e) {
+  if (ofTour.i < 0) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); officeEndTour(); }
+  else if (e.key === 'ArrowRight' || (e.key === 'Enter' && !(document.activeElement && document.activeElement.tagName === 'BUTTON'))) { e.preventDefault(); ofTourNext(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); ofTourBack(); }
+}
+function ofTourTarget(step) {
+  if (!step || step.center || !step.sel) return null;
+  const el = document.querySelector(step.sel);
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return r.width && r.height ? el : null;
+}
+function ofTourShow() {
+  const steps = ofTourSteps(), step = steps[ofTour.i]; if (!step) return officeEndTour();
+  const wrap = document.getElementById('ofTour'); if (!wrap) return;
+  const el = ofTourTarget(step);
+  const missing = !step.center && !el;
+  const note = missing ? `<div class="of-tour-note">(You'll see this on each lead card once there's a lead that needs action.)</div>` : '';
+  wrap.querySelector('.of-tour-in').innerHTML = `
+    <div class="of-tour-step">Step ${ofTour.i + 1} of ${steps.length}</div>
+    <h3 id="ofTourTitle">${step.title}</h3>
+    <div class="of-tour-body">${step.body}${note}</div>
+    <div class="of-tour-dots">${steps.map((_, k) => `<i class="${k === ofTour.i ? 'on' : k < ofTour.i ? 'past' : ''}"></i>`).join('')}</div>
+    <div class="of-tour-nav">
+      <button class="of-btn ghost" onclick="officeEndTour()">${ofTour.i === steps.length - 1 ? 'Close' : 'Skip tour'}</button>
+      <span style="flex:1"></span>
+      ${ofTour.i > 0 ? `<button class="of-btn" onclick="ofTourBack()">Back</button>` : ''}
+      <button class="of-btn primary" id="ofTourNextBtn" onclick="ofTourNext()">${ofTour.i === 0 ? 'Show me around' : ofTour.i === steps.length - 1 ? 'Got it' : 'Next'}</button>
+    </div>`;
+  wrap.classList.toggle('centered', !el);
+  if (el) {
+    const r = el.getBoundingClientRect();
+    // Room left for the highlight: below the sticky header, and above the bottom sheet on phones.
+    const topSafe = Math.max(70, ...[...document.querySelectorAll('.app-header, .tab-bar')].map(x => x.getBoundingClientRect().bottom)) + 12;
+    if (innerWidth <= 620) {
+      if (Math.abs(r.top - topSafe) > 8) window.scrollBy({ top: r.top - topSafe, behavior: 'smooth' });
+    } else {
+      const fits = r.top >= topSafe && r.bottom <= innerHeight - 20;
+      if (!fits) window.scrollBy({ top: r.height > innerHeight - topSafe - 40 ? r.top - topSafe : r.top - topSafe - (innerHeight - topSafe - r.height) / 2, behavior: 'smooth' });
+    }
+  }
+  ofTourPlace();
+  setTimeout(ofTourPlace, 350); setTimeout(ofTourPlace, 700);
+  const nb = document.getElementById('ofTourNextBtn'); if (nb) nb.focus({ preventScroll: true });
+}
+function ofTourPlace() {
+  if (ofTour.i < 0) return;
+  cancelAnimationFrame(ofTour.raf);
+  ofTour.raf = requestAnimationFrame(() => {
+    const wrap = document.getElementById('ofTour'); if (!wrap) return;
+    const step = ofTourSteps()[ofTour.i];
+    const el = ofTourTarget(step);
+    const hole = wrap.querySelector('.of-tour-hole'), card = wrap.querySelector('.of-tour-card');
+    if (!el) { hole.style.display = 'none'; card.style.left = card.style.top = ''; wrap.classList.add('centered'); return; }
+    wrap.classList.remove('centered');
+    const pad = 6, r = el.getBoundingClientRect();
+    const top = Math.max(4, r.top - pad), left = Math.max(4, r.left - pad);
+    const h = Math.min(r.bottom + pad, innerHeight - 4) - top, w = Math.min(r.right + pad, innerWidth - 4) - left;
+    Object.assign(hole.style, { display: 'block', top: top + 'px', left: left + 'px', width: w + 'px', height: Math.max(0, h) + 'px' });
+    if (innerWidth <= 620) { card.style.left = card.style.top = ''; return; } // bottom sheet on phones
+    const cw = card.offsetWidth, ch = card.offsetHeight, gap = 14;
+    let cx, cy;
+    if (r.right + gap + cw <= innerWidth - 12) { cx = r.right + gap; cy = r.top; }           // right of it
+    else if (r.left - gap - cw >= 12) { cx = r.left - gap - cw; cy = r.top; }                // left of it
+    else if (r.bottom + gap + ch <= innerHeight - 12) { cx = r.left; cy = r.bottom + gap; }  // below
+    else { cx = r.left; cy = r.top - gap - ch; }                                              // above
+    cx = Math.min(Math.max(12, cx), innerWidth - cw - 12);
+    cy = Math.min(Math.max(12, cy), innerHeight - ch - 12);
+    card.style.left = cx + 'px'; card.style.top = cy + 'px';
+  });
+}
+function ofTourNext() { const n = ofTourSteps().length; if (ofTour.i >= n - 1) return officeEndTour(); ofTour.i++; ofTourShow(); }
+function ofTourBack() { if (ofTour.i > 0) { ofTour.i--; ofTourShow(); } }
+function officeEndTour() {
+  ofTour.i = -1; ofTourMarkSeen();
+  document.body.classList.remove('of-touring');
+  const w = document.getElementById('ofTour'); if (w) w.remove();
+  document.removeEventListener('keydown', ofTourKey, true);
+  window.removeEventListener('resize', ofTourPlace);
+  window.removeEventListener('scroll', ofTourPlace, true);
+  const b = document.getElementById('ofTourBtn'); if (b) b.focus({ preventScroll: true });
+}
+// Called at the end of every renderOffice(): keeps the spotlight on the right spot after a refresh,
+// and starts the tour the first time this person opens the tab.
+function officeTourAfterRender() {
+  if (ofTour.i >= 0) { ofTourPlace(); return; }
+  if (office.data && officeIsActive() && !ofTourSeen() && !ofTour.autoStarted) {
+    ofTour.autoStarted = true;
+    setTimeout(() => { if (officeIsActive() && ofTour.i < 0 && !ofTourSeen()) { window.scrollTo({ top: 0 }); officeStartTour(); } }, 600);
+  }
+}
 </script>
 </body>
 </html>

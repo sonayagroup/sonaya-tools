@@ -5291,7 +5291,7 @@ function mkSentLine(wk,readonly){const x=MK.recap[wk];
   return readonly?"":'<div class="mk-sent none">Not emailed yet for this week.</div>';}
 function mkReadNotes(wk){const x=MK.recap[wk];if(!x||!x.sent_at)return "";const sn=x.salon_notes||{};const {rows}=mkWeek(wk);
   const items=rows.filter(r=>MK_OURS.has(r.salon_id)&&sn[r.salon_id]);if(!items.length&&!x.notes&&!x.reminders)return "";
-  return '<div class="card mk-comp"><div class="mk-comp-t">Notes from this week’s recap</div>'+(()=>{const t=[x.reminders||"",x.notes||""].filter(v=>v.trim()).join("\n");return t?'<div class="mk-rem-ro"><b>📌 This week</b><br>'+esc(t).replace(/\n/g,"<br>")+'</div>':"";})()+
+  return '<div class="card mk-comp"><div class="mk-comp-t">Notes from this week’s recap</div>'+(()=>{const t=[x.reminders||"",x.notes||""].filter(v=>v.trim()).join("\n");return t?'<div class="mk-ro-notes">'+esc(t).replace(/\n/g,"<br>")+'</div>':"";})()+
     '<div class="mk-sal-list">'+items.map(r=>'<div class="mk-sal ro"><div class="mk-sal-h"><b>#'+r.rank+' '+esc(r.salon_id)+' '+esc(mkName(r))+'</b></div><div class="mk-sal-t">'+mkNoteHtml(sn[r.salon_id])+'</div></div>').join("")+'</div></div>';}
 async function mkCtx(wk){MK.ctx=MK.ctx||{};if(MK.ctx[wk])return MK.ctx[wk];
   const d0=new Date(wk+"T12:00:00");d0.setDate(d0.getDate()-6);const from=d0.toISOString().slice(0,10);const h=supaHeaders();
@@ -5337,15 +5337,19 @@ function mkRemSuggest(wk){const box=$("#mkRemSug");if(!box)return;const ta=$("#m
     if(firstSum<0)ta.value=(ta.value.trim()?ta.value.replace(/\s+$/,"")+"\n":"")+add;else{lines.splice(firstSum,0,add);ta.value=lines.join("\n");}ta.oninput&&ta.oninput();ta.focus();});}
 // One "This week" box = reminders/announcements + the auto summary lines (👍 🎯 📋). Refreshing replaces only the summary lines.
 const MK_SUM=/^\s*(👍|🎯|📋)/;
-function mkMerge(text,wk){const keep=String(text||"").split(/\r?\n/).filter(l=>l.trim()&&!MK_SUM.test(l));return keep.concat(mkDraft(wk).split("\n")).join("\n");}
+const MK_HI="Hi Team,";
+function mkMerge(text,wk){let keep=String(text||"").split(/\r?\n/).filter(l=>l.trim()&&!MK_SUM.test(l));
+  if(!keep.some(l=>/^\s*(hi|hello|hey)\b/i.test(l)))keep=[MK_HI].concat(keep); // greeting first
+  return keep.concat(mkDraft(wk).split("\n")).join("\n");}
 function mkOldNote(t){return /^Market recap for the week ending/.test(String(t||""));} // long opening note from before Nov 14
 function mkCombined(wk){const x=MK.recap[wk]||{};const rem=String(x.reminders||"").trim(),notes=x.notes;
   if(notes==null||mkOldNote(notes))return mkMerge(rem,wk);
-  return rem&&!String(notes).includes(rem)?rem+"\n"+notes:notes;}
+  const t=rem&&!String(notes).includes(rem)?rem+"\n"+notes:notes;
+  return /^\s*(hi|hello|hey)\b/i.test(t)?t:MK_HI+"\n"+t;}
 function mkComposerHtml(wk){const x=MK.recap[wk];const notes=mkCombined(wk);
   return '<div class="card mk-comp"><div class="mk-comp-h"><div><div class="mk-comp-t">✉️ Email this recap to managers</div>'+
-    '<div class="mk-sub">The email has this week’s note at the top, then the comparison tiles, the colored ranking table, and the salon notes. Lines that start with • become bullets.</div></div>'+mkSentLine(wk,false)+'</div>'+
-    '<label class="mk-lab" for="mkNotes">📌 This week <span>reminders and announcements, plus the summary lines (👍 🎯 📋) built from the numbers. Shown at the top of the email.</span></label>'+
+    '<div class="mk-sub">The email has your opening note at the top, then the comparison tiles, the colored ranking table, and the salon notes. Lines that start with • become bullets.</div></div>'+mkSentLine(wk,false)+'</div>'+
+    '<label class="mk-lab" for="mkNotes">Opening note <span>greeting, reminders and announcements, plus the summary lines (👍 🎯 📋) built from the numbers. Shown at the top of the email.</span></label>'+
     '<div class="mk-rem-sug" id="mkRemSug"></div>'+
     '<textarea id="mkNotes" rows="7" spellcheck="true" placeholder="• Thanksgiving week: schedule full teams Wed and Fri, those are our biggest days.">'+esc(notes)+'</textarea>'+
     '<div class="mk-row" style="margin-top:4px"><button type="button" class="linkbtn" id="mkRefreshSum" title="Replace only the 👍 🎯 📋 lines with fresh ones; your reminders stay">↻ Refresh summary lines</button></div>'+

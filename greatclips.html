@@ -472,6 +472,30 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .qod-q{font-size:15px;font-weight:600;color:var(--ink);line-height:1.4;margin-top:1px}.qod-a{font-size:12.5px;color:var(--muted);margin-top:2px}
 .qod-edit{background:none;border:1px solid #cfe7dd;border-radius:6px;padding:5px 9px;font:inherit;font-size:12px;color:#048667;cursor:pointer;white-space:nowrap}.qod-edit:hover{background:#fff}
 @media (max-width:640px){.qod{align-items:flex-start}.qod-q{font-size:14px}.qod-edit{padding:4px 7px}}
+/* ===== MANAGER TASK COMPLETION ===== */
+.tk-bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:4px 0 14px}
+.tk-nav{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
+.tk-arrow{background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 9px;cursor:pointer;font-size:11px;color:var(--ink)}
+.tk-arrow:hover{background:var(--bg)}
+.tk-today{background:#eef7f3;border:1px solid #bfe0d2;color:var(--blue);border-radius:6px;padding:4px 10px;font-weight:700;font-size:12px;cursor:pointer}
+.tk-grp{font-size:13px;font-weight:800;color:var(--blue-dk);margin:14px 0 8px}
+.tk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tk-card{display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 8px 12px;cursor:pointer;font:inherit;color:var(--ink);box-shadow:var(--shadow);transition:border-color .15s,box-shadow .15s}
+.tk-card:hover{border-color:#9fd6c0}
+.tk-card.on{border:2px solid var(--blue);padding:13px 7px 11px;box-shadow:0 0 0 3px rgba(4,134,103,.12)}
+.tk-card b{font-size:14px;margin-top:4px}
+.tk-nm{font-size:12px;color:var(--muted);text-align:center;line-height:1.25;min-height:15px}
+.tk-parts{display:flex;gap:6px;font-size:11px;font-weight:700;margin-top:2px}
+.tk-detail{margin-top:16px}
+.tk-dh{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:14px}
+.tk-tbl td.c,.tk-tbl th{text-align:center}.tk-tbl td:first-child,.tk-tbl th:first-child{text-align:left}
+.tk-dot{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:12px;font-weight:800;flex:none}
+.tk-dot.g{background:#d7f2df;color:#0b6b33}.tk-dot.r{background:#fcdcdc;color:#b30020}.tk-dot.a{background:#fff1cc;color:#8a5a00}.tk-dot.n{background:#f0f3f2;color:#9aa5a2}
+.tk-sub{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--ink);margin:14px 0 6px}
+.tk-wk{display:flex;flex-direction:column;gap:6px}
+.tk-wrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:13px}
+@media (max-width:640px){.tk-grid{grid-template-columns:repeat(2,1fr)}}
+#manager.tk-on #gmDaily{display:none}
 /* ===== MARKET RANK ===== */
 .mk-head{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:flex-end;margin:4px 0 14px}
 .mk-title{font-size:19px;font-weight:800;color:var(--blue-dk)}
@@ -3283,6 +3307,8 @@ function gmContactHire(name){const p=String(name).split(",");if(p.length<2)retur
 // ---- data access ----
 function gmHdr(extra){return supaHeaders(Object.assign({"Content-Type":"application/json"},extra||{}));}
 async function gmGet(path){const r=await fetch(SUPA_URL+"/rest/v1/"+path,{headers:supaHeaders()});if(!r.ok)throw new Error(path.split("?")[0]+": "+r.status);return r.json();}
+// Supabase returns at most 1000 rows per request, so page through big tables instead of trusting limit=
+async function gmGetAll(path){let all=[];for(let off=0;off<50000;off+=1000){const j=await gmGet(path+(path.includes("?")?"&":"?")+"limit=1000&offset="+off);all=all.concat(j||[]);if(!j||j.length<1000)break;}return all;}
 async function gmPost(table,body,qs,prefer){const r=await fetch(SUPA_URL+"/rest/v1/"+table+(qs||""),{method:"POST",headers:gmHdr({Prefer:prefer||"return=representation"}),body:JSON.stringify(body)});
   if(!r.ok){let t="";try{t=await r.text();}catch(e){}throw new Error("Save failed ("+r.status+") "+t.slice(0,120));}return r.json().catch(()=>null);}
 async function gmPatch(table,filter,body){const r=await fetch(SUPA_URL+"/rest/v1/"+table+"?"+filter,{method:"PATCH",headers:gmHdr({Prefer:"return=representation"}),body:JSON.stringify(body)});
@@ -3290,9 +3316,9 @@ async function gmPatch(table,filter,body){const r=await fetch(SUPA_URL+"/rest/v1
 function gmLoad(force){
   if(GM.loading&&!force)return GM.loading;
   GM.loading=Promise.all([
-    gmGet("gc_coaching_log?select=*&deleted=eq.false&order=session_date.desc&limit=5000"),
+    gmGetAll("gc_coaching_log?select=*&deleted=eq.false&order=session_date.desc,id.desc"),
     gmGet("gc_stylist_profile?select=*"),
-    gmGet("gc_manager_tasks?select=*&order=period_date.desc&limit=5000"),
+    gmGetAll("gc_manager_tasks?select=*&order=period_date.desc,id.desc"),
     gmGet("salon_contacts?select=name,salon_id,role,anniversary").catch(()=>[])
   ]).then(([l,p,t,ct])=>{GM.log=l||[];GM.prof=p||[];GM.tasks=t||[];GM.contacts=ct||[];GM.loaded=true;
     try{if($("#recap")&&$("#recap").classList.contains("active"))renderRecap();}catch(e){}
@@ -3427,7 +3453,8 @@ function renderManager(){const host=$("#gmBody");if(!host)return;
     gmLoad().then(renderManager).catch(e=>{host.innerHTML='<div class="banner warn">Could not load manager data: '+esc(e.message)+'</div>';});return;}
   try{gmDaily();}catch(e){console.error(e);}
   const mgrOnly=typeof gcIsMgr==="function"&&gcIsMgr();const sb=document.querySelector('#gmViewBar button[data-v="score"]');if(sb)sb.hidden=mgrOnly;if(mgrOnly&&GM.view==="score")GM.view="board";
-  try{({board:gmBoard,rhythm:gmRhythm,score:gmScorecard}[GM.view]||gmBoard)(host);}
+  {const mp=$("#manager");if(mp)mp.classList.toggle("tk-on",GM.view==="tasks");}
+  try{({board:gmBoard,rhythm:gmRhythm,score:gmScorecard,tasks:(typeof tkView==="function"?tkView:gmBoard)}[GM.view]||gmBoard)(host);}
   catch(e){console.error(e);host.innerHTML='<div class="banner warn">Something went wrong drawing this view: '+esc(e.message)+'</div>';}}
 
 function gmBoard(host){const sid=current,today=gmToday();const R=gmRoster(sid,today);const ev=gmEvents(sid);
@@ -3749,7 +3776,7 @@ function svMine(){const p=(typeof GCU!=="undefined"&&GCU&&GCU.perms)||null;retur
 function svSalons(){return Object.keys(SALONS||{}).sort().filter(s=>typeof gcCanSalon!=="function"||gcCanSalon(s));}
 function svLoad(force){
   if(SV.loading&&!force)return SV.loading;
-  SV.loading=Promise.all([gmGet("gc_salon_visits?select=*&order=visit_date.desc,created_at.desc&limit=1000"),GM.loaded?Promise.resolve():gmLoad()])
+  SV.loading=Promise.all([gmGetAll("gc_salon_visits?select=*&order=visit_date.desc,created_at.desc"),GM.loaded?Promise.resolve():gmLoad()])
     .then(([r])=>{SV.rows=r||[];SV.loaded=true;}).catch(e=>{SV.loading=null;throw e;});
   return SV.loading;}
 function svInit(){const host=$("#svBody");if(!host)return;
@@ -4028,7 +4055,7 @@ function schAnalyze(rows){const E=schEntries(rows);const have=new Set(rows.map(r
 
 // ---- data ----
 function schLoad(force){if(SCH.loading&&!force)return SCH.loading;
-  SCH.loading=gmGet("gc_schedules?select=salon_id,week_start,salon_name,data,filename,uploaded_by,uploaded_at&order=week_start.desc&limit=2000").then(r=>{SCH.rows=r||[];SCH.loaded=true;}).catch(e=>{SCH.loading=null;throw e;});return SCH.loading;}
+  SCH.loading=gmGetAll("gc_schedules?select=salon_id,week_start,salon_name,data,filename,uploaded_by,uploaded_at&order=week_start.desc,salon_id").then(r=>{SCH.rows=r||[];SCH.loaded=true;}).catch(e=>{SCH.loading=null;throw e;});return SCH.loading;}
 function schWeeks(){const s=new Set(SCH.rows.map(r=>r.week_start));const t=gmToday();let sat=gmAdd(gmWeekEnd(t),-6);for(let i=0;i<4;i++)s.add(gmAdd(sat,7*i));return [...s].sort().reverse();}
 function schInit(){const host=$("#schBody");if(!host)return;
   if(!SCH.loaded){host.innerHTML='<div class="loading">Loading schedules…</div>';schLoad().then(schRender).catch(e=>{host.innerHTML='<div class="banner warn">Could not load schedules: '+esc(e.message)+'</div>';});return;}
@@ -4898,6 +4925,10 @@ function amrExceptions(sid,wk){const out=[];const W=(DATA.weeklies&&DATA.weeklie
     if(typeof w15==="number"&&w15>=19)out.push({k:"wait",cat:"Salon",label:"Waits over 15 min: "+w15.toFixed(1)+"%",detail:"Target is under 19%"});}
   const cash=[];days.forEach(d=>{const row=((DATA.days&&DATA.days[d]&&DATA.days[d].SAL)||[]).find(r=>String(r[0])===String(sid));if(row&&typeof row[14]==="number"&&Math.abs(row[14])>=5)cash.push(fmtDate(d).replace(/\/\d{4}$/,"")+" "+(row[14]<0?"−":"+")+"$"+Math.abs(row[14]).toFixed(2));});
   if(cash.length)out.push({k:"cash",cat:"Salon",label:"Drawer off $5+ on "+cash.length+" day"+(cash.length>1?"s":""),detail:cash.join(" · ")});
+  // manager checklist completion (Daily Five + Weekly Rhythm + monthly), same numbers as Manager → Task Completion
+  {const tk=amrTasks(sid,wk);if(tk&&tk.pct!=null&&tk.pct<TK_OK&&!tk.open){/* only flag closed weeks */const by={};tk.missed.forEach(m=>{by[m.label]=(by[m.label]||0)+1;});
+    const top=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([l,n])=>l.replace(/\s*\(.*\)$/,"")+(n>1?" ×"+n:""));
+    out.push({k:"tasks",cat:"Salon",label:"Manager checklist "+tk.pct+"% ("+tk.d+" of "+tk.n+")",detail:"Target is 80%+. Most missed: "+top.join(" · ")});}}
   // stylists out of standard (weekly employee performance)
   const amKeys=(typeof gmAmKeys==="function")?gmAmKeys():new Set();
   ((W.EPP||{})[sid]||[]).forEach(r=>{const why=[];
@@ -4910,6 +4941,7 @@ function amrExceptions(sid,wk){const out=[];const W=(DATA.weeklies&&DATA.weeklie
     out.push({k:"sty|"+r[0],cat:"Stylist",label:r[0],detail:why.join(" · ")+coached});});
   return out;}
 
+function amrTasks(sid,wk){try{return (typeof tkStats==="function"&&typeof GM!=="undefined"&&GM.loaded)?tkStats(sid,"week",wk):null;}catch(e){return null;}}
 // ---- Render ----
 function amrShow(){const host=$("#amrWrap");if(!host)return;const panel=$("#recap");
   let mode="new";try{mode=localStorage.getItem("amrMode")||"new";}catch(e){}
@@ -4939,6 +4971,7 @@ function amrRender(){const host=$("#amrWrap");if(!host)return;const ams=amrAms()
     const prevC=((PS[sid]||{}).commit||[]).filter(c=>c&&c.what);
     const kv=(i,f)=>ws[i]!=null&&ws[i]!==""?f(+ws[i]):"—";const kc=(m,i)=>{const c=(typeof kpi==="function"&&ws[i]!=null)?kpi(m,+ws[i]):"";return c==="kg"?"g":c==="ky"?"y":c==="kr"?"r":"";};
     const kpis=ws?[["Sales",kv(WS.totalSales,v=>"$"+Math.round(v).toLocaleString()),""],["Customers",kv(WS.cust,v=>Math.round(v)),""],["Payroll",kv(WS.payrollPct,v=>v.toFixed(1)+"%"),kc("payroll",WS.payrollPct),"≤40%"],["CPH",kv(WS.cutsHr,v=>v.toFixed(1)),kc("cuts",WS.cutsHr),"≥2.0"],["Wait >15",kv(WS.waitOver15Pct,v=>v.toFixed(0)+"%"),kc("wait15",WS.waitOver15Pct),"<19%"],["Avg HC",kv(WS.avgHC,v=>v.toFixed(1)),kc("avghc",WS.avgHC),"<19"],["Cust growth",kv(WS.custGrowthPct,v=>(v>0?"+":"")+v.toFixed(1)+"%"),kc("custgrowth",WS.custGrowthPct),""]]:[];
+    {const tk=amrTasks(sid,wk);if(tk&&tk.pct!=null)kpis.push(["Mgr tasks",tk.pct+"%",tk.pct>=TK_GOOD?"g":tk.pct>=TK_OK?"y":"r","≥"+TK_GOOD+"% of the manager checklist"]);}
     h+='<div class="card amr-salon" data-sid="'+sid+'"><div class="amr-sh"><span class="amr-sid">'+sid+'</span><span class="amr-sname">'+esc(sName(sid))+'</span><span class="amr-flagct'+(ex.length?' has':'')+'">'+(ex.length?'🚩 '+ex.length+' flagged':'✓ nothing flagged')+'</span><span class="amr-badge">—</span></div>'
       +(kpis.length?'<div class="amr-kpis">'+kpis.map(k=>'<div class="amr-kpi'+(k[2]?' k-'+k[2]:'')+'"'+(k[3]?' title="Standard: '+k[3]+'"':'')+'><i>'+k[0]+'</i><b>'+esc(String(k[1]))+'</b></div>').join("")+'</div>':'<div class="hint">Week not closed yet — the weekly numbers and stylist flags fill in after the Saturday update. Drawer flags show as the week goes.</div>');
     if(prevC.length){h+='<div class="amr-sub">🔁 Last week’s commitments</div>';prevC.forEach((c,i)=>{const v=((s.prev||{})[i]||{}).st||"";
@@ -5342,5 +5375,92 @@ function mkWireComposer(wk){
 (function(){const t=document.querySelector('.tab[data-t="market"]');if(t)t.addEventListener("click",()=>setTimeout(mkRender,0));
   if(/^#market/.test(location.hash)){let n=0;const iv=setInterval(()=>{n++;const p=$("#market");if(p&&p.classList.contains("active")&&typeof GCU!=="undefined"&&GCU.perms){clearInterval(iv);mkRender();}else if(n>40)clearInterval(iv);},250);}
 })();
+</script>
+<script>
+// ===== MANAGER TASK COMPLETION =====
+// Completion rate of the manager checklist (gc_manager_tasks), like the Koala GM checklist board.
+// Counts: Daily Five (each day), Weekly Rhythm items (once their due day has arrived, or done early),
+// and the monthly item (once its due day has arrived). Day / Week (Sat–Fri) / Month views.
+// Also feeds the Area Manager weekly recap (tile + flag) through tkStats().
+const TK={mode:"week",anchor:null,sel:null};
+const TK_GOOD=90,TK_OK=80; // ≥90% green, 80–89% amber, <80% red (red also flags on the AM weekly recap)
+function tkMonthStart(iso){return iso.slice(0,8)+"01";}
+function tkMonthEnd(iso){const d=gmD(tkMonthStart(iso));d.setMonth(d.getMonth()+1);d.setDate(0);return gmIso(d);}
+function tkFirstTue(iso){const d=gmD(tkMonthStart(iso));while(d.getDay()!==2)d.setDate(d.getDate()+1);return gmIso(d);}
+function tkRange(mode,anchor){
+  if(mode==="day")return [anchor,anchor];
+  if(mode==="month")return [tkMonthStart(anchor),tkMonthEnd(anchor)];
+  const we=gmWeekEnd(anchor);return [gmAdd(we,-6),we];}
+function tkCol(p){return p==null?"#c9d2cf":p>=TK_GOOD?GREEN:p>=TK_OK?AMBER:RED;}
+// Completion for one salon over the period that contains `anchor`.
+function tkStats(sid,mode,anchor){
+  const today=gmToday();const [from,to]=tkRange(mode,anchor);
+  const P={day:[0,0],week:[0,0],month:[0,0]};const missed=[];
+  // Daily Five
+  for(let d=from;d<=to&&d<=today;d=gmAdd(d,1)){if(d<GM_DAY_START)continue;
+    GM_DAY_ITEMS.forEach(it=>{const t=gmTask(sid,"day",d,it.k),done=!!(t&&t.completed);if(!done&&d>=today)return; // today's items count once done
+      P.day[1]++;if(done)P.day[0]++;else missed.push({type:"day",date:d,label:it.label});});}
+  // Weekly Rhythm: every week whose Friday falls in the range (day view: the week that contains the day, items due that day)
+  const weeks=[];if(mode==="day")weeks.push(gmWeekEnd(from));else{for(let we=gmWeekEnd(from);we<=to||(mode==="week"&&we===gmWeekEnd(to));we=gmAdd(we,7)){if(we>=from&&we<=gmAdd(to,6))weeks.push(we);if(weeks.length>6)break;}}
+  weeks.forEach(we=>{if(we<GM_START)return;GM_WEEK_ITEMS.forEach(it=>{if(!gmItemOn(it,we))return;const due=gmAdd(we,gmDue(it,we));
+      if(mode==="day"&&due!==from)return; if(mode==="month"&&(we<from||we>to))return;
+      const t=gmTask(sid,"week",we,it.k),done=gmItemDone(t,it);if(!done&&due>=today)return;P.week[1]++;
+      if(done)P.week[0]++;else missed.push({type:"week",date:due,label:it.label+(it.days?" ("+it.days+")":"")});});});
+  // Monthly items (due the first Tuesday)
+  const months=mode==="month"?[from]:[tkMonthStart(from)].concat(tkMonthStart(to)!==tkMonthStart(from)?[tkMonthStart(to)]:[]);
+  months.forEach(m=>{const due=tkFirstTue(m);if(due<from||due>to)return; if(mode==="day"&&due!==from)return;
+    GM_MONTH_ITEMS.forEach(it=>{const t=gmTask(sid,"month",m,it.k),done=gmItemDone(t,it);if(!done&&due>=today)return;P.month[1]++;
+      if(done)P.month[0]++;else missed.push({type:"month",date:due,label:it.label});});});
+  const n=P.day[1]+P.week[1]+P.month[1],d=P.day[0]+P.week[0]+P.month[0];
+  return {pct:n?Math.round(d/n*100):null,d,n,parts:P,missed:missed.sort((a,b)=>b.date.localeCompare(a.date)),from,to,open:to>=today};}
+function tkRing(p,size){size=size||64;const r=size/2-6,c=2*Math.PI*r,v=p==null?0:Math.max(0,Math.min(100,p));
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" aria-hidden="true"><circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="#e8eeec" stroke-width="7"/>'+
+    (v>0?'<circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+tkCol(p)+'" stroke-width="7" stroke-linecap="round" stroke-dasharray="'+(c*v/100).toFixed(1)+' '+c.toFixed(1)+'" transform="rotate(-90 '+size/2+' '+size/2+')"/>':'')+
+    '<text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="'+(size>60?15:12)+'" font-weight="800" fill="#12302c">'+(p==null?"—":p+"%")+'</text></svg>';}
+function tkPart(lbl,x){return x[1]?'<span class="tk-part" style="color:'+tkCol(Math.round(x[0]/x[1]*100))+'">'+lbl+' '+x[0]+'/'+x[1]+'</span>':'';}
+function tkLabel(mode,anchor){const [f,t]=tkRange(mode,anchor);
+  if(mode==="day")return gmD(f).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+  if(mode==="month")return gmD(f).toLocaleDateString("en-US",{month:"long",year:"numeric"});
+  return "Week "+gmShort(f)+" – "+gmShort(t);}
+function tkView(host){const today=gmToday();if(!TK.anchor)TK.anchor=today;const mp=$("#manager");if(mp)mp.classList.add("tk-on");
+  const salons=Object.keys(SALONS).sort().filter(s=>typeof gcCanSalon!=="function"||gcCanSalon(s));
+  if(!TK.sel||!salons.includes(TK.sel))TK.sel=salons.includes(current)?current:salons[0];
+  const stats={};salons.forEach(s=>stats[s]=tkStats(s,TK.mode,TK.anchor));
+  let h='<div class="tk-bar"><span class="det-mode" id="tkMode">'+[["day","Day"],["week","Week"],["month","Month"]].map(([k,l])=>'<button data-m="'+k+'"'+(TK.mode===k?' class="active"':'')+'>'+l+'</button>').join("")+'</span>'+
+    '<span class="tk-nav"><button type="button" class="tk-arrow" data-nav="-1" aria-label="Previous">◀</button><b>'+esc(tkLabel(TK.mode,TK.anchor))+'</b><button type="button" class="tk-arrow" data-nav="1" aria-label="Next">▶</button>'+
+    '<button type="button" class="tk-today" data-nav="0">Today</button></span>'+
+    '<span class="gm-why" style="margin:0">Daily Five every day, Weekly Rhythm items once their due day arrives, monthly inventory on the first Tuesday. Green ≥'+TK_GOOD+'%, amber ≥'+TK_OK+'%.</span></div>';
+  const groups=(typeof AM_DEF==="object"&&salons.length>1)?Object.entries(AM_DEF).map(([am,ss])=>[am,ss.filter(s=>salons.includes(s))]).filter(g=>g[1].length):[["",salons]];
+  const seen=new Set();
+  groups.forEach(([am,ss])=>{ss=ss.filter(s=>!seen.has(s));ss.forEach(s=>seen.add(s));if(!ss.length)return;
+    const vals=ss.map(s=>stats[s].pct).filter(v=>v!=null);const avg=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length):null;
+    if(am)h+='<div class="tk-grp">'+esc(am)+' <span style="color:'+tkCol(avg)+'">'+(avg==null?"":"· avg "+avg+"%")+'</span></div>';
+    h+='<div class="tk-grid">'+ss.map(s=>{const st=stats[s];return '<button type="button" class="tk-card'+(s===TK.sel?" on":"")+'" data-sid="'+s+'">'+tkRing(st.pct)+
+      '<b>#'+s+'</b><span class="tk-nm">'+esc(sName(s))+'</span><span class="tk-parts">'+tkPart("D",st.parts.day)+tkPart("W",st.parts.week)+tkPart("M",st.parts.month)+'</span></button>';}).join("")+'</div>';});
+  // detail for the selected salon
+  const st=stats[TK.sel];
+  if(st){h+='<div class="card tk-detail"><div class="tk-dh"><div><b>'+TK.sel+' '+esc(sName(TK.sel))+'</b> · '+esc(tkLabel(TK.mode,TK.anchor))+' · <span style="color:'+tkCol(st.pct)+';font-weight:800">'+(st.pct==null?"nothing due yet":st.pct+"% ("+st.d+" of "+st.n+")")+'</span>'+(st.open?' <span class="gm-why" style="margin:0">· in progress</span>':'')+'</div>'+
+      '<button type="button" class="btn btn-sm" id="tkOpen">Open checklist</button></div>';
+    if(TK.mode==="week"){const days=[];for(let d=st.from;d<=st.to;d=gmAdd(d,1))days.push(d);
+      h+='<div class="tbl-scroll"><table class="gm-tbl tk-tbl"><thead><tr><th>Daily Five</th>'+days.map(d=>'<th>'+gmD(d).toLocaleDateString("en-US",{weekday:"short"})+'<br><span class="gm-why" style="margin:0">'+gmShort(d)+'</span></th>').join("")+'</tr></thead><tbody>'+
+        GM_DAY_ITEMS.map(it=>'<tr><td>'+esc(it.label)+'</td>'+days.map(d=>{const t=gmTask(TK.sel,"day",d,it.k);const ok=!!(t&&t.completed);
+          return '<td class="c">'+(d<GM_DAY_START||d>today?'<span class="tk-dot n">·</span>':ok?'<span class="tk-dot g" title="'+esc((t.completed_by||"")+"")+'">✓</span>':d===today?'<span class="tk-dot n">○</span>':'<span class="tk-dot r">✗</span>')+'</td>';}).join("")+'</tr>').join("")+'</tbody></table></div>';
+      const we=gmWeekEnd(st.from);
+      h+='<div class="tk-sub">Weekly Rhythm</div><div class="tk-wk">'+GM_WEEK_ITEMS.filter(it=>gmItemOn(it,we)).map(it=>{const due=gmAdd(we,gmDue(it,we)),t=gmTask(TK.sel,"week",we,it.k),done=gmItemDone(t,it);
+        const late=done&&gmLocalDate(t.completed_at)>due;const cls=done?(late?"a":"g"):due>=today?"n":"r";
+        return '<div class="tk-wrow"><span class="tk-dot '+cls+'">'+(done?"✓":due>=today?"○":"✗")+'</span><span>'+esc(it.label)+'</span><span class="gm-why" style="margin:0">'+esc(it.days||"")+' · due '+gmShort(due)+(late?" · done late":done&&t.completed_by?" · "+esc(t.completed_by):"")+'</span></div>';}).join("")+'</div>';}
+    else if(st.missed.length){h+='<div class="tk-sub">Missed ('+st.missed.length+')</div><div class="tk-wk">'+st.missed.slice(0,40).map(m=>'<div class="tk-wrow"><span class="tk-dot r">✗</span><span>'+esc(m.label)+'</span><span class="gm-why" style="margin:0">'+gmShort(m.date)+'</span></div>').join("")+(st.missed.length>40?'<div class="gm-why">+'+(st.missed.length-40)+' more</div>':'')+'</div>';}
+    else h+='<div class="gm-why" style="margin-top:8px">'+(st.n?"Everything due in this period is done. ✓":"Nothing was due in this period yet.")+'</div>';
+    h+='</div>';}
+  host.innerHTML=h;
+  host.querySelectorAll("#tkMode button").forEach(b=>b.onclick=()=>{TK.mode=b.dataset.m;renderManager();});
+  host.querySelectorAll("[data-nav]").forEach(b=>b.onclick=()=>{const n=+b.dataset.nav;if(!n)TK.anchor=today;else if(TK.mode==="day")TK.anchor=gmAdd(TK.anchor,n);
+    else if(TK.mode==="week")TK.anchor=gmAdd(TK.anchor,7*n);else{const d=gmD(tkMonthStart(TK.anchor));d.setMonth(d.getMonth()+n);TK.anchor=gmIso(d);}renderManager();});
+  host.querySelectorAll(".tk-card").forEach(c=>c.onclick=()=>{TK.sel=c.dataset.sid;renderManager();});
+  const ob=$("#tkOpen");if(ob)ob.onclick=()=>{const ss=$("#salonSel");if(ss&&TK.sel!==current){ss.value=TK.sel;ss.dispatchEvent(new Event("change"));}
+    if(typeof gmRhythmWeek!=="undefined"&&TK.mode!=="month")gmRhythmWeek=gmWeekEnd(TK.mode==="day"?TK.anchor:tkRange(TK.mode,TK.anchor)[1]);GM.view="rhythm";renderManager();};
+}
+(function(){const bar=document.getElementById("gmViewBar");if(bar&&!bar.querySelector('[data-v="tasks"]')){const b=document.createElement("button");b.dataset.v="tasks";b.textContent="Task Completion";
+  const sc=bar.querySelector('[data-v="score"]');bar.insertBefore(b,sc||null);b.addEventListener("click",()=>{GM.view="tasks";renderManager();});}})();
 </script>
 </body></html>

@@ -5340,12 +5340,14 @@ const MK_SUM=/^\s*(👍|🎯|📋)/;
 const MK_HI="Hi Team,";
 function mkMerge(text,wk){let keep=String(text||"").split(/\r?\n/).filter(l=>l.trim()&&!MK_SUM.test(l));
   if(!keep.some(l=>/^\s*(hi|hello|hey)\b/i.test(l)))keep=[MK_HI].concat(keep); // greeting first
-  return keep.concat(mkDraft(wk).split("\n")).join("\n");}
+  return mkGap(keep.concat(mkDraft(wk).split("\n")).join("\n"));}
+// blank line between the greeting and the first item
+function mkGap(t){const L=String(t||"").split(/\r?\n/);if(L.length>1&&/^\s*(hi|hello|hey)\b/i.test(L[0])&&L[1].trim())L.splice(1,0,"");return L.join("\n");}
 function mkOldNote(t){return /^Market recap for the week ending/.test(String(t||""));} // long opening note from before Nov 14
 function mkCombined(wk){const x=MK.recap[wk]||{};const rem=String(x.reminders||"").trim(),notes=x.notes;
   if(notes==null||mkOldNote(notes))return mkMerge(rem,wk);
   const t=rem&&!String(notes).includes(rem)?rem+"\n"+notes:notes;
-  return /^\s*(hi|hello|hey)\b/i.test(t)?t:MK_HI+"\n"+t;}
+  return mkGap(/^\s*(hi|hello|hey)\b/i.test(t)?t:MK_HI+"\n"+t);}
 function mkComposerHtml(wk){const x=MK.recap[wk];const notes=mkCombined(wk);
   return '<div class="card mk-comp"><div class="mk-comp-h"><div><div class="mk-comp-t">✉️ Email this recap to managers</div>'+
     '<div class="mk-sub">The email has your opening note at the top, then the comparison tiles, the colored ranking table, and the salon notes. Lines that start with • become bullets.</div></div>'+mkSentLine(wk,false)+'</div>'+

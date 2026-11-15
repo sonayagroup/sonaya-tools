@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.11.15a -->
+<!-- v2026.11.15b -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
@@ -1016,6 +1016,7 @@ body {
 .login-card .field label{display:block;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:4px}
 .login-card .field input{width:100%;padding:10px 12px;border:1px solid var(--gridline);border-radius:var(--radius-sm);font:inherit;font-size:14px;background:var(--surface-card);color:var(--text-primary);box-sizing:border-box}
 .login-card .field input:focus{outline:none;border-color:var(--brand-red)}
+.login-card .login-lang{display:block;margin:14px auto 0;background:none;border:1px solid var(--gridline);border-radius:var(--radius-sm);padding:6px 14px;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer}
 .login-card .login-btn{width:100%;padding:12px;background:var(--brand-red);color:#fff;border:none;border-radius:var(--radius);font-weight:700;font-size:14px;cursor:pointer;margin-top:6px;transition:background .15s}
 .login-card .login-btn:hover{background:#d41828}
 .login-card .login-btn:disabled{opacity:.55;cursor:not-allowed}
@@ -1294,6 +1295,7 @@ body {
     </div>
     <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
     <div class="login-error" id="login-error"></div>
+    <button type="button" class="lang-toggle login-lang" data-i18n-skip onclick="i18nToggle()">Español</button>
   </div>
 </div>
 
@@ -1330,8 +1332,9 @@ body {
   </div>
   <div class="header-right">
     <span class="last-updated" id="lastUpdated">Last updated: --</span>
-    <span class="user-name" id="user-display-name"></span>
+    <span class="user-name" id="user-display-name" data-i18n-skip></span>
     <a class="chgpw-link" onclick="openChangePassword(false)">Change Password</a>
+    <button class="theme-toggle lang-toggle" data-i18n-skip onclick="i18nToggle()" title="Cambiar a español">Español</button>
     <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">Dark</button>
     <button class="logout-btn" onclick="doLogout()">Sign Out</button>
   </div>
@@ -14734,6 +14737,7 @@ async function loadSession(session) {
     return;
   }
   currentPerms = permsRow;
+  if (window.i18nFromPerms) i18nFromPerms(permsRow);
   applyPermissions();
   // Show app, hide login
   document.getElementById('login-screen').classList.add('hidden');
@@ -15000,6 +15004,734 @@ async function adminSaveUser(userId) {
     errEl.textContent = e.message;
   }
 }
+
+</script>
+<script>
+/* ===== SPANISH TOGGLE (i18n) =====
+   Display-only translation: swaps UI text nodes and placeholder/title/aria-label attributes
+   using I18N_ES_DICT. Numbers, names and anything users type are never changed.
+   Reversible: original English is remembered per node, so switching back restores it exactly. */
+(function () {
+  const DICT = {
+"$ Variance": "Variación $",
+"$10 Comp Email": "Correo de compensación de $10",
+"$75,000 per store per year ($1,442/week); T or C $500/week. DMs enter each store’s catering sales and order count in the Weekly Recap.": "$75,000 por tienda al año ($1,442/semana); T or C $500/semana. Los gerentes de distrito ingresan las ventas y pedidos de catering de cada tienda en el Resumen semanal.",
+"% Variance": "Variación %",
+"% of Goal": "% de la meta",
+"% of Net Sales": "% de ventas netas",
+"% of Sales": "% de ventas",
+"(goal <10s)": "(meta <10s)",
+"(goal <60s)": "(meta <60s)",
+"(varies)": "(varía)",
+"+ Add": "+ Agregar",
+"+ Add Business": "+ Agregar negocio",
+"+ Add Staff": "+ Agregar empleado",
+"+ Add Vendor": "+ Agregar proveedor",
+"+ New Shop": "+ Nueva visita",
+"1 Taco Talk per day": "1 Taco Talk al día",
+"1 pt": "1 pt",
+"10 pts": "10 pts",
+"100% met goal": "100% cumplió la meta",
+"2 Part Goodbye": "Despedida en 2 partes",
+"2026 YTD Catering": "Catering 2026 en el año",
+"3 pts": "3 pts",
+"4-Wk Avg": "Prom. 4 sem.",
+"5 Taco Talks complete": "5 Taco Talks completos",
+"5 pts": "5 pts",
+"A calm leader makes a calm crew.": "Un líder tranquilo hace un equipo tranquilo.",
+"A clean kitchen is a safe kitchen.": "Una cocina limpia es una cocina segura.",
+"A great shift starts with a great huddle.": "Un gran turno empieza con una buena junta de equipo.",
+"A welcome/kiosk greeting provided upon arrival; team member ready to assist if needed.": "Se da la bienvenida al llegar (o en el kiosco); un empleado está listo para ayudar si se necesita.",
+"AVG CHANGE %": "CAMBIO % PROMEDIO",
+"AVG GCA": "GCA PROMEDIO",
+"AVG LABOR %": "MANO DE OBRA % PROMEDIO",
+"AVG VOIDS": "ANULACIONES PROMEDIO",
+"AVG WINDOW": "VENTANILLA PROMEDIO",
+"Account #": "Cuenta #",
+"Account not authorized. Contact the owner.": "Cuenta no autorizada. Comuníquese con el dueño.",
+"Act as if what you do makes a difference. It does.": "Actúa como si lo que haces marcara la diferencia. La marca.",
+"Action Items": "Pendientes",
+"Action Steps to Improve Shift Readiness": "Pasos para mejorar la preparación del turno",
+"Actions": "Acciones",
+"Actual": "Real",
+"Actual %": "Real %",
+"Actual Cost": "Costo real",
+"Add Company Contact": "Agregar contacto de la compañía",
+"Add New Business": "Agregar negocio nuevo",
+"Add comments for any edits made": "Agregue comentarios por cualquier cambio",
+"Add notes...": "Agregar notas...",
+"Additional Comments": "Comentarios adicionales",
+"Address": "Dirección",
+"All 21 chemical products from the Del Taco SDS Binder. This page is public (no login) so any crew member, inspector or first responder can open it from the QR code posted in the Emergency Procedures binder at every store.": "Los 21 productos químicos de la carpeta SDS de Del Taco. Esta página es pública (sin iniciar sesión) para que cualquier empleado, inspector o personal de emergencia la abra con el código QR de la carpeta de Procedimientos de Emergencia de cada tienda.",
+"All Areas": "Todas las áreas",
+"All Categories": "Todas las categorías",
+"All Status": "Todos los estados",
+"All Stores": "Todas las tiendas",
+"All Stores (Portfolio)": "Todas las tiendas (portafolio)",
+"All Taco Talks complete": "Todos los Taco Talks completos",
+"All dining room lights are on and working.": "Todas las luces del comedor están prendidas y funcionan.",
+"All team members are in proper uniform.": "Todos los empleados traen el uniforme correcto.",
+"Alone we can do so little; together we can do so much.": "Solos podemos hacer muy poco; juntos podemos hacer mucho.",
+"Amount": "Monto",
+"Anniversary": "Aniversario",
+"Annual Goal": "Meta anual",
+"Annual goal $75,000": "Meta anual $75,000",
+"Any additional notes...": "Notas adicionales...",
+"Any additional observations...": "Otras observaciones...",
+"Any other observations...": "Otras observaciones...",
+"Apr": "Abr",
+"Assigned": "Asignado",
+"Assigned To": "Asignado a",
+"Assistant General Manager": "Subgerente general",
+"At least 6 characters": "Al menos 6 caracteres",
+"Aug": "Ago",
+"Authorize Timesheets in Dayforce": "Autorizar hojas de horas en Dayforce",
+"Automotive": "Automotriz",
+"Average": "Promedio",
+"Avg Change %": "Cambio % promedio",
+"Avg GCA": "GCA promedio",
+"Avg Labor %": "Mano de obra % promedio",
+"Avg Order": "Pedido promedio",
+"Avg Score (30d)": "Puntaje promedio (30 días)",
+"Avg Score (All)": "Puntaje promedio (todas)",
+"Avg Variance %": "Variación promedio %",
+"Avg Voids": "Anulaciones promedio",
+"Avg Window": "Ventanilla promedio",
+"Avg Window:": "Ventanilla promedio:",
+"Back of House": "Cocina",
+"Be quick, but don't hurry.": "Sé rápido, pero no te apresures.",
+"Be the reason someone's day got easier.": "Sé la razón por la que el día de alguien fue más fácil.",
+"Birthday": "Cumpleaños",
+"Brix soda machines": "Brix de las máquinas de refresco",
+"Business": "Negocio",
+"Business Name": "Nombre del negocio",
+"Business Segment": "Tipo de visita",
+"By Store": "Por tienda",
+"Called": "Llamado",
+"Can't check off a future date": "No se puede marcar una fecha futura",
+"Cancel": "Cancelar",
+"Carry Out": "Para llevar",
+"Cashier": "Cajero(a)",
+"Cashier Name": "Nombre del cajero(a)",
+"Category": "Categoría",
+"Category Breakdown": "Desglose por categoría",
+"Catering 2026 YTD": "Catering 2026 en el año",
+"Catering CRM": "Catering (clientes)",
+"Catering Outreach CRM": "Seguimiento de catering",
+"Catering Sales Goal — 2026": "Meta de ventas de catering — 2026",
+"Celebrate your crew's wins out loud.": "Celebra en voz alta los logros de tu equipo.",
+"Change % vs Prior Year": "Cambio % vs año anterior",
+"Change Password": "Cambiar contraseña",
+"Change Your Password": "Cambie su contraseña",
+"Check Doordash errors and dispute as needed": "Revisar errores de DoorDash y disputar si es necesario",
+"Check red times": "Revisar tiempos rojos",
+"Check the bag twice. Hand it out once.": "Revisa la bolsa dos veces. Entrégala una vez.",
+"Chg %": "Cambio %",
+"Choose a new password for your account.": "Elija una nueva contraseña para su cuenta.",
+"Churches & Religious": "Iglesias y religión",
+"Clean": "Sin problemas",
+"Clean as you go. Your guests notice.": "Limpia sobre la marcha. Los clientes lo notan.",
+"Cleaning checklist assigned or completed for the week (Jolt).": "Lista de limpieza asignada o completada para la semana (Jolt).",
+"Close": "Cerrar",
+"Closed": "Cerrado",
+"Coach on food variance in WhatsApp": "Dar seguimiento a la variación de alimentos en WhatsApp",
+"Coach the crew, not just the numbers.": "Entrena al equipo, no solo los números.",
+"Comments": "Comentarios",
+"Company": "Compañía",
+"Company name is required": "El nombre de la compañía es obligatorio",
+"Company-Wide Contacts": "Contactos de la compañía",
+"Complete": "Completo",
+"Completed": "Completado",
+"Completion": "Cumplimiento",
+"Compliment": "Felicitación",
+"Confirm New Password": "Confirmar nueva contraseña",
+"Consistency is what keeps guests coming back.": "La constancia es lo que hace que los clientes regresen.",
+"Construction & Industrial": "Construcción e industria",
+"Contact": "Contacto",
+"Contact Email": "Correo del contacto",
+"Contact Name": "Nombre del contacto",
+"Contact Position": "Puesto del contacto",
+"Contact person name": "Nombre de la persona de contacto",
+"Contacted": "Contactado",
+"Contacts": "Contactos",
+"Cook": "Cocina",
+"Copy": "Copiar",
+"Copy for WhatsApp": "Copiar para WhatsApp",
+"Copy to Clipboard": "Copiar al portapapeles",
+"Correct Greeting": "Saludo correcto",
+"Correct Uniform": "Uniforme correcto",
+"Cost": "Costo",
+"Cost %": "Costo %",
+"Count": "Cantidad",
+"Crew Member": "Empleado",
+"Critical": "Crítico",
+"Curb Appeal": "Apariencia exterior",
+"Current Period": "Periodo actual",
+"Current average rating (out of 5.0)": "Calificación promedio actual (de 5.0)",
+"Current week problem service check count": "Quejas de esta semana",
+"Customer compensations issued": "Compensaciones entregadas a clientes",
+"DT Incorrect Charge": "Cobro incorrecto en Drive-Thru",
+"Daily": "Diario",
+"Daily Operations": "Operaciones diarias",
+"Daily Tasks": "Tareas diarias",
+"Dark": "Oscuro",
+"Dashboard sections": "Secciones del panel",
+"Data from QBO P&L & PLV Reports. All food cost sources connected.": "Datos de los reportes P&L de QBO y PLV. Todas las fuentes de costo de alimentos conectadas.",
+"Date": "Fecha",
+"Dec": "Dic",
+"Del Taco Compensation Email": "Correo de compensación de Del Taco",
+"Del Taco Operations Dashboard — Patel DT LLC — Group 373 — Data refreshes daily at 10:00 AM MT": "Panel de operaciones Del Taco — Patel DT LLC — Grupo 373 — Los datos se actualizan diario a las 10:00 AM MT",
+"Delete": "Eliminar",
+"Delete this company-wide contact?": "¿Eliminar este contacto de la compañía?",
+"Delete this staff contact?": "¿Eliminar este contacto del empleado?",
+"Delivery Feedback": "Comentarios de entrega",
+"Delivery Online": "Entrega en línea",
+"Deployment chart is in use, proper deployment is being followed and MIC is in the \"MIC Zone\".": "La tabla de posiciones está en uso, se sigue la asignación correcta y el MIC está en la \"zona MIC\".",
+"Deposit to bank": "Depósito al banco",
+"Description": "Descripción",
+"Details": "Detalles",
+"Details →": "Detalles →",
+"Did Not Visit": "No visitó",
+"Dine In": "Comer aquí",
+"Dining room (doors, windows, tables, etc.) is clean and in good condition with correct POP (no extra POP).": "El comedor (puertas, ventanas, mesas, etc.) está limpio y en buen estado, con el POP correcto (sin POP extra).",
+"Disc $": "Descuento $",
+"Dismiss": "Cerrar",
+"Do what you can, with what you have, where you are.": "Haz lo que puedas, con lo que tengas, donde estés.",
+"Drive Thru": "Drive-Thru",
+"Drive-Thru": "Drive-Thru",
+"Drive-Thru guest greeted within 15 seconds of arriving at the speaker. If asked to hold, re-greeted within 15 seconds.": "Se saluda al cliente del Drive-Thru dentro de 15 segundos de llegar a la bocina. Si se le pide esperar, se le vuelve a saludar dentro de 15 segundos.",
+"Drive-Thru menuboard, speaker, window and counter are clean and in good condition with correct POP (no extra POP).": "El menú, la bocina, la ventanilla y el mostrador del Drive-Thru están limpios y en buen estado, con el POP correcto (sin POP extra).",
+"Drive-Thru receives order within the target time for daypart (no cars are parked).": "El Drive-Thru toma el pedido dentro del tiempo meta para el horario (no hay carros estacionados esperando).",
+"Due by Tuesday": "Vence el martes",
+"Edit": "Editar",
+"Edit Staff Contact": "Editar contacto del empleado",
+"Email": "Correo electrónico",
+"Email Sent": "Correo enviado",
+"Email accounting@sonayagroup.com if over/short": "Escriba a accounting@sonayagroup.com si sobra o falta dinero",
+"Email...": "Correo...",
+"Emergency": "Emergencia",
+"Employee": "Empleado",
+"Employee & Manager Meals per store": "Comidas de empleados y gerentes por tienda",
+"Employee Meals (490)": "Comidas de empleados (490)",
+"End of day & Push Ipos": "Cierre del día y enviar Ipos",
+"Equipment": "Equipo",
+"Equipment function and maintaining proper product temperatures (take 1-3 holding temps to confirm).": "El equipo funciona y mantiene las temperaturas correctas (tome 1 a 3 temperaturas de mantenimiento para confirmar).",
+"Error deleting contact": "Error al eliminar el contacto",
+"Error unlinking vendor": "Error al quitar el proveedor",
+"Every guest deserves our best, even at close.": "Cada cliente merece lo mejor, incluso al cierre.",
+"Every order is a promise. Keep it hot, fast and right.": "Cada pedido es una promesa. Caliente, rápido y correcto.",
+"Every shift is a chance to get a little better.": "Cada turno es una oportunidad para mejorar un poco.",
+"Excellence is doing ordinary things extraordinarily well.": "La excelencia es hacer cosas ordinarias extraordinariamente bien.",
+"Executive Summary": "Resumen",
+"Facility - Other Facility Issue": "Instalaciones - Otro problema de instalaciones",
+"Failed to save business. Please try again.": "No se pudo guardar el negocio. Intente de nuevo.",
+"Fast is good. Fast and friendly is better.": "Rápido está bien. Rápido y amable es mejor.",
+"Fill out deployment chart": "Llenar la tabla de posiciones",
+"Financial & Professional": "Finanzas y servicios profesionales",
+"Fire extinguisher inspections": "Inspección de extintores",
+"Fitness & Recreation": "Gimnasios y recreación",
+"Flagged KPIs": "Indicadores señalados",
+"Food": "Alimentos",
+"Food %": "Alimentos %",
+"Food Cost %": "Costo de alimentos %",
+"Food Cost % Trend": "Tendencia de costo de alimentos %",
+"Food Cost % Variance Heatmap": "Mapa de variación de costo de alimentos %",
+"Food Cost Analysis": "Análisis de costo de alimentos",
+"Food Cost Trend": "Tendencia de costo de alimentos",
+"Franchise Dashboard": "Panel de franquicia",
+"Friendly & Smiling": "Amable y sonriente",
+"From:": "Desde:",
+"Front counter line of sight into the kitchen appears clean and organized (food safety is clearly visible).": "Lo que se ve de la cocina desde el mostrador está limpio y organizado (la seguridad alimentaria es evidente).",
+"Fulfillment & Compensations": "Cumplimiento y compensaciones",
+"Full binder PDF ↗": "Carpeta completa en PDF ↗",
+"GM Checklist": "Lista del gerente",
+"GM Checklist History": "Historial de la lista del gerente",
+"GM Daily / Weekly / Monthly Checklist": "Lista del gerente: diaria / semanal / mensual",
+"General Manager": "Gerente general",
+"Generate Message": "Generar mensaje",
+"Goal varies by time of day": "La meta varía según la hora del día",
+"Goal: < 10s": "Meta: < 10s",
+"Goal: < 60s": "Meta: < 60s",
+"Good": "Bien",
+"Good food, served right, brings guests back.": "La buena comida, bien servida, hace que los clientes regresen.",
+"Google Ratings by Store": "Calificaciones de Google por tienda",
+"Government & Municipal": "Gobierno y municipio",
+"Great": "Excelente",
+"Great service is everyone's job.": "El buen servicio es trabajo de todos.",
+"Great things are done by a series of small things brought together.": "Las grandes cosas se logran con una serie de cosas pequeñas unidas.",
+"Green = at or above that store’s weekly goal; red = below. “—” = not entered in the Weekly Recap yet.": "Verde = igual o arriba de la meta semanal de la tienda; rojo = abajo. “—” = aún no ingresado en el Resumen semanal.",
+"Greet every guest like they're a regular.": "Saluda a cada cliente como si fuera de los de siempre.",
+"Guest Check Average by Store": "Ticket promedio (GCA) por tienda",
+"Help a teammate before they ask.": "Ayuda a un compañero antes de que lo pida.",
+"High": "Alto",
+"High Variance Items": "Artículos con alta variación",
+"History": "Historial",
+"Hot food, cold drinks, warm welcome.": "Comida caliente, bebidas frías, bienvenida cálida.",
+"Hotels & Lodging": "Hoteles y hospedaje",
+"Impact": "Impacto",
+"In Progress": "En progreso",
+"Incident #": "Incidente #",
+"Incomplete": "Incompleto",
+"Incorrectly Charged": "Cobro incorrecto",
+"Individual commitment to a group effort is what makes a team work.": "El compromiso de cada uno con el esfuerzo del grupo es lo que hace funcionar a un equipo.",
+"Inspector": "Inspector",
+"Interested": "Interesado",
+"Issue Category": "Categoría de la queja",
+"Item": "Artículo",
+"Items Counted": "Artículos contados",
+"Items w/ Variance": "Artículos con variación",
+"Items with >1% variance from theory -- sorted by dollar impact": "Artículos con más de 1% de variación del teórico — ordenados por impacto en dólares",
+"Jan": "Ene",
+"Jolt Restaurant visit list": "Lista de visita al restaurante en Jolt",
+"Jolt cleaning checklist": "Lista de limpieza en Jolt",
+"Jolt practice FSA": "Práctica de FSA en Jolt",
+"Jolt temperatures": "Temperaturas en Jolt",
+"Jump to today": "Ir a hoy",
+"Labor": "Mano de obra",
+"Labor % by Store": "Mano de obra % por tienda",
+"Labor Cost % Trend": "Tendencia de mano de obra %",
+"Last 8 Weeks (week ending)": "Últimas 8 semanas (fin de semana)",
+"Last Shop:": "Última visita:",
+"Last Week (orders)": "Semana pasada (pedidos)",
+"Last updated: --": "Última actualización: --",
+"Lead by example. Your crew is watching.": "Predica con el ejemplo. Tu equipo te está viendo.",
+"Leadership is action, not position.": "El liderazgo es acción, no un puesto.",
+"Left to Goal": "Falta para la meta",
+"License & Permits are up to date and properly displayed.": "Las licencias y permisos están al día y a la vista.",
+"Light": "Claro",
+"Listen to the guest. Then make it right.": "Escucha al cliente. Luego resuélvelo.",
+"Little things make big things happen.": "Las cosas pequeñas hacen que pasen las grandes.",
+"Live data from ServiceCheck": "Datos en vivo de ServiceCheck",
+"Load": "Cargar",
+"Loading...": "Cargando...",
+"Lobby": "Lobby",
+"Low": "Bajo",
+"MIC Name": "Nombre del encargado (MIC)",
+"Maintenance and Inspection Binder is up to date.": "La carpeta de mantenimiento e inspecciones está al día.",
+"Make each day your masterpiece.": "Haz de cada día tu obra maestra.",
+"Make it right the first time.": "Hazlo bien desde la primera vez.",
+"Manager Meals (491)": "Comidas de gerentes (491)",
+"Manager in Charge": "Encargado del turno",
+"Medical & Dental": "Médico y dental",
+"Medium": "Medio",
+"Mitigation & Discounts": "Mitigación y descuentos",
+"Mobile": "Celular",
+"Modifications Marked": "Modificaciones marcadas",
+"Month": "Mes",
+"Monthly": "Mensual",
+"Monthly Contact Trend": "Tendencia mensual de contactos",
+"Monthly Tasks": "Tareas mensuales",
+"NO": "NO",
+"Name": "Nombre",
+"Name is required": "El nombre es obligatorio",
+"Name...": "Nombre...",
+"Napkins": "Servilletas",
+"Nearest Store": "Tienda más cercana",
+"Needs Improvement": "Necesita mejorar",
+"Net Sales": "Ventas netas",
+"New Password": "Nueva contraseña",
+"New Visit": "Nueva visita",
+"Next month": "Mes siguiente",
+"Next week": "Semana siguiente",
+"No": "No",
+"No Data": "Sin datos",
+"No businesses match your filters.": "Ningún negocio coincide con sus filtros.",
+"No company-wide contacts yet — click + Add": "Aún no hay contactos de la compañía — haga clic en + Agregar",
+"No data": "Sin datos",
+"No data for this date": "No hay datos para esta fecha",
+"No data for this month": "No hay datos para este mes",
+"No data for this week": "No hay datos para esta semana",
+"No expired product on line or in storage. Hot bar product red times are being tracked with Renae/Red Time Charts.": "No hay producto vencido en la línea ni en almacén. Los tiempos rojos de la barra caliente se registran con Renae/las tablas de tiempo rojo.",
+"No orders entered": "No hay pedidos ingresados",
+"No problem issues this week": "No hay quejas esta semana",
+"No secret shops recorded yet.": "Aún no hay visitas de cliente misterioso.",
+"No shift inventory data for selected week. Data is pulled from PowerBI when available.": "No hay datos de inventario por turno para la semana seleccionada. Los datos se toman de PowerBI cuando están disponibles.",
+"No staff contacts yet — click + Add Staff": "Aún no hay contactos — haga clic en + Agregar empleado",
+"No vendors yet — click + Add Vendor": "Aún no hay proveedores — haga clic en + Agregar proveedor",
+"Not Called": "No llamado",
+"Not Started": "Sin empezar",
+"Notes": "Notas",
+"Notice the effort, not just the results.": "Reconoce el esfuerzo, no solo los resultados.",
+"OVERDUE": "VENCIDO",
+"Office": "Oficina",
+"Online Ordering": "Pedidos en línea",
+"Open": "Abierto",
+"Open public SDS page ↗": "Abrir la página pública de SDS ↗",
+"Order Correct": "Pedido correcto",
+"Overall Score": "Puntaje total",
+"Own your shift. Leave it better than you found it.": "Hazte cargo de tu turno. Déjalo mejor de como lo encontraste.",
+"PARS are posted, in use and product levels are appropriate for the daypart.": "Los PARS están publicados y en uso, y los niveles de producto son adecuados para el horario.",
+"PROBLEM SCS": "QUEJAS (PROBLEMA)",
+"Paper & Plastic": "Papel y plástico",
+"Parking lot is free of trash/debris and landscaping is well tended.": "El estacionamiento está libre de basura y el jardín está bien cuidado.",
+"Partial": "Parcial",
+"Password": "Contraseña",
+"Patel DT LLC • Group 373": "Patel DT LLC • Grupo 373",
+"Pending": "Pendiente",
+"Perfection is not attainable, but if we chase perfection we can catch excellence.": "La perfección no se alcanza, pero si la perseguimos podemos alcanzar la excelencia.",
+"Period": "Periodo",
+"Period:": "Periodo:",
+"Phone": "Teléfono",
+"Photos": "Fotos",
+"Pick Up Online": "Recoger pedido en línea",
+"Picture of Drive-Thru taken and acceptable.": "Se tomó foto del Drive-Thru y está aceptable.",
+"Plan in Dayforce for next week": "Planear en Dayforce la próxima semana",
+"Position": "Puesto",
+"Position...": "Puesto...",
+"Previous month": "Mes anterior",
+"Previous week": "Semana anterior",
+"Print out PARS": "Imprimir los PARS",
+"Prior Period": "Periodo anterior",
+"Prior business date": "Día de negocio anterior",
+"Problem": "Problema",
+"Problem Rate": "Tasa de quejas",
+"Problem SCs": "Quejas (problema)",
+"Problem SCs by Store": "Quejas por tienda",
+"Product - Tacos - Portions": "Producto - Tacos - Porciones",
+"Product is stirred following SOP and properly portioned (ex. Taco Meat: Stir/Scoop/Pack/Tap).": "El producto se revuelve según el procedimiento y se porciona correctamente (ej. carne de taco: revolver/sacar/apretar/golpear).",
+"Progress:": "Progreso:",
+"Proper cash handling procedures being followed (single drawer assignment, safe accounted for, deposits being made/taken to bank, etc.).": "Se siguen los procedimientos correctos de manejo de efectivo (una persona por cajón, caja fuerte cuadrada, depósitos hechos/llevados al banco, etc.).",
+"QTY": "CANT.",
+"Quarter": "Trimestre",
+"Quiz": "Examen",
+"Quote of the day": "Frase del día",
+"Rating": "Calificación",
+"Re-enter new password": "Vuelva a escribir la nueva contraseña",
+"Recent Sessions": "Visitas recientes",
+"Recent Shops": "Visitas recientes",
+"Record Secret Shop": "Registrar cliente misterioso",
+"Recorded By": "Registrado por",
+"Refunds": "Reembolsos",
+"Repeats Order": "Repite el pedido",
+"Reported": "Reportado",
+"Reports Submitted": "Reportes enviados",
+"Restaurant Manager": "Gerente de restaurante",
+"Restrooms are stocked, clean and in good condition.": "Los baños están surtidos, limpios y en buen estado.",
+"Retail & Big Box": "Tiendas y comercios grandes",
+"Role": "Puesto",
+"Role / Title": "Puesto / título",
+"SDS Sheets": "Hojas SDS",
+"Safety Data Sheets": "Hojas de datos de seguridad",
+"Safety Data Sheets (SDS)": "Hojas de datos de seguridad (SDS)",
+"Sales": "Ventas",
+"Sauces": "Salsas",
+"Save": "Guardar",
+"Save & Generate Message": "Guardar y generar mensaje",
+"Save Business": "Guardar negocio",
+"Save failed": "No se pudo guardar",
+"Saved": "Guardado",
+"Saving...": "Guardando...",
+"Say thank you like you mean it.": "Da las gracias de corazón.",
+"Schedule for next week": "Horario de la próxima semana",
+"Schedule posted a minimum of 14 days in advance.": "El horario está publicado con al menos 14 días de anticipación.",
+"Schools & Education": "Escuelas y educación",
+"Score": "Puntaje",
+"Scorecard": "Tarjeta de puntaje",
+"Search business name...": "Buscar nombre del negocio...",
+"Secret Shops": "Cliente misterioso",
+"Select a store": "Seleccione una tienda",
+"Select a store and date range, then click Load.": "Seleccione una tienda y un rango de fechas, y haga clic en Cargar.",
+"Select category...": "Seleccione categoría...",
+"Select store...": "Seleccione tienda...",
+"Send in PLV at period end": "Enviar el PLV al cierre del periodo",
+"Send in Weekly Inventory Variance report": "Enviar el reporte semanal de variación de inventario",
+"Serious": "Serio",
+"Service - Crew Member Issues - Issue Placing an Order": "Servicio - Empleados - Problema al hacer el pedido",
+"Service - Crew Member Issues - Unavailable/Not Helpful": "Servicio - Empleados - No disponible / no ayudó",
+"Service - Speed of Service - Too long to place order": "Servicio - Rapidez - Tardó mucho en hacer el pedido",
+"Service Checks": "Quejas de clientes",
+"ServiceCheck contacts overview (rolling period)": "Resumen de contactos de ServiceCheck (periodo móvil)",
+"Shift Inventory Quality": "Calidad del inventario por turno",
+"Shift Manager": "Gerente de turno",
+"Shift checklist completed at least 90% (Jolt).": "Lista del turno completada al menos al 90% (Jolt).",
+"Shift inventories are being completed every shift.": "Se completan los inventarios en cada turno.",
+"Shop Details": "Detalles de la visita",
+"Shops:": "Visitas:",
+"Show up, set the tone, and finish strong.": "Llega, pon el ejemplo y termina fuerte.",
+"Sign In": "Iniciar sesión",
+"Sign Out": "Cerrar sesión",
+"Signage is tier-1 and all exterior lights are working (timer verified).": "Los letreros están en buen estado y todas las luces exteriores funcionan (temporizador verificado).",
+"Signing in...": "Iniciando sesión...",
+"Small wins every shift add up to a great week.": "Pequeños logros en cada turno suman una gran semana.",
+"Smile at the speaker. Guests can hear it.": "Sonríe en la bocina. El cliente lo escucha.",
+"Some saves failed": "Algunos cambios no se guardaron",
+"Speaker": "Bocina",
+"Speaker Answer": "Respuesta en la bocina",
+"Speed matters. Accuracy matters more.": "La rapidez importa. La precisión importa más.",
+"Staff Contacts": "Contactos del personal",
+"Status": "Estado",
+"Stock up before the rush, not during it.": "Surte antes de la hora pico, no durante.",
+"Store": "Tienda",
+"Store Summary": "Resumen de tiendas",
+"Store Vendor Contacts": "Proveedores de la tienda",
+"Store Visit Checklist": "Lista de visita a la tienda",
+"Stores": "Tiendas",
+"Stores w/ Problems": "Tiendas con quejas",
+"Submit Visit": "Enviar visita",
+"Submitted": "Enviado",
+"Success is the sum of small efforts, repeated day in and day out.": "El éxito es la suma de pequeños esfuerzos repetidos día tras día.",
+"Success isn't owned. It's leased, and rent is due every day.": "El éxito no se compra. Se renta, y la renta se paga todos los días.",
+"Suggestion": "Sugerencia",
+"TOTAL NET SALES": "VENTAS NETAS TOTALES",
+"Take pride in the little things. They're never little to the guest.": "Siéntete orgulloso de los detalles. Para el cliente nunca son pequeños.",
+"Talent wins games, but teamwork and intelligence win championships.": "El talento gana partidos, pero el trabajo en equipo y la inteligencia ganan campeonatos.",
+"Tap to take a photo or choose from gallery": "Toque para tomar una foto o elegir de la galería",
+"Target": "Meta",
+"Target varies by store volume": "La meta varía según el volumen de la tienda",
+"Task unchecked": "Tarea desmarcada",
+"Team Leader": "Líder de equipo",
+"Team Member": "Miembro del equipo",
+"Teamwork makes the dream work.": "El trabajo en equipo hace realidad los sueños.",
+"Thank your crew today. Then go be great.": "Agradécele hoy a tu equipo. Y luego a darle con todo.",
+"The best preparation for tomorrow is doing your best today.": "La mejor preparación para mañana es dar lo mejor hoy.",
+"The customer's perception is your reality.": "La percepción del cliente es tu realidad.",
+"The drive-thru is our front door. Keep it moving.": "El Drive-Thru es nuestra puerta de entrada. Que no se detenga.",
+"The way to get things done is not to mind who gets the credit.": "La manera de lograr las cosas es no preocuparse por quién se lleva el crédito.",
+"Theory %": "Teórico %",
+"Theory Cost": "Costo teórico",
+"Theory vs Actual by store -- darker = higher variance": "Teórico vs real por tienda — más oscuro = mayor variación",
+"This Month": "Este mes",
+"Time": "Hora",
+"Timed Metrics": "Tiempos medidos",
+"To:": "Hasta:",
+"Today": "Hoy",
+"Today's guest is tomorrow's regular.": "El cliente de hoy es el cliente fiel de mañana.",
+"Toggle dark mode": "Cambiar modo oscuro",
+"Top Problem Issues": "Principales quejas",
+"Top Problems (Period)": "Principales quejas (periodo)",
+"Total": "Total",
+"Total $ Variance": "Variación total $",
+"Total All SCs": "Total de reportes",
+"Total Amount": "Monto total",
+"Total Compensations": "Total de compensaciones",
+"Total Disc $": "Total descuentos $",
+"Total Leads": "Total de prospectos",
+"Total Net Sales": "Ventas netas totales",
+"Total Problem SCs": "Total de quejas (problema)",
+"Total Shops": "Total de visitas",
+"Total Speaker": "Tiempo total en la bocina",
+"Total problem SCs -- last 4 weeks": "Total de quejas — últimas 4 semanas",
+"Track catering outreach calls to local businesses near each Del Taco location.": "Registre las llamadas de catering a negocios cerca de cada Del Taco.",
+"Track completion of required tasks for each store.": "Registre las tareas obligatorias de cada tienda.",
+"Train today so tomorrow runs itself.": "Entrena hoy para que mañana todo fluya.",
+"Trans": "Trans.",
+"Treat every order like it's going to your own family.": "Prepara cada pedido como si fuera para tu familia.",
+"Type": "Tipo",
+"Undo": "Deshacer",
+"Update Password": "Actualizar contraseña",
+"Upsell Dessert": "Ofrecer postre",
+"Upsell Drink / Combo": "Ofrecer bebida / combo",
+"Upsell SC/Guac/Chile": "Ofrecer crema/guacamole/chile",
+"Upsell Sour Cream / Guac / Chile": "Ofrecer crema / guacamole / chile",
+"Utensils Included": "Cubiertos incluidos",
+"Utensils Included (if applicable)": "Cubiertos incluidos (si aplica)",
+"Var": "Var.",
+"Variance": "Variación",
+"Variance %": "Variación %",
+"Variance % per store from shift inventory counts — pulled from PowerBI": "Variación % por tienda según los inventarios por turno — de PowerBI",
+"Verify all current employees are in the WhatsApp group": "Verificar que todos los empleados actuales estén en el grupo de WhatsApp",
+"View": "Ver",
+"Voids": "Anulaciones",
+"Watch": "Vigilar",
+"We are what we repeatedly do. Excellence, then, is not an act, but a habit.": "Somos lo que hacemos repetidamente. La excelencia, entonces, no es un acto sino un hábito.",
+"Weakest:": "Más débil:",
+"Week": "Semana",
+"Week ending": "Semana que termina",
+"Week ending:": "Semana que termina:",
+"Week-over-Week Trend": "Tendencia semana a semana",
+"Week-over-week": "Semana a semana",
+"Weekly": "Semanal",
+"Weekly Goal": "Meta semanal",
+"Weekly Recap": "Resumen semanal",
+"Weekly Tasks": "Tareas semanales",
+"Weekly food cost % -- all stores": "Costo de alimentos % semanal — todas las tiendas",
+"Well done is better than well said.": "Bien hecho es mejor que bien dicho.",
+"What needs to be addressed...": "Qué se necesita corregir...",
+"WhatsApp Message": "Mensaje de WhatsApp",
+"Where contacts originated": "Origen de los contactos",
+"Win": "Vent.",
+"Win the lunch rush one car at a time.": "Gana la hora de la comida carro por carro.",
+"Window": "Ventanilla",
+"Window Time": "Tiempo en ventanilla",
+"Work Anniversary": "Aniversario de trabajo",
+"YES": "SÍ",
+"Yes": "Sí",
+"YoY net sales comp by store": "Comparación de ventas netas vs año anterior por tienda",
+"You don't have to be great to start, but you have to start to be great.": "No tienes que ser excelente para empezar, pero tienes que empezar para ser excelente.",
+"Your Name": "Su nombre",
+"Your name": "Su nombre",
+"e.g. 1234 Main St NW, ABQ 87110": "ej. 1234 Main St NW, ABQ 87110",
+"e.g. Holiday Inn Express": "ej. Holiday Inn Express",
+"e.g. Manager, Office Admin": "ej. Gerente, Administración",
+"e.g. Payroll provider, Insurance broker": "ej. Nómina, agente de seguros",
+"had incomplete GM checklists for": "tuvo listas del gerente incompletas el",
+"not entered": "no ingresado",
+"sec": "seg",
+"— in seconds": "— en segundos",
+"— tap each that passed": "— toque cada uno que pasó",
+"↻ Refresh": "↻ Actualizar",
+"⏱️ Timed Metrics": "⏱️ Tiempos medidos",
+"✅ Order Correct": "✅ Pedido correcto",
+"✏️ Edit": "✏️ Editar",
+"✓ Copied": "✓ Copiado",
+"✓ Mark All": "✓ Marcar todo",
+"🌶️ Upsell SC/Guac/Chile": "🌶️ Ofrecer crema/guacamole/chile",
+"🍪 Upsell Dessert": "🍪 Ofrecer postre",
+"🍴 Utensils Included": "🍴 Cubiertos incluidos",
+"🎤 Speaker Answer": "🎤 Respuesta en la bocina",
+"🏪 Curb Appeal": "🏪 Apariencia exterior",
+"👋 2 Part Goodbye": "👋 Despedida en 2 partes",
+"👋 Correct Greeting": "👋 Saludo correcto",
+"👔 Correct Uniform": "👔 Uniforme correcto",
+"📄 Catering Menu": "📄 Menú de catering",
+"📋 Copy": "📋 Copiar",
+"📋 View History": "📋 Ver historial",
+"📍 Visit Info": "📍 Información de la visita",
+"📝 Other Details": "📝 Otros detalles",
+"🔁 Repeats Order": "🔁 Repite el pedido",
+"🖨 Print PDF": "🖨 Imprimir PDF",
+"🗣️ Total Speaker": "🗣️ Tiempo total en la bocina",
+"😊 Friendly & Smiling": "😊 Amable y sonriente",
+"🥤 Upsell Drink/Combo": "🥤 Ofrecer bebida/combo",
+"🪟 Window Time": "🪟 Tiempo en ventanilla"
+};
+  const PATS = [[new RegExp("^Week ending (.+?)(:?)$"), "Semana que termina $D1$2"],[new RegExp("^Updated (.+)$"), "Actualizado $D1"],[new RegExp("^Quote of the day \u00b7 (.+)$"), "Frase del día · $D1"],[new RegExp("^Week: (.+)$"), "Semana: $D1"],[new RegExp("^Current Week: (.+)$"), "Semana actual: $D1"],[new RegExp("^Last Week: (.+)$"), "Semana pasada: $D1"],[new RegExp("^Store Recap Completion \u2014 Week ending (.+)$"), "Resúmenes completados — semana que termina $D1"],[new RegExp("^(\\d+) stores?$"), "$1 tienda(s)"],[new RegExp("^(\\d+) store\\(s\\)$"), "$1 tienda(s)"],[new RegExp("^(\\d+) flags?$"), "$1 alerta(s)"],[new RegExp("^(\\d+) of (\\d+)$"), "$1 de $2"],[new RegExp("^(\\d+) / (\\d+) submitted$"), "$1 / $2 enviados"],[new RegExp("^(.+): (\\d+) problem SCs?$"), "$1: $2 queja(s)"],[new RegExp("^(.+): No report submitted yet$"), "$1: Aún no se envía el reporte"],[new RegExp("^No report submitted yet$"), "Aún no se envía el reporte"],[new RegExp("^(.+): (\\d(?:\\.\\d)?) stars \\((.+) reviews\\)$"), "$1: $2 estrellas ($3 reseñas)"],[new RegExp("^(.+): ([+-]?[\\d.]+%) variance \\((.+)\\)$"), "$1: variación de $2 ($3)"],[new RegExp("^Goal \\$([\\d,]+) \u00b7 (\\d+)/(\\d+) reported$"), "Meta $$$1 · $2/$3 reportadas"],[new RegExp("^vs \\$([\\d,]+) goal \u00b7 (\\d+)/(\\d+) stores reported$"), "vs meta de $$$1 · $2/$3 tiendas reportaron"],[new RegExp("^of \\$([\\d,]+) goal \\((.+)\\)$"), "de la meta de $$$1 ($2)"],[new RegExp("^([\\d.]+)% of \\$([\\d,]+)$"), "$1% de $$$2"],[new RegExp("^([\\d.]+)% of annual goal$"), "$1% de la meta anual"],[new RegExp("^([+-]?\\d+) vs prior week$"), "$1 vs semana anterior"],[new RegExp("^Actual: (.+) \\| Target: (.+)$"), "Real: $1 | Meta: $2"],[new RegExp("^Target: (.+) \\| Var: (.+)$"), "Meta: $1 | Var: $2"],[new RegExp("^Live data from ServiceCheck -- Week of (.+) to (.+)\\.$"), "Datos en vivo de ServiceCheck — semana del $1 al $2."],[new RegExp("^Employee & Manager Meals per store \u2014 (.+)$"), "Comidas de empleados y gerentes por tienda — $1"]];
+  const UPPER = {};
+  Object.keys(DICT).forEach(k => { const u = k.toUpperCase(); if (u !== k && !(u in DICT)) UPPER[u] = DICT[k].toUpperCase(); });
+
+  const MON = { Jan: 'Ene', Feb: 'Feb', Mar: 'Mar', Apr: 'Abr', May: 'May', Jun: 'Jun', Jul: 'Jul', Aug: 'Ago', Sep: 'Sep', Sept: 'Sep', Oct: 'Oct', Nov: 'Nov', Dec: 'Dic',
+    January: 'Enero', February: 'Febrero', March: 'Marzo', April: 'Abril', June: 'Junio', July: 'Julio', August: 'Agosto', September: 'Septiembre', October: 'Octubre', November: 'Noviembre', December: 'Diciembre',
+    Sun: 'Dom', Mon: 'Lun', Tue: 'Mar', Wed: 'Mié', Thu: 'Jue', Fri: 'Vie', Sat: 'Sáb',
+    Sunday: 'Domingo', Monday: 'Lunes', Tuesday: 'Martes', Wednesday: 'Miércoles', Thursday: 'Jueves', Friday: 'Viernes', Saturday: 'Sábado' };
+  const DATE_TOK = /\b(January|February|March|April|May|June|July|August|September|October|November|December|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sept|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Sun|Mon|Tue|Wed|Thu|Fri|Sat)\b/g;
+  function isDate(t) {
+    if (!/\d/.test(t) && !/^(January|February|March|April|May|June|July|August|September|October|November|December|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)$/.test(t)) return false;
+    if (!t.match(DATE_TOK)) return false;
+    return t.replace(DATE_TOK, '').replace(/\b(AM|PM|at)\b/g, '').replace(/(\d)(st|nd|rd|th)\b/g, '$1').replace(/[\d\s,:\/–\-·.()]/g, '') === '';
+  }
+  function trDate(t) { return t.replace(DATE_TOK, m => MON[m] || m).replace(/(\d)(st|nd|rd|th)\b/g, '$1').replace(/\bat\b/g, 'a las'); }
+
+  function applyRep(rep, m) {
+    return rep.replace(/\$\$|\$D(\d)|\$(\d)/g, (x, d, n) => {
+      if (x === '$$') return '$';
+      if (d) { const g = m[+d] || ''; return isDate(g) ? trDate(g) : (look(g) ?? g); }
+      return m[+n] || '';
+    });
+  }
+  function look(t) {
+    if (!t) return null;
+    if (Object.prototype.hasOwnProperty.call(DICT, t)) return DICT[t];
+    if (Object.prototype.hasOwnProperty.call(UPPER, t)) return UPPER[t];
+    if (isDate(t)) return trDate(t);
+    for (const [re, rep] of PATS) { const m = t.match(re); if (m) return applyRep(rep, m); }
+    let m = t.match(/^(.*\S)(\s*:)$/);
+    if (m) { const x = look(m[1]); if (x != null) return x + m[2]; }
+    m = t.match(/^([^\p{L}\p{N}$+(]+)(\p{L}.*)$/u);
+    if (m) { const x = look(m[2]); if (x != null) return m[1] + x; }
+    m = t.match(/^(.+?):\s(.+)$/);
+    if (m) { const x = look(m[2]); if (x != null) return m[1] + ': ' + x; }
+    m = t.match(/^([“"‘'])(.+)([”"’'])$/);
+    if (m) { const x = look(m[2]); if (x != null) return m[1] + x + m[3]; }
+    m = t.match(/^(.+?)\s(\([^()]*\))$/);
+    if (m) { const x = look(m[1]); if (x != null) return x + ' ' + m[2]; }
+    return null;
+  }
+  function tr(s) {
+    const t = s.trim(); if (!t || !/[A-Za-z]/.test(t)) return null;
+    const r = look(t); if (r == null || r === t) return null;
+    return s.replace(t, r);
+  }
+
+  let LANG = 'en';
+  try { LANG = localStorage.getItem('dt_lang') === 'es' ? 'es' : 'en'; } catch (e) {}
+  const textState = new WeakMap();   // text node -> {en, es}
+  const attrState = new WeakMap();   // element -> {attr: {en, es}}
+  const ATTRS = ['placeholder', 'title', 'aria-label'];
+  const SKIP = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TEXTAREA: 1 };
+  function skipEl(el) { return !el || SKIP[el.tagName] || (el.closest && el.closest('[data-i18n-skip],[contenteditable="true"]')); }
+  function skipAttrs(el) { return !el || el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || (el.closest && el.closest('[data-i18n-skip]')); }
+
+  function procText(n) {
+    if (skipEl(n.parentElement)) return;
+    let st = textState.get(n); const cur = n.nodeValue;
+    if (st && cur !== st.es && cur !== st.en) { textState.delete(n); st = null; }
+    if (LANG === 'es') {
+      const en = st ? st.en : cur; const es = tr(en);
+      if (es != null) { textState.set(n, { en, es }); if (cur !== es) n.nodeValue = es; }
+    } else if (st) { n.nodeValue = st.en; textState.delete(n); }
+  }
+  function procAttrs(el) {
+    if (skipAttrs(el)) return;
+    let map = attrState.get(el);
+    const list = ATTRS.slice(); if (el.tagName === 'INPUT' && /^(button|submit)$/i.test(el.type)) list.push('value');
+    for (const a of list) {
+      const cur = el.getAttribute(a); if (cur == null) continue;
+      let st = map && map[a];
+      if (st && cur !== st.es && cur !== st.en) { delete map[a]; st = null; }
+      if (LANG === 'es') {
+        const en = st ? st.en : cur; const es = tr(en);
+        if (es != null) { if (!map) { map = {}; attrState.set(el, map); } map[a] = { en, es }; if (cur !== es) el.setAttribute(a, es); }
+      } else if (st) { el.setAttribute(a, st.en); delete map[a]; }
+    }
+  }
+  function walk(root) {
+    if (!root) return;
+    if (root.nodeType === 3) { procText(root); return; }
+    if (root.nodeType !== 1) return;
+    procAttrs(root);
+    if (skipEl(root)) return;
+    const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+      acceptNode: n => { if (n.nodeType === 1 && skipEl(n)) { procAttrs(n); return NodeFilter.FILTER_REJECT; } return NodeFilter.FILTER_ACCEPT; } });
+    let n; while ((n = tw.nextNode())) { if (n.nodeType === 3) procText(n); else procAttrs(n); }
+  }
+
+  const pending = new Set(); let scheduled = false;
+  function flush() { scheduled = false; const items = [...pending]; pending.clear(); items.forEach(walk); }
+  const mo = new MutationObserver(recs => {
+    if (LANG !== 'es') return;
+    for (const r of recs) {
+      if (r.type === 'childList') r.addedNodes.forEach(n => pending.add(n));
+      else if (r.type === 'characterData') pending.add(r.target);
+      else if (r.type === 'attributes') pending.add(r.target);
+    }
+    if (!scheduled && pending.size) { scheduled = true; Promise.resolve().then(flush); }
+  });
+  mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS.concat(['value']) });
+
+  function updateButtons() {
+    document.querySelectorAll('.lang-toggle').forEach(b => {
+      b.textContent = LANG === 'es' ? 'English' : 'Español';
+      b.title = LANG === 'es' ? 'Switch to English' : 'Cambiar a español';
+      b.setAttribute('aria-pressed', LANG === 'es' ? 'true' : 'false');
+    });
+  }
+  function setLang(lang, persist) {
+    LANG = lang === 'es' ? 'es' : 'en';
+    document.documentElement.lang = LANG;
+    try { localStorage.setItem('dt_lang', LANG); } catch (e) {}
+    updateButtons();
+    walk(document.body);
+    if (persist) {
+      try {
+        if (typeof supaAuth !== 'undefined' && typeof currentUser !== 'undefined' && currentUser) {
+          supaAuth.rpc('dt_set_my_language', { lang: LANG }).then(r => { if (r && r.error) console.warn('Language not saved:', r.error.message); });
+          if (typeof currentPerms !== 'undefined' && currentPerms) currentPerms.preferred_language = LANG;
+        }
+      } catch (e) { console.warn('Language not saved:', e); }
+    }
+  }
+  window.i18nLang = () => LANG;
+  window.i18nT = s => (LANG === 'es' ? (tr(String(s)) ?? String(s)) : String(s));
+  window.i18nToggle = () => setLang(LANG === 'es' ? 'en' : 'es', true);
+  window.i18nFromPerms = row => { if (row && (row.preferred_language === 'es' || row.preferred_language === 'en')) setLang(row.preferred_language, false); };
+
+  const _alert = window.alert.bind(window), _confirm = window.confirm.bind(window);
+  window.alert = m => _alert(window.i18nT(m));
+  window.confirm = m => _confirm(window.i18nT(m));
+
+  updateButtons();
+  if (LANG === 'es') walk(document.body);
+})();
 
 </script>
 </body>

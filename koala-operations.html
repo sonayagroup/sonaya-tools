@@ -837,6 +837,27 @@ body.of-touring { overflow-x: hidden; }
 .otb-sum span { color: var(--text-muted); }
 .otb-warn { font-size: 12.5px; color: var(--status-critical); margin: -4px 0 10px; }
 .otb-note { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+
+/* Financial Snapshot: year picker + year over year */
+#tab-financial .controls { display: flex; flex-wrap: wrap; gap: 10px; }
+.fin-month-toggle { flex-wrap: wrap; }
+.yoy-card { margin-bottom: 14px; }
+.yoy-wrap { position: relative; }
+.yoy-tip { display: none; position: absolute; top: 8px; z-index: 3; min-width: 190px; background: var(--surface-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-md); padding: 8px 10px; font-size: 12.5px; pointer-events: none; }
+.yoy-tip-h { font-weight: 700; margin-bottom: 4px; color: var(--text-primary); }
+.yoy-tip div:not(.yoy-tip-h) { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); padding: 1px 0; }
+.yoy-tip b { margin-left: auto; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.yoy-tip em { font-style: normal; color: var(--text-muted); font-size: 11.5px; min-width: 52px; text-align: right; }
+.yoy-tip .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+.yoy-key { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.yoy-table td, .yoy-table th { text-align: right; }
+.yoy-table td:first-child, .yoy-table th:first-child { text-align: left; }
+.yoy-table tr.yoy-total td { font-weight: 700; background: var(--surface-page); }
+.yoy-na { color: var(--text-muted); font-weight: 400; }
+.yoy-chg { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.yoy-chg.good { color: var(--delta-up-good); } .yoy-chg.bad { color: var(--delta-down-bad); }
+.yoy-note { font-size: 12px; color: var(--text-muted); margin: 8px 2px 24px; line-height: 1.5; }
+.yoy-table-wrap { overflow-x: auto; }
 </style>
 </head>
 <body>
@@ -971,19 +992,8 @@ body.of-touring { overflow-x: hidden; }
 <div class="tab-content" id="tab-financial">
   <div class="container-wide">
     <div class="controls">
-      <div class="view-toggle" id="finMonthToggle">
-        <button data-month="jan">Jan</button>
-        <button data-month="feb">Feb</button>
-        <button data-month="mar">Mar</button>
-        <button data-month="apr">Apr</button>
-        <button data-month="may">May</button>
-        <button data-month="jun">Jun</button>
-        <button data-month="jul">Jul</button>
-        <button data-month="aug">Aug</button>
-        <button data-month="sep">Sep</button>
-        <button data-month="oct" class="active">Oct</button>
-        <button data-month="ytd">YTD</button>
-      </div>
+      <div class="view-toggle" id="finYearToggle" aria-label="Year"></div>
+      <div class="view-toggle fin-month-toggle" id="finMonthToggle" aria-label="Month"></div>
     </div>
     <div class="kpi-summary" id="finKpiRow"></div>
     <div class="callout-row" id="finContextRow"></div>
@@ -999,6 +1009,12 @@ body.of-touring { overflow-x: hidden; }
         <div class="chart-area" id="chartFinExpense"></div>
       </div>
     </div>
+    <div class="section-title">Year over year <span class="section-title-sub">— monthly totals from the QuickBooks P&amp;Ls, 2024 to today. Hover or tap a month to compare.</span></div>
+    <div class="controls"><div class="view-toggle" id="yoyMetricToggle" aria-label="Measure"></div></div>
+    <div class="callout-row" id="yoyTiles"></div>
+    <div class="chart-card yoy-card"><h3 id="yoyChartTitle"></h3><p class="chart-subtitle" id="yoyChartSub"></p><div class="chart-area" id="chartYoy"></div></div>
+    <div class="store-table-wrap yoy-table-wrap"><table class="store-table yoy-table" id="yoyTable"></table></div>
+    <p class="yoy-note" id="yoyNote"></p>
     <div id="finLocationSection">
       <div class="section-title" id="finLocationTitle">Jul 2026 by Location</div>
       <div class="store-table-wrap">
@@ -1011,7 +1027,7 @@ body.of-touring { overflow-x: hidden; }
     <div class="section-title" id="finPLTitle">P&amp;L Summary — Jul 2026</div>
     <div class="store-table-wrap">
       <table class="store-table" id="finTable">
-        <thead><tr><th>Line Item</th><th id="finTableMonthCol">Jul 2026</th></tr></thead>
+        <thead><tr><th>Line Item</th><th id="finTableMonthCol">Jul 2026</th><th id="finTablePyCol"></th><th id="finTableChgCol">Change</th></tr></thead>
         <tbody id="finTbody"></tbody>
       </table>
     </div>
@@ -2974,6 +2990,245 @@ function renderOnTheBooksModalTable(jobs, meta) {
 }
 
 /* ---------------- Render: Financial tab ---------------- */
+
+/* ---------------- Prior years (added 2026-11-16, per Pranav) ----------------
+   2025 and 2024 monthly P&Ls, read from the twelve official QuickBooks "Profit and Loss" PDFs for 2025
+   (accrual basis). Each 2025 statement also carries the same month of 2024 in its "(PY)" column, which is
+   where the 2024 months come from. Every month was checked to the penny: income, COGS and expense lines
+   each sum to their totals, Gross Profit = Income - COGS, and Net Income = Gross Profit - Expenses + Net
+   Other Income, for the 2025 month, the 2024 (PY) month and the YTD column alike (36 of 36 checks pass).
+   Expense groups use the same rule as 2026 (see the note above dataStore.financial); the only lines 2026
+   never had are COGS Garage Door Kits (Materials) and Subcontractor Labor (Field Labor).
+   Note: Jan-Nov 2025 were exported Dec 22, 2025; Dec 2025 was exported Mar 17, 2026, after some revenue
+   was posted back into earlier months. So the twelve 2025 months add up to $2,308,579.11 while the
+   official full-year figure on the Dec P&L is $2,313,100.94 (+$4,521.83, 0.2%). Monthly figures are kept
+   exactly as each statement shows them; the 2025 full-year total uses the official QuickBooks figure.
+   Dec 2025 also carries year-end depreciation/amortization ($72,386) and state tax ($13,000) below the
+   operating line, which is why that month's net income is -$119,955. 2024 has no official full-year
+   report on file, so its total is the sum of the twelve PY columns. */
+const FIN_HISTORY = {
+  2025: {
+    fullYear: { label: '2025 full year (QuickBooks, Dec 2025 P&L)', revenue: 2313100.94, cogs: 1360686.77, grossProfit: 952414.17, opex: 846242.11, netIncome: 25161.0, official: true },
+    months: {
+      jan: { label: 'Jan 2025', revenue: 217307.99, cogs: 123328.21, grossProfit: 93979.78, grossMargin: 43.25, opex: 66099.29, netIncome: 27881.4, netMargin: 12.83,
+             buckets: { materials: 88326.64, fieldLabor: 59933.0, vehicleFuel: 2484.31, marketing: 6006.84, admin: 32676.71 } },
+      feb: { label: 'Feb 2025', revenue: 178850.28, cogs: 94442.71, grossProfit: 84407.57, grossMargin: 47.19, opex: 68739.2, netIncome: 20655.56, netMargin: 11.55,
+             buckets: { materials: 59648.96, fieldLabor: 61095.72, vehicleFuel: 3507.78, marketing: 7150.96, admin: 31778.49 } },
+      mar: { label: 'Mar 2025', revenue: 158875.76, cogs: 133250.88, grossProfit: 25624.88, grossMargin: 16.13, opex: 66941.57, netIncome: -41938.74, netMargin: -26.4,
+             buckets: { materials: 98190.63, fieldLabor: 59340.44, vehicleFuel: 2653.1, marketing: 6478.38, admin: 33529.9 } },
+      apr: { label: 'Apr 2025', revenue: 170650.54, cogs: 87887.08, grossProfit: 82763.46, grossMargin: 48.5, opex: 73465.64, netIncome: 9298.45, netMargin: 5.45,
+             buckets: { materials: 52629.04, fieldLabor: 60011.73, vehicleFuel: 3120.67, marketing: 3960.25, admin: 41631.03 } },
+      may: { label: 'May 2025', revenue: 136575.27, cogs: 68116.49, grossProfit: 68458.78, grossMargin: 50.13, opex: 74022.29, netIncome: -5562.98, netMargin: -4.07,
+             buckets: { materials: 30046.39, fieldLabor: 72239.87, vehicleFuel: 3542.33, marketing: 3630.42, admin: 32679.77 } },
+      jun: { label: 'Jun 2025', revenue: 117016.82, cogs: 99881.69, grossProfit: 17135.13, grossMargin: 14.64, opex: 63060.16, netIncome: -45924.54, netMargin: -39.25,
+             buckets: { materials: 77121.46, fieldLabor: 44279.79, vehicleFuel: 5025.14, marketing: 5891.84, admin: 30623.62 } },
+      jul: { label: 'Jul 2025', revenue: 187493.81, cogs: 81068.26, grossProfit: 106425.55, grossMargin: 56.76, opex: 58323.83, netIncome: 48102.49, netMargin: 25.66,
+             buckets: { materials: 51502.23, fieldLabor: 47002.25, vehicleFuel: 1841.79, marketing: 4616.51, admin: 34429.31 } },
+      aug: { label: 'Aug 2025', revenue: 250332.36, cogs: 109317.93, grossProfit: 141014.43, grossMargin: 56.33, opex: 71743.34, netIncome: 69272.42, netMargin: 27.67,
+             buckets: { materials: 76507.42, fieldLabor: 53108.24, vehicleFuel: 6451.98, marketing: 5085.21, admin: 39908.42 } },
+      sep: { label: 'Sep 2025', revenue: 212920.05, cogs: 100335.61, grossProfit: 112584.44, grossMargin: 52.88, opex: 65096.58, netIncome: 47489.09, netMargin: 22.3,
+             buckets: { materials: 68578.05, fieldLabor: 52843.41, vehicleFuel: 1232.16, marketing: 4570.56, admin: 38208.01 } },
+      oct: { label: 'Oct 2025', revenue: 165008.46, cogs: 138946.53, grossProfit: 26061.93, grossMargin: 15.79, opex: 80024.63, netIncome: -53961.42, netMargin: -32.7,
+             buckets: { materials: 93384.96, fieldLabor: 81814.26, vehicleFuel: 5072.06, marketing: 5112.9, admin: 33586.98 } },
+      nov: { label: 'Nov 2025', revenue: 287784.91, cogs: 145355.56, grossProfit: 142429.35, grossMargin: 49.49, opex: 78758.88, netIncome: 63671.87, netMargin: 22.12,
+             buckets: { materials: 105137.74, fieldLabor: 63308.52, vehicleFuel: 6516.32, marketing: 7911.57, admin: 41240.29 } },
+      dec: { label: 'Dec 2025', revenue: 225762.86, cogs: 178795.82, grossProfit: 46967.04, grossMargin: 20.8, opex: 81537.67, netIncome: -119955.4, netMargin: -53.13,
+             buckets: { materials: 142819.27, fieldLabor: 61710.18, vehicleFuel: 4670.47, marketing: 9005.66, admin: 42127.91 } }
+    },
+  },
+  2024: {
+    fullYear: null, // sum of the twelve monthly PY columns (no official 2024 full-year report on file)
+    months: {
+      jan: { label: 'Jan 2024', revenue: 130648.77, cogs: 73537.44, grossProfit: 57111.33, grossMargin: 43.71, opex: 75573.26, netIncome: -18461.38, netMargin: -14.13,
+             buckets: { materials: 45837.22, fieldLabor: 53579.39, vehicleFuel: 5368.29, marketing: 5173.29, admin: 39152.51 } },
+      feb: { label: 'Feb 2024', revenue: 163949.61, cogs: 104077.13, grossProfit: 59872.48, grossMargin: 36.52, opex: 65517.34, netIncome: -5644.04, netMargin: -3.44,
+             buckets: { materials: 68044.82, fieldLabor: 60644.25, vehicleFuel: 596.54, marketing: 6270.96, admin: 34037.9 } },
+      mar: { label: 'Mar 2024', revenue: 196082.13, cogs: 100140.05, grossProfit: 95942.08, grossMargin: 48.93, opex: 62774.33, netIncome: 33118.61, netMargin: 16.89,
+             buckets: { materials: 64285.37, fieldLabor: 60269.11, vehicleFuel: 3153.76, marketing: 5693.01, admin: 29513.13 } },
+      apr: { label: 'Apr 2024', revenue: 158952.05, cogs: 75585.59, grossProfit: 83366.46, grossMargin: 52.45, opex: 69068.99, netIncome: 14298.14, netMargin: 9.0,
+             buckets: { materials: 42145.07, fieldLabor: 54028.08, vehicleFuel: 4705.37, marketing: 5811.3, admin: 37964.76 } },
+      may: { label: 'May 2024', revenue: 156607.5, cogs: 125150.02, grossProfit: 31457.48, grossMargin: 20.09, opex: 83759.58, netIncome: -52301.37, netMargin: -33.4,
+             buckets: { materials: 57029.82, fieldLabor: 93206.56, vehicleFuel: 4053.47, marketing: 5751.96, admin: 48867.79 } },
+      jun: { label: 'Jun 2024', revenue: 275672.08, cogs: 79726.76, grossProfit: 195945.32, grossMargin: 71.08, opex: 70093.53, netIncome: 125852.28, netMargin: 45.65,
+             buckets: { materials: 36666.3, fieldLabor: 63965.36, vehicleFuel: 3846.36, marketing: 11879.38, admin: 33462.89 } },
+      jul: { label: 'Jul 2024', revenue: 144975.15, cogs: 99282.08, grossProfit: 45693.07, grossMargin: 31.52, opex: 84836.38, netIncome: -39142.55, netMargin: -27.0,
+             buckets: { materials: 65338.39, fieldLabor: 53035.02, vehicleFuel: 3174.31, marketing: 10391.44, admin: 52179.3 } },
+      aug: { label: 'Aug 2024', revenue: 170514.0, cogs: 77075.14, grossProfit: 93438.86, grossMargin: 54.8, opex: 71393.85, netIncome: 22046.09, netMargin: 12.93,
+             buckets: { materials: 43740.45, fieldLabor: 53560.48, vehicleFuel: 2696.3, marketing: 7455.92, admin: 41015.84 } },
+      sep: { label: 'Sep 2024', revenue: 170318.86, cogs: 78649.9, grossProfit: 91668.96, grossMargin: 53.82, opex: 61044.06, netIncome: 30625.97, netMargin: 17.98,
+             buckets: { materials: 44548.15, fieldLabor: 53700.57, vehicleFuel: 4589.46, marketing: 7487.76, admin: 29368.02 } },
+      oct: { label: 'Oct 2024', revenue: 197231.33, cogs: 118398.37, grossProfit: 78832.96, grossMargin: 39.97, opex: 80124.55, netIncome: -1290.33, netMargin: -0.65,
+             buckets: { materials: 61989.22, fieldLabor: 88922.95, vehicleFuel: 3539.88, marketing: 7239.77, admin: 36831.1 } },
+      nov: { label: 'Nov 2024', revenue: 148795.65, cogs: 80507.23, grossProfit: 68288.42, grossMargin: 45.89, opex: 62855.59, netIncome: 5434.12, netMargin: 3.65,
+             buckets: { materials: 47241.32, fieldLabor: 55446.84, vehicleFuel: 6411.12, marketing: 8260.73, admin: 26002.81 } },
+      dec: { label: 'Dec 2024', revenue: 153495.32, cogs: 103394.66, grossProfit: 50100.66, grossMargin: 32.64, opex: 67925.09, netIncome: -46138.25, netMargin: -30.06,
+             buckets: { materials: 71631.52, fieldLabor: 51930.21, vehicleFuel: 3582.88, marketing: 6931.03, admin: 37244.11 } }
+    },
+  },
+};
+
+/* ---------------- Financial Snapshot: year picker + year-over-year (2026-11-16) ---------------- */
+const FIN_MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const FIN_MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const FIN_YEARS = [2026, 2025, 2024];
+const FIN_YEAR_COLOR = { 2026: 'var(--cat-1)', 2025: 'var(--cat-2)', 2024: 'var(--cat-3)' }; // fixed per year, never by rank
+let finYear = 2026;
+let yoyMetric = 'revenue';
+
+function finYearData(y) {
+  if (+y === 2026) return { months: dataStore.financial.months, order: dataStore.financial.monthOrder.filter(m => dataStore.financial.months[m]), fullYear: null, current: true };
+  const h = FIN_HISTORY[y];
+  if (!h) return null;
+  return { months: h.months, order: FIN_MONTH_KEYS.filter(m => h.months[m]), fullYear: h.fullYear, current: false };
+}
+// Sums a set of months into the same shape as a monthly entry.
+function finSumMonths(y, keys, label) {
+  const yd = finYearData(y); if (!yd) return null;
+  const ks = keys.filter(k => yd.months[k]); if (!ks.length) return null;
+  const sum = (f) => ks.reduce((a, k) => a + yd.months[k][f], 0);
+  const revenue = sum('revenue'), cogs = sum('cogs'), grossProfit = sum('grossProfit'), opex = sum('opex'), netIncome = sum('netIncome');
+  const bk = ['materials', 'fieldLabor', 'vehicleFuel', 'marketing', 'admin'];
+  return { label, revenue, cogs, grossProfit, grossMargin: revenue ? grossProfit / revenue * 100 : 0, opex, netIncome, netMargin: revenue ? netIncome / revenue * 100 : 0,
+    buckets: Object.fromEntries(bk.map(b => [b, ks.reduce((a, k) => a + yd.months[k].buckets[b], 0)])), monthCount: ks.length };
+}
+function finMonthSpan(keys) { return keys.length === 1 ? FIN_MONTH_NAMES[FIN_MONTH_KEYS.indexOf(keys[0])] : `${FIN_MONTH_NAMES[FIN_MONTH_KEYS.indexOf(keys[0])]}–${FIN_MONTH_NAMES[FIN_MONTH_KEYS.indexOf(keys[keys.length - 1])]}`; }
+// The whole year for a past year: official QuickBooks totals when we have them (2025), else the sum of months.
+function finFullYear(y) {
+  const yd = finYearData(y); if (!yd) return null;
+  const s = finSumMonths(y, yd.order, `${y} full year`);
+  if (yd.fullYear) {
+    const o = yd.fullYear;
+    return { ...s, label: `${y} full year`, revenue: o.revenue, cogs: o.cogs, grossProfit: o.grossProfit, opex: o.opex, netIncome: o.netIncome,
+      grossMargin: o.grossProfit / o.revenue * 100, netMargin: o.netIncome / o.revenue * 100, official: true };
+  }
+  return { ...s, label: `${y} full year`, official: false };
+}
+// What the selected month/period is compared against: the same month (or the same months) one year earlier.
+function finPriorFor(y, sel) {
+  const py = +y - 1; if (!finYearData(py)) return null;
+  if (sel === 'ytd') {
+    const yd = finYearData(y);
+    if (!yd.current) return finFullYear(py);
+    const keys = yd.order;
+    return finSumMonths(py, keys, `${finMonthSpan(keys)} ${py}`);
+  }
+  const pm = finYearData(py).months[sel];
+  return pm ? { ...pm, label: pm.label.replace(/ \(.*\)$/, '') } : null;
+}
+const finSignedMoney = (v) => (v >= 0 ? '+' : '−') + fmtMoneyCompact(Math.abs(v));
+const finSignedPct = (cur, prev) => { if (!prev) return '—'; const p = (cur - prev) / Math.abs(prev) * 100; return (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(1) + '%'; };
+
+function renderFinYearToggle() {
+  document.getElementById('finYearToggle').innerHTML = FIN_YEARS.map(y => `<button type="button" data-year="${y}" class="${y === +finYear ? 'active' : ''}" aria-pressed="${y === +finYear}">${y}</button>`).join('');
+  const yd = finYearData(finYear);
+  const keys = yd.current ? yd.order : FIN_MONTH_KEYS;
+  if (finMonth !== 'ytd' && !yd.months[finMonth]) finMonth = yd.order[yd.order.length - 1];
+  document.getElementById('finMonthToggle').innerHTML = keys.map(m => `<button type="button" data-month="${m}" class="${finMonth === m ? 'active' : ''}" ${yd.months[m] ? '' : 'disabled'}>${FIN_MONTH_NAMES[FIN_MONTH_KEYS.indexOf(m)]}</button>`).join('')
+    + `<button type="button" data-month="ytd" class="${finMonth === 'ytd' ? 'active' : ''}">${yd.current ? 'YTD' : 'Full year'}</button>`;
+}
+document.addEventListener('click', (e) => {
+  const yb = e.target.closest('#finYearToggle button[data-year]');
+  if (yb) { finYear = +yb.dataset.year; renderFinancialTab(); return; }
+  const mb = e.target.closest('#finMonthToggle button[data-month]');
+  if (mb && !mb.disabled) { finMonth = mb.dataset.month; renderFinancialTab(); return; }
+  const tb = e.target.closest('#yoyMetricToggle button[data-metric]');
+  if (tb) { yoyMetric = tb.dataset.metric; renderYoySection(); }
+});
+
+/* Year-over-year section: one line per year (Jan–Dec), plus the same numbers as a table. */
+const YOY_METRICS = { revenue: 'Revenue', grossProfit: 'Gross profit', netIncome: 'Net income' };
+function yoyValues(y, metric) { const yd = finYearData(y); return FIN_MONTH_KEYS.map(m => yd && yd.months[m] ? yd.months[m][metric] : null); }
+function renderYoySection() {
+  const metric = yoyMetric, mLabel = YOY_METRICS[metric];
+  document.getElementById('yoyMetricToggle').innerHTML = Object.entries(YOY_METRICS).map(([k, l]) => `<button type="button" data-metric="${k}" class="${k === metric ? 'active' : ''}" aria-pressed="${k === metric}">${l}</button>`).join('');
+  const cur = finYearData(2026), ytdKeys = cur.order, span = finMonthSpan(ytdKeys);
+  const ytd = (y) => finSumMonths(y, ytdKeys, '');
+  const y26 = ytd(2026), y25 = ytd(2025), y24 = ytd(2024), fy25 = finFullYear(2025), fy24 = finFullYear(2024);
+  const chg = (a, b) => metric === 'revenue' ? finSignedPct(a, b) : finSignedMoney(a - b);
+  const tone = (a, b) => a >= b ? 'good' : 'bad';
+  const arrow = (a, b) => a >= b ? '▲' : '▼';
+  const tile = (label, val, sub, subTone) => `<div class="callout"><div class="callout-label">${label}</div><div class="callout-value">${fmtMoneyCompact(val)}</div>${sub ? `<div class="kpi-delta ${subTone || 'neutral'}">${sub}</div>` : ''}</div>`;
+  document.getElementById('yoyTiles').innerHTML =
+    tile(`${mLabel} · ${span} 2026`, y26[metric], `${arrow(y26[metric], y25[metric])} ${chg(y26[metric], y25[metric])} vs ${span} 2025 (${fmtMoneyCompact(y25[metric])})`, tone(y26[metric], y25[metric]))
+    + tile(`${mLabel} · 2025 full year`, fy25[metric], `${arrow(fy25[metric], fy24[metric])} ${chg(fy25[metric], fy24[metric])} vs 2024`, tone(fy25[metric], fy24[metric]))
+    + tile(`${mLabel} · 2024 full year`, fy24[metric], `${span} 2024: ${fmtMoneyCompact(y24[metric])}`);
+  document.getElementById('yoyChartTitle').textContent = `${mLabel} by month — 2024, 2025 and 2026`;
+  document.getElementById('yoyChartSub').textContent = `From the monthly QuickBooks P&Ls · 2026 runs through ${FIN_MONTH_NAMES[FIN_MONTH_KEYS.indexOf(ytdKeys[ytdKeys.length - 1])]}`;
+  renderYoyChart('chartYoy', [2024, 2025, 2026].map(y => ({ name: String(y), color: FIN_YEAR_COLOR[y], values: yoyValues(y, metric) })));
+
+  // Table: months down the side, years across, plus both year-over-year changes.
+  const v = { 2024: yoyValues(2024, metric), 2025: yoyValues(2025, metric), 2026: yoyValues(2026, metric) };
+  const cell = (x) => x == null ? '<span class="yoy-na">—</span>' : (x < 0 ? `(${fmtMoney(Math.abs(x))})` : fmtMoney(x));
+  const dcell = (a, b) => a == null || b == null ? '<span class="yoy-na">—</span>' : `<span class="yoy-chg ${tone(a, b)}">${arrow(a, b)} ${chg(a, b)}</span>`;
+  const rows = FIN_MONTH_KEYS.map((m, i) => `<tr><td>${FIN_MONTH_NAMES[i]}</td><td>${cell(v[2024][i])}</td><td>${cell(v[2025][i])}</td><td>${cell(v[2026][i])}</td><td>${dcell(v[2025][i], v[2024][i])}</td><td>${dcell(v[2026][i], v[2025][i])}</td></tr>`).join('');
+  document.getElementById('yoyTable').innerHTML = `
+    <thead><tr><th>Month</th><th><span class="yoy-key" style="background:${FIN_YEAR_COLOR[2024]}"></span>2024</th><th><span class="yoy-key" style="background:${FIN_YEAR_COLOR[2025]}"></span>2025</th><th><span class="yoy-key" style="background:${FIN_YEAR_COLOR[2026]}"></span>2026</th><th>2025 vs 2024</th><th>2026 vs 2025</th></tr></thead>
+    <tbody>${rows}
+      <tr class="yoy-total"><td>${span} (YTD)</td><td>${cell(y24[metric])}</td><td>${cell(y25[metric])}</td><td>${cell(y26[metric])}</td><td>${dcell(y25[metric], y24[metric])}</td><td>${dcell(y26[metric], y25[metric])}</td></tr>
+      <tr class="yoy-total"><td>Full year</td><td>${cell(fy24[metric])}</td><td>${cell(fy25[metric])}<sup>*</sup></td><td><span class="yoy-na">in progress</span></td><td>${dcell(fy25[metric], fy24[metric])}</td><td><span class="yoy-na">—</span></td></tr>
+    </tbody>`;
+  const monthsSum25 = finSumMonths(2025, FIN_MONTH_KEYS, '')[metric];
+  document.getElementById('yoyNote').innerHTML = `<sup>*</sup> 2025 full year is the official QuickBooks total from the December 2025 P&L (${fmtMoney(fy25[metric])}). The twelve monthly statements add up to ${fmtMoney(monthsSum25)} because some 2025 entries were posted to earlier months after those statements were run. December 2025 also includes year-end depreciation, amortization and state tax ($85,386), which is why its net income is negative. 2024 figures come from the prior-year column on each 2025 statement.`;
+}
+function renderYoyChart(containerId, series) {
+  const el = document.getElementById(containerId); if (!el) return;
+  const W = Math.max(320, Math.round(el.clientWidth || 760)), H = W < 520 ? 230 : 280, padL = 54, padR = 46, padT = 16, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const all = series.flatMap(s => s.values.filter(x => x != null));
+  const rawMax = Math.max(...all, 0), rawMin = Math.min(0, ...all);
+  const span = (rawMax - rawMin) || 1;
+  const max = rawMax + span * 0.08, min = rawMin < 0 ? rawMin - span * 0.06 : 0;
+  const yOf = v => padT + plotH - plotH * ((v - min) / ((max - min) || 1));
+  const xOf = i => padL + plotW * i / 11;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${series.map(s => s.name).join(', ')} by month" style="display:block;overflow:visible">`;
+  for (let i = 0; i <= 4; i++) {
+    const val = min + (max - min) * i / 4, y = yOf(val);
+    svg += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/><text x="${padL - 8}" y="${y + 4}" font-size="11" text-anchor="end" fill="var(--text-muted)">${fmtMoneyCompact(val)}</text>`;
+  }
+  if (min < 0) svg += `<line x1="${padL}" y1="${yOf(0)}" x2="${W - padR}" y2="${yOf(0)}" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="3,3"/>`;
+  FIN_MONTH_NAMES.forEach((n, i) => { svg += `<text x="${xOf(i)}" y="${H - 8}" font-size="11" text-anchor="middle" fill="var(--text-muted)">${W < 520 ? n[0] : n}</text>`; });
+  svg += `<line id="${containerId}-x" x1="0" y1="${padT}" x2="0" y2="${padT + plotH}" stroke="var(--text-muted)" stroke-width="1" stroke-dasharray="2,3" style="display:none"/>`;
+  const ends = [];
+  series.forEach(s => {
+    let d = '', pen = false;
+    s.values.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + xOf(i).toFixed(1) + ' ' + yOf(v).toFixed(1) + ' '; pen = true; });
+    svg += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    s.values.forEach((v, i) => { if (v != null) svg += `<circle cx="${xOf(i)}" cy="${yOf(v)}" r="4" fill="${s.color}" stroke="var(--surface-card)" stroke-width="2"/>`; });
+    let li = -1; s.values.forEach((v, i) => { if (v != null) li = i; });
+    if (li >= 0) ends.push({ name: s.name, x: xOf(li), y: yOf(s.values[li]), color: s.color });
+  });
+  // Direct labels at each line's last point, nudged apart so they never overlap.
+  ends.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (Math.abs(ends[i].x - ends[i - 1].x) < 40 && ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14;
+  ends.forEach(e => { svg += `<text x="${e.x + 9}" y="${e.y + 4}" font-size="11" font-weight="700" fill="var(--text-secondary)">${e.name}</text>`; });
+  // Hover / tap targets: one column per month.
+  FIN_MONTH_NAMES.forEach((n, i) => { svg += `<rect x="${xOf(i) - plotW / 22}" y="${padT}" width="${plotW / 11}" height="${plotH}" fill="transparent" style="cursor:crosshair" onmouseenter="yoyHover('${containerId}',${i})" onclick="yoyHover('${containerId}',${i})"/>`; });
+  svg += `</svg>`;
+  el.innerHTML = `<div class="yoy-wrap" onmouseleave="yoyHover('${containerId}',-1)">${svg}<div class="yoy-tip" id="${containerId}-tip" role="status"></div></div>
+    <div class="chart-legend">${series.slice().reverse().map(s => `<span><span class="swatch" style="background:${s.color}"></span>${s.name}</span>`).join('')}</div>`;
+  el._yoy = { series, xOf, W, padT };
+}
+let yoyResizeTimer = null;
+window.addEventListener('resize', () => { clearTimeout(yoyResizeTimer); yoyResizeTimer = setTimeout(() => { const t = document.getElementById('tab-financial'); if (t && t.classList.contains('active')) renderYoySection(); }, 150); });
+function yoyHover(id, i) {
+  const el = document.getElementById(id); if (!el || !el._yoy) return;
+  const tip = document.getElementById(id + '-tip'), line = document.getElementById(id + '-x');
+  if (i < 0) { tip.style.display = 'none'; line.style.display = 'none'; return; }
+  const { series, xOf, W } = el._yoy;
+  const x = xOf(i);
+  line.setAttribute('x1', x); line.setAttribute('x2', x); line.style.display = '';
+  const rows = series.slice().reverse().map((s, k, arr) => {
+    const v = s.values[i]; const prev = arr[k + 1] ? arr[k + 1].values[i] : null;
+    const d = v != null && prev != null && yoyMetric === 'revenue' ? ` <em>${finSignedPct(v, prev)}</em>` : v != null && prev != null ? ` <em>${finSignedMoney(v - prev)}</em>` : '';
+    return `<div><span class="swatch" style="background:${s.color}"></span>${s.name}<b>${v == null ? '—' : (v < 0 ? '(' + fmtMoney(Math.abs(v)) + ')' : fmtMoney(v))}</b>${d}</div>`;
+  }).join('');
+  tip.innerHTML = `<div class="yoy-tip-h">${FIN_MONTH_NAMES[i]} · ${YOY_METRICS[yoyMetric]}</div>${rows}`;
+  tip.style.display = 'block';
+  const wrap = tip.parentElement, scale = wrap.clientWidth / W, px = x * scale;
+  const tw = tip.offsetWidth;
+  tip.style.left = Math.min(Math.max(4, px + 12 + tw > wrap.clientWidth ? px - tw - 12 : px + 12), wrap.clientWidth - tw - 4) + 'px';
+}
+
 let finMonth = 'oct';
 const FLAG_PILL = { critical: 'critical', serious: 'critical', warn: 'warn', ok: 'good' };
 const FLAG_ICON = { critical: '&#9888;', serious: '&#9888;', warn: '&#9888;', ok: '&#10003;' };
@@ -3025,80 +3280,102 @@ async function loadLiveCurrentMonthProxy() {
 }
 
 function renderFinancialTab() {
-  const months = dataStore.financial.months;
-  const f = finMonth === 'ytd' ? computeYtdSummary() : months[finMonth];
+  renderFinYearToggle();
+  const yd = finYearData(finYear);
+  const months = yd.months;
+  const isCur = yd.current;
+  const f = finMonth === 'ytd' ? (isCur ? computeYtdSummary() : finFullYear(finYear)) : months[finMonth];
+  const prior = finPriorFor(finYear, finMonth);
   const bucketLabels = { materials: 'Materials', fieldLabor: 'Field Labor', vehicleFuel: 'Vehicle & Fuel', marketing: 'Marketing / Lead Gen', admin: 'Admin & Overhead' };
+  const fLabel = f.label.replace(/ \([^)]*\)$/, '');
 
-  // Callouts section removed from the UI per Pranav's request (2026-09-03) — dataStore.finFlags is
-  // left in place, unrendered, in case this is revisited later.
-
-  // KPI row for selected month
+  // KPI row for the selected month/period, each compared with the same period a year earlier (when on file).
+  const vs = prior ? ` vs ${prior.label.replace(/ \([^)]*\)$/, '').replace(' full year', '')}` : '';
+  const revDelta = prior ? `${prior.revenue <= f.revenue ? '▲' : '▼'} ${finSignedPct(f.revenue, prior.revenue)}${vs}` : null;
+  const gmDiff = prior ? f.grossMargin - prior.grossMargin : 0;
+  const opexDelta = prior ? `${finSignedPct(f.opex, prior.opex)}${vs}` : null;
+  const niDelta = fmtPct(f.netMargin) + ' margin' + (prior ? ` · ${finSignedMoney(f.netIncome - prior.netIncome)}${vs}` : '');
   document.getElementById('finKpiRow').innerHTML = [
-    kpiTile('Revenue (' + f.label.replace(/ \([^)]*\)$/, '') + ')', fmtMoneyCompact(f.revenue)),
-    kpiTile('Gross Margin', fmtPct(f.grossMargin)),
-    kpiTile('Operating Expenses', fmtMoneyCompact(f.opex)),
-    kpiTile('Net Income', fmtMoneyCompact(f.netIncome), fmtPct(f.netMargin) + ' margin', f.netIncome >= 0 ? 'good' : 'bad'),
+    kpiTile('Revenue (' + fLabel + ')', fmtMoneyCompact(f.revenue), revDelta, prior ? (f.revenue >= prior.revenue ? 'good' : 'bad') : null),
+    kpiTile('Gross Margin', fmtPct(f.grossMargin), prior ? `${gmDiff >= 0 ? '+' : '−'}${Math.abs(gmDiff).toFixed(1)} pts${vs}` : null, prior ? (gmDiff >= 0 ? 'good' : 'bad') : null),
+    kpiTile('Operating Expenses', fmtMoneyCompact(f.opex), opexDelta, prior ? (f.opex <= prior.opex ? 'good' : 'bad') : null),
+    kpiTile('Net Income', fmtMoneyCompact(f.netIncome), niDelta, f.netIncome >= 0 ? 'good' : 'bad'),
   ].join('');
 
-  // Context row: latest official YTD (as reported by QuickBooks), sum of all real monthly statements on
-  // file, and whatever month is currently in progress (live ServiceMinder proxy).
-  const ytd = dataStore.financial.ytdThroughAug || dataStore.financial.ytdThroughJul;
-  // The official QuickBooks YTD can lag the monthly statements (Sep's P&L PDF has no YTD column), so
-  // reconcile it against the sum of months through the YTD's own month rather than all months on file.
-  const ytdThrough = ytd.throughMonth || 'jul';
-  const ytdMonths = dataStore.financial.monthOrder.slice(0, dataStore.financial.monthOrder.indexOf(ytdThrough) + 1).filter(m => months[m]);
-  const ytdSumRev = ytdMonths.reduce((a, m) => a + months[m].revenue, 0);
-  const ytdSumNI = ytdMonths.reduce((a, m) => a + months[m].netIncome, 0);
-  const ytdReconciles = Math.abs(ytdSumRev - ytd.revenue) < 1 && Math.abs(ytdSumNI - ytd.netIncome) < 1;
-  const presentMonths = dataStore.financial.monthOrder.filter(m => months[m]);
-  const sumRevenue = presentMonths.reduce((a, m) => a + months[m].revenue, 0);
-  const sumNetIncome = presentMonths.reduce((a, m) => a + months[m].netIncome, 0);
-  const sumFirst = months[presentMonths[0]].label.split(' ')[0];
-  const sumLast = months[presentMonths[presentMonths.length - 1]].label.split(' ')[0];
-  const sumLabel = `${sumFirst}–${sumLast} 2026 (sum of monthly P&Ls)`;
   const deltaLine = (text, color) => `<div style="font-size:13px;font-weight:500;margin-top:6px;color:${color};">${text}</div>`;
-  let nowTile;
-  if (liveCurrentMonthProxy.status === 'ready') {
-    nowTile = `<div class="callout"><div class="callout-label">${liveCurrentMonthProxy.label} — ServiceMinder proxy</div><div class="callout-value">${fmtMoneyCompact(liveCurrentMonthProxy.revenue)}</div>
-      ${deltaLine(liveCurrentMonthProxy.invoiceCount + ' invoices so far — not yet closed in QuickBooks', 'var(--text-muted)')}</div>`;
-  } else if (liveCurrentMonthProxy.status === 'error') {
-    nowTile = `<div class="callout"><div class="callout-label">Current month — ServiceMinder proxy</div><div class="callout-value">—</div>
-      ${deltaLine('Live ServiceMinder pull failed — reload to retry', 'var(--text-muted)')}</div>`;
-  } else {
-    nowTile = `<div class="callout"><div class="callout-label">Current month — ServiceMinder proxy</div><div class="callout-value">&hellip;</div>
-      ${deltaLine('Loading live total…', 'var(--text-muted)')}</div>`;
-  }
-  document.getElementById('finContextRow').innerHTML = `
-    <div class="callout"><div class="callout-label">${sumLabel}</div><div class="callout-value">${fmtMoneyCompact(sumRevenue)}</div>
-      ${deltaLine(fmtMoneyCompact(sumNetIncome) + ' net income', sumNetIncome >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)')}</div>
-    <div class="callout"><div class="callout-label">${ytd.label}</div><div class="callout-value">${fmtMoneyCompact(ytd.revenue)}</div>
-      ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income — ' + (ytdReconciles
-        ? (ytdMonths.length === presentMonths.length ? 'matches the monthly-sum total at left exactly' : `matches the ${months[ytdMonths[0]].label.split(' ')[0]}–${months[ytdThrough].label.split(' ')[0]} monthly P&Ls exactly; latest QuickBooks YTD report on file`)
-        : 'does not match the sum of the monthly P&Ls — check with the bookkeeper'), ytd.netIncome >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)')}</div>
-    ${nowTile}
-  `;
-
-  // Trend: every month with real data on file
-  const trendMonths = presentMonths;
+  const presentMonths = yd.order;
   const shortLabel = m => months[m].label.split(' ')[0];
-  document.getElementById('chartFinTrendSubtitle').textContent = `${shortLabel(trendMonths[0])}–${shortLabel(trendMonths[trendMonths.length - 1])} 2026`;
+  if (isCur) {
+    // Context row: latest official YTD (as reported by QuickBooks), sum of all real monthly statements on
+    // file, and whatever month is currently in progress (live ServiceMinder proxy).
+    const ytd = dataStore.financial.ytdThroughAug || dataStore.financial.ytdThroughJul;
+    // The official QuickBooks YTD can lag the monthly statements (Sep's P&L PDF has no YTD column), so
+    // reconcile it against the sum of months through the YTD's own month rather than all months on file.
+    const ytdThrough = ytd.throughMonth || 'jul';
+    const ytdMonths = dataStore.financial.monthOrder.slice(0, dataStore.financial.monthOrder.indexOf(ytdThrough) + 1).filter(m => months[m]);
+    const ytdSumRev = ytdMonths.reduce((a, m) => a + months[m].revenue, 0);
+    const ytdSumNI = ytdMonths.reduce((a, m) => a + months[m].netIncome, 0);
+    const ytdReconciles = Math.abs(ytdSumRev - ytd.revenue) < 1 && Math.abs(ytdSumNI - ytd.netIncome) < 1;
+    const sumRevenue = presentMonths.reduce((a, m) => a + months[m].revenue, 0);
+    const sumNetIncome = presentMonths.reduce((a, m) => a + months[m].netIncome, 0);
+    const sumFirst = months[presentMonths[0]].label.split(' ')[0];
+    const sumLast = months[presentMonths[presentMonths.length - 1]].label.split(' ')[0];
+    const sumLabel = `${sumFirst}–${sumLast} 2026 (sum of monthly P&Ls)`;
+    const py = finSumMonths(2025, presentMonths, '');
+    let nowTile;
+    if (liveCurrentMonthProxy.status === 'ready') {
+      nowTile = `<div class="callout"><div class="callout-label">${liveCurrentMonthProxy.label} — ServiceMinder proxy</div><div class="callout-value">${fmtMoneyCompact(liveCurrentMonthProxy.revenue)}</div>
+        ${deltaLine(liveCurrentMonthProxy.invoiceCount + ' invoices so far — not yet closed in QuickBooks', 'var(--text-muted)')}</div>`;
+    } else if (liveCurrentMonthProxy.status === 'error') {
+      nowTile = `<div class="callout"><div class="callout-label">Current month — ServiceMinder proxy</div><div class="callout-value">—</div>
+        ${deltaLine('Live ServiceMinder pull failed — reload to retry', 'var(--text-muted)')}</div>`;
+    } else {
+      nowTile = `<div class="callout"><div class="callout-label">Current month — ServiceMinder proxy</div><div class="callout-value">&hellip;</div>
+        ${deltaLine('Loading live total…', 'var(--text-muted)')}</div>`;
+    }
+    document.getElementById('finContextRow').innerHTML = `
+      <div class="callout"><div class="callout-label">${sumLabel}</div><div class="callout-value">${fmtMoneyCompact(sumRevenue)}</div>
+        ${deltaLine(fmtMoneyCompact(sumNetIncome) + ' net income', sumNetIncome >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)')}
+        ${py ? deltaLine(`${sumRevenue >= py.revenue ? '▲' : '▼'} ${finSignedPct(sumRevenue, py.revenue)} vs ${sumFirst}–${sumLast} 2025 (${fmtMoneyCompact(py.revenue)})`, sumRevenue >= py.revenue ? 'var(--delta-up-good)' : 'var(--delta-down-bad)') : ''}</div>
+      <div class="callout"><div class="callout-label">${ytd.label}</div><div class="callout-value">${fmtMoneyCompact(ytd.revenue)}</div>
+        ${deltaLine(fmtMoneyCompact(ytd.netIncome) + ' net income — ' + (ytdReconciles
+          ? (ytdMonths.length === presentMonths.length ? 'matches the monthly-sum total at left exactly' : `matches the ${months[ytdMonths[0]].label.split(' ')[0]}–${months[ytdThrough].label.split(' ')[0]} monthly P&Ls exactly; latest QuickBooks YTD report on file`)
+          : 'does not match the sum of the monthly P&Ls — check with the bookkeeper'), ytd.netIncome >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)')}</div>
+      ${nowTile}
+    `;
+  } else {
+    // A past year: the full-year total, how it compares with the year before, and its best/lowest months.
+    const fy = finFullYear(finYear), pfy = finFullYear(+finYear - 1);
+    const best = presentMonths.reduce((a, m) => months[m].revenue > months[a].revenue ? m : a, presentMonths[0]);
+    const low = presentMonths.reduce((a, m) => months[m].revenue < months[a].revenue ? m : a, presentMonths[0]);
+    document.getElementById('finContextRow').innerHTML = `
+      <div class="callout"><div class="callout-label">${finYear} full year — ${fy.official ? 'QuickBooks total (Dec P&L)' : 'sum of monthly P&Ls'}</div><div class="callout-value">${fmtMoneyCompact(fy.revenue)}</div>
+        ${deltaLine(fmtMoneyCompact(fy.netIncome) + ' net income', fy.netIncome >= 0 ? 'var(--delta-up-good)' : 'var(--delta-down-bad)')}</div>
+      <div class="callout"><div class="callout-label">${pfy ? `vs ${+finYear - 1}` : 'Earliest year on file'}</div><div class="callout-value">${pfy ? finSignedPct(fy.revenue, pfy.revenue) : '—'}</div>
+        ${deltaLine(pfy ? `${+finYear - 1}: ${fmtMoneyCompact(pfy.revenue)} revenue, ${fmtMoneyCompact(pfy.netIncome)} net income` : 'No P&Ls before 2024 are loaded yet', 'var(--text-muted)')}</div>
+      <div class="callout"><div class="callout-label">Best month</div><div class="callout-value">${shortLabel(best)} · ${fmtMoneyCompact(months[best].revenue)}</div>
+        ${deltaLine(`Lowest: ${shortLabel(low)} · ${fmtMoneyCompact(months[low].revenue)}`, 'var(--text-muted)')}</div>`;
+  }
+
+  // Trend: every month on file for the selected year
+  document.getElementById('chartFinTrendSubtitle').textContent = `${shortLabel(presentMonths[0])}–${shortLabel(presentMonths[presentMonths.length - 1])} ${finYear}`;
   renderLineChart('chartFinTrend', [
-    { name: 'Revenue', color: 'var(--brand-teal)', points: trendMonths.map(m => ({ x: m, y: months[m].revenue, label: shortLabel(m) })) },
-    { name: 'Net Income', color: 'var(--brand-amber)', points: trendMonths.map(m => ({ x: m, y: months[m].netIncome, label: shortLabel(m) })) },
+    { name: 'Revenue', color: 'var(--brand-teal)', points: presentMonths.map(m => ({ x: m, y: months[m].revenue, label: shortLabel(m) })) },
+    { name: 'Net Income', color: 'var(--brand-amber)', points: presentMonths.map(m => ({ x: m, y: months[m].netIncome, label: shortLabel(m) })) },
   ]);
 
   // Expense breakdown pie for the selected month
-  document.getElementById('finExpenseSubtitle').textContent = f.label + ' — share of COGS + operating expenses';
+  document.getElementById('finExpenseSubtitle').textContent = fLabel + ' — share of COGS + operating expenses';
   renderPieChart('chartFinExpense', Object.entries(f.buckets).map(([k, v]) => ({ label: bucketLabels[k], value: v })));
 
-  // Location-split table: only shown for months that have one on file so far (Jun/Jul/Aug 2026). Falls
-  // back to the most recent month with a location split when YTD or another month is selected.
+  // Location-split table: only 2026 months that have one on file (Jun 2026 onward). Falls back to the
+  // most recent month with a location split when YTD or another month is selected; hidden for past years.
   const locByMonth = dataStore.financial.locationByMonth;
-  const monthsWithLoc = presentMonths.filter(m => locByMonth[m]);
+  const monthsWithLoc = isCur ? presentMonths.filter(m => locByMonth[m]) : [];
   const latestLocMonth = monthsWithLoc[monthsWithLoc.length - 1];
-  const locMonthKey = locByMonth[finMonth] ? finMonth : latestLocMonth;
+  const locMonthKey = isCur && locByMonth[finMonth] ? finMonth : latestLocMonth;
   const locSection = document.getElementById('finLocationSection');
-  if (locByMonth[locMonthKey]) {
+  if (isCur && locByMonth[locMonthKey]) {
     locSection.style.display = '';
     document.getElementById('finLocationTitle').textContent = months[locMonthKey].label.replace(' (corrected)', '') + ' by Location';
     document.getElementById('finLocationTbody').innerHTML = locByMonth[locMonthKey].map(l =>
@@ -3108,31 +3385,30 @@ function renderFinancialTab() {
     locSection.style.display = 'none';
   }
 
-  // P&L summary for selected month
+  // P&L summary for the selected period, side by side with the same period a year earlier
   document.getElementById('finPLTitle').textContent = 'P&L Summary — ' + f.label;
-  document.getElementById('finTableMonthCol').textContent = f.label;
+  document.getElementById('finTableMonthCol').textContent = fLabel;
+  const pyCol = document.getElementById('finTablePyCol'), chCol = document.getElementById('finTableChgCol');
+  pyCol.textContent = prior ? prior.label.replace(/ \([^)]*\)$/, '') : ''; pyCol.style.display = chCol.style.display = prior ? '' : 'none';
   const rows = [
-    ['Revenue', f.revenue],
-    ['Cost of Goods Sold', -f.cogs],
-    ['Gross Profit', f.grossProfit],
-    ['Operating Expenses', -f.opex],
-    ['Net Income', f.netIncome],
+    ['Revenue', f.revenue, prior && prior.revenue],
+    ['Cost of Goods Sold', -f.cogs, prior && -prior.cogs],
+    ['Gross Profit', f.grossProfit, prior && prior.grossProfit],
+    ['Operating Expenses', -f.opex, prior && -prior.opex],
+    ['Net Income', f.netIncome, prior && prior.netIncome],
   ];
-  document.getElementById('finTbody').innerHTML = rows.map(([label, v]) => {
+  const fmtCell = (label, v) => label === 'Net Income' && v < 0 ? '(' + fmtMoney(Math.abs(v)) + ') loss' : fmtMoney(Math.abs(v)) + (v < 0 ? ' (deduction)' : '');
+  document.getElementById('finTbody').innerHTML = rows.map(([label, v, pv]) => {
     // A negative Net Income is a loss, not a deduction (labels only — numbers unchanged).
-    const cell = label === 'Net Income' && v < 0 ? '(' + fmtMoney(Math.abs(v)) + ') loss' : fmtMoney(Math.abs(v)) + (v < 0 ? ' (deduction)' : '');
-    return `<tr><td>${label}</td><td>${cell}</td></tr>`;
+    let chg = '';
+    if (prior) {
+      const better = v >= pv; // costs are stored negative here, so "higher" is better for every row
+      chg = `<td><span class="yoy-chg ${better ? 'good' : 'bad'}">${finSignedMoney(v - pv)}</span></td>`;
+    }
+    return `<tr><td>${label}</td><td>${fmtCell(label, v)}</td>${prior ? `<td>${fmtCell(label, pv)}</td>${chg}` : ''}</tr>`;
   }).join('');
+  renderYoySection();
 }
-document.querySelectorAll('#finMonthToggle button').forEach(btn => {
-  if (btn.disabled) return;
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#finMonthToggle button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    finMonth = btn.dataset.month;
-    renderFinancialTab();
-  });
-});
 
 document.querySelectorAll('#salesRangeToggle button').forEach(btn => {
   btn.addEventListener('click', () => {

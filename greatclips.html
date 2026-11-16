@@ -586,6 +586,20 @@ body.inv-lock{overflow:hidden}
 .inv-f-body{padding:6px 14px 0}
 .inv-help{font-size:15.5px;margin:6px 0 10px;color:var(--muted)}
 @media (min-width:700px){.inv-s .inv-item{display:grid;grid-template-columns:minmax(0,1fr) 360px;column-gap:16px;align-items:center}.inv-item .inv-pair{margin-top:0;grid-row:1/span 3;grid-column:2}.inv-item>*:not(.inv-pair){grid-column:1}}
+
+/* recently ordered (v4) */
+.inv-lastord{font-size:14px;color:var(--muted);margin-top:6px}
+.inv-lastord.on{color:#0b6b33;font-weight:600}
+.inv-item.recent{background:#f6f9f8;border-style:dashed;padding:12px 14px}
+.inv-item.recent .inv-n1{color:#5b6f6a}
+.inv-item.recent:not(.open) .inv-body{display:none}
+.inv-item.recent.open .inv-low{display:none}
+.inv-low{margin-top:10px;width:100%;padding:11px;border:1.5px solid #c9d6d2;border-radius:10px;background:#fff;font:inherit;font-size:15px;font-weight:700;color:var(--blue);cursor:pointer}
+.inv-warn{display:none;margin-top:8px;font-size:13.5px;color:#8a5a00;background:#fff6e0;border-radius:8px;padding:7px 10px}
+.inv-item.recent.open.has .inv-warn{display:block}
+.inv-recnote{background:#eaf7f0;border:1px solid #bfe3cf;color:#0b4f2d;border-radius:10px;padding:10px 12px;font-size:15px;margin:0 0 12px}
+.inv-otbl tr.inv-flag td{background:#fff8e6}
+.inv-flagt{display:block;font-size:12px;color:#8a5a00;font-weight:600;margin-top:2px}
 /* ===== MANAGER TASK COMPLETION ===== */
 .tk-strip{margin-bottom:14px;padding:14px 16px 10px}
 .tk-bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:10px}
@@ -5665,6 +5679,24 @@ const INV_SECS=[
     ["Paul Mitchell","Skinny Serum","7129"],["Paul Mitchell","Freeze & Shine","7180"],["Paul Mitchell","Moisturizer","7214"],["American Crew","Firm Hold Gel","893"],
     ["Latitude","Shampoo & Conditioner","7929"],["Latitude","Daily Hydrating Shampoo","7924"],["Latitude","Firm Style","7972"]
   ].map(([l,n,id])=>({k:"bb_"+id,n:l+" · "+n,num:id,v:"mgr"}))}];
+// How long an order usually lasts, in days. Built from the salons' Sam's Club invoices (May 26 – Nov 6, 2026):
+// snacks / Dum Dums / laundry detergent are ordered about every month; paper goods every 2½–4 months; cleaners 3–6 months.
+const INV_CYCLE={candy:30,laundry:30,tp:75,pt_rest:75,gloves:90,soap_rest:90,pt_break:100,floor:100,soap_break:120,receipt:120,toilet:120,
+  tissue:135,sanitizer:135,glass:150,trash:150,paper:150,env_clasp:150,env_std:150,markers:150,disinfect:180,microfiber:180,broom:180,spray_extra:180,
+  finger:180,bandaids:180,stapler:365};
+function invCycle(k){if(INV_CYCLE[k])return INV_CYCLE[k];if(/^sn_/.test(k))return 30;return null;}
+function invDays(a,b){return Math.round((gmD(b)-gmD(a))/864e5);}
+// salon's own rhythm counts once it has two or more orders of an item (blended with the market-wide norm)
+function invItemCycle(h,k){const base=invCycle(k);if(!base)return null;const d=(h&&h[k])||[];if(d.length<2)return base;
+  const gaps=[];for(let i=1;i<d.length;i++)gaps.push(invDays(d[i],d[i-1]));gaps.sort((a,b)=>a-b);const med=gaps[Math.floor(gaps.length/2)];return Math.round((base+Math.min(Math.max(med,20),240))/2);}
+// {last, days, cycle, recent, next} for an item at a salon; recent = still inside ~80% of how long it usually lasts
+function invRecent(h,k,today){const d=(h&&h[k])||[];if(!d.length)return null;const cyc=invItemCycle(h,k);const last=d[0],days=invDays(last,today||gmToday());
+  return {last,days,cycle:cyc,recent:cyc?days<Math.round(cyc*0.8):false,next:cyc?gmAdd(last,cyc):null};}
+function invHistMap(rows){const m={};(rows||[]).forEach(r=>{const a=(m[r.item_key]=m[r.item_key]||[]);if(a[0]!==r.ordered_on&&!a.includes(r.ordered_on))a.push(r.ordered_on);});Object.values(m).forEach(a=>a.sort().reverse());return m;}
+// judge "recent" as of the day the order is placed (the inventory due date), not the day the manager opens the form
+function invRef(m){const t=gmToday(),d=invDueDate(m);return t>d?t:d;}
+function invAgo(days){return days<=1?"yesterday":days<14?days+" days ago":days<60?Math.round(days/7)+" weeks ago":Math.round(days/30)+" months ago";}
+function invLasts(c){return c>=330?"about a year":c>=45?"about "+(Math.round(c/30*2)/2).toString().replace(".5","½")+" months":"about a month";}
 const INV_VEND={sams:"Sam’s Club",staples:"Staples",amazon:"Amazon",other:"Other (GC / bank / ADP)",mgr:"Manager orders"};
 const INV_ITEM={};INV_SECS.forEach(s=>s.items.forEach(it=>{it.sec=s.k;INV_ITEM[it.k]=it;}));
 const INV={month:null,salon:null,row:null,prev:null,models:{},timer:null,saving:false,view:"count",omonth:null,all:null};
@@ -5681,10 +5713,12 @@ function invNeeded(row){const out=[];const it=(row&&row.items)||{};const ex=(row
   return out;}
 
 async function invLoad(sid){const m=invMonth();INV.month=m;INV.salon=sid;
-  const [rows,prev,mod]=await Promise.all([
+  const [rows,prev,mod,histRows]=await Promise.all([
     gmGet("gc_inv_submissions?select=*&salon_id=eq."+sid+"&month=eq."+m),
     gmGet("gc_inv_submissions?select=items,extras,month&salon_id=eq."+sid+"&month=lt."+m+"&status=neq.draft&order=month.desc&limit=1"),
-    gmGet("gc_inv_salon?select=*&salon_id=eq."+sid)]);
+    gmGet("gc_inv_salon?select=*&salon_id=eq."+sid),
+    gmGet("gc_inv_order_hist?select=item_key,ordered_on&salon_id=eq."+sid+"&ordered_on=gte."+gmAdd(gmToday(),-300)+"&order=ordered_on.desc").catch(()=>[])]);
+  INV.hist=invHistMap(histRows);
   INV.row=rows[0]||{salon_id:sid,month:m,status:"draft",items:{},extras:{}};INV.prev=prev[0]||null;
   const md=mod[0]||{};const ex=INV.row.extras||(INV.row.extras={});
   if(ex.toner_model==null&&md.toner_model)ex.toner_model=md.toner_model;if(ex.drum_model==null&&md.drum_model)ex.drum_model=md.drum_model;
@@ -5729,6 +5763,8 @@ function invRender(){const o=$("#invFull");if(!o)return;
     +'<nav class="inv-jump">'+INV_SECS.map(s=>'<button type="button" data-jump="'+s.k+'">'+esc(short[s.k])+' <i id="invJ_'+s.k+'">'+cnt(s)+'/'+s.items.length+'</i></button>').join("")+'</nav>';
   h+='<div class="inv-f-body" id="invBody">';
   h+='<p class="inv-help">Due <b>'+esc(gmD(invDueDate(r.month)).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}))+'</b>. Count what’s on hand, enter what you need. Skip anything you didn’t count — it saves as you go.</p>';
+  {const nRec=INV_SECS.filter(x=>!x.mgr).reduce((a,x)=>a+x.items.filter(d=>{const rc=invRecent(INV.hist,d.k,invRef(r.month));return rc&&rc.recent;}).length,0);
+   if(nRec)h+='<div class="inv-recnote">✓ <b>'+nRec+' items were ordered recently</b> and are folded up — skip them unless you’re running low.</div>';}
   if(sub)h+='<div class="gm-banner info">Submitted'+(r.completed_by?' by '+esc(r.completed_by):'')+'. Fix a count and tap <b>Resubmit</b> to send the update.</div>';
   const stepper=(k,f,val,lab,oth)=>'<div class="inv-fld'+(f==="need"?" need":"")+'"><span class="inv-fl">'+lab+'</span><div class="inv-step"><button type="button" tabindex="-1" data-step="-1" aria-label="Less">−</button>'
     +'<input type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="inv-q'+(f==="need"?" need":"")+'" '+(oth!=null?'data-oth="'+oth+'" data-of="need"':'data-k="'+k+'" data-f="'+f+'"')+' value="'+(val??"")+'" aria-label="'+esc(lab)+'" enterkeyhint="next">'
@@ -5739,11 +5775,13 @@ function invRender(){const o=$("#invFull");if(!o)return;
       if(d.model)extra='<input class="inv-model" data-mk="'+d.model+'_model" value="'+esc(ex[d.model+"_model"]||"")+'" placeholder="Model #">';
       if(d.free)extra='<input class="inv-model" data-txt="'+d.k+'" value="'+esc(v.txt||"")+'" placeholder="'+esc(d.free)+'">';
       if(d.size)extra='<div class="inv-size">'+["Small","Medium","Large"].map(z=>'<button type="button" data-size="'+z+'" class="'+(ex.glove_size===z?"on":"")+'">'+z+'</button>').join("")+'</div>';
-      const has=v.oh!=null||v.need!=null;
-      h+='<div class="inv-item'+(has?' has':'')+'" data-item="'+d.k+'"><div class="inv-ihead"><span class="inv-n1">'+esc(d.n)+'</span>'+(d.num?'<span class="inv-num">#'+esc(d.num)+'</span>':'')+'</div>'
-        +(d.hint?'<div class="inv-hint">'+esc(d.hint)+'</div>':'')+extra
-        +'<div class="inv-pair">'+stepper(d.k,"oh",v.oh,"On hand")+stepper(d.k,"need",v.need,"Need")+'</div>'
-        +(p&&(p.oh!=null||p.need>0)?'<div class="inv-last">Last month: '+(p.oh!=null?p.oh+' on hand':'')+(p.need>0?(p.oh!=null?', ':'')+'needed '+p.need:'')+'</div>':'')+'</div>';});
+      const has=v.oh!=null||v.need!=null;const rc=mg?null:invRecent(INV.hist,d.k,invRef(r.month));const rec=rc&&rc.recent;
+      const ordLine=rc?'<div class="inv-lastord'+(rec?' on':'')+'">'+(rec?'✓ ':'')+'Ordered '+esc(gmShort(rc.last))+' ('+invAgo(invDays(rc.last,gmToday()))+')'+(rc.cycle?' · usually lasts '+invLasts(rc.cycle):'')+'</div>':'';
+      h+='<div class="inv-item'+(has?' has':'')+(rec?' recent'+(has?' open':''):'')+'" data-item="'+d.k+'"><div class="inv-ihead"><span class="inv-n1">'+esc(d.n)+'</span>'+(d.num?'<span class="inv-num">#'+esc(d.num)+'</span>':'')+'</div>'
+        +ordLine+(rec?'<button type="button" class="inv-low" data-low="1">Running low? Count it</button>':'')
+        +'<div class="inv-body">'+(d.hint?'<div class="inv-hint">'+esc(d.hint)+'</div>':'')+extra
+        +'<div class="inv-pair">'+stepper(d.k,"oh",v.oh,"On hand")+stepper(d.k,"need",v.need,"Need")+'</div>'+(rec?'<div class="inv-warn">Ordered '+invAgo(invDays(rc.last,gmToday()))+' — only order more if you’re running low.</div>':'')
+        +(p&&(p.oh!=null||p.need>0)?'<div class="inv-last">Last month: '+(p.oh!=null?p.oh+' on hand':'')+(p.need>0?(p.oh!=null?', ':'')+'needed '+p.need:'')+'</div>':'')+'</div></div>';});
     (ex.other||[]).forEach((o2,i)=>{if(o2.sec!==s.k)return;
       h+='<div class="inv-item has"><div class="inv-oth">'+(mg?'<input class="inv-model inv-onum" data-oth="'+i+'" data-of="num" value="'+esc(o2.num||"")+'" placeholder="Item #" inputmode="numeric">':'')+'<input class="inv-model" data-oth="'+i+'" data-of="txt" value="'+esc(o2.txt||"")+'" placeholder="'+(s.k==="snacks"?"Snack + Sam’s item # (shippable)":"Item name")+'"></div>'
         +'<div class="inv-pair one">'+stepper(null,"need",o2.need,"Need",i)+'</div></div>';});
@@ -5769,6 +5807,7 @@ function invWire(host){if(host._invWired)return;host._invWired=true;
   host.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const r=INV.row;
     if(b.dataset.invclose){invClose();return;}
     if(b.dataset.sicopy){invSICopy();return;}
+    if(b.dataset.low){const it=b.closest(".inv-item");it.classList.add("open");const q=it.querySelector(".inv-q");if(q)q.focus();return;}
     if(b.dataset.step){const inp=b.parentNode.querySelector("input");const cur=inp.value===""?null:+inp.value;let nv=(cur==null?0:cur)+(+b.dataset.step);if(cur==null&&+b.dataset.step<0)nv=0;inp.value=Math.max(0,nv);inp.dispatchEvent(new Event("input",{bubbles:true}));return;}
     if(b.dataset.jump){const t=$("#invS_"+b.dataset.jump),body=$("#invBody");if(t&&body)body.scrollTo({top:body.scrollTop+t.getBoundingClientRect().top-body.getBoundingClientRect().top-8,behavior:"auto"});return;}
     if(b.dataset.size){r.extras.glove_size=r.extras.glove_size===b.dataset.size?null:b.dataset.size;b.parentNode.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b&&!!r.extras.glove_size));invDirty();}
@@ -5808,7 +5847,7 @@ async function invFn(body){const {data:{session}}=await gcClient().auth.getSessi
 // ---- Orders (owners / Area Managers) ----
 function invOrders(host){if(!INV.omonth)INV.omonth=invMonth();const m=INV.omonth;
   if(!INV.all||INV.all.m!==m){host.innerHTML='<div class="card" style="padding:18px">Loading orders…</div>';
-    gmGet("gc_inv_submissions?select=*&month=eq."+m).then(rows=>{INV.all={m,rows};if(GM.view==="orders")renderManager();}).catch(e=>{host.innerHTML='<div class="gm-banner red">'+esc(e.message)+'</div>';});return;}
+    Promise.all([gmGet("gc_inv_submissions?select=*&month=eq."+m),gmGet("gc_inv_order_hist?select=salon_id,item_key,ordered_on&ordered_on=gte."+gmAdd(gmToday(),-300)+"&order=ordered_on.desc").catch(()=>[])]).then(([rows,hr])=>{const hs={};(hr||[]).forEach(r=>{(hs[r.salon_id]=hs[r.salon_id]||[]).push(r);});const hist={};Object.keys(hs).forEach(k=>hist[k]=invHistMap(hs[k]));INV.all={m,rows,hist};if(GM.view==="orders")renderManager();}).catch(e=>{host.innerHTML='<div class="gm-banner red">'+esc(e.message)+'</div>';});return;}
   const mine=Object.keys(SALONS).sort().filter(s=>typeof gcCanSalon!=="function"||gcCanSalon(s));
   const by={};INV.all.rows.forEach(r=>by[r.salon_id]=r);
   const months=[];let x=invMonth();for(let i=0;i<6;i++){months.push(x);x=invPrevMonth(x);}
@@ -5823,7 +5862,7 @@ function invOrders(host){if(!INV.omonth)INV.omonth=invMonth();const m=INV.omonth
     h+='<details class="inv-sec inv-ord"'+(v==="mgr"?"":" open")+'><summary><span>'+esc(INV_VEND[v])+'</span><span class="inv-n">'+n+' line'+(n>1?"s":"")+' · '+blocks.length+' salon'+(blocks.length>1?"s":"")+'</span></summary>';
     blocks.forEach(b=>{h+='<div class="inv-oblock"><div class="inv-oh"><b>'+b.s+' — '+esc(SALONS[b.s]||"")+'</b>'+(b.r.completed_by?' <span class="inv-hint">by '+esc(b.r.completed_by)+'</span>':'')
         +(v!=="mgr"?'<button class="gm-link" data-copy="'+b.s+'|'+v+'">Copy list</button>':'')+'</div><table class="inv-otbl"><tbody>'
-        +b.lines.map(l=>'<tr><td class="q">'+l.qty+'</td><td>'+esc(l.label)+'</td><td class="id">'+(l.v==="sams"&&l.id?'<a href="'+INV_SAMS+l.id+'" target="_blank" rel="noopener">'+l.id+'</a>':esc(l.num||""))+'</td></tr>').join("")+'</tbody></table></div>';});
+        +b.lines.map(l=>{const rc=l.k&&l.k!=="other"?invRecent((INV.all.hist||{})[b.s],l.k,invRef(m)):null;return '<tr'+(rc&&rc.recent?' class="inv-flag"':'')+'><td class="q">'+l.qty+'</td><td>'+esc(l.label)+(rc&&rc.recent?'<span class="inv-flagt">⚠ ordered '+esc(gmShort(rc.last))+' ('+invAgo(invDays(rc.last,gmToday()))+')</span>':'')+'</td><td class="id">'+(l.v==="sams"&&l.id?'<a href="'+INV_SAMS+l.id+'" target="_blank" rel="noopener">'+l.id+'</a>':esc(l.num||""))+'</td></tr>';}).join("")+'</tbody></table></div>';});
     h+='</details>';});
   h+='<div class="sec-title" style="margin-top:14px">Mark ordered</div><div class="inv-status">'+subd.map(s=>{const r=by[s];return '<div class="inv-st"><b>'+s+'</b> '+esc(pnameShort(s))+'<div>'+(r.ordered_at?'<span class="gm-chip gm-g">Ordered '+new Date(r.ordered_at).toLocaleDateString([], {month:"numeric",day:"numeric"})+'</span> <button class="gm-link" data-unorder="'+r.id+'">Undo</button>':'<button class="btn sec" data-order="'+r.id+'">Mark ordered</button>')+'</div></div>';}).join("")+'</div>';
   const notes=subd.filter(s=>by[s].extras&&by[s].extras.notes);if(notes.length)h+='<div class="card" style="margin-top:12px"><h3>Notes from managers</h3>'+notes.map(s=>'<p><b>'+s+':</b> '+esc(by[s].extras.notes)+'</p>').join("")+'</div>';
@@ -5835,7 +5874,12 @@ function invOWire(host){const sel=$("#invOMonth");if(sel)sel.onchange=function()
     (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>gmToast("Copied")).catch(()=>gmModal('<h3>Copy</h3><textarea style="width:100%;height:200px">'+esc(txt)+'</textarea><div class="gm-actions"><button class="btn" data-act="close">Close</button></div>'));});
   host.querySelectorAll("[data-order],[data-unorder]").forEach(b=>b.onclick=async()=>{const id=b.dataset.order||b.dataset.unorder;const on=!!b.dataset.order;b.disabled=true;
     try{const r=await fetch(SUPA_URL+"/rest/v1/gc_inv_submissions?id=eq."+id,{method:"PATCH",headers:gmHdr({Prefer:"return=representation"}),body:JSON.stringify({ordered_at:on?new Date().toISOString():null,ordered_by:on?(gmWho().n||null):null})});if(!r.ok)throw new Error("HTTP "+r.status);
-      const j=await r.json();const i=INV.all.rows.findIndex(x=>x.id===id);if(i>=0&&j[0])INV.all.rows[i]=j[0];renderManager();}catch(e){gmToast("Could not update: "+e.message);b.disabled=false;}});}
+      const j=await r.json();const i=INV.all.rows.findIndex(x=>x.id===id);if(i>=0&&j[0])INV.all.rows[i]=j[0];
+      try{const row=INV.all.rows[i];if(on){const day=gmToday();const lines=invNeeded(row).filter(l=>l.k&&l.k!=="other"&&["sams","staples","amazon","other"].includes(l.v));
+          if(lines.length)await gmPost("gc_inv_order_hist",lines.map(l=>({salon_id:row.salon_id,item_key:l.k,ordered_on:day,qty:l.qty,item_name:l.label,source:"dashboard",ref:id})),"?on_conflict=salon_id,item_key,ordered_on,ref","resolution=ignore-duplicates,return=minimal");
+          const hs=(INV.all.hist[row.salon_id]=INV.all.hist[row.salon_id]||{});lines.forEach(l=>{(hs[l.k]=hs[l.k]||[]).includes(day)||hs[l.k].unshift(day);});}
+        else{await fetch(SUPA_URL+"/rest/v1/gc_inv_order_hist?source=eq.dashboard&ref=eq."+id,{method:"DELETE",headers:gmHdr({})});INV.all=null;}}catch(e){console.error(e);}
+      renderManager();}catch(e){gmToast("Could not update: "+e.message);b.disabled=false;}});}
 
 document.addEventListener("click",e=>{if(e.target.closest("[data-invopen]")){e.preventDefault();invOpen();}});
 // Direct link: tools.sonayagroup.com/greatclips.html#inventory (or #inventory-6101) opens the form straight away

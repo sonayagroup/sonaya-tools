@@ -5682,12 +5682,13 @@ const INV_SECS=[
 // How long an order usually lasts, in days. Built from the salons' Sam's Club invoices (May 26 – Nov 6, 2026):
 // snacks / Dum Dums / laundry detergent are ordered about every month; paper goods every 2½–4 months; cleaners 3–6 months.
 const INV_CYCLE={candy:30,laundry:30,tp:75,pt_rest:75,gloves:90,soap_rest:90,pt_break:100,floor:100,soap_break:120,receipt:120,toilet:120,
-  tissue:135,sanitizer:135,glass:150,trash:150,paper:150,env_clasp:150,env_std:150,markers:150,disinfect:180,microfiber:180,broom:180,spray_extra:180,
+  tissue:135,sanitizer:90,glass:150,trash:150,paper:150,env_clasp:150,env_std:150,markers:150,disinfect:180,microfiber:180,broom:180,spray_extra:180,
   finger:180,bandaids:180,stapler:365};
 function invCycle(k){if(INV_CYCLE[k])return INV_CYCLE[k];if(/^sn_/.test(k))return 30;return null;}
 function invDays(a,b){return Math.round((gmD(b)-gmD(a))/864e5);}
 // salon's own rhythm counts once it has two or more orders of an item (blended with the market-wide norm)
-function invItemCycle(h,k){const base=invCycle(k);if(!base)return null;const d=(h&&h[k])||[];if(d.length<2)return base;
+const INV_FIXED={sanitizer:1}; // set by Pranav: always use this length, not the salon's own pace
+function invItemCycle(h,k){const base=invCycle(k);if(!base)return null;if(INV_FIXED[k])return base;const d=(h&&h[k])||[];if(d.length<2)return base;
   const gaps=[];for(let i=1;i<d.length;i++)gaps.push(invDays(d[i],d[i-1]));gaps.sort((a,b)=>a-b);const med=gaps[Math.floor(gaps.length/2)];return Math.round((base+Math.min(Math.max(med,20),240))/2);}
 // {last, days, cycle, recent, next} for an item at a salon; recent = still inside ~80% of how long it usually lasts
 function invRecent(h,k,today){const d=(h&&h[k])||[];if(!d.length)return null;const cyc=invItemCycle(h,k);const last=d[0],days=invDays(last,today||gmToday());

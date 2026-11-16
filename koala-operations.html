@@ -766,6 +766,57 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 .of-ck-note { flex: none; margin-left: 32px; padding: 6px 9px; font-size: 12.5px; background: var(--surface-page); }
 .of-foot { margin-top: 18px; }
 
+
+/* Front Office: assigned tasks + contact history */
+.of-signed { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.of-signed b { color: var(--text-secondary); }
+.of-add-task { margin-left: auto; padding: 4px 10px; font-size: 12px; }
+.of-add-task + .of-how { margin-left: 0; }
+.of-tasks-list { display: flex; flex-direction: column; background: var(--surface-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-sm); }
+.of-tasks-list > .of-empty { border: none; box-shadow: none; }
+.of-atask { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--border); align-items: start; }
+.of-atask:last-child { border-bottom: none; }
+.of-check { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--text-muted); background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; padding: 0; margin-top: 1px; }
+.of-check:hover { border-color: var(--brand-teal); }
+.of-check:disabled { cursor: default; }
+.of-atask.is-done .of-check { background: var(--status-good); border-color: var(--status-good); }
+.of-check .of-svg { width: 13px; height: 13px; }
+.of-atask.s-overdue .of-check { border-color: var(--status-critical); }
+.of-task-title { font-size: 13.5px; font-weight: 600; }
+.of-atask.is-done .of-task-title { color: var(--text-muted); text-decoration: line-through; }
+.of-task-notes { font-size: 12.5px; color: var(--text-secondary); white-space: pre-wrap; margin: 2px 0; }
+.of-task-done { color: var(--status-good); margin-top: 2px; }
+.of-task-done a { color: var(--text-muted); }
+.of-task-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.of-task-edit { padding: 2px 8px; font-size: 11.5px; }
+.of-more-done { all: unset; cursor: pointer; padding: 9px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); }
+.of-more-done:hover { color: var(--text-primary); }
+.of-task-form { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; margin-bottom: 10px; background: var(--surface-card); border: 1px solid var(--brand-teal); border-radius: 12px; box-shadow: var(--shadow-sm); }
+.of-tasks-list .of-task-form { margin: 8px; }
+.of-task-form textarea { resize: vertical; min-height: 44px; }
+.of-task-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.of-task-row label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); }
+.of-task-row label .of-input { flex: none; width: auto; padding: 5px 8px; }
+.of-del { margin-left: auto; color: var(--status-critical); }
+.of-del-confirm { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; }
+.of-btn.bad-btn { background: var(--status-critical); border-color: var(--status-critical); color: #fff; }
+.of-history { margin-top: -2px; }
+.of-history-btn { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); cursor: pointer; padding: 3px 0; }
+.of-history-btn:hover { color: var(--text-primary); }
+.of-history-btn .of-svg { width: 12px; height: 12px; }
+.of-history-go { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; font-weight: 600; }
+.of-history-list { list-style: none; margin: 6px 0 0; padding: 6px 10px; background: var(--surface-page); border-radius: 9px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.of-history-list li { display: grid; grid-template-columns: 74px 120px minmax(0, 1fr) auto; gap: 8px; align-items: center; color: var(--text-secondary); }
+.of-history-list b { color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.of-history-list a { color: var(--text-muted); font-size: 12px; }
+.of-history-k { display: inline-flex; align-items: center; gap: 5px; }
+.of-history-k .of-svg { width: 12px; height: 12px; }
+@media (max-width: 620px) {
+  .of-history-list li { grid-template-columns: 64px 1fr; }
+  .of-history-list li > b { grid-column: 1 / -1; }
+  .of-atask { grid-template-columns: 24px minmax(0, 1fr); }
+  .of-task-side { grid-column: 2; flex-direction: row; align-items: center; justify-content: flex-start; }
+}
 /* bright brand color in dark mode needs dark text */
 :root[data-theme="dark"] .of-btn.primary, :root[data-theme="dark"] .of-filter.on span { color: #111; }
 /* ---- Front Office walkthrough ---- */
@@ -6050,7 +6101,7 @@ initAuthGate();
    A lead drops out once it has an appointment in ServiceMinder or is closed out here. */
 const OFFICE_EDGE = SUPABASE_URL + '/functions/v1/koala-office';
 const OFFICE_REST = CRM_SUPABASE_URL + '/rest/v1/';
-let office = { data: null, loading: false, error: null, filter: 'action', pending: {}, closing: null, jobNote: null, pollTimer: null, openPart: null, lastAt: 0 };
+let office = { data: null, loading: false, error: null, filter: 'action', pending: {}, closing: null, jobNote: null, pollTimer: null, openPart: null, lastAt: 0, taskForm: null, taskNote: null, showDoneTasks: false, historyOpen: {} };
 
 function officeIsActive() { const t = document.getElementById('tab-office'); return !!(t && t.classList.contains('active')); }
 async function officeLoad(opts) {
@@ -6226,6 +6277,7 @@ function officeLeadHtml(l) {
     </header>
     ${l.phone || l.email ? `<div class="of-contact">${l.phone ? `<a class="of-link" href="tel:${officeEsc(l.phone.replace(/[^0-9+]/g, ''))}">${OF_ICON.phone}${officeEsc(l.phone)}</a>` : ''}${l.email ? `<a class="of-link" href="mailto:${officeEsc(l.email)}">${OF_ICON.mail}${officeEsc(l.email)}</a>` : ''}</div>` : ''}
     ${l.phase === 'before_tracking' ? '' : officeStepsHtml(l)}
+    ${officeHistoryHtml(l)}
     <footer class="of-lead-actions">
       ${closedOut
         ? `<button class="of-btn" ${p[`s:${l.id}`] ? 'disabled' : ''} onclick="officeReopen('${id}')">Undo ${l.phase === 'retreva' ? 'Retreva' : 'close-out'}</button>${l.status && l.status.note ? `<span class="of-meta of-quote">“${officeEsc(l.status.note)}”</span>` : ''}`
@@ -6248,7 +6300,7 @@ function officeLeadHtml(l) {
 }
 function officeHealthHtml(h) {
   if (h.score == null) return `<section class="of-card of-health"><div class="of-card-h"><div><div class="of-kicker">Front Office Health</div><div class="of-meta">Starts counting ${officeDay(h.startsOn)}. Each business day is scored once it's over.</div></div><div class="of-score">—<span>/100</span></div></div>
-    <ul class="of-weights"><li><span>Lead calls & emails on time</span><b>45</b></li><li><span>Jobs confirmed before they start</span><b>20</b></li><li><span>Daily checklist filled in</span><b>20</b></li><li><span>Sent to Retreva on day 5</span><b>15</b></li></ul></section>`;
+    <ul class="of-weights"><li><span>Lead calls & emails on time</span><b>45</b></li><li><span>Jobs confirmed before they start</span><b>20</b></li><li><span>Daily checklist filled in</span><b>20</b></li><li><span>Sent to Retreva on day 5</span><b>15</b></li><li><span>Assigned tasks done on time</span><b>15</b></li></ul></section>`;
   const parts = Object.entries(h.parts).filter(([, p]) => p).map(([k, p]) => {
     const v = Math.round(p.value); const open = office.openPart === k;
     return `<button type="button" class="eh-part eh-part-btn" onclick="officeTogglePart('${k}')" title="${officeEsc(p.detail)}"><span class="eh-part-l">${officeEsc(p.label)} <span class="eh-part-go">${open ? '▾' : '›'}</span></span><span class="eh-bar"><i class="${ehColor(v)}" style="width:${Math.max(2, v)}%"></i></span><span class="eh-part-v">${v}%</span><span class="eh-part-w">×${p.weight}</span></button>
@@ -6270,12 +6322,15 @@ function officeTodayModel(d) {
   const retDone = d.leads.filter(l => l.status && l.status.date === d.today && l.retrevaDue <= d.today).length;
   const jobN = d.jobs.length, jobG = d.jobs.filter(j => j.confirm).length;
   const ckN = d.checklist.length, ckG = d.checklist.filter(i => i.entry || (i.freq === 'weekly' && i.doneEarlier)).length;
+  const tDue = (d.tasks || []).filter(t => t.status === 'due_today' || t.status === 'overdue');
+  const tDoneToday = (d.tasks || []).filter(t => t.done && t.done.on === d.today && t.dueOn && t.dueOn <= d.today);
   const rows = [
     { key: 'calls', icon: OF_ICON.phone, label: 'Lead calls', done: callG, total: callN, target: 'ofLeads' },
     { key: 'emails', icon: OF_ICON.mail, label: 'Lead emails', done: emG, total: emN, target: 'ofLeads' },
     { key: 'retreva', icon: OF_ICON.send, label: 'Send to Retreva', done: retDone, total: retOpen + retDone, target: 'ofLeads' },
     { key: 'jobs', icon: OF_ICON.truck, label: 'Confirm jobs', done: jobG, total: jobN, target: 'ofJobs' },
     { key: 'checklist', icon: OF_ICON.list, label: 'Daily checklist', done: ckG, total: ckN, target: 'ofChecklist' },
+    { key: 'tasks', icon: OF_ICON.check, label: 'Assigned tasks', done: tDoneToday.length, total: tDue.length + tDoneToday.length, target: 'ofTasks' },
   ];
   const done = rows.reduce((s, r) => s + r.done, 0), total = rows.reduce((s, r) => s + r.total, 0);
   return { rows, done, total };
@@ -6337,6 +6392,152 @@ function officeChecklistHtml(d) {
     </div>`;
   }).join('')}</div>`;
 }
+
+/* ---- Front Office: Assigned tasks (2026-11-16, per Pranav) ----
+   Admins assign tasks (one-time with an optional due date, every business day, or weekly on a set day);
+   the assignee checks them off. Rows live in office_tasks / office_task_done; the database stamps who did
+   what and when, and only admins can add, edit or remove a task. Tasks with a due date feed the
+   "Assigned tasks done on time" part of the Front Office Health score (scored by the koala-office function). */
+const OF_WEEKDAYS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+function officeIsAdmin() { return !!(currentUser && currentUser.role === 'admin'); }
+function officeTask(id) { return ((office.data && office.data.tasks) || []).find(t => t.id === id); }
+function officeTaskWhen(t) {
+  if (t.recur === 'daily') return 'Every business day';
+  if (t.recur === 'weekly') return `Every ${OF_WEEKDAYS[t.weekday || 5]}`;
+  return t.dueDate ? `Due ${officeDay(t.dueDate)}` : 'No due date';
+}
+function officeTaskChip(t) {
+  const d = office.data;
+  if (t.status === 'done') return '';
+  if (t.status === 'overdue') return `<span class="of-chip bad">Overdue · was due ${officeDay(t.dueOn)}</span>`;
+  if (t.status === 'due_today') return `<span class="of-chip warn">Due today</span>`;
+  if (t.status === 'upcoming') return `<span class="of-chip">${t.recur === 'daily' ? `Next: ${officeDay(t.dueOn)}` : `Due ${officeDay(t.dueOn)}`}</span>`;
+  return '';
+}
+function officeTaskForm(mode, id) {
+  if (!officeIsAdmin()) return;
+  office.taskForm = { mode, id: id || null, confirmDelete: false };
+  renderOffice();
+  const el = document.getElementById('ofTaskTitle'); if (el) el.focus();
+}
+function officeTaskCancel() { office.taskForm = null; renderOffice(); }
+function officeTaskRecurChanged() {
+  const r = (document.getElementById('ofTaskRecur') || {}).value;
+  const due = document.getElementById('ofTaskDueWrap'), wd = document.getElementById('ofTaskWdWrap');
+  if (due) due.style.display = r === 'none' ? '' : 'none';
+  if (wd) wd.style.display = r === 'weekly' ? '' : 'none';
+}
+function officeTaskSave() {
+  const f = office.taskForm; if (!f) return;
+  const v = (id) => ((document.getElementById(id) || {}).value || '').trim();
+  const title = v('ofTaskTitle');
+  if (!title) { office.error = 'Give the task a short title.'; renderOffice(); return; }
+  const recur = v('ofTaskRecur') || 'none';
+  const row = { title, notes: v('ofTaskNotes') || null, assignee_id: v('ofTaskAssignee'), recur,
+    due_date: recur === 'none' ? (v('ofTaskDue') || null) : null, weekday: recur === 'weekly' ? Number(v('ofTaskWd') || 5) : null };
+  office.taskForm = null;
+  if (f.mode === 'edit') officeDo(`task:${f.id}`, () => officeRest(`office_tasks?id=eq.${encodeURIComponent(f.id)}`, 'PATCH', row));
+  else officeDo('task:new', () => officeRest('office_tasks', 'POST', row));
+}
+function officeTaskAskDelete() { if (office.taskForm) { office.taskForm.confirmDelete = true; renderOffice(); } }
+function officeTaskDelete() {
+  const f = office.taskForm; if (!f || !f.id) return;
+  office.taskForm = null;
+  officeDo(`task:${f.id}`, () => officeRest(`office_tasks?id=eq.${encodeURIComponent(f.id)}`, 'PATCH', { archived: true }));
+}
+function officeTaskToggle(id) {
+  const t = officeTask(id); if (!t) return;
+  if (t.done) {
+    officeDo(`taskdone:${id}`, () => officeRest(`office_task_done?task_id=eq.${encodeURIComponent(id)}&period=eq.${encodeURIComponent(t.period)}`, 'DELETE'));
+  } else {
+    officeDo(`taskdone:${id}`, () => officeRest('office_task_done', 'POST', { task_id: id, period: t.period }));
+  }
+}
+function officeTaskNoteOpen(id) { office.taskNote = id; renderOffice(); const el = document.getElementById('ofTaskNote'); if (el) el.focus(); }
+function officeTaskNoteSave(id) {
+  const t = officeTask(id); if (!t || !t.done) return;
+  const note = ((document.getElementById('ofTaskNote') || {}).value || '').trim();
+  office.taskNote = null;
+  officeDo(`taskdone:${id}`, () => officeRest(`office_task_done?task_id=eq.${encodeURIComponent(id)}&period=eq.${encodeURIComponent(t.period)}`, 'PATCH', { note: note || null }));
+}
+function officeTaskFormHtml(d) {
+  const f = office.taskForm, t = f.mode === 'edit' ? officeTask(f.id) : null;
+  const people = (d.assignable || []);
+  const defaultAssignee = t ? t.assigneeId : ((people.find(u => u.name === 'Michelle Gonzalez') || people.find(u => u.role !== 'admin') || people[0] || {}).id || '');
+  const recur = t ? t.recur : 'none';
+  return `<div class="of-task-form" role="group" aria-label="${t ? 'Edit task' : 'New task'}">
+    <input id="ofTaskTitle" class="of-input" maxlength="300" placeholder="What needs to get done?" value="${officeEsc(t ? t.title : '')}" onkeydown="if(event.key==='Enter')officeTaskSave();if(event.key==='Escape')officeTaskCancel();">
+    <textarea id="ofTaskNotes" class="of-input" rows="2" maxlength="2000" placeholder="Details (optional)">${officeEsc(t && t.notes ? t.notes : '')}</textarea>
+    <div class="of-task-row">
+      <label>Assign to <select id="ofTaskAssignee" class="of-input">${people.map(u => `<option value="${officeEsc(u.id)}" ${u.id === defaultAssignee ? 'selected' : ''}>${officeEsc(u.name)}</option>`).join('')}</select></label>
+      <label>Repeat <select id="ofTaskRecur" class="of-input" onchange="officeTaskRecurChanged()">
+        <option value="none" ${recur === 'none' ? 'selected' : ''}>One time</option>
+        <option value="daily" ${recur === 'daily' ? 'selected' : ''}>Every business day</option>
+        <option value="weekly" ${recur === 'weekly' ? 'selected' : ''}>Weekly</option></select></label>
+      <label id="ofTaskDueWrap" style="${recur === 'none' ? '' : 'display:none'}">Due <input type="date" id="ofTaskDue" class="of-input" value="${t && t.dueDate ? t.dueDate : ''}" min="${d.today}"></label>
+      <label id="ofTaskWdWrap" style="${recur === 'weekly' ? '' : 'display:none'}">On <select id="ofTaskWd" class="of-input">${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${(t ? t.weekday : 5) === n ? 'selected' : ''}>${OF_WEEKDAYS[n]}</option>`).join('')}</select></label>
+    </div>
+    <div class="of-task-row">
+      <button class="of-btn primary" onclick="officeTaskSave()">${t ? 'Save changes' : 'Add task'}</button>
+      <button class="of-btn ghost" onclick="officeTaskCancel()">Cancel</button>
+      ${t ? (f.confirmDelete
+        ? `<span class="of-del-confirm">Remove this task? <button class="of-btn bad-btn" onclick="officeTaskDelete()">Yes, remove</button><button class="of-btn ghost" onclick="office.taskForm.confirmDelete=false;renderOffice()">Keep</button></span>`
+        : `<button class="of-btn ghost of-del" onclick="officeTaskAskDelete()">Remove task</button>`) : ''}
+    </div>
+    <div class="of-meta">${t ? '' : 'The assignee gets it in Front Office right away. Tasks with a due date count toward the Front Office Health score.'}</div>
+  </div>`;
+}
+function officeTaskRowHtml(t) {
+  const d = office.data, p = office.pending, admin = officeIsAdmin(), id = officeJsArg(t.id);
+  const doneToday = t.done && t.done.on === d.today;
+  const canUndo = t.done && (admin || (currentUser && t.done.userId === currentUser.id && doneToday));
+  if (office.taskForm && office.taskForm.mode === 'edit' && office.taskForm.id === t.id) return officeTaskFormHtml(d);
+  return `<div class="of-atask ${t.done ? 'is-done' : ''} s-${t.status}">
+    <button type="button" class="of-check" role="checkbox" aria-checked="${!!t.done}" aria-label="${t.done ? 'Mark not done' : 'Mark done'}: ${officeEsc(t.title)}" ${p[`taskdone:${t.id}`] || (t.done && !canUndo) ? 'disabled' : ''} onclick="officeTaskToggle('${id}')">${t.done ? OF_ICON.check : ''}</button>
+    <div class="of-task-main">
+      <div class="of-task-title">${officeEsc(t.title)}</div>
+      ${t.notes ? `<div class="of-task-notes">${officeEsc(t.notes)}</div>` : ''}
+      <div class="of-meta">${officeTaskWhen(t)}${t.recur !== 'none' ? ` · ${officeDay(t.dueOn)}` : ''} · for ${officeEsc((t.assigneeName || '').split(' ')[0])} · from ${officeEsc((t.createdByName || '').split(' ')[0])} ${suShort(t.createdOn)}</div>
+      ${t.done ? `<div class="of-meta of-task-done">${OF_ICON.check} Done ${t.done.on === d.today ? 'today' : officeDay(t.done.on)} ${officeTime(t.done.at)} by ${officeEsc(t.done.by || '')}${t.done.note ? ` — “${officeEsc(t.done.note)}”` : ''}${office.taskNote === t.id ? '' : ` · <a href="#" onclick="officeTaskNoteOpen('${id}');return false;">${t.done.note ? 'edit note' : 'add note'}</a>`}</div>` : ''}
+      ${office.taskNote === t.id ? `<div class="of-inline"><input id="ofTaskNote" class="of-input" maxlength="1000" placeholder="How did it go?" value="${officeEsc(t.done && t.done.note ? t.done.note : '')}" onkeydown="if(event.key==='Enter')officeTaskNoteSave('${id}');if(event.key==='Escape'){office.taskNote=null;renderOffice();}"><button class="of-btn primary" onclick="officeTaskNoteSave('${id}')">Save</button></div>` : ''}
+    </div>
+    <div class="of-task-side">${officeTaskChip(t)}${admin ? `<button class="of-btn ghost of-task-edit" onclick="officeTaskForm('edit','${id}')" aria-label="Edit task">Edit</button>` : ''}</div>
+  </div>`;
+}
+function officeTasksHtml(d) {
+  const tasks = d.tasks || [];
+  const recentDone = (t) => t.done && (t.recur !== 'none' || t.done.on === d.today);
+  const open = tasks.filter(t => !t.done || recentDone(t));
+  const older = tasks.filter(t => t.done && !recentDone(t));
+  const adding = office.taskForm && office.taskForm.mode === 'add';
+  return `${adding ? officeTaskFormHtml(d) : ''}
+    <div class="of-tasks-list">${open.length ? open.map(officeTaskRowHtml).join('') : `<div class="of-empty">${officeIsAdmin() ? 'No tasks yet — use “Add task” to give one.' : 'No tasks assigned right now.'}</div>`}
+      ${older.length ? `<button type="button" class="of-more-done" onclick="office.showDoneTasks=!office.showDoneTasks;renderOffice()">${office.showDoneTasks ? 'Hide' : 'Show'} ${older.length} completed task${older.length === 1 ? '' : 's'}</button>${office.showDoneTasks ? older.map(officeTaskRowHtml).join('') : ''}` : ''}
+    </div>`;
+}
+
+/* ---- Contact history on a lead: who logged every call/email ---- */
+function officeHistoryHtml(l) {
+  const d = office.data;
+  if (!l.touches.length && !l.bookedBy) return '';
+  const counts = {};
+  l.touches.forEach(t => { const k = t.by || 'Unknown'; counts[k] = (counts[k] || 0) + 1; });
+  const summary = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${officeEsc(n.split(' ')[0])} ${c}`).join(' · ');
+  const open = !!(office.historyOpen && office.historyOpen[l.id]);
+  const myId = currentUser && currentUser.id;
+  return `<div class="of-history">
+    <button type="button" class="of-history-btn" aria-expanded="${open}" onclick="office.historyOpen=office.historyOpen||{};office.historyOpen['${officeJsArg(l.id)}']=!office.historyOpen['${officeJsArg(l.id)}'];renderOffice()">
+      ${OF_ICON.user}<span>${l.touches.length ? `Logged by ${summary}` : 'No calls or emails logged yet'}${l.bookedBy ? ` · booked by ${officeEsc(l.bookedBy.split(' ')[0])}` : ''}</span>${l.touches.length ? `<span class="of-history-go">${open ? 'Hide' : 'History'} ${OF_ICON.more}</span>` : ''}
+    </button>
+    ${open ? `<ul class="of-history-list">${l.touches.slice().reverse().map(t => `<li>
+        <span class="of-history-k">${t.kind === 'call' ? OF_ICON.phone : OF_ICON.mail}${t.kind === 'call' ? 'Call' : 'Email'}</span>
+        <span>${t.date === d.today ? 'Today' : officeDay(t.date)} ${officeTime(t.at)}</span>
+        <b>${officeEsc(t.by || 'Unknown')}</b>
+        ${t.userId === myId && t.date === d.today ? `<a href="#" onclick="officeUndoTouch('${officeJsArg(t.id)}','${officeJsArg(l.id)}');return false;">undo</a>` : '<span></span>'}
+      </li>`).join('')}${l.bookedBy ? `<li><span class="of-history-k">${OF_ICON.check}Booked</span><span>${l.scheduledOn ? officeDay(l.scheduledOn) : ''}</span><b>${officeEsc(l.bookedBy)}</b><span class="of-meta">in ServiceMinder</span></li>` : ''}</ul>` : ''}
+  </div>`;
+}
+
 function officeHowHtml(text) { return `<details class="of-how"><summary>${OF_ICON.info}How it works</summary><div>${text}</div></details>`; }
 function renderOffice() {
   const root = document.getElementById('officeRoot'); if (!root) return;
@@ -6366,7 +6567,7 @@ function renderOffice() {
   const jobsDone = d.jobs.filter(j => j.confirm).length;
   root.innerHTML = `
     <div class="of-page-h">
-      <div><h2 class="of-title">Front Office</h2><div class="of-sub">New ServiceMinder leads, jobs to confirm, and the daily checklist — ${officeDay(d.today)}</div></div>
+      <div><h2 class="of-title">Front Office</h2><div class="of-sub">New ServiceMinder leads, jobs to confirm, and the daily checklist — ${officeDay(d.today)}</div><div class="of-signed">${OF_ICON.user}Signed in as <b>${officeEsc(currentUser ? currentUser.name : '')}</b> — anything you log here is saved under your name.</div></div>
       <div class="of-head-btns"><button class="of-btn ghost" id="ofTourBtn" onclick="officeStartTour()">${OF_ICON.info}Take the tour</button>
       <button class="of-btn ghost" ${office.loading ? 'disabled' : ''} onclick="officeLoad({force:true,refresh:true})">${OF_ICON.refresh}${office.loading ? 'Refreshing…' : 'Refresh'}</button></div>
     </div>
@@ -6387,6 +6588,10 @@ function renderOffice() {
         <section id="ofChecklist">
           <div class="of-sec-h"><h3>Daily checklist</h3><span class="of-count ${ckDone === d.checklist.length ? 'good' : ''}">${ckDone}/${d.checklist.length}</span>${officeHowHtml('Pick Done, N/A or Issue for each item and add names or notes the team should see — they go straight into the 4:45pm email. Weekly items only need doing once Mon–Fri. Entries can only be made for today.')}</div>
           ${officeChecklistHtml(d)}
+        </section>
+        <section id="ofTasks">
+          <div class="of-sec-h"><h3>Assigned tasks</h3>${(() => { const act = (d.tasks || []).filter(t => t.status !== 'upcoming' && (!t.done || t.recur !== 'none' || t.done.on === d.today)); const dn = act.filter(t => t.done).length; return act.length ? `<span class="of-count ${dn === act.length ? 'good' : ''}">${dn}/${act.length}</span>` : ''; })()}${officeIsAdmin() && !(office.taskForm && office.taskForm.mode === 'add') ? `<button class="of-btn primary of-add-task" onclick="officeTaskForm('add')">+ Add task</button>` : ''}${officeHowHtml('Tasks a manager has given you. Check each one off when it’s done — you can add a note. One-time tasks can have a due date; others repeat every business day or on one day each week. Tasks with a due date count toward the Front Office Health score: done by the due date counts for you, overdue counts against.')}</div>
+          ${officeTasksHtml(d)}
         </section>
       </aside>
     </div>
@@ -6430,13 +6635,15 @@ function ofTourSteps() {
       body: `These are the install jobs starting ${win}. Call each customer before the job starts, then click <b>Confirmed</b>.<br><br>If you can't reach them, click <b>Couldn't reach</b> and say what you tried (voicemail, text…). Evaluations aren't listed here — the estimators confirm those.` },
     { sel: '#ofChecklist', title: 'Your daily checklist',
       body: `For each item, pick <b>Done</b>, <b>N/A</b> or <b>Issue</b>, then type any names or notes the team should see — for example, which NM Gas rebates you submitted.<br><br>Notes save when you click away. Weekly items only need doing once between Monday and Friday. You can only fill in today's checklist, so do it before 4:45.` },
+    { sel: '#ofTasks', title: 'Tasks assigned to you',
+      body: `When a manager gives you a task, it shows up here (and you'll get an email). Click the circle to check it off, and add a note if it helps.<br><br>Some tasks repeat every business day or once a week. Tasks with a due date count toward your score, so try to finish them by the date shown.` },
     { sel: '.of-health', title: 'Your Front Office Health score',
       body: `This 0–100 score shows how consistently the work gets done. It's based on:
-        <ul><li>Lead calls and emails made on the right day (most of the score)</li><li>Jobs confirmed before they start</li><li>The daily checklist being filled in</li><li>Leads sent to Retreva on day 5</li></ul>
+        <ul><li>Lead calls and emails made on the right day (most of the score)</li><li>Jobs confirmed before they start</li><li>The daily checklist being filled in</li><li>Assigned tasks done by their due date</li><li>Leads sent to Retreva on day 5</li></ul>
         Each day is scored once it's over, so you always have the whole day to finish.` },
     { title: `You're all set${first ? ', ' + officeEsc(first) : ''}!`, center: true,
       body: `The daily routine:
-        <ol><li>Open <b>Front Office</b> and check the <b>Today</b> card.</li><li>Work the leads under <b>Call or email today</b>, logging each call and email.</li><li>Confirm the upcoming jobs.</li><li>Fill in the checklist before 4:45pm.</li></ol>
+        <ol><li>Open <b>Front Office</b> and check the <b>Today</b> card.</li><li>Work the leads under <b>Call or email today</b>, logging each call and email.</li><li>Confirm the upcoming jobs.</li><li>Fill in the checklist and check off any assigned tasks before 4:45pm.</li></ol>
         The page updates by itself every minute. You can replay this tour anytime with the <b>Take the tour</b> button at the top.` },
   ];
 }

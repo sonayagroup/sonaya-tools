@@ -6290,7 +6290,7 @@ function officePhaseChip(l) {
     case 'waiting': return `<span class="of-chip">Starts ${officeDay(l.d1)}</span>`;
     case 'retreva_due': return `<span class="of-chip bad">Send to Retreva today</span>`;
     case 'retreva_overdue': return `<span class="of-chip bad">Retreva overdue · was due ${officeDay(l.retrevaDue)}</span>`;
-    case 'scheduled': return `<span class="of-chip teal">${l.apptService === 'served' ? 'Served' : 'Booked'}${l.apptDate ? ' · ' + officeDay(l.apptDate) : ''}</span>`;
+    case 'scheduled': return l.apptService === 'proposal' ? `<span class="of-chip teal">Proposal sent · ${officeDay(l.scheduledOn)}</span>` : `<span class="of-chip teal">${l.apptService === 'served' ? 'Served' : 'Booked'}${l.apptDate ? ' · ' + officeDay(l.apptDate) : ''}</span>`;
     case 'retreva': return `<span class="of-chip">Sent to Retreva ${suShort(l.status.date)}${l.status.by ? ' · ' + officeEsc(l.status.by.split(' ')[0]) : ''}</span>`;
     case 'closed': return `<span class="of-chip">${l.status.status === 'lost' ? 'Lost' : 'Not a lead'} ${suShort(l.status.date)}${l.status.by ? ' · ' + officeEsc(l.status.by.split(' ')[0]) : ''}</span>`;
     case 'before_tracking': return `<span class="of-chip muted">Before tracking</span>`;
@@ -6861,14 +6861,14 @@ function officeHistoryHtml(l) {
   const myId = currentUser && currentUser.id;
   return `<div class="of-history">
     <button type="button" class="of-history-btn" aria-expanded="${open}" onclick="office.historyOpen=office.historyOpen||{};office.historyOpen['${officeJsArg(l.id)}']=!office.historyOpen['${officeJsArg(l.id)}'];renderOffice()">
-      ${OF_ICON.user}<span>${l.touches.length ? `Logged by ${summary}` : 'No calls or emails logged yet'}${l.bookedBy ? ` · booked by ${officeEsc(l.bookedBy.split(' ')[0])}` : ''}</span>${l.touches.length ? `<span class="of-history-go">${open ? 'Hide' : 'History'} ${OF_ICON.more}</span>` : ''}
+      ${OF_ICON.user}<span>${l.touches.length ? `Logged by ${summary}` : 'No calls or emails logged yet'}${l.bookedBy ? ` · ${l.apptService === 'proposal' ? 'proposal sent by' : 'booked by'} ${officeEsc(l.bookedBy.split(' ')[0])}` : ''}</span>${l.touches.length ? `<span class="of-history-go">${open ? 'Hide' : 'History'} ${OF_ICON.more}</span>` : ''}
     </button>
     ${open ? `<ul class="of-history-list">${l.touches.slice().reverse().map(t => `<li>
         <span class="of-history-k">${t.kind === 'call' ? OF_ICON.phone : OF_ICON.mail}${t.kind === 'call' ? 'Call' : 'Email'}</span>
         <span>${t.date === d.today ? 'Today' : officeDay(t.date)} ${officeTime(t.at)}</span>
         <b>${officeEsc(t.by || 'Unknown')}</b>
         ${t.userId === myId && t.date === d.today ? `<a href="#" onclick="officeUndoTouch('${officeJsArg(t.id)}','${officeJsArg(l.id)}');return false;">undo</a>` : '<span></span>'}
-      </li>`).join('')}${l.bookedBy ? `<li><span class="of-history-k">${OF_ICON.check}Booked</span><span>${l.scheduledOn ? officeDay(l.scheduledOn) : ''}</span><b>${officeEsc(l.bookedBy)}</b><span class="of-meta">in ServiceMinder</span></li>` : ''}</ul>` : ''}
+      </li>`).join('')}${l.bookedBy ? `<li><span class="of-history-k">${OF_ICON.check}${l.apptService === 'proposal' ? 'Proposal sent' : 'Booked'}</span><span>${l.scheduledOn ? officeDay(l.scheduledOn) : ''}</span><b>${officeEsc(l.bookedBy)}</b><span class="of-meta">in ServiceMinder</span></li>` : ''}</ul>` : ''}
   </div>`;
 }
 
@@ -6962,7 +6962,7 @@ function ofTourSteps() {
     { sel: '#ofLeads .of-steps', title: 'The follow-up plan for every lead', fallback: true,
       body: `Each lead has the same plan:
         <ul><li><b>Day 1:</b> 2 calls + 1 email</li><li><b>Days 2, 3 and 4:</b> 1 call + 1 email each day</li><li><b>Day 5:</b> send it to Retreva if there's still no appointment</li></ul>
-        Only business days count. A lead that comes in after 4pm or on a weekend starts the next business day. Today's box is outlined, and the dots fill in as you log calls and emails.<br><br>As soon as an appointment is booked in ServiceMinder, the lead moves to <b>Scheduled</b> and the follow-up stops.` },
+        Only business days count. A lead that comes in after 4pm or on a weekend starts the next business day. Today's box is outlined, and the dots fill in as you log calls and emails.<br><br>As soon as an appointment is booked in ServiceMinder (or an estimator sends a proposal), the lead moves to <b>Scheduled</b> and the follow-up stops.` },
     { sel: '#ofLeads .of-lead-actions', title: 'Log every call and email', fallback: true,
       body: `Each time you call or email a lead, click <b>Log call</b> or <b>Log email</b>. It records the time and your name. The buttons turn green when that lead still needs one today.<br><br>Clicked by mistake? Use <b>undo</b> next to "Last call" (same day only).<br><br>Tip: click the phone number or email to call or write them right from here.` },
     { sel: '#ofLeads .of-menu', title: 'Send to Retreva or close it out', fallback: true,

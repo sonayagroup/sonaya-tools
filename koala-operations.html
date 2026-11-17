@@ -839,6 +839,8 @@ svg text { fill: var(--text-secondary); font-family: system-ui, -apple-system, s
 .of-assigned-by { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .of-assigned-by > svg { width: 13px; height: 13px; flex: none; }
 .of-assigned-by b { color: var(--text-secondary); font-weight: 600; }
+.of-task-for { font-size: 12.5px; color: var(--text-secondary); }
+.of-task-for b { color: var(--text-primary); font-weight: 600; }
 .of-pic-add { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; color: var(--brand-teal); cursor: pointer; font-weight: 600; }
 .of-task-form > .of-input { flex: none; width: 100%; }
 .of-pic-add svg { width: 13px; height: 13px; }
@@ -6492,7 +6494,10 @@ function officeTaskSave() {
   const title = v('ofTaskTitle');
   if (!title) { office.error = 'Give the task a short title.'; renderOffice(); return; }
   const recur = v('ofTaskRecur') || 'none';
-  const row = { title, notes: v('ofTaskNotes') || null, assignee_id: v('ofTaskAssignee'), recur,
+  const d = office.data || {};
+  const assignee = (d.taskAssignee && d.taskAssignee.id) || v('ofTaskAssignee');
+  if (!assignee) { office.error = 'No one is set up to receive tasks yet.'; renderOffice(); return; }
+  const row = { title, notes: v('ofTaskNotes') || null, assignee_id: assignee, assigned_by_id: v('ofTaskAssignedBy') || null, recur,
     due_date: recur === 'none' ? (v('ofTaskDue') || null) : null, weekday: recur === 'weekly' ? Number(v('ofTaskWd') || 5) : null };
   if (f.saving) return;
   officeTaskCaptureDraft();
@@ -6553,7 +6558,12 @@ function officeTaskFormHtml(d) {
   const people = (d.assignable || []);
   const dr = f.draft || {};
   const pick = (k, fallback) => (dr[k] !== undefined ? dr[k] : fallback);
+  // Every task goes to the office manager (d.taskAssignee); the form picks who is asking for it.
+  const fixed = d.taskAssignee;
   const defaultAssignee = pick('assignee', t ? t.assigneeId : ((people.find(u => u.name === 'Michelle Gonzalez') || people.find(u => u.role !== 'admin') || people[0] || {}).id || ''));
+  const assigners = people.filter(u => !fixed || u.id !== fixed.id);
+  const myId = currentUser ? currentUser.id : '';
+  const defaultBy = pick('assignedBy', t ? (t.assignedById || '') : (assigners.some(u => u.id === myId) ? myId : ''));
   const recur = pick('recur', t ? t.recur : 'none');
   const due = pick('due', t && t.dueDate ? t.dueDate : ''), wd = Number(pick('wd', t ? t.weekday : 5)) || 5;
   const existing = t ? (t.files || []) : [];
@@ -6567,7 +6577,8 @@ function officeTaskFormHtml(d) {
     </div>
     ${existing.length || f.pics.length ? `<div class="of-pics">${existing.map((x, i) => officePicHtml(t.id, x, i)).join('')}${f.pics.map(x => `<span class="of-pic pending" title="${officeEsc(x.file.name)} (not saved yet)"><img src="${x.url}" alt="${officeEsc(x.file.name)}" onerror="this.parentNode.classList.add('noprev')"><span class="of-pic-ph">${officeEsc(officePicExt(x.file.name))}</span><button type="button" class="of-pic-x" aria-label="Remove ${officeEsc(x.file.name)}" onclick="officeFormRemovePic('${x.key}')">&times;</button></span>`).join('')}</div>` : ''}
     <div class="of-task-row">
-      <label>Assign to <select id="ofTaskAssignee" class="of-input">${people.map(u => `<option value="${officeEsc(u.id)}" ${u.id === defaultAssignee ? 'selected' : ''}>${officeEsc(u.name)}</option>`).join('')}</select></label>
+      <label>Assigned by <select id="ofTaskAssignedBy" class="of-input">${t && t.assignedById && !assigners.some(u => u.id === t.assignedById) ? `<option value="${officeEsc(t.assignedById)}" selected>${officeEsc(t.assignedByName || 'Unknown')}</option>` : ''}${assigners.map(u => `<option value="${officeEsc(u.id)}" ${u.id === defaultBy ? 'selected' : ''}>${officeEsc(u.name)}</option>`).join('')}</select></label>
+      ${fixed ? `<span class="of-task-for">For <b>${officeEsc(fixed.name)}</b></span>` : `<label>Assign to <select id="ofTaskAssignee" class="of-input">${people.map(u => `<option value="${officeEsc(u.id)}" ${u.id === defaultAssignee ? 'selected' : ''}>${officeEsc(u.name)}</option>`).join('')}</select></label>`}
       <label>Repeat <select id="ofTaskRecur" class="of-input" onchange="officeTaskRecurChanged()">
         <option value="none" ${recur === 'none' ? 'selected' : ''}>One time</option>
         <option value="daily" ${recur === 'daily' ? 'selected' : ''}>Every business day</option>
@@ -6582,7 +6593,7 @@ function officeTaskFormHtml(d) {
         ? `<span class="of-del-confirm">Remove this task? <button class="of-btn bad-btn" onclick="officeTaskDelete()">Yes, remove</button><button class="of-btn ghost" onclick="office.taskForm.confirmDelete=false;renderOffice()">Keep</button></span>`
         : `<button class="of-btn ghost of-del" onclick="officeTaskAskDelete()">Remove task</button>`) : ''}
     </div>
-    <div class="of-meta">${t ? '' : 'The assignee gets it in Front Office right away. Tasks with a due date count toward the Front Office Health score.'}</div>
+    <div class="of-meta">${t ? '' : `${fixed ? officeEsc(fixed.name.split(' ')[0]) : 'The assignee'} gets it in Front Office right away${fixed ? ' (and an email)' : ''}. Tasks with a due date count toward the Front Office Health score.`}</div>
   </div>`;
 }
 function officeTaskRowHtml(t) {
@@ -6599,8 +6610,8 @@ function officeTaskRowHtml(t) {
       ${t.notes ? `<div class="of-task-notes">${officeEsc(t.notes)}</div>` : ''}
       ${(t.files || []).length ? `<div class="of-pics">${t.files.map((x, i) => officePicHtml(t.id, x, i)).join('')}</div>` : ''}
       ${picBusy ? `<div class="of-meta"><span class="of-spin sm"></span>Uploading pictures…</div>` : ''}
-      <div class="of-meta">${officeTaskWhen(t)}${t.recur !== 'none' ? ` · ${officeDay(t.dueOn)}` : ''} · for ${officeEsc(t.assigneeName || '')}</div>
-      <div class="of-meta of-assigned-by">${OF_ICON.user}<span>Assigned by <b>${officeEsc(t.createdByName || 'a manager')}</b>${t.createdOn ? ` · ${officeDay(t.createdOn)}` : ''}</span>${canPic && !picBusy ? `<label class="of-pic-add" for="ofPicIn-${officeDomId(t.id)}" title="Add pictures (you can also drag them onto this task)">${OF_ICON.image}Add picture</label><input type="file" id="ofPicIn-${officeDomId(t.id)}" accept="image/*,.heic,.heif" multiple hidden onchange="officeAddPicsToTask('${id}',this.files);this.value=''">` : ''}</div>
+      <div class="of-meta">${officeTaskWhen(t)}${t.recur !== 'none' ? ` · ${officeDay(t.dueOn)}` : ''}${d.taskAssignee && d.taskAssignee.id === t.assigneeId ? '' : ` · for ${officeEsc(t.assigneeName || '')}`}</div>
+      <div class="of-meta of-assigned-by">${OF_ICON.user}<span>Assigned by <b>${officeEsc(t.assignedByName || t.createdByName || 'a manager')}</b>${t.createdOn ? ` · ${officeDay(t.createdOn)}` : ''}${t.createdByName && t.assignedByName && t.createdByName !== t.assignedByName ? ` · entered by ${officeEsc(t.createdByName.split(' ')[0])}` : ''}</span>${canPic && !picBusy ? `<label class="of-pic-add" for="ofPicIn-${officeDomId(t.id)}" title="Add pictures (you can also drag them onto this task)">${OF_ICON.image}Add picture</label><input type="file" id="ofPicIn-${officeDomId(t.id)}" accept="image/*,.heic,.heif" multiple hidden onchange="officeAddPicsToTask('${id}',this.files);this.value=''">` : ''}</div>
       ${t.done ? `<div class="of-meta of-task-done">${OF_ICON.check} Done ${t.done.on === d.today ? 'today' : officeDay(t.done.on)} ${officeTime(t.done.at)} by ${officeEsc(t.done.by || '')}${t.done.note ? ` — “${officeEsc(t.done.note)}”` : ''}${office.taskNote === t.id ? '' : ` · <a href="#" onclick="officeTaskNoteOpen('${id}');return false;">${t.done.note ? 'edit note' : 'add note'}</a>`}</div>` : ''}
       ${office.taskNote === t.id ? `<div class="of-inline"><input id="ofTaskNote" class="of-input" maxlength="1000" placeholder="How did it go?" value="${officeEsc(t.done && t.done.note ? t.done.note : '')}" onkeydown="if(event.key==='Enter')officeTaskNoteSave('${id}');if(event.key==='Escape'){office.taskNote=null;renderOffice();}"><button class="of-btn primary" onclick="officeTaskNoteSave('${id}')">Save</button></div>` : ''}
     </div>
@@ -6705,7 +6716,7 @@ function officeTaskCaptureDraft() {
   const form = document.querySelector('#officeRoot .of-task-form');
   if (!form || form.getAttribute('data-form') !== `${f.mode}:${f.id || ''}`) return;
   const g = (id) => { const el = document.getElementById(id); return el ? el.value : undefined; };
-  f.draft = { title: g('ofTaskTitle'), notes: g('ofTaskNotes'), assignee: g('ofTaskAssignee'), recur: g('ofTaskRecur'), due: g('ofTaskDue'), wd: g('ofTaskWd') };
+  f.draft = { title: g('ofTaskTitle'), notes: g('ofTaskNotes'), assignee: g('ofTaskAssignee'), assignedBy: g('ofTaskAssignedBy'), recur: g('ofTaskRecur'), due: g('ofTaskDue'), wd: g('ofTaskWd') };
 }
 function officeRevokePics(f) { if (f && f.pics) f.pics.forEach(x => { try { URL.revokeObjectURL(x.url); } catch (e) {} }); }
 function officeFormAddPics(list) {

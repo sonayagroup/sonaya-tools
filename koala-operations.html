@@ -6368,8 +6368,8 @@ function officeWaitDate(v) { const c = office.closing; if (!c) return; c.date = 
 function officeWaitFormHtml(l) {
   const c = office.closing, d = office.data;
   const quick = [2, 3, 5, 7].map(n => `<button type="button" class="${c.days === n ? 'on' : ''}" onclick="officeWaitPick(${n})">${n} days</button>`).join('');
-  return `<div class="of-inline of-wait-form" role="group" aria-label="Waiting on customer">
-    <div class="of-wait-row"><b>Waiting on customer</b><span class="of-meta">Calls stop until the follow-up date. That day it comes back here for one check-in.</span></div>
+  return `<div class="of-inline of-wait-form" role="group" aria-label="Waiting on Customer / On Hold">
+    <div class="of-wait-row"><b>Waiting on Customer / On Hold</b><span class="of-meta">Calls stop until the follow-up date. That day it comes back here for one check-in.</span></div>
     <input id="officeCloseNote" class="of-input" maxlength="300" placeholder="What are we waiting for? (e.g. attic photos, HOA approval, measurements)" value="${officeEsc(c.note || '')}" oninput="office.closing.note=this.value" onkeydown="if(event.key==='Enter')officeSaveClose();if(event.key==='Escape')officeCancelClose();">
     <div class="of-wait-row"><span class="of-meta">Follow up in</span><div class="of-seg">${quick}</div>
       <label class="of-meta">or on <input type="date" class="of-input of-wait-date" id="officeWaitDate" min="${officeAddBiz(d.today, 1)}" value="${officeEsc(c.date || '')}" onchange="officeWaitDate(this.value)"></label>
@@ -6383,7 +6383,7 @@ function officeHoldHtml(l) {
   const sameDay = f.since === d.today;
   return `<div class="of-hold ${l.phase === 'followup_due' ? 'due' : ''}">
     <span class="of-hold-ico">${OF_ICON.info}</span>
-    <div><b>Waiting on customer</b>${f.note ? ` — ${officeEsc(f.note)}` : ''}
+    <div><b>Waiting on Customer / On Hold</b>${f.note ? ` — ${officeEsc(f.note)}` : ''}
       <div class="of-meta">On hold since ${officeDay(f.since)}${f.by ? ' by ' + officeEsc(f.by.split(' ')[0]) : ''} · follow up ${officeDay(f.due)}${f.checkedIn ? ` · checked in ${officeDay(f.checkedIn.date)}${f.checkedIn.by ? ' by ' + officeEsc(f.checkedIn.by.split(' ')[0]) : ''}` : ''}${sameDay ? ` · <a href="#" onclick="officeReopen('${id}');return false;">undo</a>` : ''}</div>
       ${l.phase === 'followup_due' ? `<div class="of-meta of-hold-next">Call or email them today and log it. Then pick: <b>Wait longer</b>, or <b>Close out</b> (Retreva, lost or not a lead).</div>` : l.phase === 'followup_done' ? `<div class="of-meta of-hold-next">Next step: <b>Wait longer</b> with a new date, or <b>Close out</b>. It books itself once there's an appointment or proposal in ServiceMinder.</div>` : ''}
     </div></div>`;
@@ -6457,7 +6457,7 @@ const OF_ICON = {
 
 const OFFICE_FILTERS = [
   { key: 'action', label: 'Needs action', test: l => ['active', 'retreva_due', 'retreva_overdue', 'waiting', 'followup_due', 'followup_done'].includes(l.phase) },
-  { key: 'hold', label: 'Waiting on customer', test: l => l.phase === 'waiting_customer' },
+  { key: 'hold', label: 'Waiting on Customer / On Hold', test: l => l.phase === 'waiting_customer' },
   { key: 'scheduled', label: 'Scheduled', test: l => l.phase === 'scheduled' },
   { key: 'closed', label: 'Retreva / closed', test: l => l.phase === 'retreva' || l.phase === 'closed' },
   { key: 'old', label: 'Before tracking', test: l => l.phase === 'before_tracking' },
@@ -6546,7 +6546,7 @@ function officeLeadHtml(l) {
            ${held ? `<button class="of-btn ${l.phase === 'followup_done' ? 'primary' : ''}" onclick="officeStartClose('${id}','waiting')">${l.phase === 'waiting_customer' ? 'Change follow-up' : 'Wait longer'}</button>` : ''}
            ${l.phase !== 'scheduled' ? `${retrevaNow ? `<button class="of-btn primary" onclick="officeStartClose('${id}','retreva')">${OF_ICON.send}Send to Retreva</button>` : ''}
            <details class="of-menu"><summary class="of-btn ghost">Close out ${OF_ICON.more}</summary><div class="of-menu-list">
-             ${held ? '' : `<button onclick="this.closest('details').open=false;officeStartClose('${id}','waiting')">Waiting on customer…</button>`}
+             ${held ? '' : `<button onclick="this.closest('details').open=false;officeStartClose('${id}','waiting')">Waiting on Customer / On Hold…</button>`}
              ${retrevaNow ? '' : `<button onclick="this.closest('details').open=false;officeStartClose('${id}','retreva')">Sent to Retreva</button>`}
              <button onclick="this.closest('details').open=false;officeStartClose('${id}','lost')">Lost — not interested</button>
              <button onclick="this.closest('details').open=false;officeStartClose('${id}','not_lead')">Not a lead (spam, vendor…)</button>
@@ -7097,7 +7097,7 @@ function renderOffice() {
     const groups = [
       { t: 'Call or email today', rows: list.filter(officeOwes) },
       { t: 'Send to Retreva', rows: list.filter(l => l.phase === 'retreva_due' || l.phase === 'retreva_overdue') },
-      { t: 'Check in today — waiting on customer', rows: list.filter(l => l.phase === 'followup_due') },
+      { t: 'Check in today — on hold', rows: list.filter(l => l.phase === 'followup_due') },
       { t: 'Checked in — pick the next step', rows: list.filter(l => l.phase === 'followup_done') },
       { t: 'Done for today', rows: list.filter(l => l.phase === 'active' && !officeOwes(l) && officeDoneToday(l)) },
       { t: 'Nothing due today', rows: list.filter(l => l.phase === 'active' && !officeOwes(l) && !officeDoneToday(l)) },
@@ -7173,7 +7173,7 @@ function ofTourSteps() {
     { sel: '#ofLeads .of-lead-actions', title: 'Log every call and email', fallback: true,
       body: `Each time you call or email a lead, click <b>Log call</b> or <b>Log email</b>. It records the time and your name. The buttons turn green when that lead still needs one today.<br><br>Clicked by mistake? Use <b>undo</b> next to "Last call" (same day only).<br><br>Tip: click the phone number or email to call or write them right from here.` },
     { sel: '#ofLeads .of-menu', title: 'Send to Retreva or close it out', fallback: true,
-      body: `On day 5, a <b>Send to Retreva</b> button appears on the lead. Click it once you've sent it over.<br><br>Use <b>Close out</b> for anything else: <b>Lost</b> (not interested) or <b>Not a lead</b> (spam, a vendor, a wrong number). You can add a short note, and you can always undo it.<br><br>Talked to them but waiting on something (photos, measurements, approval)? Pick <b>Waiting on customer</b>: the calls stop, and on the follow-up date the lead comes back for one check-in.` },
+      body: `On day 5, a <b>Send to Retreva</b> button appears on the lead. Click it once you've sent it over.<br><br>Use <b>Close out</b> for anything else: <b>Lost</b> (not interested) or <b>Not a lead</b> (spam, a vendor, a wrong number). You can add a short note, and you can always undo it.<br><br>Talked to them but waiting on something (photos, measurements, approval)? Pick <b>Waiting on Customer / On Hold</b>: the calls stop, and on the follow-up date the lead comes back for one check-in.` },
     { sel: '#ofJobs', title: 'Confirm upcoming jobs',
       body: `These are the install jobs starting ${win}. Call each customer before the job starts, then click <b>Confirmed</b>.<br><br>If you can't reach them, click <b>Couldn't reach</b> and say what you tried (voicemail, text…). Evaluations aren't listed here — the estimators confirm those.` },
     { sel: '#ofChecklist', title: 'Your daily checklist',

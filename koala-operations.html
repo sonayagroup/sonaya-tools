@@ -246,6 +246,7 @@ body {
 .lead-src-table .ls-muted { color: var(--text-muted); font-size: 11px; }
 .ls-note { margin: 0; padding: 10px 20px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); white-space: normal; }
 .lead-src-wrap.is-loading tbody { opacity: .55; }
+.ls-range-err { color: var(--status-critical); font-size: 12px; }
 @media (max-width: 620px) {
   .lead-src-table .ls-cell { min-width: 0; gap: 6px; }
   .lead-src-table .ls-bar { min-width: 36px; max-width: 64px; }
@@ -1080,15 +1081,6 @@ body.of-touring { overflow-x: hidden; }
       <div id="salesLiveStatus" class="live-status" style="display:none;"></div>
     </div>
     <div class="kpi-summary" id="salesPeriodKpiRow"></div>
-    <div class="section-title" id="leadSrcTitle">New Leads by Source</div>
-    <div class="store-table-wrap lead-src-wrap">
-      <table class="store-table lead-src-table" aria-describedby="leadSrcNote">
-        <thead><tr><th>Source</th><th>New leads</th><th>Share</th><th>Booked</th><th>Booking rate</th></tr></thead>
-        <tbody id="leadSrcTbody"><tr><td colspan="5" class="ls-empty">Loading…</td></tr></tbody>
-        <tfoot id="leadSrcTfoot"></tfoot>
-      </table>
-      <p class="ls-note" id="leadSrcNote"></p>
-    </div>
     <div class="charts-grid">
       <div class="chart-card">
         <h3>Revenue by Lead Source</h3>
@@ -1116,6 +1108,33 @@ body.of-touring { overflow-x: hidden; }
         <thead><tr><th>Rep</th><th>Estimates Sent</th><th>Close Rate</th><th>Revenue</th><th>Jobs</th><th>Avg Deal Size</th></tr></thead>
         <tbody id="salesRepTbody"></tbody>
       </table>
+    </div>
+
+    <div class="section-title" id="leadSrcTitle">New Leads by Source</div>
+    <div class="controls">
+      <div class="view-toggle" id="leadSrcRangeToggle" aria-label="New leads period">
+        <button data-range="7d">7D</button>
+        <button data-range="30d">30D</button>
+        <button data-range="90d">90D</button>
+        <button data-range="week">This Week</button>
+        <button data-range="month" class="active">This Month</button>
+        <button data-range="quarter">This Quarter</button>
+        <button data-range="year">This Year</button>
+        <button data-range="custom">Custom</button>
+      </div>
+      <div class="date-range-custom" id="leadSrcCustomRow" style="display:none;">
+        <input type="date" id="leadSrcFromInput" aria-label="From"> <span>to</span> <input type="date" id="leadSrcThroughInput" aria-label="To">
+        <button id="leadSrcApplyBtn" class="apply-btn">Apply</button>
+        <span class="ls-range-err" id="leadSrcRangeErr" role="alert"></span>
+      </div>
+    </div>
+    <div class="store-table-wrap lead-src-wrap">
+      <table class="store-table lead-src-table" aria-describedby="leadSrcNote">
+        <thead><tr><th>Source</th><th>New leads</th><th>Share</th><th>Booked</th><th>Booking rate</th></tr></thead>
+        <tbody id="leadSrcTbody"><tr><td colspan="5" class="ls-empty">Loading…</td></tr></tbody>
+        <tfoot id="leadSrcTfoot"></tfoot>
+      </table>
+      <p class="ls-note" id="leadSrcNote"></p>
     </div>
 
   </div>
@@ -2421,9 +2440,14 @@ let salesRangeData = { key: 'month', label: '', from: null, through: null, sourc
    which pulls ServiceMinder contacts created in the range and applies the Front Office lead rule (no existing
    customers, builders or general contractors; one person entered twice counts once). Follows the period buttons above. */
 let salesLeads = { status: 'idle', seq: 0 };
-async function loadSalesLeads(from, through, label) {
+function leadSrcRangeFor(key) {
+  if (key === '7d' || key === '30d' || key === '90d') return { key, ...computeRollingRange(key === '7d' ? 7 : key === '30d' ? 30 : 90) };
+  return { key, ...computePresetRange(key) };
+}
+async function loadSalesLeads(from, through, label, key) {
   const seq = (salesLeads.seq || 0) + 1;
-  salesLeads = { status: 'loading', seq, label, last: salesLeads.data || salesLeads.last || null };
+  const range = { key: key || 'custom', from, through, label };
+  salesLeads = { status: 'loading', seq, label, range, last: salesLeads.data || salesLeads.last || null };
   renderSalesLeads();
   try {
     const { data: { session } } = await sbClient.auth.getSession();
@@ -2432,10 +2456,10 @@ async function loadSalesLeads(from, through, label) {
     const body = await res.json().catch(() => ({}));
     if (!res.ok || body.error) throw new Error(body.error || `Request failed (HTTP ${res.status}).`);
     if (seq !== salesLeads.seq) return; // a newer period was picked meanwhile
-    salesLeads = { status: 'ready', seq, label, data: body };
+    salesLeads = { status: 'ready', seq, label, range, data: body };
   } catch (e) {
     if (seq !== salesLeads.seq) return;
-    salesLeads = { status: 'error', seq, label, error: e.message };
+    salesLeads = { status: 'error', seq, label, range, error: e.message };
   }
   renderSalesLeads();
 }
@@ -2467,7 +2491,6 @@ function renderSalesLeads() {
   note.textContent = `Counts people added to ServiceMinder in this period. Not counted: ${ex.existing || 0} existing customer${ex.existing === 1 ? '' : 's'} and ${ex.builder || 0} builder/contractor contact${ex.builder === 1 ? '' : 's'}${d.duplicatesMerged ? `; ${d.duplicatesMerged} duplicate${d.duplicatesMerged === 1 ? '' : 's'} (same phone or email) counted once` : ''}. Source is the ServiceMinder Campaign. Booked = has an appointment or a proposal in ServiceMinder — very recent leads may not have booked yet.`;
 }
 async function loadSalesRange(key, from, through, label) {
-  loadSalesLeads(from, through, label);
   salesRangeData = { key, from, through, label, sources: [], reps: [], loading: true, error: null };
   renderSalesTab();
   try {
@@ -2487,6 +2510,10 @@ async function loadSalesRange(key, from, through, label) {
 function refreshSalesRangeDefault() {
   const { from, through, label } = computePresetRange('month');
   loadSalesRange('month', from, through, label);
+  // New Leads by Source has its own period buttons; keep whatever period is picked there (This Month to start).
+  const r = salesLeads.range;
+  if (!r || r.key !== 'custom') { const nr = leadSrcRangeFor(r ? r.key : 'month'); loadSalesLeads(nr.from, nr.through, nr.label, nr.key); }
+  else loadSalesLeads(r.from, r.through, r.label, 'custom');
 }
 
 /* Live auto-refresh for MTD/QTD/YTD invoiced revenue. Fetched automatically on page load and whenever
@@ -3614,6 +3641,27 @@ document.querySelectorAll('#salesRangeToggle button').forEach(btn => {
     const { from, through, label } = computePresetRange(preset);
     loadSalesRange(preset, from, through, label);
   });
+});
+
+document.querySelectorAll('#leadSrcRangeToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const preset = btn.dataset.range;
+    document.querySelectorAll('#leadSrcRangeToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('leadSrcCustomRow').style.display = preset === 'custom' ? 'flex' : 'none';
+    document.getElementById('leadSrcRangeErr').textContent = '';
+    if (preset === 'custom') return; // wait for Apply
+    const r = leadSrcRangeFor(preset);
+    loadSalesLeads(r.from, r.through, r.label, r.key);
+  });
+});
+document.getElementById('leadSrcApplyBtn').addEventListener('click', () => {
+  const from = document.getElementById('leadSrcFromInput').value, through = document.getElementById('leadSrcThroughInput').value;
+  const err = document.getElementById('leadSrcRangeErr');
+  if (!from || !through) { err.textContent = 'Pick both dates.'; return; }
+  if (from > through) { err.textContent = 'The start date must be on or before the end date.'; return; }
+  err.textContent = '';
+  loadSalesLeads(from, through, `${from} – ${through}`, 'custom');
 });
 
 document.getElementById('salesApplyBtn').addEventListener('click', () => {

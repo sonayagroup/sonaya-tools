@@ -246,6 +246,20 @@ body {
 .lead-src-table .ls-muted { color: var(--text-muted); font-size: 11px; }
 .ls-note { margin: 0; padding: 10px 20px 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); white-space: normal; }
 .lead-src-wrap.is-loading tbody { opacity: .55; }
+/* Front Office: waiting on customer (2026-11-18) */
+.of-hold { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--border); border-left: 3px solid var(--brand-teal); border-radius: 9px; background: var(--surface-page); font-size: 13px; }
+.of-hold.due { border-left-color: var(--status-critical); }
+.of-hold-ico svg { width: 15px; height: 15px; color: var(--brand-teal); margin-top: 2px; }
+.of-hold.due .of-hold-ico svg { color: var(--status-critical); }
+.of-hold-next { margin-top: 3px; }
+.of-inline.of-wait-form { flex-direction: column; align-items: stretch; gap: 8px; }
+.of-wait-form > .of-input { flex: none; width: 100%; }
+.of-wait-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px; text-align: left; }
+.of-wait-form { text-align: left; }
+.of-wait-date { flex: none; width: auto; padding: 4px 8px; }
+.of-wait-when { font-weight: 600; color: var(--text-primary); }
+.of-wait-err { color: var(--status-critical); font-size: 12.5px; }
+.of-wait-form .of-seg button.on { background: var(--brand-teal); color: #fff; }
 .ls-range-err { color: var(--status-critical); font-size: 12px; }
 @media (max-width: 620px) {
   .lead-src-table .ls-cell { min-width: 0; gap: 6px; }
@@ -6327,13 +6341,66 @@ function officeLogTouch(contactId, kind) {
   officeDo(`t:${contactId}:${kind}`, () => officeRest('office_lead_touches', 'POST', { contact_id: contactId, lead_name: l.name, kind, user_name: currentUser ? currentUser.name : null }));
 }
 function officeUndoTouch(id, contactId) { officeDo(`u:${id}`, () => officeRest(`office_lead_touches?id=eq.${encodeURIComponent(id)}`, 'DELETE')); }
-function officeStartClose(contactId, status) { office.closing = { contactId, status }; renderOffice(); const el = document.getElementById('officeCloseNote'); if (el) el.focus(); }
+function officeStartClose(contactId, status) {
+  const d = office.data, l = officeLead(contactId);
+  office.closing = { contactId, status };
+  if (status === 'waiting') {
+    // Editing an existing hold starts from its note; a new hold (or "wait longer") defaults to 3 business days out.
+    const keep = l && l.followUp && l.phase === 'waiting_customer';
+    office.closing.note = l && l.followUp ? (l.followUp.note || '') : '';
+    office.closing.date = keep ? l.followUp.set : officeAddBiz(d.today, 3);
+    office.closing.days = keep ? null : 3;
+  }
+  renderOffice();
+  const el = document.getElementById('officeCloseNote'); if (el) { el.focus(); if (el.value) el.select(); }
+}
+function officeAddBiz(iso, n) {
+  const dt = new Date(iso + 'T12:00:00Z');
+  while (n > 0) { dt.setUTCDate(dt.getUTCDate() + 1); const w = dt.getUTCDay(); if (w !== 0 && w !== 6) n--; }
+  return dt.toISOString().slice(0, 10);
+}
+function officeWaitPick(n) {
+  const c = office.closing; if (!c) return;
+  const el = document.getElementById('officeCloseNote'); if (el) c.note = el.value;
+  c.days = n; c.date = officeAddBiz(office.data.today, n); c.err = null; renderOffice();
+}
+function officeWaitDate(v) { const c = office.closing; if (!c) return; c.date = v; c.days = null; c.err = null; }
+function officeWaitFormHtml(l) {
+  const c = office.closing, d = office.data;
+  const quick = [2, 3, 5, 7].map(n => `<button type="button" class="${c.days === n ? 'on' : ''}" onclick="officeWaitPick(${n})">${n} days</button>`).join('');
+  return `<div class="of-inline of-wait-form" role="group" aria-label="Waiting on customer">
+    <div class="of-wait-row"><b>Waiting on customer</b><span class="of-meta">Calls stop until the follow-up date. That day it comes back here for one check-in.</span></div>
+    <input id="officeCloseNote" class="of-input" maxlength="300" placeholder="What are we waiting for? (e.g. attic photos, HOA approval, measurements)" value="${officeEsc(c.note || '')}" oninput="office.closing.note=this.value" onkeydown="if(event.key==='Enter')officeSaveClose();if(event.key==='Escape')officeCancelClose();">
+    <div class="of-wait-row"><span class="of-meta">Follow up in</span><div class="of-seg">${quick}</div>
+      <label class="of-meta">or on <input type="date" class="of-input of-wait-date" id="officeWaitDate" min="${officeAddBiz(d.today, 1)}" value="${officeEsc(c.date || '')}" onchange="officeWaitDate(this.value)"></label>
+      <span class="of-meta of-wait-when">→ ${c.date ? officeDay(c.date) : 'pick a date'}</span></div>
+    ${c.err ? `<div class="of-wait-err" role="alert">${officeEsc(c.err)}</div>` : ''}
+    <div class="of-wait-row"><button class="of-btn primary" onclick="officeSaveClose()">Put on hold</button><button class="of-btn ghost" onclick="officeCancelClose()">Cancel</button></div>
+  </div>`;
+}
+function officeHoldHtml(l) {
+  const f = l.followUp, d = office.data, id = officeJsArg(l.id);
+  const sameDay = f.since === d.today;
+  return `<div class="of-hold ${l.phase === 'followup_due' ? 'due' : ''}">
+    <span class="of-hold-ico">${OF_ICON.info}</span>
+    <div><b>Waiting on customer</b>${f.note ? ` — ${officeEsc(f.note)}` : ''}
+      <div class="of-meta">On hold since ${officeDay(f.since)}${f.by ? ' by ' + officeEsc(f.by.split(' ')[0]) : ''} · follow up ${officeDay(f.due)}${f.checkedIn ? ` · checked in ${officeDay(f.checkedIn.date)}${f.checkedIn.by ? ' by ' + officeEsc(f.checkedIn.by.split(' ')[0]) : ''}` : ''}${sameDay ? ` · <a href="#" onclick="officeReopen('${id}');return false;">undo</a>` : ''}</div>
+      ${l.phase === 'followup_due' ? `<div class="of-meta of-hold-next">Call or email them today and log it. Then pick: <b>Wait longer</b>, or <b>Close out</b> (Retreva, lost or not a lead).</div>` : l.phase === 'followup_done' ? `<div class="of-meta of-hold-next">Next step: <b>Wait longer</b> with a new date, or <b>Close out</b>. It books itself once there's an appointment or proposal in ServiceMinder.</div>` : ''}
+    </div></div>`;
+}
 function officeCancelClose() { office.closing = null; renderOffice(); }
 function officeSaveClose() {
   const c = office.closing; if (!c) return;
   const l = officeLead(c.contactId); const note = (document.getElementById('officeCloseNote') || {}).value || '';
+  const row = { contact_id: c.contactId, lead_name: l ? l.name : null, status: c.status, note: note.trim() || null, user_name: currentUser ? currentUser.name : null, updated_at: new Date().toISOString() };
+  if (c.status === 'waiting') {
+    const dEl = document.getElementById('officeWaitDate'); const date = (dEl && dEl.value) || c.date;
+    if (!note.trim()) { c.note = note; c.err = 'Add a short note so everyone knows what we\'re waiting for.'; renderOffice(); const el = document.getElementById('officeCloseNote'); if (el) el.focus(); return; }
+    if (!date || date <= office.data.today) { c.note = note; c.err = 'Pick a follow-up date after today.'; renderOffice(); return; }
+    row.follow_up = date;
+  }
   office.closing = null;
-  officeDo(`s:${c.contactId}`, () => officeRest('office_lead_status?on_conflict=contact_id', 'POST', { contact_id: c.contactId, lead_name: l ? l.name : null, status: c.status, note: note.trim() || null, user_name: currentUser ? currentUser.name : null, updated_at: new Date().toISOString() }, { Prefer: 'resolution=merge-duplicates,return=minimal' }));
+  officeDo(`s:${c.contactId}`, () => officeRest('office_lead_status?on_conflict=contact_id', 'POST', row, { Prefer: 'resolution=merge-duplicates,return=minimal' }));
 }
 function officeReopen(contactId) { officeDo(`s:${contactId}`, () => officeRest(`office_lead_status?contact_id=eq.${encodeURIComponent(contactId)}`, 'DELETE')); }
 function officeJob(key) { return ((office.data && office.data.jobs) || []).find(j => j.job_key === key); }
@@ -6389,7 +6456,8 @@ const OF_ICON = {
 };
 
 const OFFICE_FILTERS = [
-  { key: 'action', label: 'Needs action', test: l => ['active', 'retreva_due', 'retreva_overdue', 'waiting'].includes(l.phase) },
+  { key: 'action', label: 'Needs action', test: l => ['active', 'retreva_due', 'retreva_overdue', 'waiting', 'followup_due', 'followup_done'].includes(l.phase) },
+  { key: 'hold', label: 'Waiting on customer', test: l => l.phase === 'waiting_customer' },
   { key: 'scheduled', label: 'Scheduled', test: l => l.phase === 'scheduled' },
   { key: 'closed', label: 'Retreva / closed', test: l => l.phase === 'retreva' || l.phase === 'closed' },
   { key: 'old', label: 'Before tracking', test: l => l.phase === 'before_tracking' },
@@ -6399,7 +6467,8 @@ function officeDoneToday(l) { const d = office.data; return !!(d && l.dayChecks.
 function officeOwes(l) { return !!(l.phase === 'active' && l.todo && (l.todo.call || l.todo.email)); }
 // Urgency drives the card's colored edge and its sort order.
 function officeUrgency(l) {
-  if (officeOwes(l) || l.phase === 'retreva_due' || l.phase === 'retreva_overdue') return 'red';
+  if (officeOwes(l) || l.phase === 'retreva_due' || l.phase === 'retreva_overdue' || l.phase === 'followup_due') return 'red';
+  if (l.phase === 'followup_done') return 'green';
   if (l.phase === 'active') return officeDoneToday(l) ? 'green' : 'gray';
   if (l.phase === 'scheduled') return 'teal';
   return 'gray';
@@ -6414,6 +6483,9 @@ function officePhaseChip(l) {
       return `<span class="of-chip ${doneToday ? 'good' : ''}">${doneToday ? `${OF_ICON.check} Today done` : ''}${doneToday && next ? ' · ' : ''}${next ? `Next: day ${next.day}, ${officeDay(next.date)}` : (doneToday ? '' : `Retreva ${officeDay(l.retrevaDue)}`)}</span>`;
     }
     case 'waiting': return `<span class="of-chip">Starts ${officeDay(l.d1)}</span>`;
+    case 'waiting_customer': return `<span class="of-chip">On hold · follow up ${officeDay(l.followUp.due)}</span>`;
+    case 'followup_due': return l.followUp.due < d.today ? `<span class="of-chip bad">Check-in overdue · was due ${officeDay(l.followUp.due)}</span>` : `<span class="of-chip bad">Check in today</span>`;
+    case 'followup_done': return `<span class="of-chip good">${OF_ICON.check} Checked in ${l.followUp.checkedIn.date === d.today ? 'today' : officeDay(l.followUp.checkedIn.date)}</span>`;
     case 'retreva_due': return `<span class="of-chip bad">Send to Retreva today</span>`;
     case 'retreva_overdue': return `<span class="of-chip bad">Retreva overdue · was due ${officeDay(l.retrevaDue)}</span>`;
     case 'scheduled': return l.apptService === 'proposal' ? `<span class="of-chip teal">Proposal sent · ${officeDay(l.scheduledOn)}</span>` : `<span class="of-chip teal">${l.apptService === 'served' ? 'Served' : 'Booked'}${l.apptDate ? ' · ' + officeDay(l.apptDate) : ''}</span>`;
@@ -6440,12 +6512,13 @@ function officeStepsHtml(l) {
       <div class="of-step-b">${officeDots(dc.got.call, dc.need.call, OF_ICON.phone, 'call')}${officeDots(dc.got.email, dc.need.email, OF_ICON.mail, 'email')}</div>
     </div>`;
   }).join('');
-  const rs = l.phase === 'retreva' ? 'met' : l.phase === 'retreva_due' ? 'today' : l.phase === 'retreva_overdue' ? 'missed' : ['scheduled', 'closed', 'before_tracking'].includes(l.phase) ? 'waived' : 'up';
+  const rs = l.phase === 'retreva' ? 'met' : l.phase === 'retreva_due' ? 'today' : l.phase === 'retreva_overdue' ? 'missed' : ['scheduled', 'closed', 'before_tracking', 'waiting_customer', 'followup_due', 'followup_done'].includes(l.phase) ? 'waived' : 'up';
   return `<div class="of-steps">${steps}<div class="of-step of-step-r s-${rs}" title="Send to Retreva on day 5 if there's still no appointment"><div class="of-step-h"><b>Retreva</b><span>${officeDay(l.retrevaDue)}</span></div><div class="of-step-b">${OF_ICON.send}<span class="of-step-w">${rs === 'met' ? 'sent' : rs === 'waived' ? '—' : 'hand off'}</span></div></div></div>`;
 }
 function officeLeadHtml(l) {
   const d = office.data, p = office.pending, id = officeJsArg(l.id);
-  const open = ['active', 'waiting', 'retreva_due', 'retreva_overdue'].includes(l.phase);
+  const held = !!l.followUp && ['waiting_customer', 'followup_due', 'followup_done'].includes(l.phase);
+  const open = ['active', 'waiting', 'retreva_due', 'retreva_overdue', 'followup_due', 'followup_done'].includes(l.phase);
   const closedOut = l.phase === 'retreva' || l.phase === 'closed';
   const myToday = l.touches.filter(t => t.date === d.today && currentUser && t.userId === currentUser.id);
   const last = l.touches.length ? l.touches[l.touches.length - 1] : null;
@@ -6463,21 +6536,24 @@ function officeLeadHtml(l) {
     </header>
     ${l.phone || l.email ? `<div class="of-contact">${l.phone ? `<a class="of-link" href="tel:${officeEsc(l.phone.replace(/[^0-9+]/g, ''))}">${OF_ICON.phone}${officeEsc(l.phone)}</a>` : ''}${l.email ? `<a class="of-link" href="mailto:${officeEsc(l.email)}">${OF_ICON.mail}${officeEsc(l.email)}</a>` : ''}</div>` : ''}
     ${l.phase === 'before_tracking' ? '' : officeStepsHtml(l)}
+    ${held ? officeHoldHtml(l) : ''}
     ${officeHistoryHtml(l)}
     <footer class="of-lead-actions">
       ${closedOut
         ? `<button class="of-btn" ${p[`s:${l.id}`] ? 'disabled' : ''} onclick="officeReopen('${id}')">Undo ${l.phase === 'retreva' ? 'Retreva' : 'close-out'}</button>${l.status && l.status.note ? `<span class="of-meta of-quote">“${officeEsc(l.status.note)}”</span>` : ''}`
-        : `<button class="of-btn ${l.todo && l.todo.call ? 'primary' : ''}" ${p[`t:${l.id}:call`] ? 'disabled' : ''} onclick="officeLogTouch('${id}','call')">${OF_ICON.phone}Log call</button>
+        : `<button class="of-btn ${(l.todo && l.todo.call) || l.phase === 'followup_due' ? 'primary' : ''}" ${p[`t:${l.id}:call`] ? 'disabled' : ''} onclick="officeLogTouch('${id}','call')">${OF_ICON.phone}Log call</button>
            <button class="of-btn ${l.todo && l.todo.email ? 'primary' : ''}" ${p[`t:${l.id}:email`] ? 'disabled' : ''} onclick="officeLogTouch('${id}','email')">${OF_ICON.mail}Log email</button>
+           ${held ? `<button class="of-btn ${l.phase === 'followup_done' ? 'primary' : ''}" onclick="officeStartClose('${id}','waiting')">${l.phase === 'waiting_customer' ? 'Change follow-up' : 'Wait longer'}</button>` : ''}
            ${l.phase !== 'scheduled' ? `${retrevaNow ? `<button class="of-btn primary" onclick="officeStartClose('${id}','retreva')">${OF_ICON.send}Send to Retreva</button>` : ''}
            <details class="of-menu"><summary class="of-btn ghost">Close out ${OF_ICON.more}</summary><div class="of-menu-list">
+             ${held ? '' : `<button onclick="this.closest('details').open=false;officeStartClose('${id}','waiting')">Waiting on customer…</button>`}
              ${retrevaNow ? '' : `<button onclick="this.closest('details').open=false;officeStartClose('${id}','retreva')">Sent to Retreva</button>`}
              <button onclick="this.closest('details').open=false;officeStartClose('${id}','lost')">Lost — not interested</button>
              <button onclick="this.closest('details').open=false;officeStartClose('${id}','not_lead')">Not a lead (spam, vendor…)</button>
            </div></details>` : ''}`}
       ${last ? `<span class="of-last">Last ${last.kind} ${officeDay(last.date) === officeDay(d.today) ? 'today' : officeDay(last.date)} ${officeTime(last.at)}${last.by ? ' · ' + officeEsc(last.by.split(' ')[0]) : ''}${myToday.length && myToday[myToday.length - 1].id === last.id ? ` · <a href="#" onclick="officeUndoTouch('${officeJsArg(last.id)}','${id}');return false;">undo</a>` : ''}</span>` : ''}
     </footer>
-    ${closing ? `<div class="of-inline">
+    ${closing && closing.status === 'waiting' ? officeWaitFormHtml(l) : closing ? `<div class="of-inline">
       <b>${closing.status === 'retreva' ? 'Send to Retreva' : closing.status === 'lost' ? 'Mark as lost' : 'Not a lead'}</b>
       <input id="officeCloseNote" class="of-input" maxlength="300" placeholder="${closing.status === 'retreva' ? 'Optional note' : closing.status === 'lost' ? 'Why? (e.g. went with another company)' : 'Why? (spam, wrong number, vendor…)'}" onkeydown="if(event.key==='Enter')officeSaveClose();if(event.key==='Escape')officeCancelClose();">
       <button class="of-btn primary" onclick="officeSaveClose()">Save</button><button class="of-btn ghost" onclick="officeCancelClose()">Cancel</button>
@@ -6505,7 +6581,9 @@ function officeTodayModel(d) {
     emN += dc.need.email; emG += Math.min(dc.got.email, dc.need.email);
   }
   const retOpen = d.leads.filter(l => l.phase === 'retreva_due' || l.phase === 'retreva_overdue').length;
-  const retDone = d.leads.filter(l => l.status && l.status.date === d.today && l.retrevaDue <= d.today).length;
+  const retDone = d.leads.filter(l => l.status && l.status.status !== 'waiting' && l.status.date === d.today && l.retrevaDue <= d.today).length;
+  const fuOpen = d.leads.filter(l => l.phase === 'followup_due').length;
+  const fuDone = d.leads.filter(l => l.followUp && l.followUp.checkedIn && l.followUp.checkedIn.date === d.today && l.followUp.due <= d.today).length;
   const jobN = d.jobs.length, jobG = d.jobs.filter(j => j.confirm).length;
   const ckN = d.checklist.length, ckG = d.checklist.filter(i => i.entry || (i.freq === 'weekly' && i.doneEarlier)).length;
   const tDue = (d.tasks || []).filter(t => t.status === 'due_today' || t.status === 'overdue');
@@ -6514,6 +6592,7 @@ function officeTodayModel(d) {
     { key: 'calls', icon: OF_ICON.phone, label: 'Lead calls', done: callG, total: callN, target: 'ofLeads' },
     { key: 'emails', icon: OF_ICON.mail, label: 'Lead emails', done: emG, total: emN, target: 'ofLeads' },
     { key: 'retreva', icon: OF_ICON.send, label: 'Send to Retreva', done: retDone, total: retOpen + retDone, target: 'ofLeads' },
+    ...(fuOpen + fuDone ? [{ key: 'followups', icon: OF_ICON.phone, label: 'On-hold check-ins', done: fuDone, total: fuOpen + fuDone, target: 'ofLeads' }] : []),
     { key: 'jobs', icon: OF_ICON.truck, label: 'Confirm jobs', done: jobG, total: jobN, target: 'ofJobs' },
     { key: 'checklist', icon: OF_ICON.list, label: 'Daily checklist', done: ckG, total: ckN, target: 'ofChecklist' },
     { key: 'tasks', icon: OF_ICON.check, label: 'Assigned tasks', done: tDoneToday.length, total: tDue.length + tDoneToday.length, target: 'ofTasks' },
@@ -7018,6 +7097,8 @@ function renderOffice() {
     const groups = [
       { t: 'Call or email today', rows: list.filter(officeOwes) },
       { t: 'Send to Retreva', rows: list.filter(l => l.phase === 'retreva_due' || l.phase === 'retreva_overdue') },
+      { t: 'Check in today — waiting on customer', rows: list.filter(l => l.phase === 'followup_due') },
+      { t: 'Checked in — pick the next step', rows: list.filter(l => l.phase === 'followup_done') },
       { t: 'Done for today', rows: list.filter(l => l.phase === 'active' && !officeOwes(l) && officeDoneToday(l)) },
       { t: 'Nothing due today', rows: list.filter(l => l.phase === 'active' && !officeOwes(l) && !officeDoneToday(l)) },
       { t: 'Starts next business day', rows: list.filter(l => l.phase === 'waiting') },
@@ -7092,7 +7173,7 @@ function ofTourSteps() {
     { sel: '#ofLeads .of-lead-actions', title: 'Log every call and email', fallback: true,
       body: `Each time you call or email a lead, click <b>Log call</b> or <b>Log email</b>. It records the time and your name. The buttons turn green when that lead still needs one today.<br><br>Clicked by mistake? Use <b>undo</b> next to "Last call" (same day only).<br><br>Tip: click the phone number or email to call or write them right from here.` },
     { sel: '#ofLeads .of-menu', title: 'Send to Retreva or close it out', fallback: true,
-      body: `On day 5, a <b>Send to Retreva</b> button appears on the lead. Click it once you've sent it over.<br><br>Use <b>Close out</b> for anything else: <b>Lost</b> (not interested) or <b>Not a lead</b> (spam, a vendor, a wrong number). You can add a short note, and you can always undo it.` },
+      body: `On day 5, a <b>Send to Retreva</b> button appears on the lead. Click it once you've sent it over.<br><br>Use <b>Close out</b> for anything else: <b>Lost</b> (not interested) or <b>Not a lead</b> (spam, a vendor, a wrong number). You can add a short note, and you can always undo it.<br><br>Talked to them but waiting on something (photos, measurements, approval)? Pick <b>Waiting on customer</b>: the calls stop, and on the follow-up date the lead comes back for one check-in.` },
     { sel: '#ofJobs', title: 'Confirm upcoming jobs',
       body: `These are the install jobs starting ${win}. Call each customer before the job starts, then click <b>Confirmed</b>.<br><br>If you can't reach them, click <b>Couldn't reach</b> and say what you tried (voicemail, text…). Evaluations aren't listed here — the estimators confirm those.` },
     { sel: '#ofChecklist', title: 'Your daily checklist',

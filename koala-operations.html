@@ -1892,7 +1892,10 @@ const dataStore = {
     // monthly/quarterly breakout, so monthly and quarterly targets here are a flat pro-ration (annual/12,
     // annual/4) — a simplification worth revisiting if the business has meaningful seasonality.
     annualRevenueBudget: 2850000, quarterlyRevenueBudget: 712500,
-    mtdRevenueBudget: 237500, mtdCollectedBudget: 237500,
+    // MTD target = the Sales TV's team monthly goal (2026-11-19, per Pranav: "the budget should match the sales tv
+    // goal of $450,000"). Read live from koala_dashboard_settings.team_mtd_revenue_goal by loadTeamMtdGoal() so the
+    // two always agree; 450000 is only the fallback if that read fails.
+    mtdRevenueBudget: 450000, mtdCollectedBudget: 450000,
   },
   // Static fallback for the "On the Books" drill-down modal, pulled 2026-09-03 from the same full-history
   // ServiceMinder Proposals snapshot as revenue.onTheBooksValue/onTheBooksCount above (Status in Accepted/
@@ -2536,7 +2539,18 @@ function refreshSalesRangeDefault() {
    dataStore.revenue Aug 20 snapshot on any error, same pattern as loadOnTheBooksModalData. */
 let liveRevenue = { status: 'idle' };
 let lastLiveRevenue = null;   // last successful pull — kept on screen while a tab-switch refresh runs
+// Same setting the Sales TV reads for its "MTD Team Revenue ... of $450,000" footer.
+async function loadTeamMtdGoal() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/koala_dashboard_settings?key=eq.team_mtd_revenue_goal&select=value`, { headers: { apikey: SM_ANON_KEY, Authorization: `Bearer ${SM_ANON_KEY}` } });
+    if (!res.ok) return;
+    const rows = await res.json();
+    const v = Number(rows && rows[0] && rows[0].value);
+    if (v > 0 && v !== dataStore.revenue.mtdRevenueBudget) { dataStore.revenue.mtdRevenueBudget = v; dataStore.revenue.mtdCollectedBudget = v; renderSalesTab(); }
+  } catch (e) { /* keep the fallback */ }
+}
 async function loadLiveRevenueTiles() {
+  loadTeamMtdGoal();
   liveRevenue = { status: 'loading' };
   renderSalesTab();
   try {

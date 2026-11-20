@@ -565,6 +565,13 @@ body.inv-lock{overflow:hidden}
 .inv-sibox-in{background:#fff;border-radius:14px;padding:16px;width:100%;max-width:520px;display:flex;flex-direction:column;gap:10px}
 .inv-sibox textarea{width:100%;height:46vh;font:inherit;font-size:15px;padding:10px;border:1px solid var(--line);border-radius:9px}
 .inv-sibox-b{display:flex;gap:10px}.inv-sibox-b button{flex:1}
+.inv-sibox.fixed{position:fixed;z-index:9999}
+.inv-sipanel{margin-top:14px;padding:16px}
+.inv-sp-h{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}.inv-sp-h b{font-size:16px;color:var(--blue-dk)}.inv-sp-h span{font-size:13px;color:var(--muted)}
+.inv-sp-t{white-space:pre-wrap;font:inherit;font-size:14.5px;line-height:1.5;background:#f5f8f7;border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin:0 0 12px;max-height:340px;overflow:auto}
+.inv-sitop{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;background:#eaf7f0;border:1px solid #bfe3cf;color:#0b4f2d;border-radius:12px;padding:12px 14px;margin:0 0 14px;font-size:15px}
+.inv-sitop-b{display:flex;gap:8px}.inv-sitop .inv-sicopy{width:auto;padding:10px 16px;font-size:15px}
+.inv-sitop-v{padding:10px 16px;border:1.5px solid #bfe3cf;border-radius:11px;background:#fff;color:#0b4f2d;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
 
 /* item cards with steppers (v3) */
 .inv-prog{height:5px;background:rgba(255,255,255,.18);flex:none}.inv-prog i{display:block;height:100%;background:#7ee0b8;transition:width .25s}
@@ -5785,7 +5792,11 @@ async function invLoad(sid){const m=invMonth();INV.month=m;INV.salon=sid;
 function invView(host){const sid=current;
   if(INV.salon!==sid||INV.month!==invMonth()||!INV.row){host.innerHTML='<div class="card" style="padding:18px">Loading inventory…</div>';
     invLoad(sid).then(()=>{if(GM.view==="inventory")renderManager();}).catch(e=>{host.innerHTML='<div class="gm-banner red">Could not load inventory: '+esc(e.message)+'</div>';});return;}
-  host.innerHTML=invCardHtml(true);}
+  host.innerHTML=invCardHtml(true)+invSIPanel();}
+// Salon Innovations order, readable and copyable from the Manager tab (no need to reopen the form)
+function invSIPanel(){const r=INV.row;const txt=r&&invSIText(r);if(!txt)return "";
+  return '<div class="card inv-sipanel"><div class="inv-sp-h"><b>Salon Innovations order</b><span>'+(r.status==="submitted"?"From your submitted inventory":"From your draft — not submitted yet")+'</span></div>'
+    +'<pre class="inv-sp-t">'+esc(txt)+'</pre><button type="button" class="inv-sicopy" data-sicopy-out="1">📋 Copy Salon Innovations order</button></div>';}
 function invCounted(r){return Object.values((r&&r.items)||{}).filter(v=>v&&(v.oh!=null||v.need!=null)).length;}
 function invCardHtml(big){const r=INV.row;if(!r)return "";const sub=r.status==="submitted",n=invCounted(r),tot=Object.keys(INV_ITEM).length;
   const due=invDueDate(r.month);const late=!sub&&gmToday()>due;
@@ -5798,7 +5809,8 @@ function invTopCard(){const man=$("#manager");if(!man||!current)return;let c=$("
 }
   if(INV.salon!==current||INV.month!==invMonth()||!INV.row){c.innerHTML="";invLoad(current).then(()=>invTopCard()).catch(()=>{});return;}
   const r=INV.row,show=GM.view!=="inventory"&&r.status!=="submitted"&&gmToday()>=invDueDate(r.month);
-  c.innerHTML=show?invCardHtml(false):"";}
+  const siCard=GM.view!=="inventory"&&r.status==="submitted"&&gmToday()<r.month&&invSIText(r);
+  c.innerHTML=show?invCardHtml(false):siCard?'<div class="inv-sitop"><span>✓ <b>'+esc(invMonthLbl(r.month))+' inventory submitted.</b> Order your Salon Innovations supplies and backbar.</span><span class="inv-sitop-b"><button type="button" class="inv-sicopy" data-sicopy-out="1">📋 Copy order</button><button type="button" class="inv-sitop-v" data-invview="1">View</button></span></div>':"";}
 
 // ---- Full-screen form ----
 function invOpen(){if(!current)return;let o=$("#invFull");
@@ -5880,7 +5892,7 @@ function invSIText(row){const it=(row&&row.items)||{},ex=(row&&row.extras)||{};
     +"SUPPLIES\n"+(sup.length?sup.join("\n"):"(none)")+"\n\nBACKBAR\n"+(bb.length?bb.join("\n"):"(none)")+"\n\nThank you,\n"+((row.completed_by||gmWho().n||"").trim());}
 function invSICopy(){const txt=invSIText(INV.row);if(!txt){gmToast("Enter a Need quantity for at least one Salon Innovations or backbar item first.");return;}
   const done=()=>gmToast("Copied — paste it into your email to Salon Innovations");
-  const fallback=()=>{const o=$("#invFull");const d=document.createElement("div");d.className="inv-sibox";d.innerHTML='<div class="inv-sibox-in"><b>Salon Innovations order</b><textarea readonly>'+esc(txt)+'</textarea><div class="inv-sibox-b"><button type="button" class="inv-submit" data-sbx="sel">Copy</button><button type="button" class="inv-sicopy" data-sbx="x">Close</button></div></div>';
+  const fallback=()=>{const f=$("#invFull"),o=f&&!f.hidden?f:document.body;const d=document.createElement("div");d.className="inv-sibox"+(o===document.body?" fixed":"");d.innerHTML='<div class="inv-sibox-in"><b>Salon Innovations order</b><textarea readonly>'+esc(txt)+'</textarea><div class="inv-sibox-b"><button type="button" class="inv-submit" data-sbx="sel">Copy</button><button type="button" class="inv-sicopy" data-sbx="x">Close</button></div></div>';
     o.appendChild(d);const ta=d.querySelector("textarea");ta.focus();ta.select();d.onclick=e=>{const k=e.target.dataset&&e.target.dataset.sbx;if(k==="sel"){ta.focus();ta.setSelectionRange(0,ta.value.length);try{document.execCommand("copy");done();}catch(x){}}if(k==="x")d.remove();};};
   if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(txt).then(done,fallback);else fallback();}
 function invCounts(){const it=(INV.row&&INV.row.items)||{};const pg=$("#invProg");if(pg)pg.style.width=Math.round(invCounted(INV.row)/Object.keys(INV_ITEM).length*100)+"%";INV_SECS.forEach(s=>{const el=$("#invJ_"+s.k);if(el)el.textContent=s.items.filter(x=>it[x.k]&&(it[x.k].oh!=null||it[x.k].need!=null)).length+"/"+s.items.length;});}
@@ -5940,7 +5952,9 @@ function invOWire(host){const sel=$("#invOMonth");if(sel)sel.onchange=function()
         else{await fetch(SUPA_URL+"/rest/v1/gc_inv_order_hist?source=eq.dashboard&ref=eq."+id,{method:"DELETE",headers:gmHdr({})});INV.all=null;}}catch(e){console.error(e);}
       renderManager();}catch(e){gmToast("Could not update: "+e.message);b.disabled=false;}});}
 
-document.addEventListener("click",e=>{if(e.target.closest("[data-invopen]")){e.preventDefault();invOpen();}});
+document.addEventListener("click",e=>{if(e.target.closest("[data-invopen]")){e.preventDefault();invOpen();}
+  else if(e.target.closest("[data-sicopy-out]")){e.preventDefault();invSICopy();}
+  else if(e.target.closest("[data-invview]")){e.preventDefault();GM.view="inventory";renderManager();}});
 // Direct link: tools.sonayagroup.com/greatclips.html#inventory (or #inventory-6101) opens the form straight away
 (function(){if(!/^#inventory/.test(location.hash))return;let n=0;const iv=setInterval(()=>{n++;
   if(typeof GCU!=="undefined"&&GCU.perms&&current&&typeof GM!=="undefined"){clearInterval(iv);const t=document.querySelector('.tab[data-t="manager"]');if(t&&!t.hidden&&!$("#manager").classList.contains("active"))t.click();setTimeout(invOpen,300);}

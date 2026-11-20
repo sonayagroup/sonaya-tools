@@ -883,7 +883,7 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
 <section class="panel" id="detail">
   <div class="modebar">
     <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
-    <span class="det-mode" id="detModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="week">Week</button><button data-mode="ytd">YTD</button></span>
+    <span class="det-mode" id="detModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="week">Week</button><button data-mode="ytd">YTD</button></span>
     <span id="detModeHint" style="font-size:12px;color:var(--muted)"></span>
   </div>
   <div class="kpis" id="detKpis"></div>
@@ -953,6 +953,10 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
       <div class="card"><h3>Weekly wait &amp; pace</h3><div class="hint" id="detWeekWaitHint"></div><ul class="mini-list" id="detWeekWait"></ul></div>
       <div class="card"><h3>At a glance</h3><div class="hint">Weekly totals</div><ul class="mini-list" id="detWeekList"></ul></div>
     </div>
+  </div>
+
+  <div id="detWTD" style="display:none">
+    <div class="card"><h3>This week, day by day</h3><div class="hint" id="detWtdHint"></div><div class="tbl-scroll"><table id="detWtdTbl"><thead><tr><th>Day</th><th>Sales</th><th>Cust</th><th>Payroll %</th><th>CPH</th><th>Avg HC</th><th>Waits &gt;15</th><th>Cash</th></tr></thead><tbody></tbody><tfoot></tfoot></table></div></div>
   </div>
 
   <div id="detYTD" style="display:none">
@@ -1623,10 +1627,11 @@ function renderPortYTD(){
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
       <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
-    tr.onclick=()=>{if(typeof gcCanSalon==="function"&&!gcCanSalon(s[0]))return;current=s[0];$("#salonSel").value=s[0];detMode="ytd";document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x.dataset.mode==="ytd"));$("#detDay").style.display="none";$("#detWeek").style.display="none";$("#detYTD").style.display="";renderDetail();document.querySelector('.tab[data-t="detail"]').click();};
+    tr.onclick=()=>{if(typeof gcCanSalon==="function"&&!gcCanSalon(s[0]))return;current=s[0];$("#salonSel").value=s[0];portOpenDet("ytd");document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
 }
+function portOpenDet(mode){const b=document.querySelector('#detModeToggle button[data-mode="'+mode+'"]');if(b)b.click();else renderDetail();}
 function portWeekEnds(){ // [this week's Friday (week holding the latest loaded day), last week's Friday]
   const latest=DATES[0];if(!latest)return [null,null];
   const ws=gcWeekStart(latest),d=new Date(ws+"T12:00:00");d.setDate(d.getDate()+6);const thisFri=d.toISOString().slice(0,10);
@@ -1656,7 +1661,9 @@ function renderPortWTD(which){
       <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
       <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
-    tr.onclick=()=>{if(typeof gcCanSalon==="function"&&!gcCanSalon(s[0]))return;current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
+    tr.onclick=()=>{if(typeof gcCanSalon==="function"&&!gcCanSalon(s[0]))return;current=s[0];$("#salonSel").value=s[0];renderReps();renderTeam();renderAA();renderRecap();
+      if(lw&&fr[1]&&WEEKS.includes(fr[1])&&curWeek!==fr[1]){curWeek=fr[1];$("#weekSel").value=fr[1];loadWeek();}
+      portOpenDet(lw?"week":"wtd");document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
 }
@@ -1674,10 +1681,11 @@ document.querySelectorAll("#detModeToggle button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#detModeToggle button").forEach(x=>x.classList.toggle("active",x===b));
   $("#detDay").style.display=detMode==="day"?"":"none";
   $("#detWeek").style.display=detMode==="week"?"":"none";
+  $("#detWTD").style.display=detMode==="wtd"?"":"none";
   $("#detYTD").style.display=detMode==="ytd"?"":"none";
   renderDetail();
 });
-function renderDetail(){ renderReviews(current); if(detMode==="ytd")renderDetailYTD(); else if(detMode==="week")renderDetailWeek(); else renderDetailDay(); renderAdminHrs(); loadTrend(); }
+function renderDetail(){ renderReviews(current); if(detMode==="ytd")renderDetailYTD(); else if(detMode==="week")renderDetailWeek(); else if(detMode==="wtd")renderDetailWTD(); else renderDetailDay(); renderAdminHrs(); loadTrend(); }
 // --- Admin Hours WTD KPI cards for area managers ---
 const ADMIN_MGRS=[{name:"Gonzales, Liza",match:"Gonzales, Liza",allot:10},
   {name:"Martin, Samantha",match:"Martin, Samantha",allot:10},
@@ -1746,6 +1754,32 @@ function renderDetailWeek(){
   $("#detWeekWaitHint").textContent=curWeek?("week ending "+fmtDate(curWeek)):"";
   $("#detWeekWait").innerHTML=w?[["Avg wait",num(g("avgWait"),0)+" min"],["Wait > 15 min",num(g("waitOver15Pct"))+"%"],["Avg min between waiting cust",num(g("avgMinBtwn"))],["Floor hours",num(g("floorHours"),2)],["Floor hours growth",(typeof g("floorHoursGrowth")==="number"?g("floorHoursGrowth").toFixed(2):"—")]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):'<li><span class="k">—</span></li>';
   $("#detWeekList").innerHTML=w?[["Service Sales",mo(g("serviceSales"))],["Product Sales",mo(g("productSales"))],["Total Sales",mo(g("totalSales"))],["Customers",(typeof g("cust")==="number"?g("cust").toLocaleString():"—")],["New Customers",(g("newCust")!=null?g("newCust"):"—")],["Productivity ($/floor hr)",mo(g("prodvity"))],["Payroll %",num(g("payrollPct"))+"%"],["New Cust Return %",num(g("newRetPct"))+"%"],["Repeat Cust Return %",num(g("repRetPct"))+"%"]].map(x=>`<li><span class="k">${x[0]}</span><span class="v">${x[1]}</span></li>`).join(""):'<li><span class="k">—</span></li>';
+}
+// This week so far (Sat → latest loaded day) for the selected salon, built from the daily rows.
+function renderDetailWTD(){
+  const fri=portWeekEnds()[0];const w=computeWTD(fri);const r=w.rows.find(x=>String(x[0])===String(current));
+  const days=w.weekDates||[];const last=days.length?days[days.length-1]:"";
+  const rng=w.weekStart?fmtDate(w.weekStart)+" – "+fmtDate(last||w.weekEnd):"";
+  $("#detModeHint").textContent=rng;
+  $("#detTitle").textContent=(current||"")+" — "+sName(current)+" · week to date"+(rng?" · "+rng:"")+" ("+days.length+" day"+(days.length!==1?"s":"")+")";
+  const k=$("#detKpis");
+  if(r){const cash=r[14];k.innerHTML=[
+      ["WTD Sales",money(r[4]),`<span class="${cls(r[13])}">${sign(r[13])}</span> YoY (avg of days)`],
+      ["WTD Customers",Number(r[5]).toLocaleString(),`<span class="${cls(r[12])}">${sign(r[12])}</span> YoY (avg of days)`],
+      ["Payroll %",num(r[6])+"%",(r[6]>40?'<span class="down">over</span>':'<span class="up">under</span>')+" 40% · daily avg"],
+      ["Avg HC Time",num(r[7]),"min · daily avg"],
+      ["CPH",num(r[8]),(r[8]<2.4?'<span class="down">below</span>':'<span class="up">at/above</span>')+" 2.4 · daily avg"],
+      ["Avg Wait",num(r[10],0)+" min",num(r[11])+"% >15 min"],
+      ["Cash Over/Short",(typeof cash==="number"?'<span class="'+(cash<0?'down':'up')+'">'+(cash<0?'−':'+')+'$'+Math.abs(cash).toFixed(2)+'</span>':'—'),"week so far"]
+    ].map(x=>`<div class="kpi"><div class="lbl">${x[0]}</div><div class="val">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join("");}
+  else k.innerHTML='<div class="banner warn" style="grid-column:1/-1">No days loaded yet this week for '+sName(current)+'.</div>';
+  $("#detWtdHint").textContent="Sat–Fri week ending "+fmtDate(fri||"")+". Percentages are daily averages until Great Clips’ weekly totals arrive after the week closes (then see Week).";
+  const tb=$("#detWtdTbl tbody");const t={sales:0,cust:0,cash:0};
+  tb.innerHTML=days.map(d=>{const s=((DATA.days[d]||{}).SAL||[]).find(x=>String(x[0])===String(current));if(!s)return"";
+    t.sales+=s[4]||0;t.cust+=s[5]||0;t.cash+=(typeof s[14]==="number"?s[14]:0);
+    const dd=new Date(d+"T12:00:00");const lbl=dd.toLocaleDateString("en-US",{weekday:"short"})+" "+(dd.getMonth()+1)+"/"+dd.getDate();
+    const c=s[14];return `<tr><td>${lbl}</td><td>${money(s[4])}</td><td>${s[5]}</td><td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td><td class="${kpi('cashshort',c)}">${typeof c==="number"?(c<0?"−":"+")+"$"+Math.abs(c).toFixed(2):"—"}</td></tr>`;}).join("");
+  $("#detWtdTbl tfoot").innerHTML=r?`<tr><td>Week so far</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(r[6])}%</td><td>${num(r[8])}</td><td>${num(r[7])}</td><td>${num(r[11])}%</td><td>${(t.cash<0?"−":"+")+"$"+Math.abs(t.cash).toFixed(2)}</td></tr>`:"";
 }
 function renderDetailYTD(){
   const ytd=computeYTD();const yr=ytd.year;const a=ytd.acc[current];

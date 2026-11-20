@@ -849,7 +849,7 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
   <div class="qod" id="qodBanner"></div>
   <div class="modebar">
     <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
-    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="ytd">YTD</button></span>
+    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="lwk">Last Week</button><button data-mode="ytd">YTD</button></span>
     <span id="portModeHint" style="font-size:12px;color:var(--muted)"></span>
   </div>
   <div class="kpis" id="portKpis"></div>
@@ -1350,10 +1350,10 @@ function gcWeekStart(dateStr){
   d.setDate(d.getDate()-diff);
   return d.toISOString().slice(0,10);
 }
-function computeWTD(){
-  // Use the currently selected week (curWeek = Friday week-ending date).
-  // If no week is selected, fall back to computing from the most recent date.
-  let weekEnd=curWeek;
+function computeWTD(forWeekEnd){
+  // forWeekEnd: the Friday week-ending to total (WTD = week holding the latest loaded day; Last Week = the Friday before).
+  // Without it, use the currently selected week (curWeek), else the week of the most recent date.
+  let weekEnd=forWeekEnd||curWeek;
   let wkStart;
   if(weekEnd){
     // curWeek is the Friday week-ending; GC week starts the prior Saturday
@@ -1507,7 +1507,7 @@ function fmtDate(iso){if(!iso)return"";const p=String(iso).split("-");return p.l
 function updMeta(){$("#hdrMeta").innerHTML="Day <b>"+(curDate?fmtDate(curDate):"—")+"</b> · Week <b>"+(curWeek?fmtDate(curWeek):"—")+"</b>";}
 
 function loadDay(){ DAY=(!curDate?null:(DATA.days&&DATA.days[curDate]))||{SAL:[],STY:{},WAIT:{}};renderAll();updMeta(); }
-function loadWeek(){ WEEK=(!curWeek?null:(DATA.weeklies&&DATA.weeklies[curWeek]))||{EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};if(!WEEK.WSAL)WEEK.WSAL={};renderTeam();renderAA();if(detMode==="week")renderDetail();if(portMode==="wtd")renderPortWTD();updMeta(); }
+function loadWeek(){ WEEK=(!curWeek?null:(DATA.weeklies&&DATA.weeklies[curWeek]))||{EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};if(!WEEK.WSAL)WEEK.WSAL={};renderTeam();renderAA();if(detMode==="week")renderDetail();if(portMode==="wtd"||portMode==="lwk")renderPortWTD(portMode);updMeta(); }
 function renderAll(){renderPort();renderDetail();renderReps();renderTeam();}
 
 function salById(id){return (DAY.SAL||[]).find(r=>String(r[0])===String(id));}
@@ -1574,7 +1574,7 @@ document.querySelectorAll("#portModeToggle button").forEach(b=>b.onclick=()=>{
 function portName(n){return String(n||"").replace(/\s+(Shopping Center|Center Mall)$/i,"").trim();}
 function renderPort(){
   if(portMode==="ytd")return renderPortYTD();
-  if(portMode==="wtd")return renderPortWTD();
+  if(portMode==="wtd"||portMode==="lwk")return renderPortWTD(portMode);
   const SAL=DAY.SAL||[];
   $("#portModeHint").textContent=curDate?fmtDate(curDate):"";
   $("#portTitle").textContent="All salons — "+(curDate?fmtDate(curDate):"no day selected")+"  · click a row to open its detail";
@@ -1627,17 +1627,23 @@ function renderPortYTD(){
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
 }
-function renderPortWTD(){
-  const wtd=computeWTD();const SAL=wtd.rows;
-  const label=wtd.weekStart?fmtDate(wtd.weekStart)+" – "+fmtDate(wtd.weekEnd||""):"";
+function portWeekEnds(){ // [this week's Friday (week holding the latest loaded day), last week's Friday]
+  const latest=DATES[0];if(!latest)return [null,null];
+  const ws=gcWeekStart(latest),d=new Date(ws+"T12:00:00");d.setDate(d.getDate()+6);const thisFri=d.toISOString().slice(0,10);
+  d.setDate(d.getDate()-7);return [thisFri,d.toISOString().slice(0,10)];}
+function renderPortWTD(which){
+  const lw=which==="lwk",fr=portWeekEnds();
+  const wtd=computeWTD(lw?fr[1]:fr[0]);const SAL=wtd.rows;
+  const lastDay=wtd.weekDates&&wtd.weekDates.length?wtd.weekDates[wtd.weekDates.length-1]:"";
+  const label=wtd.weekStart?fmtDate(wtd.weekStart)+" – "+fmtDate((lw?wtd.weekEnd:lastDay)||wtd.weekEnd||""):"";
   $("#portModeHint").textContent=label;
-  $("#portTitle").textContent="All salons — Week to Date ("+wtd.daysInWeek+" day"+(wtd.daysInWeek!==1?"s":"")+")  · click a row to open its detail";
+  $("#portTitle").textContent="All salons — "+(lw?"Last Week (Sat–Fri)":"Week to Date ("+wtd.daysInWeek+" day"+(wtd.daysInWeek!==1?"s":"")+")")+"  · click a row to open its detail";
   let t={sales:0,cust:0,pay:0,payN:0,cg:0,sg:0,hc:0,hcN:0,cph:0,cphN:0,prod:0,wait:0,waitN:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];if(s[6]!==null&&s[6]!==undefined){t.pay+=s[6];t.payN++;}t.cg+=s[12];t.sg+=s[13];if(s[7]!==null&&s[7]!==undefined){t.hc+=s[7];t.hcN++;}if(s[8]!==null&&s[8]!==undefined){t.cph+=s[8];t.cphN++;}t.prod+=s[3]||0;if(s[11]!==null&&s[11]!==undefined){t.wait+=s[11];t.waitN++;}});
   const over=SAL.filter(s=>s[6]>40).length;
   const avgCg=t.cg/t.n,avgSg=t.sg/t.n,avgPay=t.payN?t.pay/t.payN:null;
   const avgHc=t.hcN?t.hc/t.hcN:null,avgCph=t.cphN?t.cph/t.cphN:null,avgProd=t.sales?t.prod/t.sales*100:null,avgWait=t.waitN?t.wait/t.waitN:null;
-  $("#portKpis").innerHTML=[["WTD Sales",money0(t.sales),wtd.daysInWeek+" day(s)"],
-    ["WTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
+  $("#portKpis").innerHTML=[[(lw?"Last Week":"WTD")+" Sales",money0(t.sales),wtd.daysInWeek+" day(s)"],
+    [(lw?"Last Week":"WTD")+" Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
     ["Over payroll",over+" of "+SAL.length,"above 40%"],
     ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
     ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]

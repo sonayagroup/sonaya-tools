@@ -599,13 +599,15 @@ body.inv-lock{overflow:hidden}
 /* recently ordered (v4) */
 .inv-lastord{font-size:14px;color:var(--muted);margin-top:6px}
 .inv-lastord.on{color:#0b6b33;font-weight:600}
-.inv-item.recent{background:#f6f9f8;border-style:dashed;padding:12px 14px}
-.inv-item.recent .inv-n1{color:#5b6f6a}
-.inv-item.recent:not(.open) .inv-body{display:none}
-.inv-item.recent.open .inv-low{display:none}
-.inv-low{margin-top:10px;width:100%;padding:11px;border:1.5px solid #c9d6d2;border-radius:10px;background:#fff;font:inherit;font-size:15px;font-weight:700;color:var(--blue);cursor:pointer}
+/* recently ordered items are still counted; the note only appears once they ask for more */
 .inv-warn{display:none;margin-top:8px;font-size:13.5px;color:#8a5a00;background:#fff6e0;border-radius:8px;padding:7px 10px}
-.inv-item.recent.open.has .inv-warn{display:block}
+.inv-item.recent.needmore .inv-warn{display:block}
+.inv-lastord.due{color:#a3530a;font-weight:600}
+.inv-due{margin-top:8px;font-size:13.5px;color:#7a3d00;background:#ffecd6;border-radius:8px;padding:7px 10px}
+.inv-item.due.needmore .inv-due{display:none}
+.inv-item.due{border-color:#f0c48f}
+.inv-duenote{background:#fff2e3;border:1px solid #f0c48f;color:#7a3d00;border-radius:10px;padding:10px 12px;font-size:15px;margin:0 0 10px}
+.inv-sicopy-top{margin-top:10px;font-size:15px;padding:11px}
 .inv-recnote{background:#eaf7f0;border:1px solid #bfe3cf;color:#0b4f2d;border-radius:10px;padding:10px 12px;font-size:15px;margin:0 0 12px}
 .inv-otbl tr.inv-flag td{background:#fff8e6}
 .inv-flagt{display:block;font-size:12px;color:#8a5a00;font-weight:600;margin-top:2px}
@@ -5819,8 +5821,10 @@ function invRender(){const o=$("#invFull");if(!o)return;
   h+='<div class="inv-f-body" id="invBody">';
   h+='<p class="inv-help">Due <b>'+esc(gmD(invDueDate(r.month)).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}))+'</b>. Count what’s on hand, enter what you need. Skip anything you didn’t count — it saves as you go.</p>';
   {const nRec=INV_SECS.filter(x=>!x.mgr).reduce((a,x)=>a+x.items.filter(d=>{const rc=invRecent(INV.hist,d.k,invRef(r.month));return rc&&rc.recent;}).length,0);
-   if(nRec)h+='<div class="inv-recnote">✓ <b>'+nRec+' items were ordered recently</b> and are folded up — skip them unless you’re running low.</div>';}
-  if(sub)h+='<div class="gm-banner info">Submitted'+(r.completed_by?' by '+esc(r.completed_by):'')+'. Fix a count and tap <b>Resubmit</b> to send the update.</div>';
+   const nDue=INV_SECS.filter(x=>!x.mgr).reduce((a,x)=>a+x.items.filter(d=>{const rc=invRecent(INV.hist,d.k,invRef(r.month));return rc&&rc.cycle&&rc.days>=rc.cycle;}).length,0);
+   if(nDue)h+='<div class="inv-duenote">⚠ <b>'+nDue+' item'+(nDue>1?'s are':' is')+' due for a reorder</b> — they’re marked below. Double-check you have enough.</div>';
+   if(nRec)h+='<div class="inv-recnote">✓ <b>'+nRec+' items were ordered recently.</b> Still count them — you’ll see a note if you ask for more.</div>';}
+  if(sub)h+='<div class="gm-banner info">Submitted'+(r.completed_by?' by '+esc(r.completed_by):'')+'. Fix a count and tap <b>Resubmit</b> to send the update.'+(invSIText(r)?'<button type="button" class="inv-sicopy inv-sicopy-top" data-sicopy="1">📋 Copy Salon Innovations order</button>':'')+'</div>';
   const stepper=(k,f,val,lab,oth)=>'<div class="inv-fld'+(f==="need"?" need":"")+'"><span class="inv-fl">'+lab+'</span><div class="inv-step"><button type="button" tabindex="-1" data-step="-1" aria-label="Less">−</button>'
     +'<input type="number" inputmode="numeric" pattern="[0-9]*" min="0" class="inv-q'+(f==="need"?" need":"")+'" '+(oth!=null?'data-oth="'+oth+'" data-of="need"':'data-k="'+k+'" data-f="'+f+'"')+' value="'+(val??"")+'" aria-label="'+esc(lab)+'" enterkeyhint="next">'
     +'<button type="button" tabindex="-1" data-step="1" aria-label="More">+</button></div></div>';
@@ -5830,12 +5834,13 @@ function invRender(){const o=$("#invFull");if(!o)return;
       if(d.model)extra='<input class="inv-model" data-mk="'+d.model+'_model" value="'+esc(ex[d.model+"_model"]||"")+'" placeholder="Model #">';
       if(d.free)extra='<input class="inv-model" data-txt="'+d.k+'" value="'+esc(v.txt||"")+'" placeholder="'+esc(d.free)+'">';
       if(d.size)extra='<div class="inv-size">'+["Small","Medium","Large"].map(z=>'<button type="button" data-size="'+z+'" class="'+(ex.glove_size===z?"on":"")+'">'+z+'</button>').join("")+'</div>';
-      const has=v.oh!=null||v.need!=null;const rc=mg?null:invRecent(INV.hist,d.k,invRef(r.month));const rec=rc&&rc.recent;
-      const ordLine=rc?'<div class="inv-lastord'+(rec?' on':'')+'">'+(rec?'✓ ':'')+'Ordered '+esc(gmShort(rc.last))+' ('+invAgo(invDays(rc.last,gmToday()))+')'+(rc.cycle?' · usually lasts '+invLasts(rc.cycle):'')+'</div>':'';
-      h+='<div class="inv-item'+(has?' has':'')+(rec?' recent'+(has?' open':''):'')+'" data-item="'+d.k+'"><div class="inv-ihead"><span class="inv-n1">'+esc(d.n)+'</span>'+(d.num?'<span class="inv-num">#'+esc(d.num)+'</span>':'')+'</div>'
-        +ordLine+(rec?'<button type="button" class="inv-low" data-low="1">Running low? Count it</button>':'')
+      const has=v.oh!=null||v.need!=null;const rc=mg?null:invRecent(INV.hist,d.k,invRef(r.month));const rec=rc&&rc.recent;const due=!!(rc&&rc.cycle&&rc.days>=rc.cycle);
+      const ordLine=rc?'<div class="inv-lastord'+(rec?' on':due?' due':'')+'">'+(rec?'✓ ':due?'⚠ ':'')+'Ordered '+esc(gmShort(rc.last))+' ('+invAgo(invDays(rc.last,gmToday()))+')'+(rc.cycle?' · usually lasts '+invLasts(rc.cycle):'')+'</div>':'';
+      h+='<div class="inv-item'+(has?' has':'')+(rec?' recent':'')+(due?' due':'')+(v.need>0?' needmore':'')+'" data-item="'+d.k+'"><div class="inv-ihead"><span class="inv-n1">'+esc(d.n)+'</span>'+(d.num?'<span class="inv-num">#'+esc(d.num)+'</span>':'')+'</div>'
+        +ordLine
         +'<div class="inv-body">'+(d.hint?'<div class="inv-hint">'+esc(d.hint)+'</div>':'')+extra
         +'<div class="inv-pair">'+stepper(d.k,"oh",v.oh,"On hand")+stepper(d.k,"need",v.need,"Need")+'</div>'+(rec?'<div class="inv-warn">Ordered '+invAgo(invDays(rc.last,gmToday()))+' — only order more if you’re running low.</div>':'')
+        +(due?'<div class="inv-due">Due for a reorder — this usually runs out by now. Double-check how many you have and enter what you need.</div>':'')
         +(p&&(p.oh!=null||p.need>0)?'<div class="inv-last">Last month: '+(p.oh!=null?p.oh+' on hand':'')+(p.need>0?(p.oh!=null?', ':'')+'needed '+p.need:'')+'</div>':'')+'</div></div>';});
     (ex.other||[]).forEach((o2,i)=>{if(o2.sec!==s.k)return;
       h+='<div class="inv-item has"><div class="inv-oth">'+(mg?'<input class="inv-model inv-onum" data-oth="'+i+'" data-of="num" value="'+esc(o2.num||"")+'" placeholder="Item #" inputmode="numeric">':'')+'<input class="inv-model" data-oth="'+i+'" data-of="txt" value="'+esc(o2.txt||"")+'" placeholder="'+(s.k==="snacks"?"Snack + Sam’s item # (shippable)":"Item name")+'"></div>'
@@ -5858,11 +5863,10 @@ function invWire(host){if(host._invWired)return;host._invWired=true;
     else if(t.id==="invNotes")r.extras.notes=t.value;
     else if(t.id==="invBy")r.completed_by=t.value;
     else return;
-    invDirty();invCounts();const row=t.closest(".inv-item");if(row&&t.classList.contains("inv-q"))row.classList.toggle("has",[...row.querySelectorAll(".inv-q")].some(x=>x.value!==""));});
+    invDirty();invCounts();const row=t.closest(".inv-item");if(row&&t.classList.contains("inv-q")){row.classList.toggle("has",[...row.querySelectorAll(".inv-q")].some(x=>x.value!==""));if(t.dataset.f==="need")row.classList.toggle("needmore",+t.value>0);}});
   host.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const r=INV.row;
     if(b.dataset.invclose){invClose();return;}
     if(b.dataset.sicopy){invSICopy();return;}
-    if(b.dataset.low){const it=b.closest(".inv-item");it.classList.add("open");const q=it.querySelector(".inv-q");if(q)q.focus();return;}
     if(b.dataset.step){const inp=b.parentNode.querySelector("input");const cur=inp.value===""?null:+inp.value;let nv=(cur==null?0:cur)+(+b.dataset.step);if(cur==null&&+b.dataset.step<0)nv=0;inp.value=Math.max(0,nv);inp.dispatchEvent(new Event("input",{bubbles:true}));return;}
     if(b.dataset.jump){const t=$("#invS_"+b.dataset.jump),body=$("#invBody");if(t&&body)body.scrollTo({top:body.scrollTop+t.getBoundingClientRect().top-body.getBoundingClientRect().top-8,behavior:"auto"});return;}
     if(b.dataset.size){r.extras.glove_size=r.extras.glove_size===b.dataset.size?null:b.dataset.size;b.parentNode.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b&&!!r.extras.glove_size));invDirty();}

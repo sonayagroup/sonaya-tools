@@ -1568,6 +1568,7 @@ function renderEstimate() {
     <div id="sumB"></div>
     <div class="sb-actions">
       <button class="btn primary" onclick="saveEstimate()">💾 Save</button>
+      <button class="btn" onclick="openJobEmail()" title="New job email — same as the In-Home Estimator">✉ Generate Email</button>
       <button class="btn green" onclick="_propMode=null;openProposal()">📄 Proposal</button>
       <button class="btn" onclick="openCrmModal()">📤 <span id="crmBtnLbl">${e.crmDealId ? 'Update CRM' : 'Push to CRM'}</span></button>
       <button class="btn" onclick="openSaveTemplate()" ${S.est.builderId ? '' : 'disabled title="Select a builder first"'}>⭐ Save as plan</button>
@@ -3741,7 +3742,8 @@ function ductRefresh() {
     </div>
     <div class="sb-actions">
       <button class="btn primary" onclick="ductCopy()">📋 Copy takeoff</button>
-      <button class="btn" onclick="ductNewJob()">Start new job</button>
+      <button class="btn" onclick="openJobEmail()">✉ Generate Email</button>
+      <button class="btn" onclick="ductNewJob()" style="grid-column:1 / -1">Start new job</button>
     </div>
     <textarea id="ductCopyFallback" hidden readonly rows="10" style="width:100%;margin-top:8px;font-size:.78rem;padding:6px;border:1px solid var(--border);border-radius:6px"></textarea>`);
   const mb = $('mobBar');
@@ -3806,6 +3808,217 @@ function onDuctInput(ev) {
 }
 document.addEventListener('input', onDuctInput);
 document.addEventListener('change', onDuctInput);
+
+// ─── GENERATE EMAIL (Nov 20 2026) ───────────────────────────────────────────────────────────────────
+// The "New Job Email" from the In-Home Estimator (V1), for Residential New Construction, Commercial and the Duct estimator.
+// Same layout and plain text as V1 (subject "Customer – date @ time", project type, job scope, ceiling height, notes,
+// options ACCEPTED / NOT ACCEPTED with materials needed, estimator, address, amounts, hours, margin, lead source, bonus,
+// pre-send checklist). Auto-filled from the estimate; the "fill in" fields are kept per estimate while the page is open.
+const EMAIL_PROJECT_TYPES = ['Residential (Retrofit)', 'Residential (New Construction)', 'Commercial (Retrofit)', 'Commercial (New Construction)'];
+const _emailDrafts = new WeakMap();
+let _email = null;                                   // { cfg, draft }
+
+(function () {                                        // modal styles (V1 email look, in this app's colors)
+  const st = document.createElement('style');
+  st.textContent = `
+  .em-sec{font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--navy);margin:14px 0 8px}
+  .em-fill{background:var(--amber-light);border:1px solid #f0c070;border-radius:8px;padding:12px}
+  .em-fill .note{font-size:.78rem;color:var(--amber);margin:-4px 0 8px}
+  .em-opts{display:flex;flex-wrap:wrap;gap:8px}
+  .em-opt{display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;padding:6px 12px;border-radius:6px;border:1px solid var(--border);background:#fff}
+  .em-opt.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .em-opt input{accent-color:var(--green)}
+  .em-prev{border:1px solid var(--border);border-radius:8px;background:#fff;font-size:.88rem;overflow:hidden}
+  .em-subj{background:var(--navy);color:#fff;padding:9px 12px;font-weight:700}.em-subj span{color:var(--green)}
+  .em-body{padding:4px 14px 12px}.em-body hr{border:0;border-top:1px solid var(--border);margin:10px 0}
+  .em-k{font-weight:700;margin-top:10px;font-size:.82rem}.em-v{color:#333;margin-bottom:6px;white-space:pre-wrap}
+  .em-badge{display:inline-block;background:var(--navy);color:#fff;padding:2px 10px;border-radius:12px;font-size:.78rem;font-weight:700}
+  .em-notes{background:var(--amber-light);border-left:3px solid #f0c070;padding:6px 10px;border-radius:4px;white-space:pre-wrap}
+  .em-optblk{margin:10px 0;padding:10px 12px;border-radius:8px;background:#f7f9fb;border:1px solid var(--border)}
+  .em-optblk h4{margin:0 0 4px;font-size:.9rem;color:var(--navy)}
+  .em-st{color:#fff;padding:2px 8px;border-radius:4px;font-size:.74rem;font-weight:700;margin-left:6px;vertical-align:middle}
+  .em-row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px dotted #e3e8ee}
+  .em-row b{font-weight:700}.em-row span{color:var(--navy);font-weight:600;text-align:right}
+  .em-amt{font-size:1.1rem;font-weight:800!important}
+  .em-check{margin-top:12px;padding-top:8px;border-top:2px solid var(--navy)}.em-check h4{font-size:.82rem;color:var(--navy);margin-bottom:4px}
+  .em-ci{display:flex;gap:8px;align-items:center;font-size:.84rem;padding:2px 0}.em-ci i{width:13px;height:13px;border:2px solid var(--navy);border-radius:3px;flex-shrink:0}
+  .em-fill textarea{min-height:54px}`;
+  document.head.appendChild(st);
+})();
+
+const emFmtDate = v => { if (!v) return '—'; const d = new Date(v + 'T00:00:00'); return isNaN(d) ? '—' : `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`; };
+const emFmtTime = v => { if (!v) return '—'; const [h, m] = v.split(':'); const hr = parseInt(h); return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`; };
+const emQty = q => (Math.round(num(q) * 100) / 100).toLocaleString('en-US');
+const emUnit = (u, q) => { u = u || 'each'; if (u === 'each') return ''; return num(q) === 1 || /s$|ft|sf|sq ft/.test(u) ? u : u + 's'; };
+function emMaterials(r) {
+  const lines = [...(r.scopeMats || []), ...(r.autoMats || []), ...(r.misc || [])].filter(m => m && m.name && num(m.qty) > 0);
+  return lines.map(m => `${emQty(m.qty)} ${emUnit(m.unit, m.qty)} ${m.name}`.replace(/\s+/g, ' ').trim()).join(', ') || 'None listed';
+}
+
+// ── Estimate (Residential New Construction / Commercial) → email config
+function emailCfgForEstimate(e) {
+  const QR = estResults(e), res = QR.res, rules = QR.rules, pt = PROJECT_TYPES[e.projectType] || {};
+  const b = (S.builders || []).find(x => x.id === e.builderId);
+  const name = [b && b.name, e.projectName].filter(Boolean).join(' — ') || e.clientName || e.contactName || 'Estimate';
+  const scopeTxt = e.options.map((o, i) => {
+    const lines = (o.scopes || []).filter(s => num(s.sqft) > 0 || s.method === 'foam_pack').map(s => {
+      const m = METHODS[s.method] || {}, loc = s.location === 'Other' ? (s.locationOther || 'Other') : s.location;
+      const lab = m.label || s.method, same = loc && lab.toLowerCase().startsWith(loc.toLowerCase());
+      return `${same ? '' : (loc || 'Scope') + ' — '}${lab}${num(s.rValue) ? ' R-' + num(s.rValue) : ''}${num(s.sqft) ? ' · ' + fmtN(num(s.sqft)) + ' sf' : ''}`;
+    });
+    return (e.options.length > 1 ? o.name + ':\n' : '') + (lines.join('\n') || '(no scopes yet)');
+  }).join('\n\n');
+  const heights = [...new Set(e.options.flatMap(o => (o.scopes || []).filter(s => num(s.height) > 0 && num(s.sqft) > 0).map(s => num(s.height))))];
+  const hrs = res.map((r, i) => r.L ? `${e.options.length > 1 ? e.options[i].name + ': ' : ''}${r.C} installers × ${fmtN(r.H, 1)} hrs (${fmtN(r.L, 1)} labor hrs, ${r.days} day${r.days === 1 ? '' : 's'})` : '').filter(Boolean).join(', ');
+  const bonus = res.map((r, i) => num(r.bonuses) ? `${e.options.length > 1 ? e.options[i].name + ': ' : ''}$${fmtN(r.bonuses)}` : '').filter(Boolean).join(', ');
+  const inc = new Set(includedOptions(e));
+  return {
+    key: e, kind: 'estimate',
+    subjectName: name,
+    estimator: e.estimator, address: e.address, leadSource: '',
+    projectType: e.projectType === 'commercial' ? 'Commercial (New Construction)' : 'Residential (New Construction)',
+    scope: scopeTxt, height: heights.length ? heights.map(h => h + ' ft').join(', ') : '', hours: hrs, bonus, notes: '',
+    priceLabel: 'Total Amount', showMargin: true,
+    options: e.options.map((o, i) => ({ name: o.name, price: res[i].price, margin: res[i].margin, materials: emMaterials(res[i]), pre: e.options.length === 1 || inc.has(o) })),
+    // Accepted total: the Final (Combined) price when the ticked options are the ones included in the Final (shared crew
+    // days / trips), otherwise the combined price recomputed for the ticked options, never a plain sum.
+    total(sel) {
+      if (!sel.length) return 0;
+      if (sel.length === 1) return res[sel[0]].price;
+      const same = QR.fin && sel.length === inc.size && sel.every(i => inc.has(e.options[i]));
+      if (same) return QR.fin.price;
+      const clone = { ...e, options: e.options.map((o, i) => ({ ...o, includeInFinal: sel.includes(i) })) };
+      try { return withBook(e.quote && e.quote.book, () => (computeFinal(clone, rules, res) || {}).price || 0); } catch (err) { return sel.reduce((a, i) => a + res[i].price, 0); }
+    },
+    margin(sel) {
+      const ms = sel.map(i => res[i].margin);
+      if (!ms.length) return fmtN(blank(e.margin) ? defMargin(e, rules) : e.margin, 1) + '%';
+      return ms.every(m => Math.abs(m - ms[0]) < 1e-9) ? fmtN(ms[0], 1) + '%' : sel.map(i => `${e.options[i].name}: ${fmtN(res[i].margin, 1)}%`).join(', ');
+    },
+  };
+}
+
+// ── Duct job → email config (the duct tool has job cost only — no margin / customer price)
+function emailCfgForDuct() {
+  const d = ductState(), c = ductCalc(d, S.ductSet);
+  const runs = c.runs.filter(x => x.len > 0 && x.perFt > 0).map(x => {
+    const r = x.r, size = r.shape === 'round' ? `${dNum(r.a)}″ round` : `${dNum(r.a)}″ × ${dNum(r.b)}″ ${r.shape === 'rect' ? 'rectangular' : 'flat oval'}`;
+    return `Run ${x.i + 1}: ${size}, ${fmtN(x.len, 1)} ft = ${dFmt(x.area)} sq ft`;
+  });
+  const roll = n => `${n} roll${n === 1 ? '' : 's'}`;
+  return {
+    key: d, kind: 'duct',
+    subjectName: d.job || 'Duct insulation',
+    estimator: '', address: d.job, leadSource: '',
+    projectType: 'Residential (Retrofit)',
+    scope: `Duct insulation — Reflectix R-21 wrap, ${dFmt(c.area)} sq ft of duct (${fmtN(c.lenTot, 1)} ft, ${runs.length} run${runs.length === 1 ? '' : 's'})${runs.length ? '\n' + runs.join('\n') : ''}`,
+    height: '', hours: c.hrs ? `${fmtN(c.hrs, 2)} labor hrs (whole crew)` : '', bonus: '', notes: '',
+    priceLabel: 'Job cost (materials + labor)', showMargin: false,
+    options: [{ name: 'Duct insulation', price: c.total, materials: [c.insRolls && `${roll(c.insRolls)} Reflectix R-21 4′ × 100′`, c.spRolls && `${roll(c.spRolls)} Reflectix R-21 1.33′ × 100′ (spacers)`, c.tapeRolls && `${roll(c.tapeRolls)} FSK foil tape 3″ × 50 yd`].filter(Boolean).join(', ') || 'None listed', pre: true }],
+    total(sel) { return sel.length ? c.total : 0; },
+    margin() { return '—'; },
+  };
+}
+
+function openJobEmail() {
+  const cfg = S.view === 'duct' ? emailCfgForDuct() : S.est ? emailCfgForEstimate(S.est) : null;
+  if (!cfg) return;
+  let draft = _emailDrafts.get(cfg.key);
+  const today = new Date(); const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  if (!draft) { draft = { date: iso, time: '09:00', type: cfg.projectType, scope: cfg.scope, height: cfg.height, hours: cfg.hours, lead: cfg.leadSource, bonus: cfg.bonus, notes: cfg.notes }; _emailDrafts.set(cfg.key, draft); }
+  else {                                              // refresh auto-filled values the user hasn't changed
+    ['scope', 'height', 'hours', 'bonus'].forEach(k => { if (draft['_auto_' + k] === undefined || draft[k] === draft['_auto_' + k]) draft[k] = cfg[k]; });
+  }
+  ['scope', 'height', 'hours', 'bonus'].forEach(k => { draft['_auto_' + k] = cfg[k]; });
+  if (!draft.sel || draft.sel.length > cfg.options.length) draft.sel = cfg.options.map((o, i) => o.pre ? i : -1).filter(i => i >= 0);
+  _email = { cfg, draft };
+  const inp = (k, label, type, ph, extra) => `<div class="field ${extra || ''}"><label>${label}</label>${type === 'textarea' ? `<textarea data-em="${k}" rows="3" placeholder="${esc(ph || '')}">${esc(draft[k] || '')}</textarea>` : `<input data-em="${k}" type="${type}" value="${esc(draft[k] || '')}" placeholder="${esc(ph || '')}">`}</div>`;
+  modal(`<div class="modal-hd"><h3>✉ New Job Email</h3><button class="btn ghost" onclick="closeModal()">✕</button></div>
+    <div class="modal-bd" style="max-height:70vh;overflow-y:auto">
+      <div class="em-fill">
+        <div class="em-sec" style="margin-top:0">Fill in before sending</div>
+        <div class="note">Auto-filled from the estimate where possible — change anything here; it only affects this email.</div>
+        <div class="grid">
+          ${inp('date', 'Service date', 'date')}
+          ${inp('time', 'Arrival time', 'time')}
+          <div class="field span2"><label>Project type</label><select data-em="type">${EMAIL_PROJECT_TYPES.map(t => `<option ${t === draft.type ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+          ${inp('scope', 'Job scope', 'textarea', 'Describe the work being done…', 'full')}
+          ${inp('height', 'Ceiling height', 'text', 'e.g. 8 ft')}
+          ${inp('hours', 'Installer / est. hours', 'text', 'e.g. 2 installers × 8 hrs', 'span2')}
+          ${inp('lead', 'Lead source', 'text', 'e.g. Builder, Angi, Referral')}
+          ${inp('bonus', 'Bonus', 'text', 'e.g. $150')}
+          ${inp('notes', 'Additional notes', 'textarea', 'Gate codes, parking, site contact, access notes…', 'full')}
+        </div>
+      </div>
+      ${cfg.options.length > 1 ? `<div class="em-sec">Options to include</div><div class="em-opts">${cfg.options.map((o, i) => `<label class="em-opt ${draft.sel.includes(i) ? 'on' : ''}"><input type="checkbox" data-emopt="${i}" ${draft.sel.includes(i) ? 'checked' : ''}> ${esc(o.name)}</label>`).join('')}</div>` : ''}
+      <div class="em-sec">Email preview <span class="pill" style="text-transform:none;letter-spacing:0">auto-filled from the ${cfg.kind === 'duct' ? 'duct takeoff' : 'estimate'}</span></div>
+      <div class="em-prev"><div class="em-subj" id="emSubj"></div><div class="em-body" id="emBody"></div></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn green" onclick="copyJobEmail()">✉ Copy to clipboard</button>
+      <button class="btn" onclick="closeModal()">Close</button>
+      <textarea id="emFallback" hidden readonly rows="8" style="width:100%;font-size:.78rem;padding:6px;border:1px solid var(--border);border-radius:6px"></textarea>
+    </div>`, true);
+  const root = $('modalRoot');
+  root.querySelectorAll('[data-em]').forEach(el => el.addEventListener('input', () => { _email.draft[el.dataset.em] = el.value; refreshJobEmail(); }));
+  root.querySelectorAll('[data-emopt]').forEach(el => el.addEventListener('change', () => {
+    const i = parseInt(el.dataset.emopt), s = new Set(_email.draft.sel); el.checked ? s.add(i) : s.delete(i);
+    _email.draft.sel = [...s].sort((a, b) => a - b); el.closest('.em-opt').classList.toggle('on', el.checked); refreshJobEmail();
+  }));
+  refreshJobEmail();
+}
+
+// One builder for both the preview (html) and the copied text, so they can never disagree
+function jobEmailParts() {
+  const { cfg, draft } = _email, sel = draft.sel.filter(i => i < cfg.options.length), many = cfg.options.length > 1;
+  return { cfg, draft, sel, many, subject: `${cfg.subjectName} – ${emFmtDate(draft.date)} @ ${emFmtTime(draft.time)}`, total: cfg.total(sel), margin: cfg.margin(sel) };
+}
+function refreshJobEmail() {
+  if (!_email || !$('emBody')) return;
+  const { cfg, draft, sel, many, subject, total, margin } = jobEmailParts(), on = new Set(sel);
+  $('emSubj').innerHTML = `<span>Subject:</span> ${esc(subject)}`;
+  const row = (k, v, cls) => `<div class="em-row"><b>${k}</b><span class="${cls || ''}">${esc(v || '')}</span></div>`;
+  let h = `<div class="em-k">Project Type:</div><div class="em-v"><span class="em-badge">${esc(draft.type)}</span></div>
+    <div class="em-k">Job Scope:</div><div class="em-v">${esc(draft.scope || '—')}</div>
+    <div class="em-k">Ceiling Height:</div><div class="em-v">${esc(draft.height || '—')}</div>`;
+  if (draft.notes) h += `<div class="em-k">Additional Notes:</div><div class="em-notes">${esc(draft.notes)}</div>`;
+  if (!sel.length) h += `<div class="em-v" style="color:var(--red);font-weight:700;margin-top:8px">No options selected — tick at least one option above.</div>`;
+  if (!many) { if (sel.length) h += `<div class="em-k">Materials Needed:</div><div class="em-v">${esc(cfg.options[0].materials)}</div>`; }
+  else cfg.options.forEach((o, i) => {
+    const a = on.has(i);
+    h += `<div class="em-optblk" style="${a ? '' : 'opacity:.6'}"><h4>${esc(o.name)} — ${money(o.price)} <span class="em-st" style="background:${a ? '#2e7d32' : '#c62828'}">${a ? 'ACCEPTED' : 'NOT ACCEPTED'}</span></h4>${a ? `<div class="em-k" style="margin-top:4px">Materials Needed:</div><div class="em-v">${esc(o.materials)}</div>` : ''}</div>`;
+  });
+  h += '<hr>' + (cfg.kind === 'duct' ? row('Job', cfg.subjectName) : row('Estimator', cfg.estimator) + row('Service Address', cfg.address));
+  if (!many) h += row(cfg.priceLabel, money(sel.length ? total : 0), 'em-amt');
+  else {
+    cfg.options.forEach((o, i) => { const a = on.has(i); h += `<div class="em-row" style="${a ? '' : 'opacity:.5;text-decoration:line-through'}"><b>${esc(o.name)}${a ? '' : ' (Not Accepted)'}</b><span class="em-amt">${money(o.price)}</span></div>`; });
+    h += `<div class="em-row" style="border-top:2px solid var(--navy);border-bottom:0"><b>Accepted Total${sel.length > 1 ? ' (combined)' : ''}</b><span class="em-amt">${money(total)}</span></div>`;
+  }
+  h += row('Installer / Estimated Hours', draft.hours) + (cfg.showMargin ? row('Projected Margin', margin) : '') + row('Lead Source', draft.lead) + row('Bonus', draft.bonus);
+  h += `<div class="em-check"><h4>Pre-Send Checklist</h4>${JOB_EMAIL_CHECKLIST.map(c => `<div class="em-ci"><i></i>${esc(c)}</div>`).join('')}</div>`;
+  $('emBody').innerHTML = h;
+}
+const JOB_EMAIL_CHECKLIST = ['Notes & pictures added to ServiceMinder', 'Tax rate verified in ServiceMinder', 'Job amount on spreadsheet proposal matches approved scope in ServiceMinder as well as email', 'Spreadsheet attached to email'];
+
+function jobEmailText() {
+  const { cfg, draft, sel, many, subject, total, margin } = jobEmailParts(), on = new Set(sel);
+  const L = '──────────────────────────────────';
+  let t = `Subject: ${subject}\n${L}\n\nProject Type: ${draft.type}\n\nJob Scope:\n${draft.scope || '—'}\n\nCeiling Height: ${draft.height || '—'}\n\n`;
+  if (draft.notes) t += `Additional Notes:\n${draft.notes}\n\n`;
+  if (!many) t += sel.length ? `Materials Needed:\n${cfg.options[0].materials}\n\n` : 'No options selected.\n\n';
+  else cfg.options.forEach((o, i) => { const a = on.has(i); t += `${o.name} — ${money(o.price)}  ${a ? '✅ ACCEPTED' : '❌ NOT ACCEPTED'}\n${a ? `Materials Needed: ${o.materials}\n` : ''}\n`; });
+  t += `${L}\n\n` + (cfg.kind === 'duct' ? `Job: ${cfg.subjectName}\n` : `Estimator: ${cfg.estimator || ''}\nService Address: ${cfg.address || ''}\n`);
+  if (!many) t += `${cfg.priceLabel}: ${money(sel.length ? total : 0)}\n`;
+  else { cfg.options.forEach((o, i) => { t += `${o.name}${on.has(i) ? '' : ' (Not Accepted)'}: ${money(o.price)}\n`; }); t += `Accepted Total${sel.length > 1 ? ' (combined)' : ''}: ${money(total)}\n`; }
+  t += `Installer / Estimated Hours: ${draft.hours || ''}\n` + (cfg.showMargin ? `Projected Margin: ${margin}\n` : '') + `Lead Source: ${draft.lead || ''}\nBonus: ${draft.bonus || ''}\n\n\nPre-Send Checklist\n` + JOB_EMAIL_CHECKLIST.map(c => '☐ ' + c).join('\n');
+  return t;
+}
+function copyJobEmail() {
+  if (!_email) return;
+  const text = jobEmailText();
+  const fallback = () => { const ta = $('emFallback'); if (!ta) return; ta.hidden = false; ta.value = text; ta.focus(); ta.select(); toast('Select all and copy the text below the buttons'); };
+  try { navigator.clipboard.writeText(text).then(() => toast('Email copied to clipboard', 'ok'), fallback); } catch (err) { fallback(); }
+}
 
 </script>
 </body>

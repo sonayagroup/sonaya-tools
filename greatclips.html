@@ -587,6 +587,11 @@ body.inv-lock{overflow:hidden}
 .inv-pair.one{grid-template-columns:1fr}
 .inv-fl{display:block;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
 .inv-fld.need .inv-fl{color:var(--blue)}
+.inv-how{font-size:14px;color:#3d5a53;background:#f1f6f4;border-radius:8px;padding:6px 10px;margin:6px 0 10px}
+.inv-how b{color:#14524a}
+.inv-howto{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:0 0 12px;font-size:15px}
+.inv-howto summary{font-weight:700;color:var(--blue-dk);cursor:pointer;padding:4px 0}
+.inv-howto ol{margin:8px 0 4px;padding-left:20px;line-height:1.45}.inv-howto li{margin-bottom:6px}
 .inv-step{display:flex;align-items:stretch;height:54px;border:1.5px solid #b9c9c4;border-radius:12px;overflow:hidden;background:#fff}
 .inv-fld.need .inv-step{border-color:#7fc8ad;background:#f0faf6}
 .inv-step button{flex:none;width:46px;border:0;background:#eef3f1;font-size:26px;font-weight:600;color:var(--blue-dk);cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none}
@@ -5696,6 +5701,32 @@ window.addEventListener("resize",()=>{clearTimeout(window.__tkR);window.__tkR=se
 // and checks the monthly "inventory" task. Owners/AMs get an Orders view that groups what each salon needs by store.
 // Vendors: sams (Sam's Club item id), staples, amazon, other (GC / bank / ADP), mgr (manager orders: Salon Innovations + backbar).
 const INV_SAMS="https://www.samsclub.com/ip/x/";
+// What to count (On hand) and what one "Need" orders — pack sizes from the salons' Sam's Club invoices.
+// [count unit, order unit, order pack description]
+const INV_HOW={
+  toner:["cartridges","cartridges",""],drum:["drums","drums",""],ink:["cartridges","cartridges",""],
+  env_clasp:["boxes","boxes","box of 150"],env_std:["boxes","boxes","box of 500"],postit:["pads","packs",""],staples:["boxes","boxes",""],
+  stapler:["staplers","staplers",""],markers:["markers","packs",""],whiteout:["tapes","packs","6-pack"],highlighters:["highlighters","packs",""],
+  pens:["pens","boxes",""],tape:["rolls","packs","6-pack"],pushpins:["boxes","boxes",""],oci_cards:["cards","packs",""],
+  paper:["reams","cases","case of 10 reams"],receipt:["rolls","boxes","box of 50 rolls"],adp_cards:["cards","cards",""],deposit:["books","books",""],
+  floor:["jugs","jugs","210 oz jug"],disinfect:["gallon jugs","4-packs","4 gallons"],glass:["bottles & refills","packs","spray bottle + 128 oz refill"],
+  laundry:["jugs","jugs","200 oz jug"],toilet:["bottles","6-packs","6 bottles"],trash:["rolls of bags","cases","case of 320 bags"],
+  spray_extra:["bottles","bottles",""],microfiber:["towels","packs",""],broom:["sets","sets",""],
+  sanitizer:["refill jugs","jugs","67.6 oz jug"],finger:["boxes","boxes",""],gloves:["boxes","boxes","box of 200"],
+  pt_rest:["packs of towels","cases","case of 16 packs"],pt_break:["rolls","packs","15 rolls"],tp:["rolls","cases","case of 45 rolls"],
+  tissue:["boxes","cases","case of 30 boxes"],soap_rest:["refill bottles","2-packs","2 refills"],soap_break:["bottles","packs",""],
+  bandaids:["boxes","boxes",""],candy:["bags","bags","500 pops"],
+  sn_fruit:["single snacks","boxes","100 pk"],sn_velveeta:["cups","boxes",""],sn_kraft:["cups","boxes","12 pk"],sn_goldfish:["single bags","boxes",""],
+  sn_slimjim:["sticks","boxes","120 pk"],sn_noodles:["cups","cases","24 ct"],sn_rkt:["bars","boxes","60 ct"],sn_trail:["single bags","boxes","40 pk"],
+  sn_chips:["single bags","boxes","42 pk"],sn_mix:["single bags","boxes",""]};
+const INV_SHORT={"gallon jugs":"jugs","packs of towels":"packs","rolls of bags":"rolls","bottles & refills":"bottles","refill jugs":"jugs","refill bottles":"bottles","single snacks":"snacks","single bags":"bags"};
+function invHowShort(u){return INV_SHORT[u]||u;}
+function invHowLine(k){const w=INV_HOW[k];if(!w)return "";return '<div class="inv-how">Count <b>'+esc(w[0])+'</b> · order in <b>'+esc(w[1])+'</b>'+(w[2]?' ('+esc(w[2])+')':'')+'</div>';}
+const INV_HOWTO='<details class="inv-howto"><summary>📏 How to count</summary><ol>'
+  +'<li><b>On hand = single items</b>, not cases — e.g. rolls of bath tissue, boxes of facial tissue, bottles of cleaner. Each item says what to count.</li>'
+  +'<li><b>Count everything in the salon</b> — storage room, under sinks, breakroom, front desk.</li>'
+  +'<li><b>Count full and mostly-full items.</b> Skip the one in use and anything almost empty.</li>'
+  +'<li><b>Need = how many to order</b> in the unit shown (cases, boxes, jugs) so you’ll last until next month. Leave it blank if you have enough.</li></ol></details>';
 const INV_SECS=[
   {k:"office",t:"Office Supplies",items:[
     {k:"toner",n:"Toner",v:"staples",model:"toner"},{k:"drum",n:"Drum",v:"staples",model:"drum"},
@@ -5831,7 +5862,7 @@ function invRender(){const o=$("#invFull");if(!o)return;
   let h='<div class="inv-f-head"><button type="button" class="inv-x" data-invclose="1" aria-label="Close">✕</button><div class="inv-f-t"><b>'+esc(gmD(r.month).toLocaleDateString("en-US",{month:"short",year:"numeric"}))+' Inventory</b><span>'+esc(current+" · "+(typeof portName==="function"?portName(SALONS[current]||""):SALONS[current]||""))+'</span></div><span class="inv-f-st" id="invStat">'+(sub?'Submitted':'Draft')+'</span></div><div class="inv-prog"><i id="invProg" style="width:'+Math.round(invCounted(r)/Object.keys(INV_ITEM).length*100)+'%"></i></div>'
     +'<nav class="inv-jump">'+INV_SECS.map(s=>'<button type="button" data-jump="'+s.k+'">'+esc(short[s.k])+' <i id="invJ_'+s.k+'">'+cnt(s)+'/'+s.items.length+'</i></button>').join("")+'</nav>';
   h+='<div class="inv-f-body" id="invBody">';
-  h+='<p class="inv-help">Due <b>'+esc(gmD(invDueDate(r.month)).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}))+'</b>. Count what’s on hand, enter what you need. Skip anything you didn’t count — it saves as you go.</p>';
+  h+='<p class="inv-help">Due <b>'+esc(gmD(invDueDate(r.month)).toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}))+'</b>. Count what’s on hand, enter what you need. Skip anything you didn’t count — it saves as you go.</p>'+INV_HOWTO;
   {const nRec=INV_SECS.filter(x=>!x.mgr).reduce((a,x)=>a+x.items.filter(d=>{const rc=invRecent(INV.hist,d.k,invRef(r.month));return rc&&rc.recent;}).length,0);
    const nDue=INV_SECS.filter(x=>!x.mgr).reduce((a,x)=>a+x.items.filter(d=>{const rc=invRecent(INV.hist,d.k,invRef(r.month));return rc&&rc.cycle&&rc.days>=rc.cycle;}).length,0);
    if(nDue)h+='<div class="inv-duenote">⚠ <b>'+nDue+' item'+(nDue>1?'s are':' is')+' due for a reorder</b> — they’re marked below. Double-check you have enough.</div>';
@@ -5851,7 +5882,7 @@ function invRender(){const o=$("#invFull");if(!o)return;
       h+='<div class="inv-item'+(has?' has':'')+(rec?' recent':'')+(due?' due':'')+(v.need>0?' needmore':'')+'" data-item="'+d.k+'"><div class="inv-ihead"><span class="inv-n1">'+esc(d.n)+'</span>'+(d.num?'<span class="inv-num">#'+esc(d.num)+'</span>':'')+'</div>'
         +ordLine
         +'<div class="inv-body">'+(d.hint?'<div class="inv-hint">'+esc(d.hint)+'</div>':'')+extra
-        +'<div class="inv-pair">'+stepper(d.k,"oh",v.oh,"On hand")+stepper(d.k,"need",v.need,"Need")+'</div>'+(rec?'<div class="inv-warn">Ordered '+invAgo(invDays(rc.last,gmToday()))+' — only order more if you’re running low.</div>':'')
+        +invHowLine(d.k)+'<div class="inv-pair">'+stepper(d.k,"oh",v.oh,"On hand"+(INV_HOW[d.k]?" · "+invHowShort(INV_HOW[d.k][0]):""))+stepper(d.k,"need",v.need,"Need"+(INV_HOW[d.k]?" · "+INV_HOW[d.k][1]:""))+'</div>'+(rec?'<div class="inv-warn">Ordered '+invAgo(invDays(rc.last,gmToday()))+' — only order more if you’re running low.</div>':'')
         +(due?'<div class="inv-due">Due for a reorder — this usually runs out by now. Double-check how many you have and enter what you need.</div>':'')
         +(p&&(p.oh!=null||p.need>0)?'<div class="inv-last">Last month: '+(p.oh!=null?p.oh+' on hand':'')+(p.need>0?(p.oh!=null?', ':'')+'needed '+p.need:'')+'</div>':'')+'</div></div>';});
     (ex.other||[]).forEach((o2,i)=>{if(o2.sec!==s.k)return;

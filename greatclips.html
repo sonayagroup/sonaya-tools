@@ -895,6 +895,7 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
   <div class="modebar">
     <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
     <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="lwk">Last Week</button><button data-mode="mtd">MTD</button><button data-mode="ytd">YTD</button></span>
+    <span class="det-mode" id="portCustToggle" style="display:none" title="Customer column: period total or average per week"><button data-c="total" class="active">Cust total</button><button data-c="wk">Avg / week</button></span>
     <select id="portMonthSel" style="display:none;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;font-weight:600;color:var(--ink,#1d2b36);background:#fff" title="Pick a month"></select>
     <span id="portModeHint" style="font-size:12px;color:var(--muted)"></span>
   </div>
@@ -902,7 +903,7 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
   <div class="sec-title" id="portTitle"></div>
   <div class="card" style="margin-bottom:18px">
     <div class="tbl-scroll port-scroll"><table id="portTable"><thead><tr>
-      <th data-k="0">Salon</th><th data-k="4">Total Sales</th><th data-k="5">Cust</th><th data-k="6">Payroll %<span class="kpi-ideal"><b>Goal</b>&lt;40%</span></th>
+      <th data-k="0">Salon</th><th data-k="4">Total Sales</th><th data-k="5" id="portCustTh">Cust</th><th data-k="6">Payroll %<span class="kpi-ideal"><b>Goal</b>&lt;40%</span></th>
       <th data-k="7">Avg HC<span class="kpi-ideal"><b>Goal</b>&lt;16 min</span></th><th data-k="8">CPH<span class="kpi-ideal"><b>Goal</b>≥2.4</span></th><th title="Product sales as a % of the salon's total sales for the day">Prod %<span class="kpi-ideal"><b>Goal</b>≥5%</span></th>
       <th data-k="11">Waits<span class="kpi-ideal"><b>Goal</b>&lt;15%</span></th><th data-k="12">Cust Gr%<span class="kpi-ideal"><b>Goal</b>≥5%</span></th><th data-k="13">Sales Gr%<span class="kpi-ideal"><b>Goal</b>≥5%</span></th><th title="Overall health score (1-5) from payroll %, CPH, avg HC time, wait &gt;15%, and customer growth vs. targets">Health</th><th class="gcol" title="Live Google rating (snapshot)">★</th>
     </tr></thead><tbody></tbody><tfoot></tfoot></table></div>
@@ -1348,7 +1349,7 @@ function computeYTD(){
     const mo=d.slice(0,7);
     (DATA.days[d].SAL||[]).forEach(s=>{
       const id=String(s[0]);if(!acc[id])return;const a=acc[id];
-      a.sales+=s[4]||0;a.svcSales+=s[2]||0;a.prodSales+=s[3]||0;a.cust+=s[5]||0;
+      a.sales+=s[4]||0;a.svcSales+=s[2]||0;a.prodSales+=s[3]||0;a.cust+=s[5]||0;a.dn=(a.dn||0)+1;
       if(typeof s[6]==="number"){a.paySum+=s[6];a.hcSum+=s[7];a.cphSum+=s[8];a.prodSum+=s[9];a.waitSum+=s[10];a.w15Sum+=s[11];a.cgSum+=s[12];a.sgSum+=s[13];a.days++;}
       if(!a.monthly[mo])a.monthly[mo]={sales:0,cust:0,paySum:0,cphSum:0,days:0};
       const m=a.monthly[mo];m.sales+=s[4]||0;m.cust+=s[5]||0;if(typeof s[6]==="number"){m.paySum+=s[6];m.cphSum+=s[8];m.days++;}
@@ -1627,6 +1628,9 @@ document.querySelectorAll("#portModeToggle button").forEach(b=>b.onclick=()=>{
 function portName(n){return String(n||"").replace(/\s+(Shopping Center|Center Mall)$/i,"").trim();}
 function renderPort(){
   const pms=document.getElementById("portMonthSel");if(pms)pms.style.display=portMode==="mtd"?"":"none";
+  const pct=document.getElementById("portCustToggle");const cwk=(portMode==="mtd"||portMode==="ytd")&&portCust==="wk";
+  if(pct)pct.style.display=(portMode==="mtd"||portMode==="ytd")?"":"none";
+  const pth=document.getElementById("portCustTh");if(pth)pth.textContent=cwk?"Cust/wk":"Cust";
   if(portMode==="mtd")return renderPortMTD();
   if(portMode==="ytd")return renderPortYTD();
   if(portMode==="wtd"||portMode==="lwk")return renderPortWTD(portMode);
@@ -1656,7 +1660,7 @@ function renderPort(){
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
 }
 function renderPortYTD(){
-  const ytd=computeYTD();const SAL=ytd.rows;const yr=ytd.year;
+  const ytd=computeYTD();const SAL=portWkCust(ytd.rows,s=>(ytd.acc[String(s[0])]||{}).dn);const yr=ytd.year;
   $("#portModeHint").textContent="Jan 1 – "+fmtDate(DATES[0]||"")+" "+yr;
   $("#portTitle").textContent="All salons — YTD "+yr+"  · click a row to open its detail";
   let t={sales:0,cust:0,pay:0,payN:0,cg:0,sg:0,hc:0,hcN:0,cph:0,cphN:0,prod:0,wait:0,waitN:0,n:SAL.length||1};SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];if(s[6]!==null&&s[6]!==undefined){t.pay+=s[6];t.payN++;}t.cg+=s[12];t.sg+=s[13];if(s[7]!==null&&s[7]!==undefined){t.hc+=s[7];t.hcN++;}if(s[8]!==null&&s[8]!==undefined){t.cph+=s[8];t.cphN++;}t.prod+=s[3]||0;if(s[11]!==null&&s[11]!==undefined){t.wait+=s[11];t.waitN++;}});
@@ -1665,7 +1669,7 @@ function renderPortYTD(){
   const avgCg=t.cg/t.n,avgSg=t.sg/t.n,avgPay=t.payN?t.pay/t.payN:null;
   const avgHc=t.hcN?t.hc/t.hcN:null,avgCph=t.cphN?t.cph/t.cphN:null,avgProd=t.sales?t.prod/t.sales*100:null,avgWait=t.waitN?t.wait/t.waitN:null;
   $("#portKpis").innerHTML=[["YTD Sales",money0(t.sales),totalDays+" day(s)"],
-    ["YTD Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
+    [portCust==="wk"?"YTD Avg Weekly Cust":"YTD Customers",t.cust.toLocaleString(),portCust==="wk"?"all salons, per week":""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
     ["Over payroll",over+" of "+SAL.length,"avg above 40%"],
     ["Avg Cust Growth",`<span class="${cls(avgCg)}">${sign(avgCg)}</span>`,"YoY, across salons"],
     ["Avg Sales Growth",`<span class="${cls(avgSg)}">${sign(avgSg)}</span>`,"YoY, across salons"]]
@@ -1710,7 +1714,7 @@ function computeMonth(mo){
   const dv=(n,d)=>d?n/d:null;const rows=[];
   sids.forEach(id=>{const a=acc[id];if(!a.days)return;
     rows.push([id,DATA.salons[id],a.svc,a.prod,a.sales,a.cust,dv(a.payW,a.payD),dv(a.hcW,a.hcD),dv(a.cphNum,a.cphDen),dv(a.pvNum,a.pvDen),
-      dv(a.waitW,a.waitD),dv(a.w15W,a.w15D),a.cgPrev?(a.cgCur/a.cgPrev-1)*100:null,a.sgPrev?(a.sgCur/a.sgPrev-1)*100:null,a.cash]);});
+      dv(a.waitW,a.waitD),dv(a.w15W,a.w15D),a.cgPrev?(a.cgCur/a.cgPrev-1)*100:null,a.sgPrev?(a.sgCur/a.sgPrev-1)*100:null,a.cash,a.days]);});
   return {rows,dates,month:mo};
 }
 function renderPortMTD(){
@@ -1721,7 +1725,7 @@ function renderPortMTD(){
       sel.onchange=()=>{portMonth=sel.value;renderPortMTD();};}
     if(portMonth)sel.value=portMonth;}
   const mo=portMonth;const isCur=mo===months[0];
-  const m=mo?computeMonth(mo):{rows:[],dates:[]};const SAL=m.rows;const nd=m.dates.length;
+  const m=mo?computeMonth(mo):{rows:[],dates:[]};const SAL=portWkCust(m.rows,s=>s[15]);const nd=m.dates.length;
   const mp=mo?mo.split("-"):["",""];const mName=mo?PM_MON[+mp[1]]+" "+mp[0]:"";
   $("#portModeHint").textContent=nd?fmtDate(m.dates[0])+" – "+fmtDate(m.dates[nd-1]):"";
   $("#portTitle").textContent="All salons — "+(isCur?"Month to Date, ":"")+mName+" ("+nd+" day"+(nd!==1?"s":"")+")  · click a row to open its detail";
@@ -1734,7 +1738,7 @@ function renderPortMTD(){
   const avgHc=t.hcN?t.hc/t.hcN:null,avgCph=t.cphN?t.cph/t.cphN:null,avgProd=t.sales?t.prod/t.sales*100:null,avgWait=t.waitN?t.wait/t.waitN:null;
   const lbl=isCur?"MTD":PM_MON[+mp[1]];
   $("#portKpis").innerHTML=[[lbl+" Sales",money0(t.sales),nd+" day(s)"],
-    [lbl+" Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
+    [portCust==="wk"?lbl+" Avg Weekly Cust":lbl+" Customers",t.cust.toLocaleString(),portCust==="wk"?"all salons, per week":""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
     ["Over payroll",over+" of "+SAL.length,"above 40%"],
     ["Avg Cust Growth",`<span class="${cls(avgCg)}">${avgCg==null?"—":sign(avgCg)}</span>`,"YoY, across salons"],
     ["Avg Sales Growth",`<span class="${cls(avgSg)}">${avgSg==null?"—":sign(avgSg)}</span>`,"YoY, across salons"]]
@@ -1751,6 +1755,12 @@ function renderPortMTD(){
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
 }
+// Customer column: period total vs average per week (customers ÷ days with data × 7), MTD & YTD only.
+let portCust="total";
+document.querySelectorAll("#portCustToggle button").forEach(b=>b.onclick=()=>{portCust=b.dataset.c;
+  document.querySelectorAll("#portCustToggle button").forEach(x=>x.classList.toggle("active",x===b));renderPort();});
+function portWkCust(SAL,daysOf){if(portCust!=="wk")return SAL;
+  return SAL.map(s=>{const r=s.slice(),n=daysOf(s);r[5]=n?Math.round(s[5]*7/n):s[5];return r;});}
 function portOpenDet(mode){const b=document.querySelector('#detModeToggle button[data-mode="'+mode+'"]');if(b)b.click();else renderDetail();}
 function portWeekEnds(){ // [this week's Friday (week holding the latest loaded day), last week's Friday]
   const latest=DATES[0];if(!latest)return [null,null];

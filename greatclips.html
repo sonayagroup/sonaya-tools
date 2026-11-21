@@ -894,7 +894,8 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
   <div class="qod" id="qodBanner"></div>
   <div class="modebar">
     <span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600">View</span>
-    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="lwk">Last Week</button><button data-mode="ytd">YTD</button></span>
+    <span class="det-mode" id="portModeToggle"><button data-mode="day" class="active">Day</button><button data-mode="wtd">WTD</button><button data-mode="lwk">Last Week</button><button data-mode="mtd">MTD</button><button data-mode="ytd">YTD</button></span>
+    <select id="portMonthSel" style="display:none;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;font-weight:600;color:var(--ink,#1d2b36);background:#fff" title="Pick a month"></select>
     <span id="portModeHint" style="font-size:12px;color:var(--muted)"></span>
   </div>
   <div class="kpis" id="portKpis"></div>
@@ -1625,6 +1626,8 @@ document.querySelectorAll("#portModeToggle button").forEach(b=>b.onclick=()=>{
 /* Portfolio: trim long mall suffixes so columns get more room */
 function portName(n){return String(n||"").replace(/\s+(Shopping Center|Center Mall)$/i,"").trim();}
 function renderPort(){
+  const pms=document.getElementById("portMonthSel");if(pms)pms.style.display=portMode==="mtd"?"":"none";
+  if(portMode==="mtd")return renderPortMTD();
   if(portMode==="ytd")return renderPortYTD();
   if(portMode==="wtd"||portMode==="lwk")return renderPortWTD(portMode);
   const SAL=DAY.SAL||[];
@@ -1676,6 +1679,75 @@ function renderPortYTD(){
       <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
       <td class="${kpi('custgrowth',s[12])}">${sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
     tr.onclick=()=>{if(typeof gcCanSalon==="function"&&!gcCanSalon(s[0]))return;current=s[0];$("#salonSel").value=s[0];portOpenDet("ytd");document.querySelector('.tab[data-t="detail"]').click();};
+    tb.appendChild(tr);});
+  $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
+}
+// --- Month (MTD / prior months) aggregation from daily_salon ---
+// Totals are summed; rate metrics are volume-weighted (payroll by service sales; avg HC, waits by customers;
+// CPH and productivity as total-weighted harmonic means); growth % rebuilt from each day's implied prior-year
+// customers/sales so the month's growth = month cust / prior-year month cust - 1.
+const PM_MON=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+let portMonth=null;
+function portMonths(){const set=new Set();Object.keys(DATA.days||{}).forEach(d=>{if((DATA.days[d].SAL||[]).length)set.add(d.slice(0,7));});return [...set].sort().reverse();}
+function computeMonth(mo){
+  const sids=Object.keys(DATA.salons||{});const acc={};
+  sids.forEach(id=>{acc[id]={svc:0,prod:0,sales:0,cust:0,payW:0,payD:0,hcW:0,hcD:0,cphNum:0,cphDen:0,pvNum:0,pvDen:0,waitW:0,waitD:0,w15W:0,w15D:0,cgPrev:0,cgCur:0,sgPrev:0,sgCur:0,cash:0,days:0};});
+  const dates=Object.keys(DATA.days||{}).filter(d=>d.slice(0,7)===mo&&(DATA.days[d].SAL||[]).length).sort();
+  const isN=v=>typeof v==="number"&&isFinite(v);
+  dates.forEach(d=>(DATA.days[d].SAL||[]).forEach(s=>{
+    const a=acc[String(s[0])];if(!a)return;
+    const svc=s[2]||0,tot=s[4]||0,cu=s[5]||0;
+    a.svc+=svc;a.prod+=s[3]||0;a.sales+=tot;a.cust+=cu;a.cash+=s[14]||0;a.days++;
+    if(isN(s[6])&&svc){a.payW+=s[6]*svc;a.payD+=svc;}
+    if(isN(s[7])&&cu){a.hcW+=s[7]*cu;a.hcD+=cu;}
+    if(isN(s[8])&&s[8]>0&&cu){a.cphNum+=cu;a.cphDen+=cu/s[8];}
+    if(isN(s[9])&&s[9]>0&&svc){a.pvNum+=svc;a.pvDen+=svc/s[9];}
+    if(isN(s[10])&&cu){a.waitW+=s[10]*cu;a.waitD+=cu;}
+    if(isN(s[11])&&cu){a.w15W+=s[11]*cu;a.w15D+=cu;}
+    if(isN(s[12])&&s[12]>-100&&cu){a.cgCur+=cu;a.cgPrev+=cu/(1+s[12]/100);}
+    if(isN(s[13])&&s[13]>-100&&tot){a.sgCur+=tot;a.sgPrev+=tot/(1+s[13]/100);}
+  }));
+  const dv=(n,d)=>d?n/d:null;const rows=[];
+  sids.forEach(id=>{const a=acc[id];if(!a.days)return;
+    rows.push([id,DATA.salons[id],a.svc,a.prod,a.sales,a.cust,dv(a.payW,a.payD),dv(a.hcW,a.hcD),dv(a.cphNum,a.cphDen),dv(a.pvNum,a.pvDen),
+      dv(a.waitW,a.waitD),dv(a.w15W,a.w15D),a.cgPrev?(a.cgCur/a.cgPrev-1)*100:null,a.sgPrev?(a.sgCur/a.sgPrev-1)*100:null,a.cash]);});
+  return {rows,dates,month:mo};
+}
+function renderPortMTD(){
+  const months=portMonths();const sel=document.getElementById("portMonthSel");
+  if(!portMonth||!months.includes(portMonth))portMonth=months[0]||null;
+  if(sel){const key=months.join(",");if(sel.dataset.k!==key){sel.dataset.k=key;
+      sel.innerHTML=months.map((m,i)=>{const p=m.split("-");return '<option value="'+m+'">'+PM_MON[+p[1]]+" "+p[0]+(i===0?" (MTD)":"")+"</option>";}).join("");
+      sel.onchange=()=>{portMonth=sel.value;renderPortMTD();};}
+    if(portMonth)sel.value=portMonth;}
+  const mo=portMonth;const isCur=mo===months[0];
+  const m=mo?computeMonth(mo):{rows:[],dates:[]};const SAL=m.rows;const nd=m.dates.length;
+  const mp=mo?mo.split("-"):["",""];const mName=mo?PM_MON[+mp[1]]+" "+mp[0]:"";
+  $("#portModeHint").textContent=nd?fmtDate(m.dates[0])+" – "+fmtDate(m.dates[nd-1]):"";
+  $("#portTitle").textContent="All salons — "+(isCur?"Month to Date, ":"")+mName+" ("+nd+" day"+(nd!==1?"s":"")+")  · click a row to open its detail";
+  let t={sales:0,cust:0,pay:0,payN:0,cg:0,sg:0,cgN:0,sgN:0,hc:0,hcN:0,cph:0,cphN:0,prod:0,wait:0,waitN:0};
+  SAL.forEach(s=>{t.sales+=s[4];t.cust+=s[5];t.prod+=s[3]||0;
+    if(s[6]!=null){t.pay+=s[6];t.payN++;}if(s[7]!=null){t.hc+=s[7];t.hcN++;}if(s[8]!=null){t.cph+=s[8];t.cphN++;}
+    if(s[11]!=null){t.wait+=s[11];t.waitN++;}if(s[12]!=null){t.cg+=s[12];t.cgN++;}if(s[13]!=null){t.sg+=s[13];t.sgN++;}});
+  const over=SAL.filter(s=>s[6]>40).length;
+  const avgCg=t.cgN?t.cg/t.cgN:null,avgSg=t.sgN?t.sg/t.sgN:null,avgPay=t.payN?t.pay/t.payN:null;
+  const avgHc=t.hcN?t.hc/t.hcN:null,avgCph=t.cphN?t.cph/t.cphN:null,avgProd=t.sales?t.prod/t.sales*100:null,avgWait=t.waitN?t.wait/t.waitN:null;
+  const lbl=isCur?"MTD":PM_MON[+mp[1]];
+  $("#portKpis").innerHTML=[[lbl+" Sales",money0(t.sales),nd+" day(s)"],
+    [lbl+" Customers",t.cust.toLocaleString(),""],["Avg Payroll %",num(avgPay)+"%","target ≤ 40%"],
+    ["Over payroll",over+" of "+SAL.length,"above 40%"],
+    ["Avg Cust Growth",`<span class="${cls(avgCg)}">${avgCg==null?"—":sign(avgCg)}</span>`,"YoY, across salons"],
+    ["Avg Sales Growth",`<span class="${cls(avgSg)}">${avgSg==null?"—":sign(avgSg)}</span>`,"YoY, across salons"]]
+    .map(k=>`<div class="kpi"><div class="lbl">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join("");
+  const rows=[...SAL].sort((a,b)=>{const x=a[sortK],y=b[sortK];return (typeof x==="number"?x-y:String(x).localeCompare(y))*sortDir;});
+  const tb=$("#portTable tbody");tb.innerHTML="";
+  rows.forEach(s=>{const tr=document.createElement("tr");tr.className="clickrow";
+    const pp=s[4]?s[3]/s[4]*100:null;
+    tr.innerHTML=`<td class="pname">${s[0]} — ${portName(s[1])}</td><td>${money(s[4])}</td><td>${s[5]}</td>
+      <td class="${kpi('payroll',s[6])}">${num(s[6])}%</td><td class="${kpi('avghc',s[7])}">${num(s[7])}</td><td class="${kpi('cuts',s[8])}">${num(s[8])}</td>
+      <td class="${kpi('prodsales',pp)}">${num(pp)}%</td><td class="${kpi('wait15',s[11])}">${num(s[11])}%</td>
+      <td class="${kpi('custgrowth',s[12])}">${s[12]==null?"—":sign(s[12])}</td><td class="${kpi('salesgrowth',s[13])}">${s[13]==null?"—":sign(s[13])}</td>${healthCell(s)}<td class="gcol">${grate(s[0])}</td>`;
+    tr.onclick=()=>{if(typeof gcCanSalon==="function"&&!gcCanSalon(s[0]))return;current=s[0];$("#salonSel").value=s[0];renderDetail();renderReps();renderTeam();renderAA();renderRecap();loadTrend();document.querySelector('.tab[data-t="detail"]').click();};
     tb.appendChild(tr);});
   $("#portTable tfoot").innerHTML=SAL.length?`<tr><td>All salons</td><td>${money(t.sales)}</td><td>${t.cust}</td><td>${num(avgPay)}%</td><td>${num(avgHc)}</td><td>${num(avgCph)}</td><td>${num(avgProd)}%</td><td>${num(avgWait)}%</td><td colspan="2" class="sub"></td><td></td><td class="gcol sub" style="font-size:10px">Upd ${GRATE_ASOF}</td></tr>`:"";
 }

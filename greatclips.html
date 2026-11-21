@@ -632,6 +632,15 @@ body.inv-lock{overflow:hidden}
 .inv-oosprev{margin-top:8px;font-size:13.5px;color:#7a1f1f;background:#fdeeee;border-radius:8px;padding:7px 10px}
 .inv-item.needmore .inv-oosprev{display:none}
 .inv-oosprev-n{background:#fdeeee;border:1px solid #f1c3c3;color:#7a1f1f;border-radius:10px;padding:10px 12px;font-size:15px;margin:0 0 10px}
+.inv-fvb{display:block;margin-top:6px;font-size:13px}
+.inv-fv h3{margin:0 0 4px;font-size:18px;color:var(--blue-dk)}.inv-fv-st{font-size:13.5px;color:var(--muted);margin-bottom:4px}
+.inv-fv-sec{margin:14px 0 4px;font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#3d5a53}
+.inv-fv-t{width:100%;border-collapse:collapse;font-size:14px}.inv-fv-t th{background:#eef3f1;color:#3d5a53;font-size:11.5px;text-transform:uppercase;padding:6px 8px;text-align:right}
+.inv-fv-t th:first-child,.inv-fv-t td:first-child{text-align:left}.inv-fv-t td{padding:6px 8px;border-bottom:1px solid #e3ebe8;text-align:right;white-space:nowrap}
+.inv-fv-t td:first-child{white-space:normal}.inv-fv-t tr.nd td{background:#f2faf6}.inv-fv-t i{font-style:normal;color:#8a9a96;font-size:12px}
+.inv-fv-n{color:#8a9a96;font-size:12px}.inv-fv-oos{color:#b30020;font-size:12px;font-weight:700}
+.inv-fv-notes{margin-top:12px;background:#f4f7f5;border-radius:8px;padding:9px 12px;font-size:14px}
+.gm-modal.inv-fv-wide{max-width:760px;width:96vw;max-height:88vh;overflow:auto}
 .inv-sicopy-top{margin-top:10px;font-size:15px;padding:11px}
 .inv-recnote{background:#eaf7f0;border:1px solid #bfe3cf;color:#0b4f2d;border-radius:10px;padding:10px 12px;font-size:15px;margin:0 0 12px}
 .inv-otbl tr.inv-flag td{background:#fff8e6}
@@ -5803,7 +5812,8 @@ function invRecent(h,k,today){const d=(h&&h[k])||[];if(!d.length)return null;con
 function invHistMap(rows){const m={};(rows||[]).forEach(r=>{const a=(m[r.item_key]=m[r.item_key]||[]);if(a[0]!==r.ordered_on&&!a.includes(r.ordered_on))a.push(r.ordered_on);});Object.values(m).forEach(a=>a.sort().reverse());return m;}
 // judge "recent" as of the day the order is placed (the inventory due date), not the day the manager opens the form
 function invRef(m){const t=gmToday(),d=invDueDate(m);return t>d?t:d;}
-function invAgo(days){return days<=1?"yesterday":days<14?days+" days ago":days<60?Math.round(days/7)+" weeks ago":Math.round(days/30)+" months ago";}
+function invFull(s){if(!s)return"";const p=s.split("-");return (+p[1])+"/"+(+p[2])+"/"+p[0];}
+function invAgo(days){return days<=0?"today":days===1?"yesterday":days<14?days+" days ago":days<60?Math.round(days/7)+" weeks ago":Math.round(days/30)+" months ago";}
 function invLasts(c){return c>=330?"about a year":c>=45?"about "+(Math.round(c/30*2)/2).toString().replace(".5","½")+" months":"about a month";}
 const INV_VEND={sams:"Sam’s Club",staples:"Staples",amazon:"Amazon",other:"Other (GC / bank / ADP)",mgr:"Manager orders"};
 const INV_ITEM={};INV_SECS.forEach(s=>s.items.forEach(it=>{it.sec=s.k;INV_ITEM[it.k]=it;}));
@@ -5897,11 +5907,11 @@ function invRender(){const o=$("#invFull");if(!o)return;
       if(d.free)extra='<input class="inv-model" data-txt="'+d.k+'" value="'+esc(v.txt||"")+'" placeholder="'+esc(d.free)+'">';
       if(d.size)extra='<div class="inv-size">'+["Small","Medium","Large"].map(z=>'<button type="button" data-size="'+z+'" class="'+(ex.glove_size===z?"on":"")+'">'+z+'</button>').join("")+'</div>';
       const has=v.oh!=null||v.need!=null;const rc=mg?null:invRecent(INV.hist,d.k,invRef(r.month));const rec=rc&&rc.recent;const due=!!(rc&&rc.cycle&&rc.days>=rc.cycle);
-      const ordLine=rc?'<div class="inv-lastord'+(rec?' on':due?' due':'')+'">'+(rec?'✓ ':due?'⚠ ':'')+'Ordered '+esc(gmShort(rc.last))+' ('+invAgo(invDays(rc.last,gmToday()))+')'+(rc.cycle?' · usually lasts '+invLasts(rc.cycle):'')+'</div>':'';
+      const ordLine=rc?'<div class="inv-lastord'+(rec?' on':due?' due':'')+'">'+(rec?'✓ ':due?'⚠ ':'')+'Ordered '+esc(invFull(rc.last))+(rc.cycle?' · usually lasts '+invLasts(rc.cycle):'')+'</div>':'';
       h+='<div class="inv-item'+(has?' has':'')+(rec?' recent':'')+(due?' due':'')+(v.need>0?' needmore':'')+'" data-item="'+d.k+'"><div class="inv-ihead"><span class="inv-n1">'+esc(d.n)+'</span>'+(d.num?'<span class="inv-num">#'+esc(d.num)+'</span>':'')+'</div>'
         +ordLine
         +'<div class="inv-body">'+(d.hint?'<div class="inv-hint">'+esc(d.hint)+'</div>':'')+extra
-        +invHowLine(d.k)+'<div class="inv-pair">'+stepper(d.k,"oh",v.oh,"On hand"+(INV_HOW[d.k]?" · "+invHowShort(INV_HOW[d.k][0]):""))+stepper(d.k,"need",v.need,"Need"+(INV_HOW[d.k]?" · "+INV_HOW[d.k][1]:""))+'</div>'+(rec?'<div class="inv-warn">Ordered '+invAgo(invDays(rc.last,gmToday()))+' — only order more if you’re running low.</div>':'')
+        +invHowLine(d.k)+'<div class="inv-pair">'+stepper(d.k,"oh",v.oh,"On hand"+(INV_HOW[d.k]?" · "+invHowShort(INV_HOW[d.k][0]):""))+stepper(d.k,"need",v.need,"Need"+(INV_HOW[d.k]?" · "+INV_HOW[d.k][1]:""))+'</div>'+(rec?'<div class="inv-warn">Ordered '+esc(invFull(rc.last))+' — only order more if you’re running low.</div>':'')
         +(INV.prev&&invOOS(INV.prev,d.k)&&!mg?'<div class="inv-oosprev">⛔ Out of stock last month — still need it? Enter it in Need.</div>':'')
         +(due?'<div class="inv-due">Due for a reorder — this usually runs out by now. Double-check how many you have and enter what you need.</div>':'')
         +(p&&(p.oh!=null||p.need>0)?'<div class="inv-last">Last month: '+(p.oh!=null?p.oh+' on hand':'')+(p.need>0?(p.oh!=null?', ':'')+'needed '+p.need:'')+'</div>':'')+'</div></div>';});
@@ -5969,7 +5979,7 @@ async function invFn(body){const {data:{session}}=await gcClient().auth.getSessi
 // ---- Orders (owners / Area Managers) ----
 function invOrders(host){if(!INV.omonth)INV.omonth=invMonth();const m=INV.omonth;
   if(!INV.all||INV.all.m!==m){host.innerHTML='<div class="card" style="padding:18px">Loading orders…</div>';
-    Promise.all([gmGet("gc_inv_submissions?select=*&month=eq."+m),gmGet("gc_inv_order_hist?select=salon_id,item_key,ordered_on&ordered_on=gte."+gmAdd(gmToday(),-300)+"&order=ordered_on.desc").catch(()=>[])]).then(([rows,hr])=>{const hs={};(hr||[]).forEach(r=>{(hs[r.salon_id]=hs[r.salon_id]||[]).push(r);});const hist={};Object.keys(hs).forEach(k=>hist[k]=invHistMap(hs[k]));INV.all={m,rows,hist};if(GM.view==="orders")renderManager();}).catch(e=>{host.innerHTML='<div class="gm-banner red">'+esc(e.message)+'</div>';});return;}
+    Promise.all([gmGet("gc_inv_submissions?select=*&month=eq."+m),gmGet("gc_inv_order_hist?select=salon_id,item_key,ordered_on,ref&ordered_on=gte."+gmAdd(gmToday(),-300)+"&order=ordered_on.desc").catch(()=>[])]).then(([rows,hr])=>{const hs={};(hr||[]).forEach(r=>{(hs[r.salon_id]=hs[r.salon_id]||[]).push(r);});const hist={};Object.keys(hs).forEach(k=>hist[k]=invHistMap(hs[k]));INV.all={m,rows,hist,raw:hs};if(GM.view==="orders")renderManager();}).catch(e=>{host.innerHTML='<div class="gm-banner red">'+esc(e.message)+'</div>';});return;}
   const mine=Object.keys(SALONS).sort().filter(s=>typeof gcCanSalon!=="function"||gcCanSalon(s));
   const by={};INV.all.rows.forEach(r=>by[r.salon_id]=r);
   const months=[];let x=invMonth();for(let i=0;i<6;i++){months.push(x);x=invPrevMonth(x);}
@@ -5977,27 +5987,42 @@ function invOrders(host){if(!INV.omonth)INV.omonth=invMonth();const m=INV.omonth
     +'<select id="invOMonth">'+months.map(mm=>'<option value="'+mm+'"'+(mm===m?" selected":"")+'>'+invMonthLbl(mm)+'</option>').join("")+'</select></div>';
   const st=s=>{const r=by[s];if(!r)return '<span class="gm-chip gm-r">Not started</span>';if(r.ordered_at)return '<span class="gm-chip gm-g">Ordered</span>';if(r.status==="submitted")return '<span class="gm-chip gm-a">Submitted '+new Date(r.submitted_at).toLocaleDateString([], {month:"numeric",day:"numeric"})+'</span>';return '<span class="gm-chip gm-n">Draft</span>';};
   const subd=mine.filter(s=>by[s]&&by[s].status==="submitted");
-  h+='<div class="inv-status">'+mine.map(s=>'<div class="inv-st"><b>'+s+'</b> '+esc(pnameShort(s))+'<div>'+st(s)+'</div></div>').join("")+'</div>';
+  h+='<div class="inv-status">'+mine.map(s=>'<div class="inv-st"><b>'+s+'</b> '+esc(pnameShort(s))+'<div>'+st(s)+'</div>'+(by[s]?'<button class="gm-link inv-fvb" data-fullinv="'+by[s].id+'">View inventory</button>':'')+'</div>').join("")+'</div>'
+    +'<div class="inv-sub" style="margin:-4px 0 12px">Tap <b>View inventory</b> to see everything a salon counted. Pick an earlier month above for history.</div>';
   if(!subd.length){h+='<div class="gm-banner info">No submitted inventories for '+esc(invMonthLbl(m))+' yet.</div>';host.innerHTML=h;invOWire(host);return;}
-  ["sams","staples","amazon","other","mgr"].forEach(v=>{const blocks=subd.map(s=>({s,r:by[s],lines:invNeeded(by[s]).filter(l=>l.v===v)})).filter(b=>b.lines.length);if(!blocks.length)return;
+  ["sams","staples","amazon","other","mgr"].forEach(v=>{const blocks=subd.map(s=>({s,r:by[s],h:invHistMap(((INV.all.raw||{})[s]||[]).filter(x=>x.ref!==by[s].id)),lines:invNeeded(by[s]).filter(l=>l.v===v)})).filter(b=>b.lines.length);if(!blocks.length)return;
     const n=blocks.reduce((a,b)=>a+b.lines.length,0);
     h+='<details class="inv-sec inv-ord"'+(v==="mgr"?"":" open")+'><summary><span>'+esc(INV_VEND[v])+'</span><span class="inv-n">'+n+' line'+(n>1?"s":"")+' · '+blocks.length+' salon'+(blocks.length>1?"s":"")+'</span></summary>';
-    blocks.forEach(b=>{h+='<div class="inv-oblock"><div class="inv-oh"><b>'+b.s+' — '+esc(SALONS[b.s]||"")+'</b>'+(b.r.completed_by?' <span class="inv-hint">by '+esc(b.r.completed_by)+'</span>':'')
+    blocks.forEach(b=>{h+='<div class="inv-oblock"><div class="inv-oh"><b>'+b.s+' — '+esc(SALONS[b.s]||"")+'</b>'+(b.r.completed_by?' <span class="inv-hint">by '+esc(b.r.completed_by)+'</span>':'')+(b.r.ordered_at?' <span class="gm-chip gm-g">✓ Ordered '+esc(invFull(gmIso(new Date(b.r.ordered_at))))+'</span>':'')
         +(v!=="mgr"?'<button class="gm-link" data-copy="'+b.s+'|'+v+'">Copy all</button>':'')+'</div><table class="inv-otbl"><tbody>'
-        +invOSecs(b.lines).map(g=>'<tr class="inv-osec"><td colspan="4"><span>'+esc(g.t)+' <i>· '+g.lines.length+' line'+(g.lines.length>1?'s':'')+'</i></span>'+(v!=="mgr"?'<button class="gm-link" data-copy="'+b.s+'|'+v+'|'+g.k+'">Copy</button>':'')+'</td></tr>'+g.lines.map(l=>{const oos=invOOS(b.r,l.ok);const rc=!oos&&l.k&&l.k!=="other"?invRecent((INV.all.hist||{})[b.s],l.k,invRef(m)):null;return '<tr'+(oos?' class="inv-oos"':rc&&rc.recent?' class="inv-flag"':'')+'><td class="q">'+l.qty+'</td><td><span class="inv-ol">'+esc(l.label)+'</span>'+(oos?'<span class="inv-oost">⛔ Out of stock'+(oos.d?' · marked '+esc(gmShort(oos.d)):'')+(oos.by?' by '+esc(oos.by):'')+'</span>':rc&&rc.recent?'<span class="inv-flagt">⚠ ordered '+esc(gmShort(rc.last))+' ('+invAgo(invDays(rc.last,gmToday()))+')</span>':'')+'</td><td class="id">'+(l.v==="sams"&&l.id?'<a href="'+INV_SAMS+l.id+'" target="_blank" rel="noopener">'+l.id+'</a>':esc(l.num||""))+'</td><td class="oo">'+(l.v!=="mgr"?'<button class="gm-link inv-oosb'+(oos?' on':'')+'" data-oos="'+b.r.id+'|'+l.ok+'">'+(oos?'Undo':'Out of stock')+'</button>':'')+'</td></tr>';}).join("")).join("")+'</tbody></table></div>';});
+        +invOSecs(b.lines).map(g=>'<tr class="inv-osec"><td colspan="4"><span>'+esc(g.t)+' <i>· '+g.lines.length+' line'+(g.lines.length>1?'s':'')+'</i></span>'+(v!=="mgr"?'<button class="gm-link" data-copy="'+b.s+'|'+v+'|'+g.k+'">Copy</button>':'')+'</td></tr>'+g.lines.map(l=>{const oos=invOOS(b.r,l.ok);const rc=!oos&&l.k&&l.k!=="other"?invRecent(b.h,l.k,invRef(m)):null;return '<tr'+(oos?' class="inv-oos"':rc&&rc.recent?' class="inv-flag"':'')+'><td class="q">'+l.qty+'</td><td><span class="inv-ol">'+esc(l.label)+'</span>'+(oos?'<span class="inv-oost">⛔ Out of stock'+(oos.d?' · marked '+esc(gmShort(oos.d)):'')+(oos.by?' by '+esc(oos.by):'')+'</span>':rc&&rc.recent?'<span class="inv-flagt">⚠ already ordered '+esc(invFull(rc.last))+'</span>':'')+'</td><td class="id">'+(l.v==="sams"&&l.id?'<a href="'+INV_SAMS+l.id+'" target="_blank" rel="noopener">'+l.id+'</a>':esc(l.num||""))+'</td><td class="oo">'+(l.v!=="mgr"?'<button class="gm-link inv-oosb'+(oos?' on':'')+'" data-oos="'+b.r.id+'|'+l.ok+'">'+(oos?'Undo':'Out of stock')+'</button>':'')+'</td></tr>';}).join("")).join("")+'</tbody></table></div>';});
     h+='</details>';});
-  h+='<div class="sec-title" style="margin-top:14px">Mark ordered</div><div class="inv-status">'+subd.map(s=>{const r=by[s];return '<div class="inv-st"><b>'+s+'</b> '+esc(pnameShort(s))+'<div>'+(r.ordered_at?'<span class="gm-chip gm-g">Ordered '+new Date(r.ordered_at).toLocaleDateString([], {month:"numeric",day:"numeric"})+'</span> <button class="gm-link" data-unorder="'+r.id+'">Undo</button>':'<button class="btn sec" data-order="'+r.id+'">Mark ordered</button>')+'</div></div>';}).join("")+'</div>';
+  h+='<div class="sec-title" style="margin-top:14px">Mark ordered</div><div class="inv-status">'+subd.map(s=>{const r=by[s];return '<div class="inv-st"><b>'+s+'</b> '+esc(pnameShort(s))+'<div>'+(r.ordered_at?'<span class="gm-chip gm-g">Ordered '+esc(invFull(gmIso(new Date(r.ordered_at))))+'</span> <button class="gm-link" data-unorder="'+r.id+'">Undo</button>':'<button class="btn sec" data-order="'+r.id+'">Mark ordered</button>')+'</div></div>';}).join("")+'</div>';
   const notes=subd.filter(s=>by[s].extras&&by[s].extras.notes);if(notes.length)h+='<div class="card" style="margin-top:12px"><h3>Notes from managers</h3>'+notes.map(s=>'<p><b>'+s+':</b> '+esc(by[s].extras.notes)+'</p>').join("")+'</div>';
   host.innerHTML='<div id="invOWrap">'+h+'</div>';invOWire($("#invOWrap"));}
 // Supply type sub-groups inside each store — ordered and coded separately in accounting
 const INV_OSECS=[["office","Office Supplies"],["cleaning","Cleaning Supplies"],["misc","Misc Supplies"],["snacks","Snacks"],["si","Salon Innovations"],["backbar","Backbar"],["other","Other"]];
 function invOSecs(lines){return INV_OSECS.map(([k,t])=>({k,t,lines:lines.filter(l=>(INV_OSECS.some(x=>x[0]===l.sec)?l.sec:"other")===k)})).filter(g=>g.lines.length);}
+// Completed inventory, read-only: every counted item with On hand / Need, by section (opened from Supply Orders)
+function invFullView(row){const it=row.items||{},ex=row.extras||{};const sid=row.salon_id;
+  const st=row.status==="submitted"?'Submitted '+(row.submitted_at?esc(invFull(gmIso(new Date(row.submitted_at)))):"")+(row.completed_by?' by '+esc(row.completed_by):''):'Draft — not submitted'+(row.completed_by?' ('+esc(row.completed_by)+')':'');
+  let h='<div class="inv-fv"><h3>'+esc(sid)+' '+esc(pnameShort(sid))+' — '+esc(invMonthLbl(row.month))+' inventory</h3><div class="inv-fv-st">'+st+(row.ordered_at?' · <b>Ordered '+esc(invFull(gmIso(new Date(row.ordered_at))))+'</b>':'')+' · '+invCounted(row)+' items counted</div>';
+  const mods=[ex.toner_model?'Toner: '+ex.toner_model:'',ex.drum_model?'Drum: '+ex.drum_model:'',ex.glove_size?'Glove size: '+ex.glove_size:''].filter(Boolean);if(mods.length)h+='<div class="inv-fv-st">'+esc(mods.join(" · "))+'</div>';
+  INV_SECS.forEach(s=>{const rows=s.items.filter(d=>it[d.k]&&(it[d.k].oh!=null||it[d.k].need!=null));const oth=(ex.other||[]).map((o,i)=>({o,i})).filter(x=>x.o.sec===s.k&&(x.o.txt||x.o.num));
+    if(!rows.length&&!oth.length)return;
+    h+='<div class="inv-fv-sec">'+esc(s.t)+'</div><table class="inv-fv-t"><thead><tr><th>Item</th><th>On hand</th><th>Need</th></tr></thead><tbody>'
+      +rows.map(d=>{const v=it[d.k],w=INV_HOW[d.k],o=invOOS(row,d.k);return '<tr class="'+(v.need>0?'nd':'')+'"><td>'+esc(d.n)+(d.num?' <span class="inv-fv-n">#'+esc(d.num)+'</span>':'')+(o?' <span class="inv-fv-oos">⛔ out of stock</span>':'')+'</td><td>'+(v.oh!=null?esc(v.oh)+(w?' <i>'+esc(invHowShort(w[0]))+'</i>':''):'—')+'</td><td>'+(v.need>0?'<b>'+esc(v.need)+'</b>'+(w?' <i>'+esc(w[1])+'</i>':''):'—')+'</td></tr>';}).join("")
+      +oth.map(({o,i})=>{const oo=invOOS(row,"o"+i);return '<tr class="'+(o.need>0?'nd':'')+'"><td>'+esc(o.txt||("Item #"+o.num))+(o.num&&o.txt?' <span class="inv-fv-n">#'+esc(o.num)+'</span>':'')+' <span class="inv-fv-n">(added)</span>'+(oo?' <span class="inv-fv-oos">⛔ out of stock</span>':'')+'</td><td>—</td><td>'+(o.need>0?'<b>'+esc(o.need)+'</b>':'—')+'</td></tr>';}).join("")+'</tbody></table>';});
+  if(ex.notes)h+='<div class="inv-fv-notes"><b>Notes:</b> '+esc(ex.notes)+'</div>';
+  return h+'</div>';}
 function pnameShort(s){return typeof portName==="function"?portName(SALONS[s]||""):(SALONS[s]||"");}
 function invOWire(host){const sel=$("#invOMonth");if(sel)sel.onchange=function(){INV.omonth=this.value;INV.all=null;renderManager();};
   host.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{const [s,v,sk]=b.dataset.copy.split("|");const r=INV.all.rows.find(x=>x.salon_id===s);
     const ln=l=>l.qty+" × "+l.label+(l.id?" (#"+l.id+")":"");const gs=invOSecs(invNeeded(r).filter(l=>l.v===v&&!invOOS(r,l.ok))).filter(g=>!sk||g.k===sk);if(!gs.length){gmToast("Nothing to copy — every line here is marked out of stock.");return;}
     const txt=s+" "+(SALONS[s]||"")+" — "+INV_VEND[v]+(sk&&gs[0]?" · "+gs[0].t:"")+"\n"+(sk?gs.map(g=>g.lines.map(ln).join("\n")).join(""):gs.map(g=>"\n"+g.t.toUpperCase()+"\n"+g.lines.map(ln).join("\n")).join("\n"));
     (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>gmToast("Copied")).catch(()=>gmModal('<h3>Copy</h3><textarea style="width:100%;height:200px">'+esc(txt)+'</textarea><div class="gm-actions"><button class="btn" data-act="close">Close</button></div>'));});
+  host.querySelectorAll("[data-fullinv]").forEach(b=>b.onclick=()=>{const r=INV.all.rows.find(x=>x.id===b.dataset.fullinv);if(!r)return;
+    gmModal(invFullView(r)+'<div class="gm-actions"><button class="btn sec" data-act="close">Close</button></div>');const md=document.querySelector(".gm-modal");if(md)md.classList.add("inv-fv-wide");});
   host.querySelectorAll("[data-oos]").forEach(b=>b.onclick=async()=>{const [id,ok]=b.dataset.oos.split("|");const i=INV.all.rows.findIndex(x=>x.id===id);if(i<0)return;
     const o=Object.assign({},INV.all.rows[i].oos||{});if(o[ok])delete o[ok];else o[ok]={d:gmToday(),by:gmWho().n||""};b.disabled=true;
     try{const r=await fetch(SUPA_URL+"/rest/v1/gc_inv_submissions?id=eq."+id,{method:"PATCH",headers:gmHdr({Prefer:"return=representation"}),body:JSON.stringify({oos:o})});if(!r.ok)throw new Error("HTTP "+r.status);
@@ -6007,7 +6032,7 @@ function invOWire(host){const sel=$("#invOMonth");if(sel)sel.onchange=function()
       const j=await r.json();const i=INV.all.rows.findIndex(x=>x.id===id);if(i>=0&&j[0])INV.all.rows[i]=j[0];
       try{const row=INV.all.rows[i];if(on){const day=gmToday();const lines=invNeeded(row).filter(l=>l.k&&l.k!=="other"&&!invOOS(row,l.ok)&&["sams","staples","amazon","other"].includes(l.v));
           if(lines.length)await gmPost("gc_inv_order_hist",lines.map(l=>({salon_id:row.salon_id,item_key:l.k,ordered_on:day,qty:l.qty,item_name:l.label,source:"dashboard",ref:id})),"?on_conflict=salon_id,item_key,ordered_on,ref","resolution=ignore-duplicates,return=minimal");
-          const hs=(INV.all.hist[row.salon_id]=INV.all.hist[row.salon_id]||{});lines.forEach(l=>{(hs[l.k]=hs[l.k]||[]).includes(day)||hs[l.k].unshift(day);});}
+          INV.all=null;}
         else{await fetch(SUPA_URL+"/rest/v1/gc_inv_order_hist?source=eq.dashboard&ref=eq."+id,{method:"DELETE",headers:gmHdr({})});INV.all=null;}}catch(e){console.error(e);}
       renderManager();}catch(e){gmToast("Could not update: "+e.message);b.disabled=false;}});}
 

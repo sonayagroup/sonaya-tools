@@ -346,6 +346,11 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 .lv-day.on .lv-dbtn{background:var(--blue);border-color:var(--blue);color:#fff}.lv-day.on .lv-dbtn span{color:#d6f3ea}
 .lv-hrs{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--muted)}.lv-hrs input{padding:5px 4px!important;text-align:center;font-size:13px!important}
 .lv-drop{display:flex;align-items:center;justify-content:center;border:2px dashed #b9d6cc;border-radius:10px;padding:14px;cursor:pointer;color:var(--blue);font-weight:700;font-size:14px;background:#f7fbf9}
+.lv-drop span{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px}.lv-drop small{font-weight:500;font-size:11.5px;color:var(--muted)}
+@media (hover:none){.lv-dd{display:none}}.lv-dd{font-style:normal}
+.lv-drop.drag{border-color:var(--blue);background:#e3f4ee}.lv-drop.req{border-color:var(--red);color:var(--red-dk);background:#fff6f6}
+.lv-docreq{margin-top:10px;padding:9px 12px;border-radius:8px;background:#fdecec;color:var(--red-dk);font-size:12.5px}
+.lv-later{border:1.5px solid var(--line);border-radius:999px;padding:7px 10px;font:inherit;font-size:13px;background:#fff;width:auto!important}.lv-later.on{border-color:var(--blue);background:var(--blue);color:#fff}
 .lv-drop.sm{display:inline-flex;padding:8px 12px;font-size:13px;border-width:1.5px;margin-top:8px}.lv-drop input{display:none}
 .lv-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.lv-file{background:#eef6f3;border-radius:999px;padding:4px 6px 4px 10px;font-size:12.5px}
 .lv-file button{border:none;background:none;cursor:pointer;font-size:15px;color:var(--muted)}
@@ -5170,7 +5175,7 @@ async function gcFn(body){const {data:{session}}=await gcClient().auth.getSessio
 // Emails go out from the gc-leave-notify edge function (HR on new/answers, manager on questions/completion).
 const LV_ANCHOR="2026-11-07",LV_BUCKET="gc-leave-files",LV_SICK_CAP=64;
 const LV_TYPES={
-  sick:{lbl:"Sick Leave",short:"Sick",desc:"Stylist or a family member is sick, has a medical appointment, or a safe-leave reason. Can be used right away.",cls:"lv-sick"},
+  sick:{lbl:"Sick Leave",short:"Sick",desc:"Stylist or a family member is sick or has a medical appointment. Can be used right away.",cls:"lv-sick"},
   sick_as_pto:{lbl:"Sick Leave used as PTO",short:"Sick as PTO",desc:"Uses sick-leave hours for regular time off (vacation, personal day). Counts toward the 64-hour yearly sick limit.",cls:"lv-sap"},
   pto:{lbl:"PTO",short:"PTO",desc:"Paid time off. Only after the stylist’s 1-year anniversary.",cls:"lv-pto"}};
 const LV_REASONS=["Own illness or injury","Family member’s illness or injury","Medical appointment (own or family)","Preventive care","School meeting about a child’s health","Domestic abuse, sexual assault or stalking"];
@@ -5215,14 +5220,14 @@ async function lvInit(){const host=$("#lvBody");if(!host)return;if(!LV.loaded)ho
 function lvFiltered(){const q=LV.q.trim().toLowerCase();return LV.rows.filter(r=>{
   if(LV.salon&&r.salon_id!==LV.salon)return false;if(LV.pp&&r.pay_period_start!==LV.pp)return false;
   if(q&&!(r.stylist_name.toLowerCase().includes(q)||lvName(r.stylist_name).toLowerCase().includes(q)||("to-"+r.ref).includes(q)||String(r.ref)===q))return false;
-  const f=LV.filter;if(f==="open")return r.status==="submitted"||r.status==="needs_info";if(f==="mine")return lvNeedsMe(r);if(f==="noform")return (r.status==="submitted"||r.status==="needs_info")&&r.form_to_follow;
+  const f=LV.filter;if(f==="open")return r.status==="submitted"||r.status==="needs_info";if(f==="mine")return lvNeedsMe(r);if(f==="noform")return (r.status==="submitted"||r.status==="needs_info")&&(r.form_to_follow||r.doc_to_follow);
   if(f==="done")return r.status==="completed";if(f==="closed")return r.status==="denied"||r.status==="cancelled";return true;});}
 
 function lvRender(){const host=$("#lvBody");if(!host)return;const hr=lvIsHR(),today=localToday(),cur=lvPP(today),prev=lvAdd(cur,-14);
   const rows=LV.rows.filter(r=>!LV.salon||r.salon_id===LV.salon);
   const nMine=rows.filter(lvNeedsMe).length,nWait=rows.filter(r=>r.status===(hr?"needs_info":"submitted")).length;
   const nPrev=rows.filter(r=>r.pay_period_start===prev&&(r.status==="submitted"||r.status==="needs_info")).length;
-  const nNoForm=rows.filter(r=>(r.status==="submitted"||r.status==="needs_info")&&r.form_to_follow).length;
+  const nNoForm=rows.filter(r=>(r.status==="submitted"||r.status==="needs_info")&&(r.form_to_follow||r.doc_to_follow)).length;
   const nDone=rows.filter(r=>r.status==="completed"&&r.pay_period_start===prev).length;
   let h='<div class="lv-head card"><div><h3 style="margin:0">Time Off Requests</h3><div class="hint" style="margin:2px 0 0">'
     +(hr?'Process each request in Paychex, then mark it complete. Ask the manager if anything is unclear. Everything stays on record.'
@@ -5232,7 +5237,7 @@ function lvRender(){const host=$("#lvBody");if(!host)return;const hr=lvIsHR(),to
     +lvTile("mine",hr?"To process":"Needs your answer",nMine,nMine?(hr?"amber":"red"):"",hr?"Submitted, waiting on you":"HR asked a question")
     +lvTile("open",hr?"Waiting on managers":"Waiting on HR",nWait,"",hr?"You asked a question":"Submitted, not processed yet")
     +(hr?lvTile("pp:"+prev,"Last pay period open",nPrev,nPrev?"red":"",lvPPLabel(prev)+" · payroll now"):lvTile("done","Processed",rows.filter(r=>r.status==="completed").length,"","All time"))
-    +(hr?lvTile("noform","Form to follow",nNoForm,nNoForm?"amber":"","Sick call-ins missing the form"):lvTile("pp:"+cur,"This pay period",rows.filter(r=>r.pay_period_start===cur&&r.status!=="cancelled").length,"",lvPPLabel(cur)))
+    +(hr?lvTile("noform","Paperwork to follow",nNoForm,nNoForm?"amber":"","Form or doctor’s note not in yet"):lvTile("pp:"+cur,"This pay period",rows.filter(r=>r.pay_period_start===cur&&r.status!=="cancelled").length,"",lvPPLabel(cur)))
     +'</div>';
   const pps=[...new Set(LV.rows.map(r=>r.pay_period_start).concat([cur,prev]))].sort().reverse();
   const sal=lvSalons();
@@ -5265,7 +5270,7 @@ function lvRow(r){const t=LV_TYPES[r.leave_type],st=LV_STATUS[r.status];const ne
     +'<div class="lv-main"><div class="lv-who">'+esc(lvName(r.stylist_name))+' <span class="lv-sal">'+esc(lvSalonLbl(r.salon_id))+'</span></div>'
     +'<div class="lv-what"><span class="lv-type">'+esc(t.short)+'</span>'+(r.sick_reason?' · '+esc(r.sick_reason):'')+' · <b>'+lvH(r.total_hours)+' hrs</b> · '+esc(lvDaysTxt(r))+'</div>'
     +'<div class="gm-why">TO-'+r.ref+' · by '+esc(r.submitted_by_name||"—")+' · '+esc(lvAgo(r.created_at))+(r.status==="completed"&&r.completed_by_name?' · processed by '+esc(r.completed_by_name):'')+'</div></div>'
-    +'<div class="lv-side">'+gmChip(st[1],need&&!lvIsHR()?"Answer needed":st[0])+(r.form_to_follow&&r.status!=="cancelled"?' '+gmChip("gm-a","Form to follow"):'')+((r.warnings||[]).length?' <span class="lv-warnct" title="Warnings the manager reviewed">⚠ '+(r.warnings||[]).length+'</span>':'')+'</div></div>';}
+    +'<div class="lv-side">'+gmChip(st[1],need&&!lvIsHR()?"Answer needed":st[0])+(r.form_to_follow&&r.status!=="cancelled"?' '+gmChip("gm-a","Form to follow"):'')+(r.doc_to_follow&&r.status!=="cancelled"?' '+gmChip("gm-a","Doctor’s note to follow"):'')+((r.warnings||[]).length?' <span class="lv-warnct" title="Warnings the manager reviewed">⚠ '+(r.warnings||[]).length+'</span>':'')+'</div></div>';}
 
 function lvCsv(){const rows=lvFiltered().filter(r=>r.status!=="cancelled");if(!rows.length){gmToast("Nothing to export with these filters.");return;}
   const q=v=>{v=v==null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
@@ -5293,9 +5298,10 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
   await lvContacts();const today=localToday(),cur=lvPP(today);
   const S={id:existing?existing.id:null,salon:existing?existing.salon_id:(sal.includes(current)?current:sal[0]),name:existing?existing.stylist_name:"",type:existing?existing.leave_type:"",
     reason:existing?existing.sick_reason||"":"",pp:existing?existing.pay_period_start:cur,days:{},notes:existing?existing.notes||"":"",follow:existing?existing.form_to_follow:false,
-    info:null,worked:[],hire:null,hireSrc:"",ack:false,busy:false};
+    info:null,worked:[],hire:null,hireSrc:"",ack:false,busy:false,docFollow:existing?!!existing.doc_to_follow:false};
   if(existing)(existing.days||[]).forEach(d=>S.days[d.date]=+d.hours);
-  const pps=[lvAdd(cur,-14),cur,lvAdd(cur,14),lvAdd(cur,28),lvAdd(cur,42)];if(existing&&!pps.includes(existing.pay_period_start))pps.unshift(existing.pay_period_start);
+  const pps=[lvAdd(cur,-14),cur,lvAdd(cur,14),lvAdd(cur,28)];const later=[];for(let i=3;i<=26;i++)later.push(lvAdd(cur,14*i)); // up to ~12 months ahead
+  if(existing&&!pps.includes(existing.pay_period_start)&&!later.includes(existing.pay_period_start))pps.unshift(existing.pay_period_start);
   let h='<div class="lv-form"><h3>'+(existing?'Edit request TO-'+existing.ref:'New time-off request')+'</h3>'
     +'<div class="lv-step"><div class="lv-sn">1</div><div class="lv-sb"><div class="lv-sl">Stylist</div><div class="lv-two">'
       +(sal.length>1&&!existing?'<select id="lvFSal">'+sal.map(s=>'<option value="'+s+'"'+(s===S.salon?" selected":"")+'>'+esc(lvSalonLbl(s))+'</option>').join("")+'</select>':'<div class="lv-fixed">'+esc(lvSalonLbl(S.salon))+'</div>')
@@ -5305,11 +5311,14 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
       +Object.keys(LV_TYPES).map(k=>'<button type="button" class="lv-tbtn '+LV_TYPES[k].cls+'" data-k="'+k+'"><b>'+LV_TYPES[k].lbl+'</b><span>'+LV_TYPES[k].desc+'</span><em class="lv-tlock"></em></button>').join("")+'</div>'
       +'<div id="lvFReason" hidden><div class="lv-sl" style="margin-top:10px">Reason (required for sick leave)</div><div class="lv-chips">'+LV_REASONS.map(x=>'<button type="button" data-r="'+esc(x)+'">'+esc(x)+'</button>').join("")+'</div></div></div></div>'
     +'<div class="lv-step"><div class="lv-sn">3</div><div class="lv-sb"><div class="lv-sl">Pay period and days</div><div class="lv-chips" id="lvFPP">'
-      +pps.map(p=>'<button type="button" data-p="'+p+'">'+lvPPLabel(p)+(p===cur?" · current":p<cur?" · last":"")+'</button>').join("")+'</div>'
+      +pps.map(p=>'<button type="button" data-p="'+p+'">'+lvPPLabel(p)+(p===cur?" · current":p<cur?" · last":"")+'</button>').join("")
+      +'<select id="lvFLater" class="lv-later" aria-label="Later pay period"><option value="">Later pay period…</option>'+later.map(p=>'<option value="'+p+'">'+lvPPLabel(p)+' ('+lvD(p).toLocaleDateString("en-US",{month:"short",year:"numeric"})+')</option>').join("")+'</select></div>'
       +'<div class="hint" style="margin:8px 0 6px">Tap each day off, then set the hours (use the hours from the schedule).</div><div class="lv-cal" id="lvFCal"></div></div></div>'
     +'<div class="lv-step"><div class="lv-sn">4</div><div class="lv-sb"><div class="lv-sl">Signed request form</div>'
-      +'<label class="lv-drop"><input type="file" id="lvFForm" accept="image/*,application/pdf" multiple><span>📎 Attach the signed form (photo or PDF)</span></label><div class="lv-files" id="lvFFormList"></div>'
-      +'<label class="lv-drop sm"><input type="file" id="lvFDoc" accept="image/*,application/pdf" multiple><span>+ Doctor’s note or other file (optional)</span></label><div class="lv-files" id="lvFDocList"></div>'
+      +'<label class="lv-drop"><input type="file" id="lvFForm" accept="image/*,application/pdf" multiple><span>📎 Attach the signed form<small>Tap to take a photo or choose from your photos/files<i class="lv-dd"> · or drag it here</i></small></span></label><div class="lv-files" id="lvFFormList"></div>'
+      +'<div id="lvFDocReq" class="lv-docreq" hidden><b>Documentation required.</b> Sick leave of 2 or more consecutive days needs documentation (doctor’s note) under the NM Healthy Workplaces Act.</div>'
+      +'<label class="lv-drop sm" id="lvFDocDrop"><input type="file" id="lvFDoc" accept="image/*,application/pdf" multiple><span id="lvFDocLbl">+ Doctor’s note or other file (optional)</span></label><div class="lv-files" id="lvFDocList"></div>'
+      +'<label class="lv-check" id="lvFDocFollowWrap" hidden><input type="checkbox" id="lvFDocFollow"> The doctor’s note will be added later</label>'
       +(existing?'<div class="hint">Files already on this request stay attached.</div>':'')
       +'<label class="lv-check" id="lvFFollowWrap" hidden><input type="checkbox" id="lvFFollow"'+(S.follow?" checked":"")+'> Stylist called in sick, so the form will be added later</label></div></div>'
     +'<div class="lv-step"><div class="lv-sn">5</div><div class="lv-sb"><div class="lv-sl">Notes for HR (optional)</div><textarea id="lvFNotes" rows="2" placeholder="Anything HR should know">'+esc(S.notes)+'</textarea></div></div>'
@@ -5321,6 +5330,8 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
     el.querySelectorAll("button").forEach(b=>b.onclick=()=>{files[b.dataset.k].splice(+b.dataset.i,1);fileList(k,el);paint();});};
   $("#lvFForm").onchange=e=>{files.form.push(...e.target.files);e.target.value="";fileList("form",$("#lvFFormList"));paint();};
   $("#lvFDoc").onchange=e=>{files.doc.push(...e.target.files);e.target.value="";fileList("doc",$("#lvFDocList"));paint();};
+  lvDropZone($("#lvFForm").closest("label"),fs=>{files.form.push(...fs);fileList("form",$("#lvFFormList"));paint();});
+  lvDropZone($("#lvFDocDrop"),fs=>{files.doc.push(...fs);fileList("doc",$("#lvFDocList"));paint();});
   const loadNames=async()=>{const n=await lvStylists(S.salon);$("#lvNames").innerHTML=n.map(x=>'<option value="'+esc(x)+'">').join("");};
   if($("#lvFSal"))$("#lvFSal").onchange=e=>{S.salon=e.target.value;loadNames();};
   loadNames();
@@ -5338,7 +5349,8 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
   $("#lvFTypes").onclick=e=>{const b=e.target.closest(".lv-tbtn");if(!b||b.classList.contains("locked"))return;S.type=b.dataset.k;paint();};
   $("#lvFReason").onclick=e=>{const b=e.target.closest("button");if(!b)return;S.reason=b.dataset.r;paint();};
   $("#lvFPP").onclick=e=>{const b=e.target.closest("button");if(!b)return;if(S.pp!==b.dataset.p){S.pp=b.dataset.p;S.days={};}paint();};
-  $("#lvFFollow").onchange=e=>{S.follow=e.target.checked;paint();};
+  $("#lvFLater").onchange=e=>{const v=e.target.value;if(v&&S.pp!==v){S.pp=v;S.days={};}paint();};
+  $("#lvFFollow").onchange=e=>{S.follow=e.target.checked;paint();};$("#lvFDocFollow").checked=S.docFollow;$("#lvFDocFollow").onchange=e=>{S.docFollow=e.target.checked;paint();};
   $("#lvFNotes").oninput=e=>{S.notes=e.target.value;};
   let refetchT=null;
   const cal=()=>{const el=$("#lvFCal");let c='';for(let i=0;i<14;i++){const d=lvAdd(S.pp,i),on=S.days[d]!=null,dt=lvD(d);
@@ -5369,17 +5381,18 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
     if((S.type==="sick"||S.type==="sick_as_pto")&&S.hire&&S.hire>lvAdd(today,-365)){const hrs=S.worked.filter(x=>x.date>=S.hire).reduce((a,x)=>a+lvHrs(x),0);const acc=hrs/30-(+byYr[today.slice(0,4)]||0);
       if(tot>acc+0.01)warn.push("New hire: about "+lvH(Math.max(0,acc))+" sick hrs earned so far (1 hr per 30 worked since "+fmtDate(S.hire)+"). HR will confirm the balance.");}
     days.forEach(d=>{const w=S.worked.filter(x=>x.date===d).reduce((a,x)=>a+lvHrs(x),0);if(w>0)warn.push(first+" clocked "+lvH(w)+" hrs on "+lvMD(d)+". Check the hours requested.");});
-    if(S.type==="sick"){let run=1;for(let i=1;i<days.length;i++){run=lvDiff(days[i-1],days[i])===1?run+1:1;if(run>=2){warn.push("2 or more days in a row: you can ask for a doctor’s note (handbook 6.12).");break;}}}
+    if(lvConsec(S.type,days)&&!files.doc.length&&!(existing&&LV_DOCS_CT[existing.id])&&!S.docFollow)block.push("2 or more sick days in a row: attach the doctor’s note, or check that it will be added later (NM Healthy Workplaces Act).");
     if(days.length&&lvAdd(S.pp,13)<today)warn.push("This pay period ended "+lvMD(lvAdd(S.pp,13))+". Payroll may already be done, so HR may need to adjust.");
     return {block,warn,days,tot};};
   const paint=(soft)=>{if(!soft)cal();
-    document.querySelectorAll("#lvFPP button").forEach(b=>b.classList.toggle("on",b.dataset.p===S.pp));
+    document.querySelectorAll("#lvFPP button").forEach(b=>b.classList.toggle("on",b.dataset.p===S.pp));{const l=$("#lvFLater");const has=[...l.options].some(o=>o.value===S.pp);l.value=has?S.pp:"";l.classList.toggle("on",has);}
     const anniv=S.hire?S.hire.replace(/^(\d{4})/,y=>String(+y+1)):null,eligible=S.hire&&anniv<=(Object.keys(S.days).sort()[0]||today);
     document.querySelectorAll(".lv-tbtn").forEach(b=>{const k=b.dataset.k;b.classList.toggle("on",S.type===k);const lock=k==="pto"&&S.name&&S.hire&&!eligible;
       b.classList.toggle("locked",!!lock);b.querySelector(".lv-tlock").textContent=lock?"Not eligible until "+fmtDate(anniv):(k==="pto"&&S.name&&!S.hire?"No hire date on file":"");});
     if(S.type==="pto"&&S.hire&&!eligible)S.type="";
     $("#lvFReason").hidden=S.type!=="sick";document.querySelectorAll("#lvFReason button").forEach(b=>b.classList.toggle("on",b.dataset.r===S.reason));
-    $("#lvFFollowWrap").hidden=S.type!=="sick";
+    $("#lvFFollowWrap").hidden=S.type!=="sick";{const need=lvConsec(S.type,Object.keys(S.days).sort());$("#lvFDocReq").hidden=!need;$("#lvFDocFollowWrap").hidden=!need;
+      $("#lvFDocDrop").classList.toggle("req",need);$("#lvFDocLbl").textContent=need?"📎 Attach the doctor’s note (required)":"+ Doctor’s note or other file (optional)";}
     const info=S.info||{},yr=today.slice(0,4),used=+((info.sick_by_year||{})[yr])||0;
     $("#lvFInfo").innerHTML=!S.name?'':'<span>'+(S.hire?'Hired '+fmtDate(S.hire)+(eligible?' · <b class="ok">PTO eligible</b>':' · PTO eligible '+fmtDate(anniv)):'<b class="warn">No hire date on file</b> (add the anniversary in Contacts for PTO)')+'</span>'
       +(S.info?'<span>Sick hours used '+yr+': <b>'+lvH(used)+'</b> of 64</span>':'<span class="hint">Checking history…</span>');
@@ -5397,7 +5410,7 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
     const btn=$("#lvFSave");btn.disabled=true;btn.textContent="Saving…";
     const rec={stylist_name:S.name,leave_type:S.type,sick_reason:S.type==="sick"?S.reason:null,pay_period_start:S.pp,pay_period_end:lvAdd(S.pp,13),
       days:c.days.map(d=>({date:d,hours:+S.days[d]})),total_hours:c.tot,hire_date:S.hire||null,hire_source:S.hire?S.hireSrc:null,notes:S.notes.trim()||null,
-      form_to_follow:S.type==="sick"&&S.follow&&!files.form.length,warnings:c.warn};
+      form_to_follow:S.type==="sick"&&S.follow&&!files.form.length,doc_to_follow:lvConsec(S.type,c.days)&&S.docFollow&&!files.doc.length,warnings:c.warn};
     try{let row;
       if(existing){const {data,error}=await gcClient().from("gc_leave_requests").update(rec).eq("id",existing.id).select().single();if(error)throw error;row=data;}
       else{rec.salon_id=S.salon;const {data,error}=await gcClient().from("gc_leave_requests").insert(rec).select().single();if(error)throw error;row=data;}
@@ -5405,13 +5418,19 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
       for(const [f,kind] of up){btn.textContent="Uploading "+f.name+"…";await lvUpload(row,f,kind);}
       gmClose();gmToast(existing?"Saved TO-"+row.ref:"Sent to HR · TO-"+row.ref);await lvLoad(true);lvRender();}
     catch(e){err.textContent=lvErr(e);btn.disabled=false;btn.textContent=existing?"Save changes":"Submit to HR";}};}
-const LV_FILES_CT={};
+const LV_FILES_CT={},LV_DOCS_CT={};
+function lvConsec(type,days){if(type!=="sick")return false;const d=days.slice().sort();for(let i=1;i<d.length;i++)if(lvDiff(d[i-1],d[i])===1)return true;return false;}
+// drag-and-drop onto the attach boxes (desktop); on phones the same box opens Photo Library / Take Photo / Files
+function lvDropZone(label,onFiles){if(!label)return;["dragenter","dragover"].forEach(ev=>label.addEventListener(ev,e=>{e.preventDefault();label.classList.add("drag");}));
+  ["dragleave","drop"].forEach(ev=>label.addEventListener(ev,e=>{e.preventDefault();label.classList.remove("drag");}));
+  label.addEventListener("drop",e=>{const fs=[...(e.dataTransfer&&e.dataTransfer.files||[])].filter(f=>/^image\/|pdf$/.test(f.type)||/\.(pdf|jpe?g|png|heic|heif|webp)$/i.test(f.name));
+    if(fs.length)onFiles(fs);else gmToast("Drop a photo or PDF.");});}
 function lvErr(e){const m=(e&&(e.message||e.error_description))||String(e);return m.replace(/^.*?ERROR:\s*/,"");}
 async function lvUpload(row,f,kind){if(f.size>15*1024*1024)throw new Error(f.name+" is over 15 MB.");
   const safe=f.name.replace(/[^\w.\-]+/g,"_").slice(-80);const path=row.salon_id+"/"+row.id+"/"+Date.now()+"-"+safe;
   const {error}=await gcClient().storage.from(LV_BUCKET).upload(path,f,{contentType:f.type||"application/octet-stream",upsert:false});if(error)throw new Error("Upload failed for "+f.name+": "+error.message);
   const {error:e2}=await gcClient().from("gc_leave_files").insert({request_id:row.id,kind,storage_path:path,file_name:f.name,size_bytes:f.size,mime:f.type||null});if(e2)throw e2;
-  LV_FILES_CT[row.id]=(LV_FILES_CT[row.id]||0)+1;}
+  if(kind==="doctor_note")LV_DOCS_CT[row.id]=(LV_DOCS_CT[row.id]||0)+1;else LV_FILES_CT[row.id]=(LV_FILES_CT[row.id]||0)+1;}
 // Handbook 6.13 blackout periods (approximate dates; HR has the final say)
 function lvBlackout(d){const y=+d.slice(0,4),md=d.slice(5);
   const tg=(()=>{const n=new Date(y,10,1);const off=(4-n.getDay()+7)%7;return gmIso(new Date(y,10,1+off+21));})();
@@ -5428,7 +5447,7 @@ async function lvOpen(id){const r=LV.rows.find(x=>x.id===id);if(!r)return;const 
   try{const [a,b,c,d]=await Promise.all([sb.from("gc_leave_events").select("*").eq("request_id",id).order("created_at"),sb.from("gc_leave_files").select("*").eq("request_id",id).order("created_at"),
       sb.rpc("gc_leave_people",{sid:r.salon_id}),sb.rpc("gc_leave_stylist_info",{p_name:r.stylist_name,p_dates:(r.days||[]).map(x=>x.date),p_exclude:r.id})]);
     ev=a.data||[];fl=b.data||[];people=c.data||[];info=d.data||{};}catch(e){}
-  LV_FILES_CT[id]=fl.length;
+  LV_FILES_CT[id]=fl.filter(f=>f.kind==="request_form").length;LV_DOCS_CT[id]=fl.filter(f=>f.kind==="doctor_note").length;const docMissing=r.doc_required&&!LV_DOCS_CT[id];
   const t=LV_TYPES[r.leave_type],st=LV_STATUS[r.status],yr=((r.days||[])[0]||{date:localToday()}).date.slice(0,4);
   const otherSick=+((info.sick_by_year||{})[yr])||0,thisYr=(r.days||[]).filter(d=>d.date.startsWith(yr)).reduce((a,d)=>a+ +d.hours,0);
   const row=(k,v)=>'<div class="lv-kv"><span>'+k+'</span><div>'+v+'</div></div>';
@@ -5446,7 +5465,8 @@ async function lvOpen(id){const r=LV.rows.find(x=>x.id===id);if(!r)return;const 
   // files
   h+='<div class="lv-sec"><div class="lv-sl">Files</div>'+(fl.length?fl.map(f=>'<button type="button" class="lv-fbtn" data-path="'+esc(f.storage_path)+'">'+(f.mime&&f.mime.startsWith("image")?"🖼":"📄")+' '+esc(f.file_name||"file")+' <span class="hint">'+(f.kind==="doctor_note"?"Doctor’s note":f.kind==="other"?"Other":"Request form")+' · '+esc(f.uploaded_by_name||"")+'</span></button>').join("")
       :'<div class="gm-banner red" style="margin:0">No form attached'+(r.form_to_follow?' yet (manager said it will be added later)':'')+'.</div>')
-    +'<label class="lv-drop sm" style="margin-top:8px"><input type="file" id="lvDFile" accept="image/*,application/pdf" multiple><span>+ Add a file</span></label> <select id="lvDKind" class="lv-kind"><option value="request_form">Request form</option><option value="doctor_note">Doctor’s note</option><option value="other">Other</option></select></div>';
+    +(docMissing&&r.status!=="cancelled"?'<div class="gm-banner red" style="margin:8px 0 0"><b>Doctor’s note required.</b> 2 or more consecutive sick days need documentation (NM Healthy Workplaces Act)'+(r.doc_to_follow?'. The manager said it will be added later':'')+'. Add it below as “Doctor’s note”.</div>':'')
+    +'<label class="lv-drop sm" style="margin-top:8px"><input type="file" id="lvDFile" accept="image/*,application/pdf" multiple><span>+ Add a file</span></label> <select id="lvDKind" class="lv-kind"><option value="request_form">Request form</option><option value="doctor_note"'+(docMissing?' selected':'')+'>Doctor’s note</option><option value="other">Other</option></select></div>';
   // HR processing
   if(hr&&open)h+='<div class="lv-sec lv-proc"><div class="lv-sl">Process in payroll</div><div class="lv-two">'
       +'<label class="gm-f"><span class="hint">Hours entered in Paychex</span><input type="number" id="lvPHrs" step="0.25" min="0" value="'+lvH(r.total_hours)+'"></label>'
@@ -5467,7 +5487,8 @@ async function lvOpen(id){const r=LV.rows.find(x=>x.id===id);if(!r)return;const 
   gmModal(h);$("#lvClose").onclick=gmClose;
   document.querySelectorAll(".lv-fbtn").forEach(b=>b.onclick=async()=>{const w=window.open("","_blank");const {data,error}=await sb.storage.from(LV_BUCKET).createSignedUrl(b.dataset.path,600);
     if(error||!data){if(w)w.close();gmToast("Couldn’t open the file.");return;}if(w)w.location=data.signedUrl;else location.href=data.signedUrl;});
-  $("#lvDFile").onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;try{for(const f of fs){gmToast("Uploading "+f.name+"…");await lvUpload(r,f,$("#lvDKind").value);}await lvLoad(true);lvRender();lvOpen(id);gmToast("File added");}catch(x){gmToast(lvErr(x));}};
+  const addFiles=async fs=>{if(!fs.length)return;try{for(const f of fs){gmToast("Uploading "+f.name+"…");await lvUpload(r,f,$("#lvDKind").value);}await lvLoad(true);lvRender();lvOpen(id);gmToast("File added");}catch(x){gmToast(lvErr(x));}};
+  $("#lvDFile").onchange=e=>addFiles([...e.target.files]);lvDropZone($("#lvDFile").closest("label"),addFiles);
   const tags=()=>[...document.querySelectorAll("#lvTags button.on")].map(b=>b.dataset.u);
   document.querySelectorAll("#lvTags button").forEach(b=>b.onclick=()=>b.classList.toggle("on"));
   const send=async kind=>{const body=$("#lvMsg").value.trim(),err=$("#lvMErr");err.textContent="";if(!body){err.textContent=kind==="question"?"Type your question.":"Type a message.";return;}
@@ -5477,7 +5498,7 @@ async function lvOpen(id){const r=LV.rows.find(x=>x.id===id);if(!r)return;const 
   if($("#lvReply"))$("#lvReply").onclick=()=>send("reply");if($("#lvAsk"))$("#lvAsk").onclick=()=>send("question");if($("#lvNote"))$("#lvNote").onclick=()=>send("note");
   const setStatus=async(patch,msg)=>{const {error}=await sb.from("gc_leave_requests").update(patch).eq("id",id);if(error){const e=$("#lvPErr")||$("#lvMErr");e.textContent=lvErr(error);return false;}
     gmToast(msg);await lvLoad(true);lvRender();lvOpen(id);return true;};
-  if($("#lvDone"))$("#lvDone").onclick=()=>{const hrs=parseFloat($("#lvPHrs").value);if(isNaN(hrs)||hrs<0){$("#lvPErr").textContent="Enter the hours entered in Paychex.";return;}
+  if($("#lvDone"))$("#lvDone").onclick=()=>{if(docMissing){$("#lvPErr").textContent="Doctor’s note required first (2+ consecutive sick days). Ask the manager to add it.";return;}const hrs=parseFloat($("#lvPHrs").value);if(isNaN(hrs)||hrs<0){$("#lvPErr").textContent="Enter the hours entered in Paychex.";return;}
     if(!$("#lvPPx").checked&&!$("#lvPNote").value.trim()){$("#lvPErr").textContent="Add a note if it wasn’t entered in Paychex.";return;}
     setStatus({status:"completed",processed_hours:hrs,paychex_entered:$("#lvPPx").checked,hr_note:$("#lvPNote").value.trim()||null},"TO-"+r.ref+" marked complete");};
   if($("#lvDeny"))$("#lvDeny").onclick=()=>{const n=$("#lvPNote").value.trim();if(!n){$("#lvPErr").textContent="Type the reason in the note box first.";$("#lvPNote").focus();return;}

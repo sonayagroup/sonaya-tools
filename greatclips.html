@@ -307,7 +307,11 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 .lv-badge{display:inline-block;min-width:18px;padding:1px 6px;margin-left:4px;border-radius:999px;background:var(--red);color:#fff;font-size:11px;font-weight:700;line-height:16px;text-align:center}
 .lv-badge[hidden]{display:none}
 .lv-head{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-.lv-new{padding:12px 22px;font-size:15px}
+.lv-new{padding:12px 22px;font-size:15px}.lv-hbtns{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.lvd p{font-size:14px;line-height:1.5;margin:0 0 10px}.lvd .hint{font-size:12.5px;color:var(--muted)}.lvd-mock{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfdfc;margin:0 0 10px;pointer-events:none}
+.lvd-ul{margin:0 0 6px 18px;font-size:13.5px;line-height:1.5}.lvd-chip{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:6px 11px;font-size:12.5px}.lvd-chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.lvd-in{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:2px 8px;background:#fff;color:var(--ink);font-size:12px}
+.lvd-cal{grid-template-columns:repeat(7,minmax(0,1fr))}.lvd-dots{display:flex;gap:6px;justify-content:center;margin-top:12px}.lvd-dots span{width:7px;height:7px;border-radius:50%;background:#cfe0da}.lvd-dots span.on{background:var(--blue)}
 .lv-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:12px 0}
 .lv-tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit}
 .lv-tile:hover{border-color:var(--blue)}.lv-tile .lbl{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
@@ -5232,7 +5236,7 @@ function lvRender(){const host=$("#lvBody");if(!host)return;const hr=lvIsHR(),to
   let h='<div class="lv-head card"><div><h3 style="margin:0">Time Off Requests</h3><div class="hint" style="margin:2px 0 0">'
     +(hr?'Process each request in Paychex, then mark it complete. Ask the manager if anything is unclear. Everything stays on record.'
         :'Submit PTO and Sick Leave for your stylists with the signed form. HR processes it with payroll for that pay period.')+'</div></div>'
-    +'<button class="btn lv-new" id="lvNew">+ New request</button></div>';
+    +'<div class="lv-hbtns"><button class="gm-link" id="lvHow">How it works</button><button class="btn lv-new" id="lvNew">+ New request</button></div></div>';
   h+='<div class="lv-tiles">'
     +lvTile("mine",hr?"To process":"Needs your answer",nMine,nMine?(hr?"amber":"red"):"",hr?"Submitted, waiting on you":"HR asked a question")
     +lvTile("open",hr?"Waiting on managers":"Waiting on HR",nWait,"",hr?"You asked a question":"Submitted, not processed yet")
@@ -5256,7 +5260,7 @@ function lvRender(){const host=$("#lvBody");if(!host)return;const hr=lvIsHR(),to
         +'<span class="lv-gt">'+Object.keys(tot).filter(k=>tot[k]).map(k=>LV_TYPES[k].short+' '+lvH(tot[k])+'h').join(' · ')+'</span></div>';
       g.sort((a,b)=>(lvNeedsMe(b)-lvNeedsMe(a))||(a.created_at<b.created_at?-1:1)).forEach(r=>{h+=lvRow(r);});h+='</div>';});}
   host.innerHTML=h;
-  $("#lvNew").onclick=()=>lvForm(null);
+  $("#lvNew").onclick=()=>lvForm(null);$("#lvHow").onclick=()=>{if(window.lvDemo)window.lvDemo();};
   host.querySelectorAll("#lvSeg button").forEach(b=>b.onclick=()=>{LV.filter=b.dataset.f;lvRender();});
   host.querySelectorAll(".lv-tile").forEach(t=>t.onclick=()=>{const k=t.dataset.k;if(k.startsWith("pp:")){LV.pp=k.slice(3);LV.filter=hr?"open":"all";}else if(k==="noform"){LV.filter="noform";LV.pp="";}else{LV.filter=k;LV.pp="";}lvRender();});
   $("#lvPP").onchange=e=>{LV.pp=e.target.value;lvRender();};if($("#lvSal"))$("#lvSal").onchange=e=>{LV.salon=e.target.value;lvRender();};
@@ -5601,6 +5605,60 @@ let tries=0;const iv=setInterval(()=>{tries++;
     &&(!isMgr()||typeof GM==="undefined"||GM.loaded||!document.querySelector(".tabs-inner .tab[data-t=\"manager\"]:not([hidden])"));
   if(ready){if(!seen())setTimeout(()=>{if(!seen()&&!modalOpen())start();},600);clearInterval(iv);}
   else if(tries>240)clearInterval(iv);},500);
+})();
+</script>
+<script>
+// ===== TIME OFF DEMO: one-time walkthrough of the new Time Off tab for managers, assistant managers and area managers =====
+// Shows once per login on this device after sign-in (after the first-time tour, never over another popup).
+// Replay any time from "How it works" on the Time Off tab.
+(function(){
+const KEY="gc_lvdemo_seen:";
+const uid=()=>(GCU&&GCU.user&&GCU.user.id)||"anon";
+const seen=()=>{try{return localStorage.getItem(KEY+uid())==="1";}catch(e){return true;}};
+const mark=()=>{try{localStorage.setItem(KEY+uid(),"1");}catch(e){}};
+const cal=(sel)=>{let c='<div class="lv-cal lvd-cal">';const d0=["Sat","Sun","Mon","Tue","Wed","Thu","Fri"];for(let i=0;i<7;i++){const on=sel.includes(i);
+  c+='<div class="lv-day'+(on?" on":"")+'"><span class="lv-dbtn"><span>'+d0[i]+'</span><b>12/'+(5+i)+'</b></span>'+(on?'<span class="lv-hrs"><span class="lvd-in">8</span> hrs</span>':'')+'</div>';}return c+'</div>';};
+const STEPS=[
+  {t:"New: Time Off requests",b:'<p>You now submit <b>PTO</b> and <b>Sick Leave</b> for your stylists right here, on the <b>Time Off</b> tab. HR (Alejandra) processes each one with payroll for that pay period, and everything stays on record.</p>'
+    +'<div class="lvd-mock"><div class="lv-head" style="padding:0"><div><b style="color:var(--blue-dk)">Time Off Requests</b><div class="hint" style="margin:0">Submit PTO and Sick Leave with the signed form.</div></div><span class="btn lv-new" style="pointer-events:none">+ New request</span></div></div>'
+    +'<p class="hint">It takes about a minute. Here’s how it works.</p>'},
+  {t:"1 · Pick the stylist and the type",b:'<p>Start typing the stylist’s name, then pick one of three types:</p>'
+    +'<div class="lv-types lvd-mock"><div class="lv-tbtn lv-sick on"><b>Sick Leave</b><span>Sick or a medical appointment. Can be used right away.</span></div><div class="lv-tbtn lv-sap"><b>Sick Leave used as PTO</b><span>Sick hours used for regular time off.</span></div><div class="lv-tbtn lv-pto locked"><b>PTO</b><span>Only after the 1-year anniversary.</span><em>Not eligible until 3/1/2027</em></div></div>'
+    +'<ul class="lvd-ul"><li><b>PTO</b> unlocks on the stylist’s 1-year anniversary (from Contacts).</li><li>Sick Leave (including Sick as PTO) is capped at <b>64 hours per calendar year</b>. You’ll see how many hours they’ve used.</li><li>Sick Leave needs a reason.</li></ul>'},
+  {t:"2 · Pick the pay period and tap the days",b:'<p>Pick the pay period, tap each day off, and enter the hours from the schedule. PTO for months ahead? Use <b>Later pay period…</b></p>'
+    +'<div class="lvd-mock"><div class="lv-chips" style="margin-bottom:8px"><span class="lvd-chip">11/21 – 12/4 · current</span><span class="lvd-chip on">12/5 – 12/18</span><span class="lvd-chip">Later pay period…</span></div>'+cal([2,3])+'</div>'
+    +'<p class="hint">One request per pay period. If the time off spans two pay periods, submit two requests.</p>'},
+  {t:"3 · Attach the signed form",b:'<p>Tap the box to <b>take a photo</b> of the signed form or pick it from your photos. On a computer you can drag the file onto it.</p>'
+    +'<div class="lvd-mock"><div class="lv-drop" style="cursor:default"><span>📎 Attach the signed form<small>Tap to take a photo or choose from your photos/files</small></span></div></div>'
+    +'<div class="lv-docreq" style="margin-top:10px"><b>2 or more sick days in a row?</b> A doctor’s note is required (NM Healthy Workplaces Act). Attach it, or check that it will be added later.</div>'
+    +'<p class="hint">Stylist called in sick? Check “the form will be added later” and add it from the request when you have it.</p>'},
+  {t:"4 · Review and submit",b:'<p>The summary at the bottom shows the total hours and the sick hours used this year. Anything that needs a second look is listed. Check it, then tap <b>Submit to HR</b>.</p>'
+    +'<div class="lv-sum lvd-mock" style="margin-top:0"><div class="lv-sumrow"><b>Sick Leave</b> · Own illness · 2 days · <b>16 hrs</b> · pay period 12/5 – 12/18</div><div class="lv-meter"><div style="width:44%"></div></div><div class="hint">After this: 28 of 64 sick hours used in 2026</div>'
+    +'<div class="lv-warn"><b>Please review</b><ul><li>Ana clocked 3 hrs on 12/7. Check the hours requested.</li></ul></div></div>'},
+  {t:"5 · If HR has a question",b:'<p>If something isn’t clear, HR will ask you right on the request. You’ll get an email, and the Time Off tab shows a red count until you answer.</p>'
+    +'<div class="lvd-mock"><div style="font-weight:700;color:var(--blue-dk);margin-bottom:6px">Time Off <span class="lv-badge">1</span></div>'
+    +'<div class="lv-ev k-question msg"><div class="lv-evh"><b>Alejandra</b> <span class="gm-chip gm-r">Question</span></div><div class="lv-evb">Was 12/7 a full shift or a half day?</div></div></div>'
+    +'<p>Open it, type your answer and tap <b>Send answer to HR</b>. When HR processes it in payroll, you’ll get an email, and it shows as <span class="gm-chip gm-g">Processed</span>.</p>'}];
+let i=0;
+function show(){const s=STEPS[i],last=i===STEPS.length-1;
+  gmModal('<div class="lvd"><div class="gm-why">Time Off · '+(i+1)+' of '+STEPS.length+'</div><h3 style="margin:4px 0 10px;color:var(--blue-dk)">'+s.t+'</h3>'+s.b
+    +'<div class="lvd-dots">'+STEPS.map((x,j)=>'<span'+(j===i?' class="on"':'')+'></span>').join("")+'</div>'
+    +'<div class="gm-actions"><button class="gm-link" id="lvdSkip" style="margin-right:auto">'+(last?"":"Skip")+'</button>'+(i?'<button class="gm-cancel" id="lvdBack">Back</button>':'')
+    +(last?'<button class="gm-btn2" id="lvdDone">Done</button><button class="btn" id="lvdTry">Try it now</button>':'<button class="btn" id="lvdNext">Next</button>')+'</div></div>');
+  const bg=$("#gmBg");if(bg)bg.addEventListener("click",e=>{if(e.target===bg)mark();});
+  if($("#lvdSkip"))$("#lvdSkip").onclick=()=>{mark();gmClose();};if($("#lvdBack"))$("#lvdBack").onclick=()=>{i--;show();};
+  if($("#lvdNext"))$("#lvdNext").onclick=()=>{i++;show();};if($("#lvdDone"))$("#lvdDone").onclick=()=>{mark();gmClose();};
+  if($("#lvdTry"))$("#lvdTry").onclick=()=>{mark();gmClose();const t=document.querySelector('.tabs-inner .tab[data-t="leave"]');if(t&&!t.hidden)t.click();setTimeout(()=>{const n=$("#lvNew");if(n)n.click();},700);};}
+function start(){i=0;show();}
+window.lvDemo=start;
+// auto-start once for salon leaders, after the first-time tour (if any) and when nothing else is open
+let n=0;const iv=setInterval(()=>{n++;if(n>360){clearInterval(iv);return;}
+  if(!(GCU&&GCU.perms))return;const r=GCU.perms.role;if(!["manager","asst_manager","am"].includes(r)||!(typeof gcHas==="function"&&gcHas("leave"))){clearInterval(iv);return;}
+  if(seen()){clearInterval(iv);return;}
+  const tourSeen=(()=>{try{return localStorage.getItem("gc_tour_seen:"+uid())==="1";}catch(e){return true;}})();
+  if(!tourSeen||(window.gcTourActive&&window.gcTourActive())||document.querySelector(".gm-bg")||document.body.classList.contains("gc-locked"))return;
+  if(typeof DATA==="undefined"||!DATA||!DATA.dates||!DATA.dates.length)return;
+  clearInterval(iv);setTimeout(()=>{if(!seen()&&!document.querySelector(".gm-bg"))start();},1200);},1000);
 })();
 </script>
 <script>

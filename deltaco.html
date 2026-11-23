@@ -12,7 +12,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Del Taco Franchise Dashboard — Patel DT LLC</title>
-<!-- v2026.11.23b -->
+<!-- v2026.11.23c -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
 <style>
 /* -- Foundation: Del Taco brand palette & tokens -- */
@@ -15594,7 +15594,7 @@ function adminRenderTable() {
   tbody.innerHTML = adminUsers.map(u => {
     const stores = (u.allowed_stores || []).length === 10 ? 'All' : (u.allowed_stores || []).join(', ');
     const tabs = (u.allowed_tabs || []).length >= Object.keys(ALL_TABS).length ? 'All' : (u.allowed_tabs || []).map(t => ALL_TABS[t] || t).join(', ');
-    const badge = `<span class="admin-badge ${u.role}">${u.role === 'area_manager' ? 'district manager' : u.role.replace('_', ' ')}</span>`;
+    const badge = `<span class="admin-badge ${u.role}">${u.role === 'area_manager' ? 'district manager' : u.role === 'hr' ? 'HR' : u.role.replace('_', ' ')}</span>`;
     const status = u.is_active ? '<span style="color:var(--status-good)">Active</span>' : '<span style="color:var(--status-critical)">Inactive</span>';
     const isSelf = currentUser && u.id === currentUser.id;
     const actions = isSelf ? '<span style="color:var(--text-muted);font-size:11px">You</span>' :
@@ -16626,7 +16626,8 @@ async function lvStylists(sid){if(LV.names[sid])return LV.names[sid];await lvCon
   (GM.contacts||[]).filter(c=>String(c.store_id)===String(sid)&&String(c.name||"").trim().includes(" ")).forEach(c=>{const n=String(c.name).trim().replace(/\s+/g," ");
     const nm=n.includes(",")?n:n.slice(n.lastIndexOf(" ")+1)+", "+n.slice(0,n.lastIndexOf(" "));const k=gmKey(nm);if(!m[k])m[k]=nm;});
   LV.names[sid]=Object.values(m).sort((a,b)=>a.localeCompare(b));return LV.names[sid];}
-async function lvContacts(){if(GM.contacts&&GM.contacts.length)return;try{const {data}=await supaAuth.from("dt_staff_contacts").select("name,store_id,role,anniversary");GM.contacts=data||[];}catch(e){}}
+async function lvContacts(){if(GM.contacts&&GM.contacts.length)return;try{const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY};
+  const r=await fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts?select=name,store_id,role,anniversary",{headers:h});const d=await r.json();GM.contacts=Array.isArray(d)?d:[];}catch(e){}}
 async function lvWorked(name,from,to){return [];}
 function lvHrs(x){return (+x.floor_hrs||0)+(+x.admin_hrs||0)+(+x.close_hrs||0);}
 

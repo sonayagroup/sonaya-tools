@@ -5278,10 +5278,10 @@ function lvRow(r){const t=LV_TYPES[r.leave_type],st=LV_STATUS[r.status];const ne
 
 function lvCsv(){const rows=lvFiltered().filter(r=>r.status!=="cancelled");if(!rows.length){gmToast("Nothing to export with these filters.");return;}
   const q=v=>{v=v==null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
-  const head=["Request","Pay period start","Pay period end","Salon","Stylist","Type","Sick reason","Dates","Total hours","Status","Submitted by","Submitted","Form","Processed by","Processed","Hours entered in Paychex","Entered in Paychex","HR note"];
+  const head=["Request","Pay period start","Pay period end","Salon","Stylist","Type","Sick reason","Dates","Total hours","Status","Submitted by","Submitted","Form","Doctor’s note","Processed by","Processed","Hours entered in Paychex","Entered in Paychex","HR note"];
   const lines=[head.join(",")].concat(rows.slice().sort((a,b)=>(a.pay_period_start+a.salon_id+a.stylist_name)<(b.pay_period_start+b.salon_id+b.stylist_name)?-1:1).map(r=>[
     "TO-"+r.ref,r.pay_period_start,r.pay_period_end,r.salon_id,r.stylist_name,LV_TYPES[r.leave_type].lbl,r.sick_reason||"",(r.days||[]).map(d=>d.date+" "+lvH(d.hours)+"h").join("; "),lvH(r.total_hours),
-    LV_STATUS[r.status][0],r.submitted_by_name||"",lvWhen(r.created_at),r.form_to_follow?"To follow":"Attached",r.completed_by_name||"",r.completed_at?lvWhen(r.completed_at):"",r.processed_hours!=null?lvH(r.processed_hours):"",r.paychex_entered?"Yes":"",r.hr_note||""].map(q).join(",")));
+    LV_STATUS[r.status][0],r.submitted_by_name||"",lvWhen(r.created_at),r.form_to_follow?"To follow":"Attached",r.doc_required?(r.doc_to_follow?"To follow":"Required"):"",r.completed_by_name||"",r.completed_at?lvWhen(r.completed_at):"",r.processed_hours!=null?lvH(r.processed_hours):"",r.paychex_entered?"Yes":"",r.hr_note||""].map(q).join(",")));
   const blob=new Blob([lines.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download="time-off"+(LV.pp?"-"+LV.pp:"")+".csv";document.body.appendChild(a);a.click();a.remove();}
 
@@ -5336,7 +5336,7 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
   $("#lvFDoc").onchange=e=>{files.doc.push(...e.target.files);e.target.value="";fileList("doc",$("#lvFDocList"));paint();};
   lvDropZone($("#lvFForm").closest("label"),fs=>{files.form.push(...fs);fileList("form",$("#lvFFormList"));paint();});
   lvDropZone($("#lvFDocDrop"),fs=>{files.doc.push(...fs);fileList("doc",$("#lvFDocList"));paint();});
-  const loadNames=async()=>{const n=await lvStylists(S.salon);$("#lvNames").innerHTML=n.map(x=>'<option value="'+esc(x)+'">').join("");};
+  const loadNames=async()=>{const n=await lvStylists(S.salon);if(!$("#lvNames"))return;$("#lvNames").innerHTML=n.map(x=>'<option value="'+esc(x)+'">').join("");};
   if($("#lvFSal"))$("#lvFSal").onchange=e=>{S.salon=e.target.value;loadNames();};
   loadNames();
   let infoSeq=0;
@@ -5388,12 +5388,13 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
     if(lvConsec(S.type,days)&&!files.doc.length&&!(existing&&LV_DOCS_CT[existing.id])&&!S.docFollow)block.push("2 or more sick days in a row: attach the doctor’s note, or check that it will be added later (NM Healthy Workplaces Act).");
     if(days.length&&lvAdd(S.pp,13)<today)warn.push("This pay period ended "+lvMD(lvAdd(S.pp,13))+". Payroll may already be done, so HR may need to adjust.");
     return {block,warn,days,tot};};
-  const paint=(soft)=>{if(!soft)cal();
+  const paint=(soft)=>{if(!$("#lvFCal"))return; // form was closed while a lookup was running
+    if(!soft)cal();
     document.querySelectorAll("#lvFPP button").forEach(b=>b.classList.toggle("on",b.dataset.p===S.pp));{const l=$("#lvFLater");const has=[...l.options].some(o=>o.value===S.pp);l.value=has?S.pp:"";l.classList.toggle("on",has);}
-    const anniv=S.hire?S.hire.replace(/^(\d{4})/,y=>String(+y+1)):null,eligible=S.hire&&anniv<=(Object.keys(S.days).sort()[0]||today);
-    document.querySelectorAll(".lv-tbtn").forEach(b=>{const k=b.dataset.k;b.classList.toggle("on",S.type===k);const lock=k==="pto"&&S.name&&S.hire&&!eligible;
-      b.classList.toggle("locked",!!lock);b.querySelector(".lv-tlock").textContent=lock?"Not eligible until "+fmtDate(anniv):(k==="pto"&&S.name&&!S.hire?"No hire date on file":"");});
-    if(S.type==="pto"&&S.hire&&!eligible)S.type="";
+    const anniv=S.hire?S.hire.replace(/^(\d{4})/,y=>String(+y+1)):null,firstDay=Object.keys(S.days).sort()[0],eligible=S.hire&&anniv<=(firstDay||today),farOff=S.hire&&anniv>lvAdd(today,385);
+    document.querySelectorAll(".lv-tbtn").forEach(b=>{const k=b.dataset.k;b.classList.toggle("on",S.type===k);const lock=k==="pto"&&S.name&&farOff;
+      b.classList.toggle("locked",!!lock);b.querySelector(".lv-tlock").textContent=k!=="pto"||!S.name?"":!S.hire?"No hire date on file":!eligible?(lock?"Not eligible until ":"Only for days on/after ")+fmtDate(anniv):"";});
+    if(S.type==="pto"&&farOff)S.type="";
     $("#lvFReason").hidden=S.type!=="sick";document.querySelectorAll("#lvFReason button").forEach(b=>b.classList.toggle("on",b.dataset.r===S.reason));
     $("#lvFFollowWrap").hidden=S.type!=="sick";{const need=lvConsec(S.type,Object.keys(S.days).sort());$("#lvFDocReq").hidden=!need;$("#lvFDocFollowWrap").hidden=!need;
       $("#lvFDocDrop").classList.toggle("req",need);$("#lvFDocLbl").textContent=need?"📎 Attach the doctor’s note (required)":"+ Doctor’s note or other file (optional)";}
@@ -5416,11 +5417,12 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
       days:c.days.map(d=>({date:d,hours:+S.days[d]})),total_hours:c.tot,hire_date:S.hire||null,hire_source:S.hire?S.hireSrc:null,notes:S.notes.trim()||null,
       form_to_follow:S.type==="sick"&&S.follow&&!files.form.length,doc_to_follow:lvConsec(S.type,c.days)&&S.docFollow&&!files.doc.length,warnings:c.warn};
     try{let row;
-      if(existing){const {data,error}=await gcClient().from("gc_leave_requests").update(rec).eq("id",existing.id).select().single();if(error)throw error;row=data;}
+      if(existing){if(existing.status==="needs_info"&&!lvIsHR())rec.status="submitted";
+        const {data,error}=await gcClient().from("gc_leave_requests").update(rec).eq("id",existing.id).select().single();if(error)throw error;row=data;}
       else{rec.salon_id=S.salon;const {data,error}=await gcClient().from("gc_leave_requests").insert(rec).select().single();if(error)throw error;row=data;}
       const up=[...files.form.map(f=>[f,"request_form"]),...files.doc.map(f=>[f,"doctor_note"])];
       for(const [f,kind] of up){btn.textContent="Uploading "+f.name+"…";await lvUpload(row,f,kind);}
-      gmClose();gmToast(existing?"Saved TO-"+row.ref:"Sent to HR · TO-"+row.ref);await lvLoad(true);lvRender();}
+      gmClose();gmToast(existing?"Saved TO-"+row.ref+(rec.status==="submitted"&&existing.status==="needs_info"?" · sent back to HR":""):"Sent to HR · TO-"+row.ref);await lvLoad(true);lvRender();}
     catch(e){err.textContent=lvErr(e);btn.disabled=false;btn.textContent=existing?"Save changes":"Submit to HR";}};}
 const LV_FILES_CT={},LV_DOCS_CT={};
 function lvConsec(type,days){if(type!=="sick")return false;const d=days.slice().sort();for(let i=1;i<d.length;i++)if(lvDiff(d[i-1],d[i])===1)return true;return false;}

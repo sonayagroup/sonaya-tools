@@ -483,6 +483,7 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .gc-user{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;background:rgba(255,255,255,.14);padding:6px 10px;border-radius:8px}
 .gc-user button{background:none;border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:6px;padding:3px 9px;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 .gc-user button:hover{background:rgba(255,255,255,.18)}
+.tabs-inner .tab[data-t="users"]{display:none!important}
 .tab[hidden],.tab-link[hidden],#gmViewBar button[hidden]{display:none!important}
 
 .gm-today-row.gm-coach{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
@@ -536,6 +537,7 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
   .sv-kpis{grid-template-columns:repeat(2,1fr)}.sv-formhead{align-items:flex-start}}
 /* ===== SCHEDULE CHECK ===== */
 #sched .card{margin-bottom:12px}#sched .card h3{font-size:15px;margin:0 0 10px;color:var(--ink)}#sched .card h3 span{font-weight:500;color:var(--muted);font-size:12.5px}
+.sch-sub{margin-bottom:12px}.sch-sub[hidden]{display:none}
 .sch-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.sch-top select{font-size:15px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;min-height:44px}
 .sch-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;border:2px dashed #9cc9bb;border-radius:12px;background:#f3faf7;padding:26px 16px;cursor:pointer;color:var(--ink)}
 .sch-drop b{font-size:16px}.sch-drop span{font-size:12.5px;color:var(--muted)}.sch-drop.over{background:#dff3ea;border-color:#048667}
@@ -963,7 +965,6 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
   <div class="tab" data-t="scorecard">Stylist Scorecard</div>
   <div class="tab" data-t="visit">Salon Visits</div>
   <div class="tab" data-t="sched">Schedules</div>
-  <div class="tab" data-t="avail">Availability</div>
   <div class="tab" data-t="market">Market</div>
   <div class="tab" data-t="leave">Time Off <span class="lv-badge" id="lvBadge" hidden></span></div>
   <button type="button" class="tab-morebtn" id="tabMoreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="tabMoreMenu">More ▾</button>
@@ -973,6 +974,7 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
   <a href="https://tools.sonayagroup.com/gc-crm.html" class="tab-link" role="menuitem">👥 Stylist CRM</a>
   <a href="https://tools.sonayagroup.com/gc-quiz-admin.html" class="tab-link" role="menuitem">📝 Manager Quiz</a>
   <a href="https://tools.sonayagroup.com/gc-maintenance/" class="tab-link" role="menuitem">🔧 Maintenance</a>
+  <a href="#users" class="tab-link" id="tabUsersLink" role="menuitem" hidden>👤 Users</a>
 </div></nav>
 <div class="wrap">
 
@@ -1194,8 +1196,6 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
   </div>
 </section>
 
-<section class="panel" id="avail"><div id="avBody"></div></section>
-
 <section class="panel" id="leave"><div id="lvBody"></div></section>
 
 <section class="panel" id="users">
@@ -1255,7 +1255,9 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
 </section>
 
 <section class="panel" id="sched">
+  <div class="det-mode sch-sub" id="schSub"><button data-v="check" class="active">Schedule check</button><button data-v="avail">Availability</button></div>
   <div id="schBody"></div>
+  <div id="avBody" hidden></div>
 </section>
 
 <section class="panel" id="market">
@@ -4529,7 +4531,14 @@ function schWire(host,iss,wk){const s=$("#schWeek");if(s)s.onchange=function(){S
   host.querySelectorAll(".sch-avedit").forEach(b=>b.onclick=()=>{const k=b.dataset.k,r=avCurrent(k);avEdit({key:k,name:r?r.stylist_name:b.dataset.n},{salon:r?r.salon_id:b.dataset.s});});
   const c=$("#schCopy");if(c&&iss)c.onclick=()=>{const t="Schedule check · week of "+gmShort(wk)+"–"+gmShort(gmAdd(wk,6))+"\n\n"+iss.filter(i=>i.sev!=="n").map(i=>"• "+i.name+(i.day?" ("+schDayLbl(i.day)+")":"")+": "+i.txt).join("\n");
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>gmToast("Copied")).catch(()=>svCopyFallback(t));else svCopyFallback(t);};}
-(function(){const t=document.querySelector('.tab[data-t="sched"]');if(t)t.addEventListener("click",schInit);})();
+// The Schedules tab holds two views: Schedule check (AMs) and Availability (AMs + salon managers)
+let SCH_VIEW="check";
+function schTabOpen(){const canC=gcHas("sched"),canA=gcHas("avail");if(!canC&&canA)SCH_VIEW="avail";if(!canA)SCH_VIEW="check";
+  const sub=$("#schSub");if(sub){sub.hidden=!(canC&&canA);sub.querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.dataset.v===SCH_VIEW));}
+  $("#schBody").hidden=SCH_VIEW!=="check";$("#avBody").hidden=SCH_VIEW!=="avail";
+  if(SCH_VIEW==="check")schInit();else avInit();}
+(function(){const t=document.querySelector('.tab[data-t="sched"]');if(t)t.addEventListener("click",schTabOpen);
+  const sub=document.getElementById("schSub");if(sub)sub.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;SCH_VIEW=b.dataset.v;schTabOpen();});})();
 </script>
 <script>
 // ===== STYLIST AVAILABILITY & RESTRICTIONS (Area Managers + salon managers) =====
@@ -4623,7 +4632,7 @@ function avEdit(person,opts){opts=opts||{};const sid=opts.salon||AV.salon;const 
     const {error}=await gcClient().from("gc_stylist_avail").upsert(rec,{onConflict:"stylist_key,effective_from"});
     if(error){err.textContent=lvErr(error);btn.disabled=false;return;}
     gmClose();gmToast("Saved availability for "+name);await avLoad(true);AV.names[sid]=null;await avStaff(sid);
-    if($("#avBody")&&document.querySelector('.tab[data-t="avail"].active'))avRender();if(typeof schRender==="function"&&document.querySelector('.tab[data-t="sched"].active'))schRender();};}
+    const onSched=document.querySelector('.tab[data-t="sched"].active');if(onSched&&!$("#avBody").hidden)avRender();if(onSched&&!$("#schBody").hidden)schRender();};}
 // Conflicts for one schedule week (used by the Schedules tab): unavailable day, outside hours, over max hours/days
 function avConflicts(A){const out=[];if(!AV.loaded)return out;
   const byKey={};A.entries.filter(e=>!e.off&&!(e.os&&e.pair)).forEach(e=>{(byKey[e.key]=byKey[e.key]||[]).push(e);});
@@ -4642,7 +4651,7 @@ function avConflicts(A){const out=[];if(!AV.loaded)return out;
     if(v.max_hours_week&&mins/60>+v.max_hours_week+0.01)out.push({sev:"r",type:"limit",key,name,day:null,txt:"Scheduled "+lvH(mins/60)+" hrs this week, over their max of "+lvH(v.max_hours_week)+" hrs"+(v.notes?" ("+v.notes+")":""),salons});
     if(v.max_days_week&&days.length>v.max_days_week)out.push({sev:"r",type:"limit",key,name,day:null,txt:"Scheduled "+days.length+" days this week, over their max of "+v.max_days_week+" days"+(v.notes?" ("+v.notes+")":""),salons});});
   return out;}
-(function(){const t=document.querySelector('.tab[data-t="avail"]');if(t)t.addEventListener("click",avInit);})();
+
 </script>
 <script>
 // "More" menu for the links that open separate pages (keeps the tab bar on one line)
@@ -4650,6 +4659,7 @@ function avConflicts(A){const out=[];if(!AV.loaded)return out;
   const close=()=>{m.hidden=true;b.setAttribute("aria-expanded","false");};
   const open=()=>{const r=b.getBoundingClientRect();m.hidden=false;const w=m.offsetWidth;m.style.top=(r.bottom+4)+"px";m.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+"px";b.setAttribute("aria-expanded","true");};
   b.addEventListener("click",e=>{e.stopPropagation();m.hidden?open():close();});
+  const ul=document.getElementById("tabUsersLink");if(ul)ul.addEventListener("click",e=>{e.preventDefault();close();const t=document.querySelector('.tabs-inner .tab[data-t="users"]');if(t)t.click();});
   document.addEventListener("click",e=>{if(!m.hidden&&!m.contains(e.target))close();});
   document.addEventListener("keydown",e=>{if(e.key==="Escape")close();});
   window.addEventListener("scroll",close,{passive:true});window.addEventListener("resize",close);
@@ -5143,8 +5153,9 @@ function gcApplyAccess(){const p=GCU.perms;if(!p)return;const mgr=gcIsMgr();
   if(!$("#gcUser")){const d=document.createElement("div");d.id="gcUser";d.className="gc-user";
     d.innerHTML='<span><b>'+esc(p.name||p.email)+'</b> · '+esc(GC_ROLE_NAMES[p.role]||p.role)+'</span><button type="button" id="gcPwBtn">Change password</button><button type="button" id="gcOutBtn">Sign out</button>';
     $(".hdr-inner").appendChild(d);$("#gcPwBtn").onclick=()=>gcPwModal(false);$("#gcOutBtn").onclick=gcSignOut;}
-  document.querySelectorAll(".tabs-inner .tab").forEach(t=>{const k=t.dataset.t;t.hidden=k==="users"?!gcIsOwner():!gcHas(k);});
+  document.querySelectorAll(".tabs-inner .tab").forEach(t=>{const k=t.dataset.t;t.hidden=k==="users"?!gcIsOwner():k==="sched"?!(gcHas("sched")||gcHas("avail")):!gcHas(k);});
   document.querySelectorAll("nav.tabs .tab-link").forEach(a=>{const k=gcLinkArea(a.getAttribute("href"));a.hidden=k?!gcHas(k):false;});
+  {const ul=$("#tabUsersLink");if(ul)ul.hidden=!gcIsOwner();}
   {const mb=$("#tabMoreBtn");if(mb)mb.hidden=![...document.querySelectorAll("#tabMoreMenu .tab-link")].some(x=>!x.hidden);}
   if(!gcHas("adminhrs")){const a=$("#adminHrsCards");if(a)a.innerHTML="";}
   if(![...document.querySelectorAll(".tabs-inner .tab")].some(t=>!t.hidden)){gcLinksOnly(p);return;} // e.g. Office Manager: only linked tools
@@ -5682,9 +5693,9 @@ const S=[
   {sel:".tab[data-t=\"scorecard\"]",who:"all",title:"Stylist Scorecard",text:"Use it in 1:1s: what’s going well, what to focus on, pay, and the CPH tips calculator that shows what a better CPH means in tips."},
   {sel:".tab[data-t=\"visit\"]",who:"mgr",title:"Salon Visits",text:"Your Area Manager’s visit checklists for your salon. Anything marked No shows as a follow-up. Tick Fixed when it’s done."},
   {sel:".tab[data-t=\"visit\"]",who:"lead",title:"Salon Visits",text:"Run the salon visit checklist on your phone. It shows the salon’s numbers first, and each No becomes a follow-up the manager can mark Fixed."},
-  {sel:".tab[data-t=\"sched\"]",who:"lead",title:"Schedules",text:"Drop each salon’s weekly schedule CSV here. It checks every uploaded salon for double-bookings, OFF conflicts and other-salon (OS) shifts that don’t match."},
+  {sel:".tab[data-t=\"sched\"]",who:"lead",title:"Schedules",text:"Drop each salon’s weekly schedule CSV here. It checks every uploaded salon for double-bookings, OFF conflicts, other-salon (OS) shifts that don’t match, and each stylist’s availability. Set availability under Schedules → Availability."},
+  {sel:".tab[data-t=\"sched\"]",who:"mgr",title:"Schedules → Availability",text:"Keep each stylist’s availability and max hours or days per week up to date here. Your Area Manager sees conflicts when schedules are uploaded."},
   {sel:".tab[data-t=\"market\"]",who:"all",title:"Market",text:"How every Great Clips salon in our market did last week, ours and the ones we don’t own, ranked by customer count. Our salons are colored against our standards."},
-  {sel:".tab[data-t=\"avail\"]",who:"all",title:"Availability",text:"When each stylist can work, plus any max hours or days per week. Area Managers see conflicts when they upload schedules."},
   {sel:".tab[data-t=\"leave\"]",who:"all",title:"Time Off",text:"Submit PTO and Sick Leave for your stylists with the signed form. HR processes it with payroll and can ask you questions here."},
   {sel:".tab[data-t=\"contacts\"]",who:"all",title:"Contacts and Maintenance",text:"Keep staff anniversaries current, because they’re the hire dates used for training due dates. Maintenance (for repair requests) is under More."},
   {sel:"#gcUser",who:"all",title:"Your account",text:"Replay this tour, change your password or sign out here. That’s it. You’re ready to go!"}

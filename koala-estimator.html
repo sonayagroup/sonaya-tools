@@ -576,6 +576,14 @@ body.customer-mode .customer-total-box { display: block; }
 .ep-btn-copy:hover { background: var(--green-bright); }
 .ep-btn-plain { background: var(--surface); color: var(--navy); border: 1px solid var(--border) !important; }
 .ep-btn-plain:hover { background: var(--surface-3); }
+.ep-footer-btn:disabled { opacity: .45; cursor: not-allowed; }
+.ep-gate { border: 2px solid var(--navy); border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; background: var(--surface-2); }
+.ep-gate.ok { border-color: #2e7d32; background: #eef7e8; }
+.ep-gate h3 { font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--navy); margin: 0 0 6px; }
+.ep-gate label { display: flex; gap: 10px; align-items: flex-start; font-size: .9rem; padding: 5px 0; cursor: pointer; }
+.ep-gate input { width: 18px; height: 18px; margin-top: 1px; accent-color: #2e7d32; flex-shrink: 0; }
+.ep-gate-why { font-size: .78rem; color: var(--text-muted, #666); margin-top: 4px; }
+.ep-check-item.done .ep-check-box { background: #2e7d32; border-color: #2e7d32; }
 
 /* Toast notification */
 .toast {
@@ -802,6 +810,11 @@ body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab
         <h3>Options to Include</h3>
         <div id="epOptionCheckboxes"></div>
       </div>
+      <div class="ep-gate" id="epGate">
+        <h3>Pre-Send Checklist — confirm before generating the email</h3>
+        <div id="epGateItems"></div>
+        <div class="ep-gate-why" id="epGateWhy"></div>
+      </div>
       <div class="ep-preview-label">Email Preview <span class="ep-autofill-tag">Auto-Filled from Estimate</span></div>
       <div class="ep-preview-box">
         <div class="ep-subj" id="epSubjectLine"><span>Subject:</span> —</div>
@@ -809,8 +822,8 @@ body.quote-locked #optionTabBar .tab-close, body.quote-locked #optionTabBar .tab
       </div>
     </div>
     <div class="email-panel-footer">
-      <button class="ep-footer-btn ep-btn-plain" onclick="copyEmailPlainText()">&#128195; Copy Plain Text</button>
-      <button class="ep-footer-btn ep-btn-copy" onclick="copyEmailPlainText()">&#9993; Copy to Clipboard</button>
+      <button class="ep-footer-btn ep-btn-plain ep-gated" onclick="copyEmailPlainText()">&#128195; Copy Plain Text</button>
+      <button class="ep-footer-btn ep-btn-copy ep-gated" onclick="copyEmailPlainText()">&#9993; Copy to Clipboard</button>
       <button class="ep-footer-btn" onclick="createFinalCombined()" style="background:var(--navy);color:#fff;font-weight:700;margin-left:auto" id="btnCreateFinal">&#128203; Create Final / Combined</button>
     </div>
   </div>
@@ -4208,8 +4221,19 @@ function openEmailPanel() {
     label.appendChild(document.createTextNode(opt.name));
     container.appendChild(label);
   });
+  // Pre-send checklist: the estimator ticks every item each time before the email can be copied (Nov 24 2026)
+  emailChecks = EMAIL_CHECKLIST.map(() => false);
+  $('epGateItems').innerHTML = EMAIL_CHECKLIST.map((c, i) => `<label><input type="checkbox" data-epchk="${i}" onchange="emailChecks[${i}]=this.checked;refreshEmailPreview()"> <span>${escHtml(c)}</span></label>`).join('');
   refreshEmailPreview();
   $('emailOverlay').classList.add('active');
+}
+const EMAIL_CHECKLIST = ['Notes & pictures added to customer profile in ServiceMinder', 'Tax rate verified on proposal in ServiceMinder', 'Job amount on proposal matches approved scope in ServiceMinder as well as email'];
+let emailChecks = EMAIL_CHECKLIST.map(() => false);
+function updateEmailGate() {
+  const left = emailChecks.filter(c => !c).length;
+  document.querySelectorAll('#emailOverlay .ep-gated').forEach(b => { b.disabled = left > 0; b.title = left ? 'Check every item in the pre-send checklist first' : ''; });
+  $('epGate').classList.toggle('ok', !left);
+  $('epGateWhy').textContent = left ? `Check ${left === EMAIL_CHECKLIST.length ? 'all ' + left + ' items' : left + ' more item' + (left > 1 ? 's' : '')} to generate the email.` : '✓ All confirmed — you can copy the email.';
 }
 
 function closeEmailPanel() {
@@ -4415,13 +4439,11 @@ function refreshEmailPreview() {
   html += '</div>';
 
   html += '<div class="ep-checklist"><h4>Pre-Send Checklist</h4>';
-  html += '<div class="ep-check-item"><div class="ep-check-box"></div> Notes &amp; pictures added to ServiceMinder</div>';
-  html += '<div class="ep-check-item"><div class="ep-check-box"></div> Tax rate verified in ServiceMinder</div>';
-  html += '<div class="ep-check-item"><div class="ep-check-box"></div> Job amount on spreadsheet proposal matches approved scope in ServiceMinder as well as email</div>';
-  html += '<div class="ep-check-item"><div class="ep-check-box"></div> Spreadsheet attached to email</div>';
+  EMAIL_CHECKLIST.forEach((c, i) => { html += '<div class="ep-check-item' + (emailChecks[i] ? ' done' : '') + '"><div class="ep-check-box"></div> ' + escHtml(c) + '</div>'; });
   html += '</div>';
 
   $('epPreviewContent').innerHTML = html;
+  updateEmailGate();
 }
 
 function detailRow(label, value) {
@@ -4430,6 +4452,7 @@ function detailRow(label, value) {
 
 
 function copyEmailPlainText() {
+  if (emailChecks.some(c => !c)) { showToast('Check every item in the pre-send checklist first', 'error'); return; }
   const custName = $('custName').value || '—';
   const address = $('address').value || '—';
   const estimator = $('estimator').value || '—';
@@ -4510,11 +4533,8 @@ function copyEmailPlainText() {
   text += 'Projected Margin: ' + margin + '\n';
   text += 'Lead Source: ' + leadSource + '\n';
   text += 'Bonus: ' + bonus + '\n\n\n';
-  text += 'Pre-Send Checklist\n';
-  text += '☐ Notes & pictures added to ServiceMinder\n';
-  text += '☐ Tax rate verified in ServiceMinder\n';
-  text += '☐ Job amount on spreadsheet proposal matches approved scope in ServiceMinder as well as email\n';
-  text += '☐ Spreadsheet attached to email';
+  text += 'Pre-Send Checklist (confirmed by ' + (estimator !== '—' ? estimator : 'the estimator') + ')\n';
+  text += EMAIL_CHECKLIST.map(c => '☑ ' + c).join('\n');
 
   navigator.clipboard.writeText(text).then(() => {
     showToast('Email copied to clipboard!', 'success');

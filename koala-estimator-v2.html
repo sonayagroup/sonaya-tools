@@ -3841,7 +3841,12 @@ let _email = null;                                   // { cfg, draft }
   .em-row b{font-weight:700}.em-row span{color:var(--navy);font-weight:600;text-align:right}
   .em-amt{font-size:1.1rem;font-weight:800!important}
   .em-check{margin-top:12px;padding-top:8px;border-top:2px solid var(--navy)}.em-check h4{font-size:.82rem;color:var(--navy);margin-bottom:4px}
-  .em-ci{display:flex;gap:8px;align-items:center;font-size:.84rem;padding:2px 0}.em-ci i{width:13px;height:13px;border:2px solid var(--navy);border-radius:3px;flex-shrink:0}
+  .em-ci{display:flex;gap:8px;align-items:center;font-size:.84rem;padding:2px 0}.em-ci i{width:13px;height:13px;border:2px solid var(--navy);border-radius:3px;flex-shrink:0;font-style:normal;font-size:.7rem;line-height:9px;text-align:center;color:#fff}.em-ci.done i{background:#2e7d32;border-color:#2e7d32}
+  .em-gate{border:2px solid var(--navy);border-radius:8px;padding:10px 12px;margin-top:14px;background:var(--navy-light)}
+  .em-gate.ok{border-color:#2e7d32;background:var(--green-light)}
+  .em-gate label{display:flex;gap:10px;align-items:flex-start;font-size:.9rem;padding:5px 0;cursor:pointer}
+  .em-gate input{width:18px;height:18px;margin-top:1px;accent-color:#2e7d32;flex-shrink:0}
+  .em-gate .why{font-size:.78rem;color:var(--muted);margin-top:4px}
   .em-fill textarea{min-height:54px}`;
   document.head.appendChild(st);
 })();
@@ -3931,6 +3936,7 @@ function openJobEmail() {
   }
   ['scope', 'height', 'hours', 'bonus'].forEach(k => { draft['_auto_' + k] = cfg[k]; });
   if (!draft.sel || draft.sel.length > cfg.options.length) draft.sel = cfg.options.map((o, i) => o.pre ? i : -1).filter(i => i >= 0);
+  draft.checks = JOB_EMAIL_CHECKLIST.map(() => false);   // the estimator confirms the checklist every time (Nov 24 2026)
   _email = { cfg, draft };
   const inp = (k, label, type, ph, extra) => `<div class="field ${extra || ''}"><label>${label}</label>${type === 'textarea' ? `<textarea data-em="${k}" rows="3" placeholder="${esc(ph || '')}">${esc(draft[k] || '')}</textarea>` : `<input data-em="${k}" type="${type}" value="${esc(draft[k] || '')}" placeholder="${esc(ph || '')}">`}</div>`;
   modal(`<div class="modal-hd"><h3>✉ New Job Email</h3><button class="btn ghost" onclick="closeModal()">✕</button></div>
@@ -3951,16 +3957,22 @@ function openJobEmail() {
         </div>
       </div>
       ${cfg.options.length > 1 ? `<div class="em-sec">Options to include</div><div class="em-opts">${cfg.options.map((o, i) => `<label class="em-opt ${draft.sel.includes(i) ? 'on' : ''}"><input type="checkbox" data-emopt="${i}" ${draft.sel.includes(i) ? 'checked' : ''}> ${esc(o.name)}</label>`).join('')}</div>` : ''}
+      <div class="em-gate" id="emGate">
+        <div class="em-sec" style="margin:0 0 4px">Pre-send checklist — confirm before generating the email</div>
+        ${JOB_EMAIL_CHECKLIST.map((c, i) => `<label><input type="checkbox" data-emchk="${i}" ${draft.checks[i] ? 'checked' : ''}> <span>${esc(c)}</span></label>`).join('')}
+        <div class="why" id="emGateWhy"></div>
+      </div>
       <div class="em-sec">Email preview <span class="pill" style="text-transform:none;letter-spacing:0">auto-filled from the ${cfg.kind === 'duct' ? 'duct takeoff' : 'estimate'}</span></div>
       <div class="em-prev"><div class="em-subj" id="emSubj"></div><div class="em-body" id="emBody"></div></div>
     </div>
     <div class="modal-ft">
-      <button class="btn green" onclick="copyJobEmail()">✉ Copy to clipboard</button>
+      <button class="btn green" id="emCopyBtn" onclick="copyJobEmail()">✉ Copy to clipboard</button>
       <button class="btn" onclick="closeModal()">Close</button>
       <textarea id="emFallback" hidden readonly rows="8" style="width:100%;font-size:.78rem;padding:6px;border:1px solid var(--border);border-radius:6px"></textarea>
     </div>`, true);
   const root = $('modalRoot');
   root.querySelectorAll('[data-em]').forEach(el => el.addEventListener('input', () => { _email.draft[el.dataset.em] = el.value; refreshJobEmail(); }));
+  root.querySelectorAll('[data-emchk]').forEach(el => el.addEventListener('change', () => { _email.draft.checks[+el.dataset.emchk] = el.checked; refreshJobEmail(); }));
   root.querySelectorAll('[data-emopt]').forEach(el => el.addEventListener('change', () => {
     const i = parseInt(el.dataset.emopt), s = new Set(_email.draft.sel); el.checked ? s.add(i) : s.delete(i);
     _email.draft.sel = [...s].sort((a, b) => a - b); el.closest('.em-opt').classList.toggle('on', el.checked); refreshJobEmail();
@@ -3995,10 +4007,15 @@ function refreshJobEmail() {
     h += `<div class="em-row" style="border-top:2px solid var(--navy);border-bottom:0"><b>Accepted Total${sel.length > 1 ? ' (combined)' : ''}</b><span class="em-amt">${money(total)}</span></div>`;
   }
   h += row('Installer / Estimated Hours', draft.hours) + (cfg.showMargin ? row('Projected Margin', margin) : '') + row('Lead Source', draft.lead) + row('Bonus', draft.bonus);
-  h += `<div class="em-check"><h4>Pre-Send Checklist</h4>${JOB_EMAIL_CHECKLIST.map(c => `<div class="em-ci"><i></i>${esc(c)}</div>`).join('')}</div>`;
+  h += `<div class="em-check"><h4>Pre-Send Checklist</h4>${JOB_EMAIL_CHECKLIST.map((c, i) => `<div class="em-ci ${draft.checks[i] ? 'done' : ''}"><i>${draft.checks[i] ? '✓' : ''}</i>${esc(c)}</div>`).join('')}</div>`;
   $('emBody').innerHTML = h;
+  const left = JOB_EMAIL_CHECKLIST.length - draft.checks.filter(Boolean).length, btn = $('emCopyBtn');
+  if (btn) { btn.disabled = left > 0; btn.title = left ? 'Check every item in the pre-send checklist first' : ''; }
+  const g = $('emGate'); if (g) g.classList.toggle('ok', !left);
+  const w = $('emGateWhy'); if (w) w.textContent = left ? `Check ${left === JOB_EMAIL_CHECKLIST.length ? 'all ' + left + ' items' : left + ' more item' + (left > 1 ? 's' : '')} to generate the email.` : '✓ All confirmed — you can copy the email.';
 }
-const JOB_EMAIL_CHECKLIST = ['Notes & pictures added to ServiceMinder', 'Tax rate verified in ServiceMinder', 'Job amount on spreadsheet proposal matches approved scope in ServiceMinder as well as email', 'Spreadsheet attached to email'];
+// Pre-send checklist (Pranav, Nov 24 2026): the estimator must tick every item before the email can be copied.
+const JOB_EMAIL_CHECKLIST = ['Notes & pictures added to customer profile in ServiceMinder', 'Tax rate verified on proposal in ServiceMinder', 'Job amount on proposal matches approved scope in ServiceMinder as well as email'];
 
 function jobEmailText() {
   const { cfg, draft, sel, many, subject, total, margin } = jobEmailParts(), on = new Set(sel);
@@ -4010,11 +4027,12 @@ function jobEmailText() {
   t += `${L}\n\n` + (cfg.kind === 'duct' ? `Job: ${cfg.subjectName}\n` : `Estimator: ${cfg.estimator || ''}\nService Address: ${cfg.address || ''}\n`);
   if (!many) t += `${cfg.priceLabel}: ${money(sel.length ? total : 0)}\n`;
   else { cfg.options.forEach((o, i) => { t += `${o.name}${on.has(i) ? '' : ' (Not Accepted)'}: ${money(o.price)}\n`; }); t += `Accepted Total${sel.length > 1 ? ' (combined)' : ''}: ${money(total)}\n`; }
-  t += `Installer / Estimated Hours: ${draft.hours || ''}\n` + (cfg.showMargin ? `Projected Margin: ${margin}\n` : '') + `Lead Source: ${draft.lead || ''}\nBonus: ${draft.bonus || ''}\n\n\nPre-Send Checklist\n` + JOB_EMAIL_CHECKLIST.map(c => '☐ ' + c).join('\n');
+  t += `Installer / Estimated Hours: ${draft.hours || ''}\n` + (cfg.showMargin ? `Projected Margin: ${margin}\n` : '') + `Lead Source: ${draft.lead || ''}\nBonus: ${draft.bonus || ''}\n\n\nPre-Send Checklist (confirmed by ${cfg.estimator || 'the estimator'})\n` + JOB_EMAIL_CHECKLIST.map(c => '☑ ' + c).join('\n');
   return t;
 }
 function copyJobEmail() {
   if (!_email) return;
+  if (_email.draft.checks.some(c => !c)) { toast('Check every item in the pre-send checklist first', 'error'); return; }
   const text = jobEmailText();
   const fallback = () => { const ta = $('emFallback'); if (!ta) return; ta.hidden = false; ta.value = text; ta.focus(); ta.select(); toast('Select all and copy the text below the buttons'); };
   try { navigator.clipboard.writeText(text).then(() => toast('Email copied to clipboard', 'ok'), fallback); } catch (err) { fallback(); }

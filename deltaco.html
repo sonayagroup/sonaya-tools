@@ -2705,6 +2705,20 @@ body {
 </div><!-- /app-wrap -->
 
 <script>
+/* ===== Auth token for Supabase REST calls (RLS requires a signed-in dashboard user) ===== */
+let __sbAccessToken = null;
+function sbToken() {
+  if (__sbAccessToken) return __sbAccessToken;
+  try {
+    const k = Object.keys(localStorage).find(x => /^sb-.*-auth-token$/.test(x));
+    const v = k && JSON.parse(localStorage.getItem(k));
+    const t = v && (v.access_token || (v.currentSession && v.currentSession.access_token));
+    if (t && (!v.expires_at || v.expires_at * 1000 > Date.now())) return t;
+  } catch (e) {}
+  return SUPABASE_KEY;
+}
+</script>
+<script>
 /* ===== STORE CONFIG & TARGETS ===== */
 const ALL_STORES = [
   { id: '726',  name: 'Montgomery',  short: '726',  area: '373-002' },
@@ -11352,7 +11366,7 @@ function sbFetch(path, opts = {}) {
   const url = SUPABASE_URL + '/rest/v1/' + path;
   const headers = {
     'apikey': SUPABASE_KEY,
-    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Authorization': 'Bearer ' + sbToken(),
     'Content-Type': 'application/json',
     'Prefer': opts.prefer || 'return=representation',
   };
@@ -11743,7 +11757,7 @@ async function uploadPhotosToSupabase(inspectionId) {
       method: 'POST',
       headers: {
         'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Authorization': 'Bearer ' + sbToken(),
         'Content-Type': p.file.type,
       },
       body: p.file,
@@ -12845,7 +12859,7 @@ const OB_SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIs
 async function loadOnboardingData() {
   try {
     const res = await fetch(`${OB_SB_URL}/rest/v1/dt_onboarding_sessions?select=*&order=started_at.desc&limit=100`, {
-      headers: { 'apikey': OB_SB_KEY, 'Authorization': `Bearer ${OB_SB_KEY}` }
+      headers: { 'apikey': OB_SB_KEY, 'Authorization': `Bearer ${sbToken()}` }
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
@@ -12926,7 +12940,7 @@ async function deleteOnboardingSession(id, name) {
   try {
     const res = await fetch(`${OB_SB_URL}/rest/v1/dt_onboarding_sessions?id=eq.${id}`, {
       method: 'DELETE',
-      headers: { 'apikey': OB_SB_KEY, 'Authorization': `Bearer ${OB_SB_KEY}` }
+      headers: { 'apikey': OB_SB_KEY, 'Authorization': `Bearer ${sbToken()}` }
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     obDataLoaded = false;
@@ -12964,7 +12978,7 @@ STORES.forEach(s=>{CT_STORE_NAMES[s.id]=s.name;});
 })();
 
 async function ctLoad(){
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken()};
   const[staff,vendors,junctions,company]=await Promise.all([
     fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts?select=*&order=name",{headers:h}).then(r=>r.json()),
     fetch(SUPABASE_URL+"/rest/v1/dt_contact_vendors?select=*&order=company",{headers:h}).then(r=>r.json()),
@@ -13069,7 +13083,7 @@ async function ctSaveStaff(btn){
     dob:ctNormDob(bg.querySelector('#ctfDob').value.trim()),anniversary:ctNormAnniv(bg.querySelector('#ctfAnniv').value.trim())};
   if(!body.name){alert("Name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken(),"Content-Type":"application/json",Prefer:"return=representation"};
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts",{method:"POST",headers:h,body:JSON.stringify(body)});
   if(r.ok){const rows=await r.json();CT_STAFF.push(rows[0]);bg.remove();ctRender();ctFlash("Staff contact added");}
   else{btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));}
@@ -13095,7 +13109,7 @@ async function ctUpdateStaff(id,btn){
     dob:ctNormDob(bg.querySelector('#ctfDob').value.trim()),anniversary:ctNormAnniv(bg.querySelector('#ctfAnniv').value.trim())};
   if(!body.name){alert("Name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken(),"Content-Type":"application/json",Prefer:"return=representation"};
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts?id=eq."+id,{method:"PATCH",headers:h,body:JSON.stringify(body)});
   if(r.ok){const rows=await r.json();const idx=CT_STAFF.findIndex(x=>x.id===id);if(idx>=0)CT_STAFF[idx]=rows[0];bg.remove();ctRender();ctFlash("Staff contact updated");}
   else{btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));}
@@ -13104,7 +13118,7 @@ async function ctUpdateStaff(id,btn){
 async function ctDelStaff(id){
   if(!confirm("Delete this staff contact?"))return;
   document.querySelectorAll('.ct-modal-bg').forEach(x=>x.remove());
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken()};
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts?id=eq."+id,{method:"DELETE",headers:h});
   if(r.ok){CT_STAFF=CT_STAFF.filter(x=>x.id!==id);ctRender();ctFlash("Staff contact deleted");}
   else alert("Error deleting contact");
@@ -13132,7 +13146,7 @@ async function ctSaveVendor(btn){
     account_num:bg.querySelector('#ctfVAcct').value.trim()};
   if(!body.company){alert("Company name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken(),"Content-Type":"application/json",Prefer:"return=representation"};
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_contact_vendors",{method:"POST",headers:h,body:JSON.stringify(body)});
   if(!r.ok){btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));return;}
   const rows=await r.json();const nv=rows[0];CT_VENDORS.push(nv);
@@ -13165,7 +13179,7 @@ async function ctUpdateVendor(id,btn){
     account_num:bg.querySelector('#ctfVAcct').value.trim()};
   if(!body.company){alert("Company name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken(),"Content-Type":"application/json",Prefer:"return=representation"};
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_contact_vendors?id=eq."+id,{method:"PATCH",headers:h,body:JSON.stringify(body)});
   if(r.ok){const rows=await r.json();const idx=CT_VENDORS.findIndex(x=>x.id===id);if(idx>=0)CT_VENDORS[idx]=rows[0];bg.remove();ctRender();ctFlash("Vendor updated (all linked stores)");}
   else{btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));}
@@ -13173,7 +13187,7 @@ async function ctUpdateVendor(id,btn){
 
 async function ctUnlinkVendor(vid){
   if(!confirm("Remove this vendor from store #"+ctCurrentStore+"?\n(The vendor stays available for other stores)"))return;
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken()};
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_store_vendor_links?store_id=eq."+ctCurrentStore+"&vendor_id=eq."+vid,{method:"DELETE",headers:h});
   if(r.ok){CT_JUNCTIONS=CT_JUNCTIONS.filter(j=>!(String(j.store_id)===ctCurrentStore&&j.vendor_id===vid));ctRender();ctFlash("Vendor unlinked");}
   else alert("Error unlinking vendor");
@@ -13201,7 +13215,7 @@ async function ctSaveCompany(btn){
     account_num:bg.querySelector('#ctfCCAcct').value.trim()};
   if(!body.company){alert("Company name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken(),"Content-Type":"application/json",Prefer:"return=representation"};
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_company_contacts",{method:"POST",headers:h,body:JSON.stringify(body)});
   if(!r.ok){btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));return;}
   const rows=await r.json();CT_COMPANY.push(rows[0]);
@@ -13230,7 +13244,7 @@ async function ctUpdateCompany(id,btn){
     account_num:bg.querySelector('#ctfCCAcct').value.trim()};
   if(!body.company){alert("Company name is required");return;}
   btn.disabled=true;btn.textContent="Saving…";
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY,"Content-Type":"application/json",Prefer:"return=representation"};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken(),"Content-Type":"application/json",Prefer:"return=representation"};
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_company_contacts?id=eq."+id,{method:"PATCH",headers:h,body:JSON.stringify(body)});
   if(r.ok){const rows=await r.json();const idx=CT_COMPANY.findIndex(x=>x.id===id);if(idx>=0)CT_COMPANY[idx]=rows[0];bg.remove();ctRender();ctFlash("Company contact updated");}
   else{btn.disabled=false;btn.textContent="Save";alert("Error: "+(await r.text()));}
@@ -13239,7 +13253,7 @@ async function ctUpdateCompany(id,btn){
 async function ctDelCompany(id){
   if(!confirm("Delete this company-wide contact?"))return;
   document.querySelectorAll('.ct-modal-bg').forEach(x=>x.remove());
-  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY};
+  const h={apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken()};
   const r=await fetch(SUPABASE_URL+"/rest/v1/dt_company_contacts?id=eq."+id,{method:"DELETE",headers:h});
   if(r.ok){CT_COMPANY=CT_COMPANY.filter(x=>x.id!==id);ctRender();ctFlash("Company contact deleted");}
   else alert("Error deleting contact");
@@ -13685,7 +13699,7 @@ async function gmclLoadAllStores() {
   const startStr = clAddDays(todayStr, -6);
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_type=eq.daily&period_date=gte.' + startStr + '&period_date=lte.' + todayStr + '&select=store_id,item_key,period_date,completed', {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken() }
     });
     const data = await res.json();
     (data || []).forEach(r => { gmclState[r.store_id + '|' + r.item_key + '|' + r.period_date] = r.completed; });
@@ -13852,7 +13866,7 @@ async function gmclLoadData() {
   }
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?store_id=eq.' + storeId + '&period_date=gte.' + monthStart + '&period_date=lte.' + monthEnd + '&select=item_key,period_date,completed', {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken() }
     });
     const data = await res.json();
     _cacheSet(ck, data || []);
@@ -13947,7 +13961,7 @@ function _gmclFlush() {
   Promise.all(items.map(function(body) {
     return fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?on_conflict=store_id,item_key,period_date', {
       method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken(), 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(body)
     });
   })).then(function(results) {
@@ -14011,7 +14025,7 @@ async function gmclShowIncompleteBanner() {
     const dailyKeys = GMCL_ITEMS.daily.map(it => it.key);
     const totalDaily = dailyKeys.length;
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_date=eq.' + yStr + '&period_type=eq.daily&completed=eq.true&select=store_id,item_key', {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken() }
     });
     const rows = await res.json();
     const counts = {};
@@ -14051,7 +14065,7 @@ async function gmclLoadHistory() {
   try {
     let url = SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_date=gte.' + fromDate + '&period_date=lte.' + toDate + '&select=store_id,item_key,period_type,period_date,completed';
     if (storeId !== 'ALL') url += '&store_id=eq.' + storeId;
-    const res = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } });
+    const res = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken() } });
     const rows = await res.json();
     const stores = storeId === 'ALL' ? STORES : STORES.filter(s => s.id === storeId);
     content.innerHTML = clhistRenderTable(rows, stores, GMCL_ITEMS, fromDate, toDate, 'store_id');
@@ -14173,7 +14187,7 @@ async function dmclLoadHistory() {
   content.innerHTML = '<em>Loading…</em>';
   try {
     const url = SUPABASE_URL + '/rest/v1/dt_dm_checklist?area_id=eq.' + areaId + '&period_date=gte.' + fromDate + '&period_date=lte.' + toDate + '&select=area_id,item_key,period_type,period_date,completed';
-    const res = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY } });
+    const res = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken() } });
     const rows = await res.json();
     const fakeStores = [{ id: areaId, name: areaId === '373-001' ? 'Gizelle' : 'Manuel' }];
     content.innerHTML = clhistRenderTable(rows, fakeStores, DMCL_ITEMS, fromDate, toDate, 'area_id');
@@ -14184,7 +14198,7 @@ async function dmclLoadHistory() {
 async function getGMChecklistSummary(dateStr) {
   const dailyKeys = GMCL_ITEMS.daily.map(it => it.key);
   const totalDaily = dailyKeys.length;
-  const h = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY };
+  const h = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken() };
   const res = await fetch(SUPABASE_URL + '/rest/v1/dt_gm_checklist?period_date=eq.' + dateStr + '&period_type=eq.daily&completed=eq.true&select=store_id,item_key', { headers: h });
   const rows = await res.json();
   const counts = {};
@@ -14382,7 +14396,7 @@ async function dmclLoadAllAreas() {
   const startStr = clAddDays(todayStr, -6);
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?period_type=eq.daily&period_date=gte.' + startStr + '&period_date=lte.' + todayStr + '&select=area_id,item_key,period_date,completed', {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken() }
     });
     const data = await res.json();
     (data || []).forEach(r => { dmclState[r.area_id + '|' + r.item_key + '|' + r.period_date] = r.completed; });
@@ -14411,7 +14425,7 @@ async function dmclLoadData() {
   }
   try {
     const res = await fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?area_id=eq.' + areaId + '&period_date=gte.' + monthStart + '&period_date=lte.' + monthEnd + '&select=item_key,period_date,completed', {
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken() }
     });
     const data = await res.json();
     _cacheSet(ck, data || []);
@@ -14494,7 +14508,7 @@ function _dmclFlush() {
   Promise.all(items.map(function(body) {
     return fetch(SUPABASE_URL + '/rest/v1/dt_dm_checklist?on_conflict=area_id,item_key,period_date', {
       method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + sbToken(), 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates' },
       body: JSON.stringify(body)
     });
   })).then(function(results) {
@@ -15326,6 +15340,8 @@ document.querySelector('[data-tab="equip"]').addEventListener('click', function(
    AUTH + ACCESS CONTROL
    ======================================================================== */
 const supaAuth = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+supaAuth.auth.getSession().then(r => { __sbAccessToken = r.data.session ? r.data.session.access_token : null; });
+supaAuth.auth.onAuthStateChange((_e, sess) => { __sbAccessToken = sess ? sess.access_token : null; });
 let currentUser = null;   // Supabase auth user
 let currentPerms = null;  // dt_dashboard_users row
 
@@ -15464,6 +15480,7 @@ document.getElementById('chgpw-new').addEventListener('keydown', e => { if (e.ke
 /* ---------- SESSION BOOTSTRAP ---------- */
 async function loadSession(session) {
   if (!session) { document.getElementById('login-screen').classList.remove('hidden'); return; }
+  __sbAccessToken = session.access_token || __sbAccessToken;
   currentUser = session.user;
   // Fetch permissions row
   const { data: permsRow, error } = await supaAuth.from('dt_dashboard_users')
@@ -16690,7 +16707,7 @@ function form(){const kit=K();const stores=storesWithLoc();const S={store:MX.sto
 async function notify(w,who){const {data}=await supaAuth.from("dt_notification_recipients").select("name,email,notify_on_new_wo,notify_on_emergency,is_active");
   const em=w.priority==="emergency";const to=(data||[]).filter(r=>r.is_active&&r.email&&(r.notify_on_new_wo||(em&&r.notify_on_emergency)));if(!to.length)return;
   const eq=MX.eq.find(e=>e.id===w.equipment_id);
-  await fetch(SUPABASE_URL+"/functions/v1/send-wo-notification",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+SUPABASE_KEY},
+  await fetch(SUPABASE_URL+"/functions/v1/send-wo-notification",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+sbToken()},
     body:JSON.stringify({work_order:{wo_number:w.wo_number,title:w.title,priority:w.priority,category:w.category,location_name:locLbl(w.location_id),equipment_name:eq?eq.name:null,assigned_name:null,due_date:null,requested_by:who,description:w.description},
       recipients:to.map(r=>({name:r.name,email:r.email})),is_emergency:em})});}
 
@@ -16966,7 +16983,7 @@ function lvCsv(){const rows=lvFiltered().filter(r=>r.status!=="cancelled");if(!r
 
 // ---- employee lookups (Contacts) ----
 async function lvContacts(){if(LV.contacts)return LV.contacts;
-  try{const r=await fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts?select=name,store_id,role,anniversary&order=name",{headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY}});
+  try{const r=await fetch(SUPABASE_URL+"/rest/v1/dt_staff_contacts?select=name,store_id,role,anniversary&order=name",{headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+sbToken()}});
     LV.contacts=r.ok?await r.json():[];}catch(e){LV.contacts=[];}return LV.contacts;}
 const lvNorm=n=>String(n||"").toLowerCase().replace(/\s+/g," ").trim();
 async function lvStylists(sid,mgrOnly){const c=await lvContacts();const m={};c.filter(x=>String(x.store_id)===String(sid)&&String(x.name||"").trim()&&(!mgrOnly||LV_MGR.test(String(x.role||"").trim()))).forEach(x=>{const n=String(x.name).trim().replace(/\s+/g," ");m[lvNorm(n)]=n;});

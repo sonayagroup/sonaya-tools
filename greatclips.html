@@ -317,6 +317,10 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 .av-days{display:flex;flex-direction:column;gap:6px}.av-day{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:10px}.av-day.off{background:#fff8f8}
 .av-dn{flex:0 0 92px;font-weight:700;font-size:13.5px}.av-seg{margin:0}.av-times{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--muted)}.av-times[hidden]{display:none}
 .av-times{flex-wrap:wrap}.av-win{display:inline-flex;gap:6px;align-items:center}.av-and{font-size:12px;color:var(--muted)}.av-x{border:none;background:none;font-size:17px;color:var(--muted);cursor:pointer;padding:0 2px}.av-split{font-size:10.5px;color:#7c6fd6;font-weight:700;text-transform:uppercase}
+#avPrefNote{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
+.av-prefs{display:flex;flex-wrap:wrap;gap:6px}.gm-f label.av-pchip,.av-pchip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12.5px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)}
+.av-pchip input{width:auto!important;margin:0}.av-pchip:has(input:checked){border-color:var(--blue);background:#effaf6}
+.av-pref{display:inline-block;background:#f3f0ff;color:#4b3fb0;border-radius:999px;padding:2px 8px;font-size:11.5px;margin:1px 2px;white-space:nowrap}.av-prefcell{min-width:140px;text-align:left!important}
 .av-times input{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px}
 .av-form textarea,.av-form input[type=number],.av-form input[type=date],.av-form select,#avName{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
 .av-hist{margin-top:12px;font-size:12.5px}.av-hist summary{cursor:pointer;font-weight:700;color:var(--blue)}.av-hrow{padding:6px 0;border-bottom:1px solid var(--line)}
@@ -4476,7 +4480,7 @@ async function schFiles(files){const msg=$("#schMsg");const got=[],bad=[];
   catch(e){if(msg)msg.innerHTML='<span style="color:'+RED+'">Could not save: '+esc(e.message)+'</span>';}}
 
 // ---- view ----
-const SCH_TYPES={double:["Double-booked","⛔"],off:["OFF conflict","🚫"],avail:["Outside availability","🕒"],limit:["Over max hours/days","⏱"],mismatch:["Loan mismatch","↔️"],unverified:["Other salon not uploaded","❔"]};
+const SCH_TYPES={double:["Double-booked","⛔"],off:["OFF conflict","🚫"],avail:["Outside availability","🕒"],limit:["Over max hours/days","⏱"],pref:["Preference not met","💬"],mismatch:["Loan mismatch","↔️"],unverified:["Other salon not uploaded","❔"]};
 function schDayLbl(d){return d?gmD(d).toLocaleDateString("en-US",{weekday:"short"})+" "+gmShort(d):"";}
 function schDraw(host){const weeks=schWeeks();if(!SCH.week||!weeks.includes(SCH.week)){const up=SCH.rows.map(r=>r.week_start).sort();const nextSat=gmAdd(gmWeekEnd(gmToday()),1);SCH.week=up.filter(w=>w>=gmAdd(nextSat,-7)).sort()[0]||up[up.length-1]||nextSat;}
   const wk=SCH.week;const rows=SCH.rows.filter(r=>r.week_start===wk);const A=schAnalyze(rows);
@@ -4495,7 +4499,7 @@ function schDraw(host){const weeks=schWeeks();if(!SCH.week||!weeks.includes(SCH.
   h+='<div class="card"><h3>Discrepancies <span>· '+(iss.filter(i=>i.sev!=="n").length||"none found")+'</span></h3>';
   h+='<div class="sch-counts">'+Object.keys(SCH_TYPES).map(t=>'<span class="gm-chip '+(cnt(t)?(t==="double"||t==="off"||t==="avail"||t==="limit"?"gm-r":t==="unverified"?"gm-n":"gm-a"):"gm-g")+'">'+SCH_TYPES[t][1]+' '+SCH_TYPES[t][0]+': '+cnt(t)+'</span>').join(" ")+'</div>';
   if(!iss.length)h+='<div class="oos-ok">✓ No double-bookings, loan mismatches, OFF or availability conflicts found across the '+have.size+' uploaded salon'+(have.size===1?"":"s")+'.</div>';
-  h+=iss.map(i=>'<div class="sch-iss s-'+i.sev+'"><div class="ic">'+SCH_TYPES[i.type][1]+'</div><div><div class="hd"><b>'+esc(i.name)+'</b>'+(i.day?' · '+schDayLbl(i.day):' · week')+' <span class="gm-why" style="margin:0">'+SCH_TYPES[i.type][0]+'</span></div><div>'+esc(i.txt)+'</div><div class="gm-why" style="margin:2px 0 0">Salons: '+i.salons.map(s=>esc(s+" "+nm(s))).join(" · ")+'</div>'+(i.type==="avail"||i.type==="limit"?'<button class="gm-link sch-avedit" data-k="'+esc(i.key)+'" data-n="'+esc(i.name)+'" data-s="'+esc(i.salons[0]||"")+'">View / edit availability</button>':'')+'</div></div>').join("");
+  h+=iss.map(i=>'<div class="sch-iss s-'+i.sev+'"><div class="ic">'+SCH_TYPES[i.type][1]+'</div><div><div class="hd"><b>'+esc(i.name)+'</b>'+(i.day?' · '+schDayLbl(i.day):' · week')+' <span class="gm-why" style="margin:0">'+SCH_TYPES[i.type][0]+'</span></div><div>'+esc(i.txt)+'</div><div class="gm-why" style="margin:2px 0 0">Salons: '+i.salons.map(s=>esc(s+" "+nm(s))).join(" · ")+'</div>'+(i.type==="avail"||i.type==="limit"||i.type==="pref"?'<button class="gm-link sch-avedit" data-k="'+esc(i.key)+'" data-n="'+esc(i.name)+'" data-s="'+esc(i.salons[0]||"")+'">View / edit availability</button>':'')+'</div></div>').join("");
   if(iss.length)h+='<div class="gm-actions" style="justify-content:flex-start;margin-top:10px"><button class="gm-cancel" id="schCopy">Copy list for WhatsApp</button></div>';
   h+='</div>';
   // floaters grid: one line per real shift, salon color-coded, problems spelled out in the cell
@@ -4565,38 +4569,45 @@ function avLoad(force){if(AV.loading&&!force)return AV.loading;
 // the version in effect on a date (latest effective_from <= date)
 function avFor(key,date){let best=null;AV.rows.forEach(r=>{if(r.stylist_key===key&&r.effective_from<=date&&(!best||r.effective_from>best.effective_from))best=r;});return best;}
 function avCurrent(key){return avFor(key,"9999-12-31");}
+// Staff list comes from the salon's Contacts list (Area Managers excluded). Anyone with saved availability who
+// is no longer in Contacts still shows, marked, so nothing saved is hidden.
 async function avStaff(sid){if(AV.names[sid])return AV.names[sid];const m={};
-  try{const r=await fetch(SUPA_URL+"/rest/v1/daily_stylist?select=stylist_name&salon_id=eq."+sid+"&date=gte."+gmAdd(gmToday(),-75)+"&limit=5000",{headers:supaHeaders()});
-    (r.ok?await r.json():[]).filter(x=>!GC_NOT_STAFF.test(x.stylist_name||"")).forEach(x=>{const k=avKey(x.stylist_name);if(k&&!m[k])m[k]={key:k,name:avDisp(x.stylist_name),role:""};});}catch(e){}
-  try{if(typeof SCH!=="undefined"&&!SCH.loaded&&typeof schLoad==="function")await schLoad();
-    (SCH.rows||[]).filter(r=>r.salon_id===sid).slice(0,3).forEach(r=>((r.data||{}).emps||[]).forEach(e=>{const k=schKey(e.name);if(!k)return;const role=schRole(e.name);if(!m[k])m[k]={key:k,name:schDisp(e.name),role};else if(!m[k].role)m[k].role=role;}));}catch(e){}
-  AV.rows.filter(r=>r.salon_id===sid).forEach(r=>{if(!m[r.stylist_key])m[r.stylist_key]={key:r.stylist_key,name:r.stylist_name,role:""};});
-  AV.names[sid]=Object.values(m).sort((a,b)=>a.name.localeCompare(b.name));return AV.names[sid];}
+  const r=await fetch(SUPA_URL+"/rest/v1/salon_contacts?select=name,role&salon_id=eq."+sid+"&limit=1000",{headers:supaHeaders()});
+  if(!r.ok)throw new Error("Couldn’t load the Contacts list ("+r.status+")");
+  (await r.json()).filter(c=>c.name&&!/^area manager$/i.test(String(c.role||"").trim())).forEach(c=>{const nm=String(c.name).trim().replace(/\s+/g," ");const k=avKey(nm);if(k&&!m[k])m[k]={key:k,name:nm,role:c.role||""};});
+  AV.rows.filter(x=>x.salon_id===sid).forEach(x=>{if(!m[x.stylist_key])m[x.stylist_key]={key:x.stylist_key,name:x.stylist_name,role:"Not in Contacts",gone:true};});
+  AV.names[sid]=Object.values(m).sort((a,b)=>((a.gone?1:0)-(b.gone?1:0))||a.name.localeCompare(b.name));return AV.names[sid];}
 async function avInit(){const host=$("#avBody");if(!host)return;const sal=avSalons();if(!sal.length){host.innerHTML='<div class="card">Your login isn’t assigned to a salon yet.</div>';return;}
   if(current&&current!==avInit._hdr&&sal.includes(current))AV.salon=current; // follow the header salon when it changes
   avInit._hdr=current;if(!AV.salon||!sal.includes(AV.salon))AV.salon=sal.includes(current)?current:sal[0];
   host.innerHTML='<div class="card">Loading availability…</div>';
-  try{await avLoad(true);await avStaff(AV.salon);}catch(e){host.innerHTML='<div class="card"><div class="gm-banner red">Couldn’t load availability: '+esc(e.message||e)+'</div></div>';return;}
+  try{await avLoad(true);AV.names={};await avStaff(AV.salon);}catch(e){host.innerHTML='<div class="card"><div class="gm-banner red">Couldn’t load availability: '+esc(e.message||e)+'</div></div>';return;}
   avRender();}
+// Scheduling preferences: soft wishes, not restrictions. Ones marked chk are checked when schedules are uploaded.
+const AV_PREFS=[["off2","Two days off in a row",1],["morn","Mornings only (done by 2p)",1],["eve","Evenings only (start 2p or later)",1],["wkend","Weekends off",1],
+  ["open","Prefers opening shifts",0],["close","Prefers closing shifts",0],["same","Same schedule each week",0],["more","Wants more hours",0],["fewer","Wants fewer hours",0]];
+const AV_PREF_LBL=Object.fromEntries(AV_PREFS.map(p=>[p[0],p[1]]));
+function avPrefTxt(r){const a=(r&&r.prefs||[]).map(k=>AV_PREF_LBL[k]||k);if(r&&r.pref_note)a.push(r.pref_note);return a;}
 function avSummary(r){if(!r)return "";const b=[];if(r.max_hours_week)b.push("max "+lvH(r.max_hours_week)+" hrs/wk");if(r.max_days_week)b.push("max "+r.max_days_week+" days/wk");return b.join(" · ");}
 function avRender(){const host=$("#avBody");if(!host)return;const sal=avSalons();const list=(AV.names[AV.salon]||[]).filter(s=>!AV.q||s.name.toLowerCase().includes(AV.q.toLowerCase()));
   const edit=avCanEdit(AV.salon);const set=list.filter(s=>avCurrent(s.key)).length;
   let h='<div class="card av-head"><div><h3 style="margin:0">Stylist availability &amp; restrictions</h3><div class="hint" style="margin:2px 0 0">When each person can work, and any max hours or days per week. Area Managers see conflicts on the Schedules tab when schedules are uploaded.</div></div>'
     +'<div class="av-ctl">'+(sal.length>1?'<select id="avSal">'+sal.map(s=>'<option value="'+s+'"'+(s===AV.salon?" selected":"")+'>'+esc(lvSalonLbl(s))+'</option>').join("")+'</select>':'<b>'+esc(lvSalonLbl(AV.salon))+'</b>')
-    +'<input id="avQ" type="search" placeholder="Search name" value="'+esc(AV.q)+'">'+(edit?'<button class="gm-btn2" id="avAdd">+ Add person</button>':'')+'</div></div>';
-  h+='<div class="gm-why" style="margin:0 2px 8px">'+set+' of '+list.length+' people have availability set'+(list.length-set?' · tap a name to set it':'')+'.</div>';
-  if(!list.length)h+='<div class="card lv-empty">No staff found for this salon yet. Tap <b>+ Add person</b> to add someone.</div>';
-  else{h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl av-tbl"><thead><tr><th>Name</th><th>Limits</th>'+AV_ORDER.map(d=>'<th>'+AV_DOW[d]+'</th>').join("")+'<th>Updated</th></tr></thead><tbody>';
+    +'<input id="avQ" type="search" placeholder="Search name" value="'+esc(AV.q)+'">'+'</div></div>';
+  h+='<div class="gm-why" style="margin:0 2px 8px">'+set+' of '+list.length+' people have availability set'+(list.length-set?' · tap a name to set it':'')+'. The list comes from this salon’s Contacts. Missing someone? <button class="gm-link" id="avToContacts">Add them in Contacts</button>.</div>';
+  if(!list.length)h+='<div class="card lv-empty">No one is in this salon’s Contacts list yet. Add staff on the Contacts tab and they’ll show up here.</div>';
+  else{h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl av-tbl"><thead><tr><th>Name</th><th>Limits</th>'+AV_ORDER.map(d=>'<th>'+AV_DOW[d]+'</th>').join("")+'<th>Preferences</th><th>Updated</th></tr></thead><tbody>';
     list.forEach(s=>{const r=avCurrent(s.key);const fut=r&&r.effective_from>gmToday();const now=fut?avFor(s.key,gmToday()):r;
-      h+='<tr class="av-row" data-k="'+esc(s.key)+'"><td class="nm"><button class="gm-name">'+esc(s.name)+'</button>'+(s.role?'<div class="gm-why" style="margin:0">'+esc(s.role)+'</div>':'')+'</td>'
+      h+='<tr class="av-row" data-k="'+esc(s.key)+'"><td class="nm"><button class="gm-name">'+esc(s.name)+'</button>'+(s.role?'<div class="gm-why" style="margin:0'+(s.gone?';color:#a3530a':'')+'">'+esc(s.role)+'</div>':'')+'</td>'
         +'<td class="wrap">'+(r?esc(avSummary(r))||'<span class="av-ns">None</span>':'<span class="av-ns">Not set</span>')+'</td>'
         +AV_ORDER.map(d=>'<td>'+(r?avCell((r.days||{})[d]):'<span class="av-ns">·</span>')+'</td>').join("")
+        +'<td class="wrap av-prefcell">'+(r&&avPrefTxt(r).length?avPrefTxt(r).map(t=>'<span class="av-pref">'+esc(t)+'</span>').join(""):'<span class="av-ns">—</span>')+'</td>'
         +'<td class="wrap">'+(r?esc((r.created_by_name||"").split(" ")[0])+' · '+gmShort(gmLocalDate(r.updated_at||r.created_at))+(fut?'<div><span class="gm-chip gm-a">Changes '+gmShort(r.effective_from)+'</span></div>':''):'')+'</td></tr>';});
     h+='</tbody></table></div></div>';}
   host.innerHTML=h;
   if($("#avSal"))$("#avSal").onchange=async e=>{AV.salon=e.target.value;host.querySelector(".card").style.opacity=.6;await avStaff(AV.salon);avRender();};
   $("#avQ").oninput=e=>{AV.q=e.target.value;clearTimeout(avRender._t);avRender._t=setTimeout(()=>{avRender();const q=$("#avQ");if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},250);};
-  if($("#avAdd"))$("#avAdd").onclick=()=>avEdit(null);
+  if($("#avToContacts"))$("#avToContacts").onclick=()=>{const ss=$("#salonSel");if(ss&&ss.value!==AV.salon&&[...ss.options].some(o=>o.value===AV.salon)){ss.value=AV.salon;ss.dispatchEvent(new Event("change"));}const t=document.querySelector('.tab[data-t="contacts"]');if(t&&!t.hidden)t.click();};
   host.querySelectorAll(".av-row").forEach(tr=>tr.onclick=()=>{const s=(AV.names[AV.salon]||[]).find(x=>x.key===tr.dataset.k);avEdit(s);});}
 function avEdit(person,opts){opts=opts||{};const sid=opts.salon||AV.salon;const edit=avCanEdit(sid);const cur=person?avCurrent(person.key):null;
   const D={};AV_ORDER.forEach(d=>{const x=cur&&(cur.days||{})[d];D[d]=x?{m:x.m,w:avWins(x).map(w=>({s:w.s,e:w.e}))}:{m:"all",w:[]};});
@@ -4610,6 +4621,9 @@ function avEdit(person,opts){opts=opts||{};const sid=opts.salon||AV.salon;const 
     +'<div class="lv-two" style="margin-top:12px"><div class="gm-f"><label>Max hours per week</label><input id="avMaxH" type="number" min="1" max="80" step="0.5" inputmode="decimal" placeholder="No limit" value="'+(cur&&cur.max_hours_week?lvH(cur.max_hours_week):"")+'"></div>'
       +'<div class="gm-f"><label>Max days per week</label><select id="avMaxD"><option value="">No limit</option>'+[1,2,3,4,5,6].map(n=>'<option'+(cur&&cur.max_days_week===n?" selected":"")+'>'+n+'</option>').join("")+'</select></div>'
       +'<div class="gm-f"><label>Starts</label><input id="avFrom" type="date" value="'+gmToday()+'"><span class="hint">Schedules before this date are checked against the old availability.</span></div></div>'
+    +'<div class="gm-f" style="margin-top:12px"><label>Preferences <span class="hint">(nice to have, not a restriction)</span></label><div class="av-prefs" id="avPrefs">'
+      +AV_PREFS.map(p=>'<label class="av-pchip"><input type="checkbox" value="'+p[0]+'"'+((cur&&cur.prefs||[]).includes(p[0])?" checked":"")+'><span>'+esc(p[1])+'</span></label>').join("")+'</div>'
+      +'<input id="avPrefNote" placeholder="Other preference (optional), e.g. off by 5p on Wednesdays" value="'+esc(cur&&cur.pref_note||"")+'" style="margin-top:6px"></div>'
     +'<div class="gm-f" style="margin-top:10px"><label>Notes (reason, e.g. school, second job)</label><textarea id="avNotes" rows="2">'+esc(cur&&cur.notes||"")+'</textarea></div>'
     +(hist.length>1||(hist.length&&hist[0].effective_from>gmToday())?'<details class="av-hist"><summary>History ('+hist.length+')</summary>'+hist.map(r=>'<div class="av-hrow"><b>From '+fmtDate(r.effective_from)+'</b> · '+esc(r.created_by_name||"—")+'<div>'+AV_ORDER.map(d=>AV_DOW[d]+' '+avCell((r.days||{})[d])).join(" · ")+(avSummary(r)?' · '+esc(avSummary(r)):'')+'</div>'+(r.notes?'<div class="gm-why" style="margin:0">'+esc(r.notes)+'</div>':'')+'</div>').join("")+'</details>':'')
     +'<div class="gm-actions"><span class="gm-err" id="avErr"></span><button class="gm-cancel" id="avCancel">'+(edit?"Cancel":"Close")+'</button>'+(edit?'<button class="btn" id="avSave">Save</button>':'')+'</div></div>';
@@ -4640,10 +4654,13 @@ function avEdit(person,opts){opts=opts||{};const sid=opts.salon||AV.salon;const 
     const mh=$("#avMaxH").value?parseFloat($("#avMaxH").value):null;if(mh!=null&&!(mh>0&&mh<=80)){err.textContent="Max hours must be between 1 and 80.";return;}
     const md=$("#avMaxD").value?+$("#avMaxD").value:null;const avail=AV_ORDER.filter(d=>D[d].m!=="off").length;
     if(md&&md>avail){err.textContent="Max days ("+md+") is more than the days they’re available ("+avail+").";return;}
+    {const pc=[...document.querySelectorAll("#avPrefs input:checked")].map(c=>c.value);if(pc.includes("morn")&&pc.includes("eve")){err.textContent="Pick mornings only or evenings only, not both.";return;}
+      if(pc.includes("more")&&pc.includes("fewer")){err.textContent="Pick more hours or fewer hours, not both.";return;}}
     const from=$("#avFrom").value||gmToday();
     const days={};AV_ORDER.forEach(d=>{const x=D[d];if(x.m!=="range"){days[d]={m:x.m};return;}
       const w=x.w.map(v=>({s:v.s.slice(0,5),e:v.e.slice(0,5)})).sort((a,b)=>a.s<b.s?-1:1);days[d]=w.length>1?{m:"range",s:w[0].s,e:w[0].e,w}:{m:"range",s:w[0].s,e:w[0].e};});
-    const rec={stylist_key:key,stylist_name:name,salon_id:sid,effective_from:from,max_hours_week:mh,max_days_week:md,days,notes:$("#avNotes").value.trim()||null};
+    const rec={stylist_key:key,stylist_name:name,salon_id:sid,effective_from:from,max_hours_week:mh,max_days_week:md,days,notes:$("#avNotes").value.trim()||null,
+      prefs:[...document.querySelectorAll("#avPrefs input:checked")].map(c=>c.value),pref_note:$("#avPrefNote").value.trim()||null};
     const btn=$("#avSave");btn.disabled=true;
     const {error}=await gcClient().from("gc_stylist_avail").upsert(rec,{onConflict:"stylist_key,effective_from"});
     if(error){err.textContent=lvErr(error);btn.disabled=false;return;}
@@ -4665,7 +4682,13 @@ function avConflicts(A){const out=[];if(!AV.loaded)return out;
     let mins=0;days.forEach(day=>{const iv=list.filter(e=>e.day===day).map(e=>[e.s,e.e]).sort((a,b)=>a[0]-b[0]);let cs=null,ce=null;iv.forEach(([s,e])=>{if(cs==null){cs=s;ce=e;return;}if(s<=ce){if(e>ce)ce=e;return;}mins+=ce-cs;cs=s;ce=e;});if(cs!=null)mins+=ce-cs;});
     const salons=[...new Set(list.flatMap(e=>[e.src,e.loc]))];
     if(v.max_hours_week&&mins/60>+v.max_hours_week+0.01)out.push({sev:"r",type:"limit",key,name,day:null,txt:"Scheduled "+lvH(mins/60)+" hrs this week, over their max of "+lvH(v.max_hours_week)+" hrs"+(v.notes?" ("+v.notes+")":""),salons});
-    if(v.max_days_week&&days.length>v.max_days_week)out.push({sev:"r",type:"limit",key,name,day:null,txt:"Scheduled "+days.length+" days this week, over their max of "+v.max_days_week+" days"+(v.notes?" ("+v.notes+")":""),salons});});
+    if(v.max_days_week&&days.length>v.max_days_week)out.push({sev:"r",type:"limit",key,name,day:null,txt:"Scheduled "+days.length+" days this week, over their max of "+v.max_days_week+" days"+(v.notes?" ("+v.notes+")":""),salons});
+    // preferences (soft): flagged amber
+    const pr=v.prefs||[];if(!pr.length)return;const wk=(typeof SCH!=="undefined"&&SCH.week)||days[0];const all7=[];for(let i=0;i<7;i++)all7.push(gmAdd(wk,i));
+    if(pr.includes("off2")){const off=all7.map(d=>!days.includes(d));if(!off.some((x,i)=>x&&off[i+1]))out.push({sev:"a",type:"pref",key,name,day:null,txt:"Prefers two days off in a row, but this week’s days off aren’t back to back",salons});}
+    if(pr.includes("wkend")){const we=days.filter(d=>[0,6].includes(gmD(d).getDay()));if(we.length)out.push({sev:"a",type:"pref",key,name,day:we[0],txt:"Prefers weekends off, but is scheduled "+we.map(d=>AV_DOW[gmD(d).getDay()]).join(" and "),salons});}
+    if(pr.includes("morn")){const b=list.filter(e=>e.e>14*60);if(b.length)out.push({sev:"a",type:"pref",key,name,day:b[0].day,txt:"Prefers mornings only, but is scheduled "+b.map(e=>AV_DOW[gmD(e.day).getDay()]+" "+schRange(e)).join(", "),salons});}
+    if(pr.includes("eve")){const b=list.filter(e=>e.s<14*60);if(b.length)out.push({sev:"a",type:"pref",key,name,day:b[0].day,txt:"Prefers evenings only, but is scheduled "+b.map(e=>AV_DOW[gmD(e.day).getDay()]+" "+schRange(e)).join(", "),salons});}});
   return out;}
 
 </script>

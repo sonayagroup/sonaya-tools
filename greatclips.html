@@ -304,6 +304,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 
 /* ===== Time Off (PTO / Sick Leave) ===== */
 .gc-hr header .ctrls,.gc-hr #gcTourBtn,.gc-hr #emptyBanner{display:none!important}
+.early-h{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:700;margin:14px 0 6px}
 .lv-badge{display:inline-block;min-width:18px;padding:1px 6px;margin-left:4px;border-radius:999px;background:var(--red);color:#fff;font-size:11px;font-weight:700;line-height:16px;text-align:center}
 .lv-badge[hidden]{display:none}
 .lv-head{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
@@ -1005,6 +1006,7 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
       <th data-k="11">Waits<span class="kpi-ideal"><b>Goal</b>&lt;15%</span></th><th data-k="12">Cust Gr%<span class="kpi-ideal"><b>Goal</b>≥5%</span></th><th data-k="13">Sales Gr%<span class="kpi-ideal"><b>Goal</b>≥5%</span></th><th title="Overall health score (1-5) from payroll %, CPH, avg HC time, wait &gt;15%, and customer growth vs. targets">Health</th><th class="gcol" title="Live Google rating (snapshot)">★</th>
     </tr></thead><tbody></tbody><tfoot></tfoot></table></div>
   </div>
+  <div id="earlyWidget" style="margin-bottom:18px;display:none"></div>
   <div id="bdayWidget" style="margin-bottom:18px;display:none">
     <div class="grid g2">
       <div class="card" style="padding:16px"><h3 style="margin:0 0 10px">🎂 Today's Birthdays</h3><div id="bdayToday" style="font-size:14px;color:var(--muted)">Loading…</div></div>
@@ -1084,10 +1086,11 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
       </div>
       <div class="card tbl-scroll" style="margin-top:10px;box-shadow:none;border:1px solid var(--line)">
         <table id="attTable"><thead><tr>
-          <th style="cursor:pointer;user-select:none" onclick="attSortBy(0)">Stylist <span id="attSI0"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(1)">No-Shows <span id="attSI1"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(2)">Late (&gt;10 min) <span id="attSI2"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(3)">Not Scheduled <span id="attSI3"></span></th>
+          <th style="cursor:pointer;user-select:none" onclick="attSortBy(0)">Stylist <span id="attSI0"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(1)">No-Shows <span id="attSI1"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(2)">Late (&gt;10 min) <span id="attSI2"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(3)">Not Scheduled <span id="attSI3"></span></th><th style="cursor:pointer;user-select:none" onclick="attSortBy(4)" title="Clocked in more than 30 minutes before the scheduled shift">Early (30+ min) <span id="attSI4"></span></th>
         </tr></thead><tbody></tbody><tfoot></tfoot></table>
         <div class="legend-note" id="attNote"></div>
       </div>
+      <div id="attEarly"></div>
     </div>
   </div>
 
@@ -1406,7 +1409,7 @@ async function loadData(){
   // via computeAttendance() the same way daily_salon rolls up into WTD/YTD.
   (dAtt||[]).forEach(r=>{const d=r.date,sid=String(r.salon_id);datesSet.add(d);
     if(!days[d])days[d]={SAL:[],STY:{},WAIT:{},ATT:{}};if(!days[d].ATT[sid])days[d].ATT[sid]=[];
-    days[d].ATT[sid].push([r.stylist_name,r.no_show_count||0,r.late_count||0,r.not_scheduled_count||0]);});
+    days[d].ATT[sid].push([r.stylist_name,r.no_show_count||0,r.late_count||0,r.not_scheduled_count||0,r.early_count||0,r.early_min||0,r.sched_shift||"",r.clock_in||""]);});
   wSal.forEach(r=>{const wk=r.week_ending,sid=String(r.salon_id);weeksSet.add(wk);
     if(!weeklies[wk])weeklies[wk]={EPP:{},WSAL:{},AUDSUM:{},AUDALERTS:{}};
     weeklies[wk].WSAL[sid]=[portName(r.salon_name),r.service_sales,r.product_sales,r.total_sales,r.cust,r.new_cust,r.floor_hours,r.avg_hc,r.cph,r.prodvity,r.avg_wait,r.wait_over15_pct,r.payroll_pct,r.avg_min_btwn,r.voids_pct,r.svc_disc_pct,r.over_short,r.new_ret_pct,r.rep_ret_pct,r.floor_hours_growth,r.cust_growth_pct,r.sales_growth_pct];});
@@ -1727,7 +1730,7 @@ document.querySelectorAll("#portModeToggle button").forEach(b=>b.onclick=()=>{
 });
 /* Portfolio: trim long mall suffixes so columns get more room */
 function portName(n){return String(n||"").replace(/\s+(Shopping Center|Center Mall)$/i,"").trim();}
-function renderPort(){
+function renderPort(){try{renderEarlyCard();}catch(e){}
   const pms=document.getElementById("portMonthSel");if(pms)pms.style.display=portMode==="mtd"?"":"none";
   const pct=document.getElementById("portCustToggle");const cwk=(portMode==="mtd"||portMode==="ytd")&&portCust==="wk";
   if(pct)pct.style.display=(portMode==="mtd"||portMode==="ytd")?"":"none";
@@ -2259,11 +2262,11 @@ function computeAttendance(sid,from,to){
   Object.keys(DATA.days||{}).forEach(d=>{
     if(d<from||d>to)return;
     ((DATA.days[d].ATT||{})[sid]||[]).forEach(r=>{
-      if(!acc[r[0]])acc[r[0]]={noShow:0,late:0,notSched:0};
-      acc[r[0]].noShow+=r[1]||0;acc[r[0]].late+=r[2]||0;acc[r[0]].notSched+=r[3]||0;
+      if(!acc[r[0]])acc[r[0]]={noShow:0,late:0,notSched:0,early:0};
+      acc[r[0]].noShow+=r[1]||0;acc[r[0]].late+=r[2]||0;acc[r[0]].notSched+=r[3]||0;acc[r[0]].early+=r[4]||0;
     });
   });
-  return Object.keys(acc).sort().map(nm=>[nm,acc[nm].noShow,acc[nm].late,acc[nm].notSched]);
+  return Object.keys(acc).sort().map(nm=>[nm,acc[nm].noShow,acc[nm].late,acc[nm].notSched,acc[nm].early]);
 }
 // Attendance color standards (rate-adjusted to the selected range, so a Week and a YTD
 // view score the same stylist consistently instead of YTD just accumulating more red):
@@ -2273,7 +2276,27 @@ function computeAttendance(sid,from,to){
 //    count is shown in green as a positive (covering a call-out), 0 is left uncolored.
 function attRateClass(count,weeks){ if(count<=0)return"kg"; return (count/weeks)<=1?"ky":"kr"; }
 function attSortBy(col){if(attSort.col===col)attSort.asc=!attSort.asc;else{attSort.col=col;attSort.asc=col===0;}renderAttendance();}
-function attUpdateSortIcons(){for(let i=0;i<4;i++){const el=document.getElementById("attSI"+i);if(el)el.textContent=attSort.col===i?(attSort.asc?"▲":"▼"):"";}}
+function attUpdateSortIcons(){for(let i=0;i<5;i++){const el=document.getElementById("attSI"+i);if(el)el.textContent=attSort.col===i?(attSort.asc?"▲":"▼"):"";}}
+// Early clock-ins: clocked in more than 30 min before the scheduled shift (from the Scheduling Variances report)
+function earlyEvents(sids,from,to){const out=[];Object.keys(DATA.days||{}).forEach(d=>{if(d<from||d>to)return;
+  sids.forEach(sid=>((DATA.days[d].ATT||{})[sid]||[]).forEach(r=>{if(r[4]>0)out.push({d,sid,name:r[0],min:r[5]||0,shift:r[6]||"",clock:r[7]||""});}));});
+  return out.sort((a,b)=>b.d.localeCompare(a.d)||b.min-a.min);}
+function earlyDur(m){m=+m||0;const h=Math.floor(m/60),mm=m%60;return (h?h+" hr ":"")+(mm||!h?mm+" min":"").trim();}
+function renderEarlyList(sid,range){const host=$("#attEarly");if(!host)return;if(!sid||!range){host.innerHTML="";return;}
+  const ev=earlyEvents([String(sid)],range.from,range.to);
+  host.innerHTML='<div class="early-h">Early clock-ins (more than 30 min before shift) · '+esc(range.label)+'</div>'+(ev.length?'<div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Date</th><th>Stylist</th><th>Scheduled</th><th>Clocked in</th><th>Early by</th></tr></thead><tbody>'
+    +ev.map(e=>'<tr><td>'+gmD(e.d).toLocaleDateString("en-US",{weekday:"short"})+' '+fmtDate(e.d)+'</td><td>'+esc(e.name)+'</td><td class="wrap">'+esc(e.shift.replace(/\s*(SU\+)?Floor/g,"").trim()||"—")+'</td><td>'+esc(e.clock||"—")+'</td><td class="'+(e.min>=120?"kr":"ky")+'"><b>'+earlyDur(e.min)+'</b></td></tr>').join("")+'</tbody></table></div>'
+    :'<div class="legend-note">None in this range.</div>');}
+// Portfolio card: early clock-ins on the selected day across the salons this login can see, plus 7-day repeats
+function renderEarlyCard(){const host=$("#earlyWidget");if(!host)return;const day=curDate;if(!day){host.style.display="none";return;}
+  const sids=Object.keys(SALONS||{}).filter(x=>typeof gcCanSalon!=="function"||gcCanSalon(x));
+  const ev=earlyEvents(sids,day,day);const wk=earlyEvents(sids,gmAdd(day,-6),day);const cnt={};wk.forEach(e=>{const k=e.sid+"|"+e.name;cnt[k]=(cnt[k]||0)+1;});
+  host.style.display="";
+  host.innerHTML='<div class="card"><h3>⏰ Early clock-ins · '+fmtDate(day)+' <span class="hint" style="font-weight:500">more than 30 min before the scheduled shift</span></h3>'
+    +(ev.length?'<div class="tbl-scroll"><table class="gm-tbl"><thead><tr><th>Salon</th><th>Stylist</th><th>Scheduled</th><th>Clocked in</th><th>Early by</th><th>Last 7 days</th></tr></thead><tbody>'
+      +ev.map(e=>'<tr><td>'+esc(e.sid+" "+(SALONS[e.sid]||""))+'</td><td>'+esc(e.name)+'</td><td class="wrap">'+esc(e.shift.replace(/\s*(SU\+)?Floor/g,"").trim()||"—")+'</td><td>'+esc(e.clock||"—")+'</td><td class="'+(e.min>=120?"kr":"ky")+'"><b>'+earlyDur(e.min)+'</b></td><td>'+(cnt[e.sid+"|"+e.name]>1?'<span class="gm-chip gm-r">'+cnt[e.sid+"|"+e.name]+' times</span>':'1st')+'</td></tr>').join("")+'</tbody></table></div>'
+      +'<div class="legend-note">Full history per salon: Salon Detail › Attendance (Early column and list).</div>'
+    :'<div class="legend-note" style="margin:0">No one clocked in more than 30 minutes early on this day.</div>')+'</div>';}
 function renderAttendance(){
   const range=attRange();
   const tb=$("#attTable tbody");tb.innerHTML="";
@@ -2285,8 +2308,9 @@ function renderAttendance(){
   rows.sort((a,b)=>{const c=attSort.col;const dir=attSort.asc?1:-1;if(c===0)return a[0].localeCompare(b[0])*dir;return(a[c]-b[c])*dir;});
   attUpdateSortIcons();
   rows.forEach(r=>{
-    tb.innerHTML+=`<tr><td>${r[0]}</td><td class="${attRateClass(r[1],weeks)}">${r[1]}</td><td class="${attRateClass(r[2],weeks)}">${r[2]}</td><td class="${r[3]>0?"kg":""}">${r[3]}</td></tr>`;
+    tb.innerHTML+=`<tr><td>${r[0]}</td><td class="${attRateClass(r[1],weeks)}">${r[1]}</td><td class="${attRateClass(r[2],weeks)}">${r[2]}</td><td class="${r[3]>0?"kg":""}">${r[3]}</td><td class="${attRateClass(r[4]||0,weeks)}">${r[4]||0}</td></tr>`;
   });
+  renderEarlyList(current,range);
   $("#attNote").textContent=rows.length
     ? rows.length+" stylist(s) with attendance data for this range. No-Shows/Late: green = none, yellow = up to ~1/wk, red = more than 1/wk (rate-adjusted to the range length). Not Scheduled shown in green — informational, not a violation."
     : "No attendance data ingested yet for this range — daily attendance CSVs feed this table.";

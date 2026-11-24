@@ -1070,6 +1070,7 @@ body.of-touring { overflow-x: hidden; }
   <button class="tab-btn" data-tab="crm">CRM Pipeline</button>
   <button class="tab-btn" data-tab="standup">Stand-up</button>
   <button class="tab-btn" data-tab="office">Front Office</button>
+  <button class="tab-btn" data-tab="contacts">Contacts</button>
   <button class="tab-btn" data-tab="timeoff" style="display:none;">Time Off &amp; Pay<span id="klvBadge" hidden></span></button>
   <button class="tab-btn" data-tab="admin" id="manageUsersTabBtn" style="display:none;">Manage Users</button>
 </nav>
@@ -1290,6 +1291,11 @@ body.of-touring { overflow-x: hidden; }
 <!-- TAB: FRONT OFFICE (rendered by renderOffice) -->
 <div class="tab-content" id="tab-office">
   <div class="container-wide" id="officeRoot"></div>
+</div>
+
+<!-- TAB: CONTACTS (copied from Great Clips: staff with work anniversaries for PTO, vendors, company-wide) -->
+<div class="tab-content" id="tab-contacts">
+  <div class="container-wide klv" style="max-width:1300px;"><div id="kctBody"></div></div>
 </div>
 
 <!-- TAB: TIME OFF & PAY (PTO / Sick Leave + crew bonuses / sales commissions; Jacob + Michelle submit, Alejandra processes) -->
@@ -7489,9 +7495,9 @@ function officeTourAfterRender() {
 <script>
 // ===== TIME OFF & PAY (Koala): PTO / Sick Leave requests + crew bonuses / sales commissions (Jacob + Michelle submit, Alejandra processes payroll) =====
 // Copied from the Great Clips Time Off tab (11/2026). Tables koala_leave_requests / koala_leave_events / koala_leave_files /
-// koala_leave_employees (hire dates) / koala_leave_access (who uses it). RLS: Koala admins (owner) + koala_leave_access (hr, manager);
+// koala_leave_access (who uses it); names + work anniversaries come from Koala Contacts (koala_contacts_staff). RLS: Koala admins (owner) + koala_leave_access (hr, manager);
 // no deletes. Private bucket koala-leave-files. Server trigger koala_leave_check enforces: biweekly Sat-Fri pay periods anchored
-// 11/7/2026, PTO only after the 1-year anniversary (employee list), 64 sick hrs per calendar year (sick + sick-as-PTO), 0-12 hrs/day;
+// 11/7/2026, PTO only after the 1-year anniversary (Contacts), 64 sick hrs per calendar year (sick + sick-as-PTO), 0-12 hrs/day;
 // bonuses/commissions need an amount (max $25,000) and what it's for. Emails go out from the koala-leave-notify edge function.
 (function(){
 const $=s=>document.querySelector(s);
@@ -7577,7 +7583,7 @@ function lvRender(){const host=$("#klvBody");if(!host)return;const hr=lvIsHR(),t
   let h='<div class="lv-head card"><div><h3 style="margin:0">Time Off &amp; Pay</h3><div class="hint" style="margin:2px 0 0">'
     +(hr?'Process each request in Paychex, then mark it complete (or paid). Ask the manager if anything is unclear. Everything stays on record.'
         :'Submit PTO and Sick Leave for the team with the signed form, plus crew bonuses and sales commissions owed. HR processes them with payroll for that pay period.')+'</div></div>'
-    +'<div class="lv-hbtns"><button class="gm-link" id="lvHow">How it works</button><button class="gm-link" id="lvEmps">Employees &amp; hire dates</button><button class="btn lv-new" id="lvNew">+ New request</button></div></div>';
+    +'<div class="lv-hbtns"><button class="gm-link" id="lvHow">How it works</button><button class="gm-link" id="lvEmps">Contacts (hire dates)</button><button class="btn lv-new" id="lvNew">+ New request</button></div></div>';
   h+='<div class="lv-tiles">'
     +lvTile("mine",hr?"To process":"Needs your answer",nMine,nMine?(hr?"amber":"red"):"",hr?"Submitted, waiting on you":"HR asked a question")
     +lvTile("open",hr?"Waiting on managers":"Waiting on HR",nWait,"",hr?"You asked a question":"Submitted, not processed yet")
@@ -7628,34 +7634,26 @@ function lvCsv(){const rows=lvFiltered().filter(r=>r.status!=="cancelled");if(!r
   const blob=new Blob([lines.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download="time-off-and-pay"+(LV.pp?"-"+LV.pp:"")+".csv";document.body.appendChild(a);a.click();a.remove();}
 
-// ---- employee list (names + hire dates for PTO; kept up to date from this tab) ----
+// ---- employees = Koala Contacts staff (names + work anniversary for PTO), same as Great Clips ----
+const LV_MON=["January","February","March","April","May","June","July","August","September","October","November","December"];
+function lvAnnivIso(t){const m=String(t||"").trim().replace(/,/g,"").match(/^([a-z]+)\s+(\d{1,2})\s+(\d{4})$/i);if(!m)return null;
+  const mi=LV_MON.findIndex(x=>x.toLowerCase()===m[1].toLowerCase());if(mi<0)return null;return m[3]+"-"+String(mi+1).padStart(2,"0")+"-"+String(+m[2]).padStart(2,"0");}
+function lvIsoAnniv(iso){const p=String(iso).split("-");return LV_MON[+p[1]-1]+" "+(+p[2])+", "+p[0];}
 async function lvContacts(force){if(LV.contacts&&!force)return LV.contacts;
-  const {data,error}=await sb().from("koala_leave_employees").select("*").order("name");LV.contacts=error?(LV.contacts||[]):(data||[]);return LV.contacts;}
+  const {data,error}=await sb().from("koala_contacts_staff").select("id,name,role,anniversary").order("name");
+  LV.contacts=error?(LV.contacts||[]):(data||[]).map(c=>({id:c.id,name:c.name,title:c.role,anniversary:c.anniversary,hire_date:lvAnnivIso(c.anniversary),active:true}));return LV.contacts;}
 const lvNorm=n=>String(n||"").toLowerCase().replace(/\s+/g," ").trim();
-async function lvStylists(){const c=await lvContacts();return c.filter(x=>x.active).map(x=>x.name).sort((a,b)=>a.localeCompare(b));}
+async function lvStylists(){const c=await lvContacts();return c.map(x=>x.name).sort((a,b)=>a.localeCompare(b));}
 function lvEmp(name){const nm=lvNorm(name);return (LV.contacts||[]).find(x=>lvNorm(x.name)===nm)||null;}
-// hire date from the employee list (same as the server's koala_leave_a_hire): exact name first, then first + last name
+// hire date = Contacts work anniversary (same as the server's koala_leave_a_hire): exact name first, then first + last name
 function lvContactHire(name){const c=LV.contacts||[];const nm=lvNorm(name);if(!nm)return null;const f=nm.split(" ")[0],l=nm.split(" ").pop();const today=localToday();
   const cand=c.filter(x=>x.hire_date&&x.hire_date<=today).map(x=>({x,cn:lvNorm(x.name)})).filter(o=>o.cn===nm||(f!==l&&o.cn.startsWith(f+" ")&&o.cn.endsWith(" "+l)));
   cand.sort((a,b)=>(b.cn===nm)-(a.cn===nm));return cand.length?cand[0].x.hire_date:null;}
-async function lvSaveEmp(name,patch){const e=lvEmp(name);
-  const q=e?sb().from("koala_leave_employees").update(patch).eq("id",e.id):sb().from("koala_leave_employees").insert(Object.assign({name},patch));
-  const {error}=await q;if(error)throw error;await lvContacts(true);}
-async function lvEmployees(){await lvContacts(true);const today=localToday();
-  const row=e=>'<tr data-id="'+e.id+'"><td><input data-f="name" value="'+esc(e.name)+'" aria-label="Name"></td><td><input data-f="title" value="'+esc(e.title||"")+'" placeholder="e.g. Installer" aria-label="Job title"></td>'
-    +'<td><input data-f="hire_date" type="date" max="'+today+'" value="'+esc(e.hire_date||"")+'" aria-label="Hire date"></td><td><label class="lv-check" style="margin:0"><input data-f="active" type="checkbox"'+(e.active?" checked":"")+'> Active</label></td></tr>';
-  gmModal('<div class="lv-form"><h3>Employees and hire dates</h3><div class="hint">The names you pick from on a request. The hire date decides when PTO starts (1-year anniversary). Changes save when you leave a box.</div>'
-    +'<div style="overflow-x:auto"><table class="lv-emp"><thead><tr><th>Name</th><th>Job title</th><th>Hire date</th><th></th></tr></thead><tbody id="lvEmpBody">'+((LV.contacts||[]).length?(LV.contacts||[]).map(row).join(""):'<tr><td colspan="4" class="hint">No employees yet. Add them below, or they’re added the first time you submit a request for them.</td></tr>')+'</tbody></table></div>'
-    +'<div class="lv-two" style="margin-top:12px"><input id="lvENew" placeholder="Add an employee (first and last name)" aria-label="New employee name"><div class="lv-hire" style="margin:0"><input id="lvENewHire" type="date" max="'+today+'" aria-label="Hire date"><button class="gm-btn2" id="lvEAdd">+ Add</button></div></div>'
-    +'<div class="gm-actions"><span class="gm-err" id="lvEErr" role="alert"></span><button class="btn" id="lvEClose">Done</button></div></div>');
-  $("#lvEClose").onclick=gmClose;
-  $("#lvEmpBody").addEventListener("change",async e=>{const inp=e.target.closest("input");const tr=e.target.closest("tr");if(!inp||!tr||!tr.dataset.id)return;const f=inp.dataset.f;
-    const v=f==="active"?inp.checked:(inp.value.trim()||null);if(f==="name"&&!v){$("#lvEErr").textContent="A name can’t be blank.";return;}
-    const {error}=await sb().from("koala_leave_employees").update({[f]:v}).eq("id",tr.dataset.id);$("#lvEErr").textContent=error?lvErr(error):"";if(!error){gmToast("Saved");await lvContacts(true);}});
-  $("#lvEAdd").onclick=async()=>{const n=$("#lvENew").value.trim().replace(/\s+/g," ");if(!n.includes(" ")){$("#lvEErr").textContent="Enter the first and last name.";return;}
-    if(lvEmp(n)){$("#lvEErr").textContent=n+" is already on the list.";return;}
-    const {error}=await sb().from("koala_leave_employees").insert({name:n,hire_date:$("#lvENewHire").value||null});if(error){$("#lvEErr").textContent=lvErr(error);return;}
-    gmToast("Added "+n);lvEmployees();};}
+async function lvSaveEmp(name,patch){const e=lvEmp(name);const body={anniversary:patch.hire_date?lvIsoAnniv(patch.hire_date):null};
+  const q=e?sb().from("koala_contacts_staff").update(body).eq("id",e.id):sb().from("koala_contacts_staff").insert(Object.assign({name:String(name).trim().replace(/\s+/g," ")},body));
+  const {error}=await q;if(error)throw error;await lvContacts(true);if(window.kctReload)window.kctReload();}
+function lvEmployees(){const t=document.querySelector('.tab-btn[data-tab="contacts"]');if(t)t.click();}
+window.klvContactsChanged=()=>{LV.contacts=null;};
 
 // ---- new / edit request ----
 async function lvForm(existing,preset){const sal=lvSalons();if(!sal.length){gmToast("Your login doesn’t have access to Time Off & Pay.");return;}
@@ -7705,7 +7703,7 @@ async function lvForm(existing,preset){const sal=lvSalons();if(!sal.length){gmTo
   loadNames();
   let infoSeq=0;
   const lookup=async()=>{const name=S.name;const seq=++infoSeq;S.info=null;
-    const hire=name?lvContactHire(name):null;S.hire=hire;S.hireSrc=hire?"Koala employee list":"";
+    const hire=name?lvContactHire(name):null;S.hire=hire;S.hireSrc=hire?"Contacts anniversary":"";
     if(existing&&existing.employee_name===name&&existing.hire_date&&!hire){S.hire=existing.hire_date;S.hireSrc=existing.hire_source||"";}
     paint();if(!name)return;
     const dates=Object.keys(S.days);
@@ -7771,11 +7769,11 @@ async function lvForm(existing,preset){const sal=lvSalons();if(!sal.length){gmTo
       $("#lvFDocDrop").classList.toggle("req",need);$("#lvFDocLbl").textContent=pay?"📎 Attach backup, e.g. a commission report (optional)":need?"📎 Attach the doctor’s note (required)":"+ Doctor’s note or other file (optional)";}
     const info=S.info||{},yr=today.slice(0,4),used=+((info.sick_by_year||{})[yr])||0;
     if(pay){const po=(info.pay_open||[]);$("#lvFInfo").innerHTML=!S.name?'':(S.info?'<span>'+(po.length?'Bonuses &amp; commissions in the last 4 months: <b>'+po.length+'</b> ('+lvMoney(po.reduce((a,o)=>a+(+o.amount||0),0))+')':'No other bonuses or commissions in the last 4 months')+'</span>':'<span class="hint">Checking history…</span>');}
-    else $("#lvFInfo").innerHTML=!S.name?'':'<span>'+(S.hire?'Hired '+fmtDate(S.hire)+(eligible?' · <b class="ok">PTO eligible</b>':' · PTO eligible '+fmtDate(anniv)):'<b class="warn">No hire date on file</b> (needed for PTO)')+'</span>'
+    else $("#lvFInfo").innerHTML=!S.name?'':'<span>'+(S.hire?'Hired '+fmtDate(S.hire)+(eligible?' · <b class="ok">PTO eligible</b>':' · PTO eligible '+fmtDate(anniv)):'<b class="warn">No work anniversary in Contacts</b> (needed for PTO)')+'</span>'
       +(S.info?'<span>Sick hours used '+yr+': <b>'+lvH(used)+'</b> of 64</span>':'<span class="hint">Checking history…</span>');
-    if(!pay&&S.name&&!S.hire)$("#lvFInfo").innerHTML+='<div class="lv-hire"><span class="hint">Hire date:</span><input type="date" id="lvFHire" max="'+today+'" aria-label="Hire date"><button type="button" class="gm-btn2" id="lvFHireSave">Save to employee list</button></div>';
+    if(!pay&&S.name&&!S.hire)$("#lvFInfo").innerHTML+='<div class="lv-hire"><span class="hint">Work anniversary (hire date):</span><input type="date" id="lvFHire" max="'+today+'" aria-label="Hire date"><button type="button" class="gm-btn2" id="lvFHireSave">Save to Contacts</button></div>';
     if($("#lvFHireSave"))$("#lvFHireSave").onclick=async()=>{const v=$("#lvFHire").value;if(!v){$("#lvFErr").textContent="Pick the hire date first.";return;}
-      try{await lvSaveEmp(S.name,{hire_date:v});$("#lvFErr").textContent="";gmToast("Hire date saved for "+lvName(S.name));loadNames();lookup();}catch(x){$("#lvFErr").textContent=lvErr(x);}};
+      try{await lvSaveEmp(S.name,{hire_date:v});$("#lvFErr").textContent="";gmToast("Work anniversary saved in Contacts for "+lvName(S.name));loadNames();lookup();}catch(x){$("#lvFErr").textContent=lvErr(x);}};
     const c=checks();const t=S.type?LV_TYPES[S.type]:null;
     let s=pay?'<div class="lv-sumrow"><b>'+t.lbl+'</b> · <b class="lv-amt">'+lvMoney(amt())+'</b>'+(S.payReason.trim()?' · '+esc(S.payReason.trim()):'')+' · pay period '+lvPPLabel(S.pp)+'</div>'
       :'<div class="lv-sumrow"><b>'+(t?t.lbl:'Pick a type')+'</b>'+(S.reason&&S.type==="sick"?' · '+esc(S.reason):'')+' · '+c.days.length+' day'+(c.days.length===1?'':'s')+' · <b>'+lvH(c.tot)+' hrs</b> · pay period '+lvPPLabel(S.pp)+'</div>';
@@ -7798,7 +7796,6 @@ async function lvForm(existing,preset){const sal=lvSalons();if(!sal.length){gmTo
       if(existing){if(existing.status==="needs_info"&&!lvIsHR())rec.status="submitted";
         const {data,error}=await sb().from("koala_leave_requests").update(rec).eq("id",existing.id).select().single();if(error)throw error;row=data;}
       else{const {data,error}=await sb().from("koala_leave_requests").insert(rec).select().single();if(error)throw error;row=data;}
-      if(!lvEmp(S.name))lvSaveEmp(S.name,{}).catch(()=>{}); // new names join the employee list
       const up=c.pay?[...files.doc.map(f=>[f,"other"])]:[...files.form.map(f=>[f,"request_form"]),...files.doc.map(f=>[f,"doctor_note"])];
       for(const [f,kind] of up){btn.textContent="Uploading "+f.name+"…";await lvUpload(row,f,kind);}
       gmClose();gmToast(existing?"Saved "+lvRef(row)+(rec.status==="submitted"&&existing.status==="needs_info"?" · sent back to HR":""):"Sent to HR · "+lvRef(row));await lvLoad(true);lvRender();}
@@ -7920,7 +7917,7 @@ const STEPS=[
     +'<p class="hint">It takes about a minute. Here’s how it works.</p>'},
   {t:"1 · Pick the employee and the type",b:'<p>Start typing the employee’s name, then pick the type of time off:</p>'
     +'<div class="lv-types lvd-mock"><div class="lv-tbtn lv-sick on"><b>Sick Leave</b><span>Sick or a medical appointment. Can be used right away.</span></div><div class="lv-tbtn lv-sap"><b>Sick Leave used as PTO</b><span>Sick hours used for regular time off.</span></div><div class="lv-tbtn lv-pto locked"><b>PTO</b><span>Only after the 1-year anniversary.</span><em>Not eligible until 3/1/2027</em></div></div>'
-    +'<ul class="lvd-ul"><li><b>PTO</b> unlocks on the employee’s 1-year anniversary. Hire dates live in <b>Employees &amp; hire dates</b> on the tab.</li><li>Sick Leave (including Sick as PTO) is capped at <b>64 hours per calendar year</b>. You’ll see how many hours they’ve used.</li><li>Sick Leave needs a reason.</li></ul>'},
+    +'<ul class="lvd-ul"><li><b>PTO</b> unlocks on the employee’s 1-year anniversary (the work anniversary in <b>Contacts</b>).</li><li>Sick Leave (including Sick as PTO) is capped at <b>64 hours per calendar year</b>. You’ll see how many hours they’ve used.</li><li>Sick Leave needs a reason.</li></ul>'},
   {t:"2 · Pick the pay period and tap the days",b:'<p>Pick the pay period, tap each day off, and enter the hours from the schedule. Time off months ahead? Use <b>Later pay period…</b></p>'
     +'<div class="lvd-mock"><div class="lv-chips" style="margin-bottom:8px"><span class="lvd-chip">11/21 – 12/4 · current</span><span class="lvd-chip on">12/5 – 12/18</span><span class="lvd-chip">Later pay period…</span></div>'+cal([2,3])+'</div>'
     +'<p class="hint">One request per pay period. If the time off spans two pay periods, submit two requests.</p>'},
@@ -7970,6 +7967,203 @@ const w=setInterval(async()=>{if(typeof currentUser==="undefined"||!currentUser)
   if(tabBtn)tabBtn.style.display="";
   if(wantTab){lvShowTab();return;}
   lvLoad().catch(()=>{});},400);
+})();
+</script>
+<style>
+/* ===== CONTACTS (copied from the Great Clips Contacts tab; scoped under .klv like Time Off & Pay) ===== */
+.klv .ct-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 14px}
+.klv .ct-bar .savemsg{font-size:12.5px;font-weight:600;color:var(--green)}
+.klv .ct-sec{margin-bottom:24px}
+.klv .ct-sec h3{font-size:15px;font-weight:800;color:var(--blue-dk);margin:0 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.klv .ct-sec h3 .badge{background:var(--blue);color:var(--on-blue);border-radius:20px;padding:1px 9px;font-size:11px;font-weight:700}
+.klv .ct-sec .card{padding:0;overflow-x:auto}
+.klv .ct-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.klv .ct-tbl th{background:var(--soft);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.3px;padding:8px 10px;text-align:left;border-bottom:2px solid var(--line);white-space:nowrap}
+.klv .ct-tbl td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.klv .ct-tbl tbody tr:hover{background:var(--soft)}
+.klv .ct-tbl a{color:var(--blue)}
+.klv .ct-tbl .act-col{width:70px;text-align:center;white-space:nowrap}
+.klv .ct-tbl .ct-empty{text-align:center;color:var(--muted);padding:20px}
+.klv .ct-act{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px}
+.klv .ct-act:hover{background:var(--soft)}
+.klv .ct-pto{display:table;margin-top:3px}
+.klv .ct-f label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin:12px 0 4px}
+.klv .ct-f label:first-of-type{margin-top:0}
+.klv .ct-f input,.klv .ct-f select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;font:inherit;font-size:14px;background:var(--in);color:var(--ink)}
+.klv .ct-f input:focus,.klv .ct-f select:focus{outline:none;border-color:var(--blue)}
+.klv .ct-f .hint{margin-top:3px}
+.klv .ct-del{background:var(--red);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;margin-right:auto}
+.klv .gm-modal.ct-narrow{width:460px}
+@media (max-width:640px){.klv .ct-tbl{font-size:12.5px}}
+</style>
+<script>
+// ===== CONTACTS (Koala): copied from the Great Clips Contacts tab (11/24/2026) =====
+// Staff contacts (name, role, phone, email, birthday, work anniversary), vendors, company-wide contacts, print.
+// Koala has one location, so there's no salon picker. Tables koala_contacts_staff / koala_contacts_orgs:
+// every active Koala login can view; owners (admins) + koala_leave_access (Alejandra, Michelle) can add/edit/delete.
+// The work anniversary is what Time Off & Pay uses for PTO eligibility (1-year anniversary), same as Great Clips.
+(function(){
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sb=()=>sbClient;
+const CT={staff:[],orgs:[],loaded:false,canEdit:false};window.KCT=CT;
+const ROLES=["General Manager","Office Manager","Sales & Operations Manager","Field Supervisor","Crew Lead","Installer","Sales Rep / Estimator","Office / CSR","Other"];
+const rolePri=r=>{r=(r||"").toLowerCase();const i=ROLES.findIndex(x=>x.toLowerCase()===r);return i<0?50:i;};
+const DOB_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOB_ABBR={jan:'January',feb:'February',mar:'March',apr:'April',may:'May',jun:'June',jul:'July',aug:'August',sep:'September',oct:'October',nov:'November',dec:'December'};
+function fmtDob(s){if(!s)return'';const m=s.match(/^(\w+)\s+(\d+)/);if(!m)return s;const d=parseInt(m[2]),sx=d%10===1&&d!==11?'st':d%10===2&&d!==12?'nd':d%10===3&&d!==13?'rd':'th';return m[1]+' '+d+sx;}
+function normDob(s){if(!s)return'';s=s.trim().replace(/\s+/g,' ');
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})$/);if(m){const mi=parseInt(m[1]),d=parseInt(m[2]);if(mi>=1&&mi<=12&&d>=1&&d<=31)return DOB_MONTHS[mi-1]+' '+d;}
+  m=s.match(/^([a-zA-Z]+)\s+(\d{1,2})\s*\w*$/);if(m){const k=m[1].toLowerCase().slice(0,3),d=parseInt(m[2]);if(DOB_ABBR[k]&&d>=1&&d<=31)return DOB_ABBR[k]+' '+d;}
+  m=s.match(/^(\d{1,2})\s*\w*\s+([a-zA-Z]+)$/);if(m){const k=m[2].toLowerCase().slice(0,3),d=parseInt(m[1]);if(DOB_ABBR[k]&&d>=1&&d<=31)return DOB_ABBR[k]+' '+d;}
+  return s;}
+function normAnniv(s){if(!s)return'';s=s.trim().replace(/\s+/g,' ');
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)s=m[2]+'/'+m[3]+'/'+m[1];
+  m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);if(m){const mi=parseInt(m[1]),d=parseInt(m[2]),y=m[3].length===2?'20'+m[3]:m[3];if(mi>=1&&mi<=12&&d>=1&&d<=31)return DOB_MONTHS[mi-1]+' '+d+', '+y;}
+  m=s.match(/^([a-zA-Z]+)\s+(\d{1,2})\s*\w*[,\s]+(\d{4})$/);if(m){const k=m[1].toLowerCase().slice(0,3),d=parseInt(m[2]),y=m[3];if(DOB_ABBR[k]&&d>=1&&d<=31)return DOB_ABBR[k]+' '+d+', '+y;}
+  m=s.match(/^(\d{1,2})\s*\w*\s+([a-zA-Z]+)[,\s]+(\d{4})$/);if(m){const k=m[2].toLowerCase().slice(0,3),d=parseInt(m[1]),y=m[3];if(DOB_ABBR[k]&&d>=1&&d<=31)return DOB_ABBR[k]+' '+d+', '+y;}
+  return s;}
+function normalizePhone(raw){if(!raw)return'';let s=raw.replace(/ext\.?\s*/gi,'x').replace(/extension\s*/gi,'x');
+  let ext='';const xi=s.search(/x\d/i);if(xi>-1){ext=s.slice(xi+1).replace(/\D/g,'');s=s.slice(0,xi);}
+  const digits=s.replace(/\D/g,'');let d10=digits;if(digits.length===11&&digits[0]==='1')d10=digits.slice(1);if(d10.length!==10)return raw;
+  const fmt='('+d10.slice(0,3)+') '+d10.slice(3,6)+'-'+d10.slice(6);return ext?fmt+' x'+ext:fmt;}
+const pad=n=>String(n).padStart(2,"0");
+const todayIso=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());};
+function annivIso(t){const m=String(t||"").trim().replace(/,/g,"").match(/^([a-z]+)\s+(\d{1,2})\s+(\d{4})$/i);if(!m)return null;const mi=DOB_MONTHS.findIndex(x=>x.toLowerCase()===m[1].toLowerCase());return mi<0?null:m[3]+"-"+pad(mi+1)+"-"+pad(+m[2]);}
+// PTO eligibility from the work anniversary (1-year anniversary, same rule as Time Off & Pay)
+function ptoChip(c){const iso=annivIso(c.anniversary);if(!iso)return '<span class="gm-chip gm-n ct-pto" title="Add the work anniversary to track PTO eligibility">No anniversary on file</span>';
+  const one=(+iso.slice(0,4)+1)+iso.slice(4);const p=one.split("-");
+  return one<=todayIso()?'<span class="gm-chip gm-g ct-pto">PTO eligible</span>':'<span class="gm-chip gm-a ct-pto" title="1-year anniversary">PTO eligible '+(+p[1])+'/'+(+p[2])+'/'+p[0]+'</span>';}
+function err(e){const m=(e&&(e.message||e.error_description))||String(e);return m.replace(/^.*?ERROR:\s*/,"");}
+function flash(msg){const m=$("#ctMsg");if(!m)return;m.textContent="✓ "+msg;clearTimeout(flash._t);flash._t=setTimeout(()=>m.textContent="",3000);}
+function modal(html){close();const bg=document.createElement("div");bg.className="gm-bg klv";bg.id="ctBg";bg.innerHTML='<div class="gm-modal ct-narrow" role="dialog" aria-modal="true">'+html+'</div>';
+  bg.addEventListener("click",e=>{if(e.target===bg)close();});document.body.appendChild(bg);const f=bg.querySelector("input,select");if(f)f.focus();return bg;}
+function close(){const b=$("#ctBg");if(b)b.remove();}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#ctBg"))close();});
+
+async function load(){const host=$("#kctBody");if(!host)return;if(!CT.loaded)host.innerHTML='<div class="card">Loading contacts…</div>';
+  try{const [st,og,me]=await Promise.all([sb().from("koala_contacts_staff").select("*").order("name"),sb().from("koala_contacts_orgs").select("*").order("company"),sb().rpc("koala_leave_me")]);
+    if(st.error)throw st.error;if(og.error)throw og.error;CT.staff=st.data||[];CT.orgs=og.data||[];CT.canEdit=!!(me&&me.data&&me.data.role);CT.loaded=true;}
+  catch(e){host.innerHTML='<div class="card"><div class="gm-banner red">Couldn’t load contacts: '+esc(err(e))+'</div></div>';return;}
+  render();}
+window.kctReload=()=>{if(CT.loaded)load();};
+const changed=()=>{if(window.klvContactsChanged)window.klvContactsChanged();};
+
+function orgRows(list,kind){const ed=CT.canEdit;return list.length?list.map(v=>`<tr>
+    <td><b>${esc(v.company)}</b></td><td>${esc(v.contact_name||'')}</td><td>${esc(v.role||'')}</td>
+    <td>${esc(v.phone||'')}</td><td>${esc(v.mobile||'')}</td>
+    <td>${v.email?'<a href="mailto:'+esc(v.email)+'">'+esc(v.email)+'</a>':''}</td>
+    <td>${esc(v.account_num||'')}</td>${ed?`<td class="act-col"><button class="ct-act" title="Edit" aria-label="Edit ${esc(v.company)}" data-edit-org="${v.id}">✏️</button></td>`:''}
+  </tr>`).join(''):`<tr><td colspan="${ed?8:7}" class="ct-empty">${kind==="vendor"?'No vendors yet'+(ed?' — click + Add Vendor':''):'No company-wide contacts yet'+(ed?' — click + Add':'')}</td></tr>`;}
+function render(){const host=$("#kctBody");if(!host)return;const ed=CT.canEdit;
+  const staff=CT.staff.slice().sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
+  const vendors=CT.orgs.filter(o=>o.kind==="vendor"),comp=CT.orgs.filter(o=>o.kind==="company");
+  const noAnniv=staff.filter(c=>!annivIso(c.anniversary)).length;
+  let h='<div class="ct-bar">'+(ed?'<button class="btn" id="ctAddStaff">+ Add Staff</button><button class="gm-btn2" id="ctAddVendor">+ Add Vendor</button>':'')
+    +'<button class="gm-btn2" id="ctPrint">🖨️ Print PDF</button><span class="savemsg" id="ctMsg" role="status"></span></div>';
+  if(noAnniv&&ed)h+='<div class="gm-banner red" style="margin-bottom:14px">'+noAnniv+' staff contact'+(noAnniv===1?' has':'s have')+' no work anniversary. Time Off &amp; Pay needs it to know when PTO starts.</div>';
+  h+='<div class="ct-sec"><h3>Staff Contacts <span class="badge">'+staff.length+'</span></h3><div class="card"><table class="ct-tbl"><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th><th>Anniversary</th>'+(ed?'<th class="act-col"></th>':'')+'</tr></thead><tbody>'
+    +(staff.length?staff.map(c=>`<tr>
+      <td><b>${esc(c.name)}</b></td><td>${esc(c.role||'')}</td><td>${esc(c.phone||'')}</td>
+      <td>${c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':''}</td>
+      <td>${esc(fmtDob(c.dob))}</td><td>${esc(c.anniversary||'')}${ptoChip(c)}</td>
+      ${ed?`<td class="act-col"><button class="ct-act" title="Edit" aria-label="Edit ${esc(c.name)}" data-edit-staff="${c.id}">✏️</button></td>`:''}</tr>`).join('')
+      :`<tr><td colspan="${ed?7:6}" class="ct-empty">No staff contacts yet${ed?' — click + Add Staff':''}</td></tr>`)+'</tbody></table></div></div>';
+  h+='<div class="ct-sec"><h3>Vendor Contacts <span class="badge">'+vendors.length+'</span></h3><div class="card"><table class="ct-tbl"><thead><tr><th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th>'+(ed?'<th class="act-col"></th>':'')+'</tr></thead><tbody>'+orgRows(vendors,"vendor")+'</tbody></table></div></div>';
+  h+='<div class="ct-sec" style="margin-top:24px;border-top:2px solid var(--line);padding-top:18px"><h3>Company-Wide Contacts <span class="badge">'+comp.length+'</span>'+(ed?' <button class="gm-btn2" id="ctAddCompany" style="padding:4px 10px;font-size:11.5px">+ Add</button>':'')+'</h3><div class="card"><table class="ct-tbl"><thead><tr><th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th>'+(ed?'<th class="act-col"></th>':'')+'</tr></thead><tbody>'+orgRows(comp,"company")+'</tbody></table></div></div>';
+  host.innerHTML=h;
+  if($("#ctAddStaff"))$("#ctAddStaff").onclick=()=>staffForm(null);
+  if($("#ctAddVendor"))$("#ctAddVendor").onclick=()=>orgForm(null,"vendor");
+  if($("#ctAddCompany"))$("#ctAddCompany").onclick=()=>orgForm(null,"company");
+  $("#ctPrint").onclick=print;
+  host.querySelectorAll("[data-edit-staff]").forEach(b=>b.onclick=()=>staffForm(CT.staff.find(x=>String(x.id)===b.dataset.editStaff)));
+  host.querySelectorAll("[data-edit-org]").forEach(b=>b.onclick=()=>{const o=CT.orgs.find(x=>String(x.id)===b.dataset.editOrg);orgForm(o,o.kind);});}
+
+// --- Staff ---
+function staffForm(c){const roles=ROLES.slice();if(c&&c.role&&!roles.includes(c.role))roles.unshift(c.role);
+  modal(`<div class="ct-f"><h3>${c?'Edit':'Add'} Staff Contact</h3>
+    <label for="ctfName">Name</label><input id="ctfName" value="${esc(c?c.name:'')}">
+    <label for="ctfRole">Role</label><select id="ctfRole"><option value="">— Select —</option>${roles.map(r=>`<option${c&&(c.role||'')===r?' selected':''}>${esc(r)}</option>`).join('')}</select>
+    <label for="ctfPhone">Phone</label><input id="ctfPhone" value="${esc(c?c.phone||'':'')}" inputmode="tel">
+    <label for="ctfEmail">Email</label><input id="ctfEmail" value="${esc(c?c.email||'':'')}" type="email">
+    <label for="ctfDob">Birthday</label><input id="ctfDob" value="${esc(c?c.dob||'':'')}" placeholder="e.g. June 1 or 6/1">
+    <label for="ctfAnniv">Work Anniversary</label><input id="ctfAnniv" value="${esc(c?c.anniversary||'':'')}" placeholder="e.g. March 15, 2020 or 3/15/2020">
+    <div class="hint">The hire date. PTO starts on the 1-year anniversary.</div>
+    <div class="gm-actions">${c?'<button class="ct-del" id="ctfDel">Delete</button>':''}<span class="gm-err" id="ctfErr" role="alert"></span><button class="gm-cancel" id="ctfCancel">Cancel</button><button class="btn" id="ctfSave">Save</button></div></div>`);
+  $("#ctfCancel").onclick=close;
+  $("#ctfSave").onclick=async()=>{const b=$("#ctfSave"),e=$("#ctfErr");e.textContent="";
+    const body={name:$("#ctfName").value.trim(),role:$("#ctfRole").value||null,phone:normalizePhone($("#ctfPhone").value.trim())||null,email:$("#ctfEmail").value.trim()||null,dob:normDob($("#ctfDob").value.trim())||null,anniversary:normAnniv($("#ctfAnniv").value.trim())||null};
+    if(!body.name){e.textContent="Name is required.";return;}
+    if(body.anniversary&&!annivIso(body.anniversary)){e.textContent="Enter the work anniversary like March 15, 2020 or 3/15/2020.";return;}
+    if(!c&&CT.staff.some(x=>x.name.toLowerCase().replace(/\s+/g," ")===body.name.toLowerCase().replace(/\s+/g," "))){e.textContent=body.name+" is already in Contacts.";return;}
+    b.disabled=true;b.textContent="Saving…";
+    const {error}=c?await sb().from("koala_contacts_staff").update(body).eq("id",c.id):await sb().from("koala_contacts_staff").insert(body);
+    if(error){b.disabled=false;b.textContent="Save";e.textContent=err(error);return;}
+    close();changed();await load();flash(c?"Staff contact updated":"Staff contact added");};
+  if($("#ctfDel"))$("#ctfDel").onclick=async()=>{const b=$("#ctfDel");if(!b.dataset.sure){b.dataset.sure="1";b.textContent="Tap again to delete";return;}
+    const {error}=await sb().from("koala_contacts_staff").delete().eq("id",c.id);if(error){$("#ctfErr").textContent=err(error);return;}
+    close();changed();await load();flash("Staff contact deleted");};}
+
+// --- Vendors + company-wide ---
+function orgForm(v,kind){const what=kind==="vendor"?"Vendor":"Company-Wide Contact";
+  modal(`<div class="ct-f"><h3>${v?'Edit':'Add'} ${what}</h3>
+    <label for="ctfCompany">Company</label><input id="ctfCompany" value="${esc(v?v.company:'')}">
+    <label for="ctfVContact">Contact Name</label><input id="ctfVContact" value="${esc(v?v.contact_name||'':'')}">
+    <label for="ctfVRole">Role / Service</label><input id="ctfVRole" value="${esc(v?v.role||'':'')}">
+    <label for="ctfVPhone">Phone</label><input id="ctfVPhone" value="${esc(v?v.phone||'':'')}" inputmode="tel">
+    <label for="ctfVMobile">Mobile</label><input id="ctfVMobile" value="${esc(v?v.mobile||'':'')}" inputmode="tel">
+    <label for="ctfVEmail">Email</label><input id="ctfVEmail" value="${esc(v?v.email||'':'')}" type="email">
+    <label for="ctfVAcct">Account #</label><input id="ctfVAcct" value="${esc(v?v.account_num||'':'')}">
+    <div class="gm-actions">${v?'<button class="ct-del" id="ctfDel">Delete</button>':''}<span class="gm-err" id="ctfErr" role="alert"></span><button class="gm-cancel" id="ctfCancel">Cancel</button><button class="btn" id="ctfSave">Save</button></div></div>`);
+  $("#ctfCancel").onclick=close;
+  $("#ctfSave").onclick=async()=>{const b=$("#ctfSave"),e=$("#ctfErr");e.textContent="";
+    const body={kind,company:$("#ctfCompany").value.trim(),contact_name:$("#ctfVContact").value.trim()||null,role:$("#ctfVRole").value.trim()||null,phone:normalizePhone($("#ctfVPhone").value.trim())||null,
+      mobile:normalizePhone($("#ctfVMobile").value.trim())||null,email:$("#ctfVEmail").value.trim()||null,account_num:$("#ctfVAcct").value.trim()||null};
+    if(!body.company){e.textContent="Company name is required.";return;}
+    b.disabled=true;b.textContent="Saving…";
+    const {error}=v?await sb().from("koala_contacts_orgs").update(body).eq("id",v.id):await sb().from("koala_contacts_orgs").insert(body);
+    if(error){b.disabled=false;b.textContent="Save";e.textContent=err(error);return;}
+    close();await load();flash(v?what+" updated":what+" added");};
+  if($("#ctfDel"))$("#ctfDel").onclick=async()=>{const b=$("#ctfDel");if(!b.dataset.sure){b.dataset.sure="1";b.textContent="Tap again to delete";return;}
+    const {error}=await sb().from("koala_contacts_orgs").delete().eq("id",v.id);if(error){$("#ctfErr").textContent=err(error);return;}
+    close();await load();flash(what+" deleted");};}
+
+// --- Print to PDF (staff directory, same as Great Clips) ---
+function print(){const staff=CT.staff.slice().sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
+  const today=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+  const w=window.open('','_blank');if(!w){flash("Allow pop-ups to print");return;}
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contacts — Koala Insulation</title>
+<style>
+*{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:32px 40px;color:#222;font-size:12px;line-height:1.4}
+.hdr{display:flex;align-items:center;gap:16px;margin-bottom:10px;padding-bottom:12px;border-bottom:3px solid #6a9a1e}
+.hdr svg{height:48px;width:auto}
+.hdr h1{font-size:19px;font-weight:800;color:#043968;margin:0}
+.hdr .sub{font-size:11px;color:#888;margin-top:2px}
+.disclaimer{background:#fff3cd;border:1px solid #e6c200;border-radius:5px;padding:8px 16px;margin-bottom:16px;font-size:11px;color:#856404;text-align:center;font-weight:600}
+h2{font-size:14px;color:#043968;margin:18px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px}
+h2 span{font-weight:400;font-size:11px;color:#888;margin-left:6px}
+table{width:100%;border-collapse:collapse;margin-bottom:8px}
+th{background:#f0f3f7;padding:5px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#555;text-align:left;border-bottom:2px solid #ddd}
+td{padding:5px 8px;border-bottom:1px solid #eee;font-size:11px}
+a{color:#043968;text-decoration:none}
+@media print{@page{size:letter landscape;margin:0.5in}}
+.no-print{text-align:center;margin-bottom:20px}
+.no-print button{padding:10px 28px;font-size:14px;background:#6a9a1e;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600}
+@media print{.no-print{display:none}}
+</style></head><body>
+<div class="no-print"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>
+<div class="hdr"><svg viewBox="0 0 260 40"><rect width="260" height="40" rx="6" fill="#043968"/><text x="130" y="27" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-weight="800" font-size="19">KOALA INSULATION</text></svg>
+  <div><h1>Koala Insulation of New Mexico</h1><div class="sub">Contact Directory · Printed ${esc(today)}</div></div></div>
+<div class="disclaimer">***Under no situation are employee phone numbers to be given to non Koala Insulation employees.***</div>
+<h2>Staff Contacts<span>(${staff.length})</span></h2>
+<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th><th>Anniversary</th></tr></thead><tbody>
+${staff.map(c=>'<tr><td><b>'+esc(c.name)+'</b></td><td>'+esc(c.role||'')+'</td><td>'+esc(c.phone||'')+'</td><td>'+(c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'')+'</td><td>'+esc(fmtDob(c.dob))+'</td><td>'+esc(c.anniversary||'')+'</td></tr>').join('')}
+</tbody></table>
+</body></html>`);
+  w.document.close();}
+
+const tab=document.querySelector('.tab-btn[data-tab="contacts"]');if(tab)tab.addEventListener("click",load);
 })();
 </script>
 </body>

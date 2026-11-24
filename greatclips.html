@@ -321,6 +321,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 .av-prefs{display:flex;flex-wrap:wrap;gap:6px}.gm-f label.av-pchip,.av-pchip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12.5px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)}
 .av-pchip input{width:auto!important;margin:0}.av-pchip:has(input:checked){border-color:var(--blue);background:#effaf6}
 .av-pchip[hidden]{display:none!important}.gm-f label.av-req{border-color:#f3c9c9;background:#fff8f8;margin-top:2px}.gm-f label.av-req:has(input:checked){border-color:var(--red);background:#fdecec;color:var(--red-dk);font-weight:600}
+.av-nosched{font-size:11px;color:#a3530a;font-weight:600;margin-top:2px}
 .av-pref{display:inline-block;background:#f3f0ff;color:#4b3fb0;border-radius:999px;padding:2px 8px;font-size:11.5px;margin:1px 2px;white-space:nowrap}.av-prefcell{min-width:140px;text-align:left!important}
 .av-times input{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px}
 .av-form textarea,.av-form input[type=number],.av-form input[type=date],.av-form select,#avName{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
@@ -4581,7 +4582,7 @@ async function avInit(){const host=$("#avBody");if(!host)return;const sal=avSalo
   if(current&&current!==avInit._hdr&&sal.includes(current))AV.salon=current; // follow the header salon when it changes
   avInit._hdr=current;if(!AV.salon||!sal.includes(AV.salon))AV.salon=sal.includes(current)?current:sal[0];
   host.innerHTML='<div class="card">Loading availability…</div>';
-  try{await avLoad(true);AV.names={};await avStaff(AV.salon);}catch(e){host.innerHTML='<div class="card"><div class="gm-banner red">Couldn’t load availability: '+esc(e.message||e)+'</div></div>';return;}
+  try{await avLoad(true);AV.names={};await avStaff(AV.salon);if(typeof SCH!=="undefined"&&!SCH.loaded)await schLoad().catch(()=>{});}catch(e){host.innerHTML='<div class="card"><div class="gm-banner red">Couldn’t load availability: '+esc(e.message||e)+'</div></div>';return;}
   avRender();}
 // Scheduling preferences: soft wishes, not restrictions. Ones marked chk are checked when schedules are uploaded.
 const AV_PREFS=[["off2","Two days off in a row",1],["morn","Mornings only (done by 2p)",1],["eve","Evenings only (start 2p or later)",1],["wkend","Weekends off",1],
@@ -4591,6 +4592,8 @@ function avPrefTxt(r){const a=(r&&r.prefs||[]).filter(k=>k!=="off2req").map(k=>A
 function avSummary(r){if(!r)return "";const b=[];if((r.prefs||[]).includes("off2req"))b.push("2 days off in a row (required)");if(r.max_hours_week)b.push("max "+lvH(r.max_hours_week)+" hrs/wk");if(r.max_days_week)b.push("max "+r.max_days_week+" days/wk");return b.join(" · ");}
 function avRender(){const host=$("#avBody");if(!host)return;const sal=avSalons();const list=(AV.names[AV.salon]||[]).filter(s=>!AV.q||s.name.toLowerCase().includes(AV.q.toLowerCase()));
   const edit=avCanEdit(AV.salon);const set=list.filter(s=>avCurrent(s.key)).length;
+  const onSched=new Set();if(typeof SCH!=="undefined"&&SCH.loaded){const cut=gmAdd(gmToday(),-28);SCH.rows.filter(r=>r.week_start>=cut).forEach(r=>((r.data||{}).emps||[]).forEach(e=>onSched.add(schKey(e.name))));}
+  const notOnSched=k=>{const r=avCurrent(k);return onSched.size&&r&&!onSched.has(r.stylist_key)&&!(r.alt_keys||[]).some(a=>onSched.has(a));};
   let h='<div class="card av-head"><div><h3 style="margin:0">Stylist availability &amp; restrictions</h3><div class="hint" style="margin:2px 0 0">When each person can work, and any max hours or days per week. Area Managers see conflicts on the Schedules tab when schedules are uploaded.</div></div>'
     +'<div class="av-ctl">'+(sal.length>1?'<select id="avSal">'+sal.map(s=>'<option value="'+s+'"'+(s===AV.salon?" selected":"")+'>'+esc(lvSalonLbl(s))+'</option>').join("")+'</select>':'<b>'+esc(lvSalonLbl(AV.salon))+'</b>')
     +'<input id="avQ" type="search" placeholder="Search name" value="'+esc(AV.q)+'">'+'</div></div>';
@@ -4598,7 +4601,7 @@ function avRender(){const host=$("#avBody");if(!host)return;const sal=avSalons()
   if(!list.length)h+='<div class="card lv-empty">No one is in this salon’s Contacts list yet. Add staff on the Contacts tab and they’ll show up here.</div>';
   else{h+='<div class="card" style="padding:0;overflow:hidden"><div class="tbl-scroll"><table class="gm-tbl av-tbl"><thead><tr><th>Name</th><th>Limits</th>'+AV_ORDER.map(d=>'<th>'+AV_DOW[d]+'</th>').join("")+'<th>Preferences</th><th>Updated</th></tr></thead><tbody>';
     list.forEach(s=>{const r=avCurrent(s.key);const fut=r&&r.effective_from>gmToday();const now=fut?avFor(s.key,gmToday()):r;
-      h+='<tr class="av-row" data-k="'+esc(s.key)+'"><td class="nm"><button class="gm-name">'+esc(s.name)+'</button>'+(s.role?'<div class="gm-why" style="margin:0'+(s.gone?';color:#a3530a':'')+'">'+esc(s.role)+'</div>':'')+'</td>'
+      h+='<tr class="av-row" data-k="'+esc(s.key)+'"><td class="nm"><button class="gm-name">'+esc(s.name)+'</button>'+(s.role?'<div class="gm-why" style="margin:0'+(s.gone?';color:#a3530a':'')+'">'+esc(s.role)+'</div>':'')+(notOnSched(s.key)?'<div class="av-nosched" title="This name doesn’t match anyone on the schedules uploaded in the last 4 weeks, so their availability can’t be checked. Make the Contacts name match the schedule (e.g. Maria vs Yesica), or ignore if they aren’t scheduled yet.">⚠ Not on uploaded schedules</div>':'')+'</td>'
         +'<td class="wrap">'+(r?esc(avSummary(r))||'<span class="av-ns">None</span>':'<span class="av-ns">Not set</span>')+'</td>'
         +AV_ORDER.map(d=>'<td>'+(r?avCell((r.days||{})[d]):'<span class="av-ns">·</span>')+'</td>').join("")
         +'<td class="wrap av-prefcell">'+(r&&avPrefTxt(r).length?avPrefTxt(r).map(t=>'<span class="av-pref">'+esc(t)+'</span>').join(""):'<span class="av-ns">—</span>')+'</td>'
@@ -4677,7 +4680,8 @@ function avConflicts(A){const out=[];if(!AV.loaded)return out;
     days.forEach(day=>{const v=avFor(key,day);if(!v)return;const dw=gmD(day).getDay(),rule=(v.days||{})[dw];if(!rule)return;
       const sh=list.filter(e=>e.day===day);const salons=[...new Set(sh.flatMap(e=>[e.src,e.loc]))];
       if(rule.m==="off")out.push({sev:"r",type:"avail",key,name,day,txt:"Scheduled "+sh.map(e=>schRange(e)+(e.loc!==e.src?" at "+e.loc:"")).join(", ")+" but unavailable on "+AV_DOWL[dw]+"s"+(v.notes?" ("+v.notes+")":""),salons});
-      else if(rule.m==="range"){const ws=avWins(rule).map(w=>({s:avMin(w.s),e:avMin(w.e)}));const bad=sh.filter(x=>!ws.some(w=>x.s>=w.s&&x.e<=w.e));
+      else if(rule.m==="range"){const ws=avWins(rule).map(w=>({s:avMin(w.s),e:avMin(w.e)}));const bad=sh.filter(x=>{const st=x.s+(/\bSU\b/i.test(x.lbl||"")?SCH_TOL:0); // "SU" = 15-min setup before the floor shift
+          return !ws.some(w=>st>=w.s&&x.e<=w.e);});
         if(bad.length)out.push({sev:"r",type:"avail",key,name,day,txt:"Scheduled "+bad.map(x=>schRange(x)).join(", ")+" but only available "+ws.map(w=>schFmt(w.s)+"–"+schFmt(w.e)).join(" and ")+" on "+AV_DOWL[dw]+"s"+(v.notes?" ("+v.notes+")":""),salons});}});
     // weekly limits (version in effect at the start of the week)
     const v=avFor(key,days[0]);if(!v)return;
@@ -5519,7 +5523,7 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
     +'<div class="lv-step"><div class="lv-sn">5</div><div class="lv-sb"><div class="lv-sl">Notes for HR (optional)</div><textarea id="lvFNotes" rows="2" placeholder="Anything HR should know">'+esc(S.notes)+'</textarea></div></div>'
     +'<div class="lv-sum" id="lvFSum"></div>'
     +'<div class="gm-actions"><span class="gm-err" id="lvFErr"></span><button class="gm-cancel" id="lvFCancel">Cancel</button><button class="btn" id="lvFSave">'+(existing?"Save changes":"Submit to HR")+'</button></div></div>';
-  gmModal(h);$("#lvFCancel").onclick=gmClose;
+  gmModal(h);$("#lvFCancel").onclick=()=>{gmClose();if(S.saved)lvLoad(true).then(lvRender).catch(()=>{});};
   const files={form:[],doc:[]};
   const fileList=(k,el)=>{el.innerHTML=files[k].map((f,i)=>'<span class="lv-file">'+esc(f.name)+' <button type="button" data-k="'+k+'" data-i="'+i+'" aria-label="Remove">×</button></span>').join("");
     el.querySelectorAll("button").forEach(b=>b.onclick=()=>{files[b.dataset.k].splice(+b.dataset.i,1);fileList(k,el);paint();});};
@@ -5603,18 +5607,26 @@ async function lvForm(existing){const sal=lvSalons();if(!sal.length){gmToast("Yo
   $("#lvFSave").onclick=async()=>{const err=$("#lvFErr");err.textContent="";const c=checks();
     if(c.block.length){err.textContent=c.block[0];$("#lvFSum").scrollIntoView({behavior:"smooth",block:"nearest"});return;}
     if(c.warn.length&&!($("#lvFAck")&&$("#lvFAck").checked)){err.textContent="Check the box to confirm you reviewed the warnings.";$("#lvFSum").scrollIntoView({behavior:"smooth",block:"nearest"});return;}
-    const btn=$("#lvFSave");btn.disabled=true;btn.textContent="Saving…";
+    const btn=$("#lvFSave");btn.disabled=true;btn.textContent="Checking files…";
+    // read every file first; nothing is saved if a file can't be used
+    let ready;try{ready={form:await Promise.all(files.form.map(lvReadFile)),doc:await Promise.all(files.doc.map(lvReadFile))};}
+    catch(e){err.textContent=e.message;btn.disabled=false;btn.textContent=S.saved?"Retry upload":existing?"Save changes":"Submit to HR";return;}
+    btn.textContent="Saving…";
     const rec={stylist_name:S.name,leave_type:S.type,sick_reason:S.type==="sick"?S.reason:null,pay_period_start:S.pp,pay_period_end:lvAdd(S.pp,13),
       days:c.days.map(d=>({date:d,hours:+S.days[d]})),total_hours:c.tot,hire_date:S.hire||null,hire_source:S.hire?S.hireSrc:null,notes:S.notes.trim()||null,
       form_to_follow:S.type==="sick"&&S.follow&&!files.form.length,doc_to_follow:lvConsec(S.type,c.days)&&S.docFollow&&!files.doc.length,warnings:c.warn};
-    try{let row;
-      if(existing){if(existing.status==="needs_info"&&!lvIsHR())rec.status="submitted";
+    try{let row=S.saved||null; // already created on an earlier try whose upload failed: don't create it again
+      if(row){}
+      else if(existing){if(existing.status==="needs_info"&&!lvIsHR())rec.status="submitted";
         const {data,error}=await gcClient().from("gc_leave_requests").update(rec).eq("id",existing.id).select().single();if(error)throw error;row=data;}
       else{rec.salon_id=S.salon;const {data,error}=await gcClient().from("gc_leave_requests").insert(rec).select().single();if(error)throw error;row=data;}
-      const up=[...files.form.map(f=>[f,"request_form"]),...files.doc.map(f=>[f,"doctor_note"])];
-      for(const [f,kind] of up){btn.textContent="Uploading "+f.name+"…";await lvUpload(row,f,kind);}
-      gmClose();gmToast(existing?"Saved TO-"+row.ref+(rec.status==="submitted"&&existing.status==="needs_info"?" · sent back to HR":""):"Sent to HR · TO-"+row.ref);await lvLoad(true);lvRender();}
-    catch(e){err.textContent=lvErr(e);btn.disabled=false;btn.textContent=existing?"Save changes":"Submit to HR";}};}
+      S.saved=row;
+      for(const k of ["form","doc"]){while(ready[k].length){const f=ready[k][0];btn.textContent="Uploading "+f.name+"…";await lvUpload(row,f,k==="form"?"request_form":"doctor_note");ready[k].shift();files[k].shift();}}
+      if($("#lvFSave")===btn)gmClose();gmToast(existing?"Saved TO-"+row.ref+(rec.status==="submitted"&&existing.status==="needs_info"?" · sent back to HR":""):"Sent to HR · TO-"+row.ref);await lvLoad(true);lvRender();}
+    catch(e){if(S.saved){fileList("form",$("#lvFFormList"));fileList("doc",$("#lvFDocList"));
+        err.textContent="TO-"+S.saved.ref+" was saved, but a file didn’t upload ("+lvErr(e)+"). Tap Retry upload, or remove it and attach a photo instead.";btn.textContent="Retry upload";}
+      else{err.textContent=lvErr(e);btn.textContent=existing?"Save changes":"Submit to HR";}
+      btn.disabled=false;}};}
 const LV_FILES_CT={},LV_DOCS_CT={};
 function lvConsec(type,days){if(type!=="sick")return false;const d=days.slice().sort();for(let i=1;i<d.length;i++)if(lvDiff(d[i-1],d[i])===1)return true;return false;}
 // drag-and-drop onto the attach boxes (desktop); on phones the same box opens Photo Library / Take Photo / Files
@@ -5623,10 +5635,22 @@ function lvDropZone(label,onFiles){if(!label)return;["dragenter","dragover"].for
   label.addEventListener("drop",e=>{const fs=[...(e.dataTransfer&&e.dataTransfer.files||[])].filter(f=>/^image\/|pdf$/.test(f.type)||/\.(pdf|jpe?g|png|heic|heif|webp)$/i.test(f.name));
     if(fs.length)onFiles(fs);else gmToast("Drop a photo or PDF.");});}
 function lvErr(e){const m=(e&&(e.message||e.error_description))||String(e);return m.replace(/^.*?ERROR:\s*/,"");}
-async function lvUpload(row,f,kind){if(f.size>15*1024*1024)throw new Error(f.name+" is over 15 MB.");
-  const safe=f.name.replace(/[^\w.\-]+/g,"_").slice(-80);const path=row.salon_id+"/"+row.id+"/"+Date.now()+"-"+safe;
-  const {error}=await gcClient().storage.from(LV_BUCKET).upload(path,f,{contentType:f.type||"application/octet-stream",upsert:false});if(error)throw new Error("Upload failed for "+f.name+": "+error.message);
-  const {error:e2}=await gcClient().from("gc_leave_files").insert({request_id:row.id,kind,storage_path:path,file_name:f.name,size_bytes:f.size,mime:f.type||null});if(e2)throw e2;
+// Files are read into memory before anything is saved, so a file that can't be read (e.g. a Google Drive file that
+// isn't downloaded, or a moved file) is caught up front instead of failing after the request was created.
+const LV_EXT_MIME={pdf:"application/pdf",jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",heic:"image/heic",heif:"image/heif",webp:"image/webp"};
+function lvMime(f){const t=String(f.type||"").toLowerCase();if(Object.values(LV_EXT_MIME).includes(t))return t;if(t==="image/jpg")return "image/jpeg";
+  const ext=(String(f.name||"").split(".").pop()||"").toLowerCase();return LV_EXT_MIME[ext]||null;}
+async function lvReadFile(f){const type=lvMime(f);if(!type)throw new Error(f.name+" isn’t a photo or PDF. Take a photo of the form or save it as a PDF.");
+  if(f.size>15*1024*1024)throw new Error(f.name+" is over 15 MB. Take a photo instead, or shrink the PDF.");
+  let buf;try{buf=await f.arrayBuffer();}catch(e){throw new Error("Couldn’t read "+f.name+". If it’s in Google Drive or another cloud folder, download it to the device first, or take a photo of the form.");}
+  if(!buf.byteLength)throw new Error(f.name+" is empty. Try taking a photo of the form instead.");
+  return {name:f.name,size:buf.byteLength,type,blob:new Blob([buf],{type})};}
+async function lvUpload(row,f,kind){const x=f.blob?f:await lvReadFile(f);
+  const safe=x.name.replace(/[^\w.\-]+/g,"_").slice(-80);const path=row.salon_id+"/"+row.id+"/"+Date.now()+"-"+safe;
+  let r=await gcClient().storage.from(LV_BUCKET).upload(path,x.blob,{contentType:x.type,upsert:false});
+  if(r.error){await new Promise(z=>setTimeout(z,1500));r=await gcClient().storage.from(LV_BUCKET).upload(path,x.blob,{contentType:x.type,upsert:true});} // one retry for a dropped connection
+  if(r.error)throw new Error("Upload failed for "+x.name+": "+r.error.message);
+  const {error:e2}=await gcClient().from("gc_leave_files").insert({request_id:row.id,kind,storage_path:path,file_name:x.name,size_bytes:x.size,mime:x.type});if(e2)throw e2;
   if(kind==="doctor_note")LV_DOCS_CT[row.id]=(LV_DOCS_CT[row.id]||0)+1;else LV_FILES_CT[row.id]=(LV_FILES_CT[row.id]||0)+1;}
 // Handbook 6.13 blackout periods (approximate dates; HR has the final say)
 function lvBlackout(d){const y=+d.slice(0,4),md=d.slice(5);

@@ -4533,7 +4533,7 @@ function schWire(host,iss,wk){const s=$("#schWeek");if(s)s.onchange=function(){S
   if(drop){["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
     ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
     drop.addEventListener("drop",e=>{const f=[...(e.dataTransfer&&e.dataTransfer.files||[])];if(f.length)schFiles(f);});}
-  host.querySelectorAll(".sch-avedit").forEach(b=>b.onclick=()=>{const k=b.dataset.k,r=avCurrent(k);avEdit({key:k,name:r?r.stylist_name:b.dataset.n},{salon:r?r.salon_id:b.dataset.s});});
+  host.querySelectorAll(".sch-avedit").forEach(b=>b.onclick=()=>{const k=b.dataset.k,r=avCurrent(k);avEdit({key:r?r.stylist_key:k,name:r?r.stylist_name:b.dataset.n},{salon:r?r.salon_id:b.dataset.s});});
   const c=$("#schCopy");if(c&&iss)c.onclick=()=>{const t="Schedule check · week of "+gmShort(wk)+"–"+gmShort(gmAdd(wk,6))+"\n\n"+iss.filter(i=>i.sev!=="n").map(i=>"• "+i.name+(i.day?" ("+schDayLbl(i.day)+")":"")+": "+i.txt).join("\n");
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>gmToast("Copied")).catch(()=>svCopyFallback(t));else svCopyFallback(t);};}
 // The Schedules tab holds two views: Schedule check (AMs) and Availability (AMs + salon managers)
@@ -4567,15 +4567,14 @@ function avLoad(force){if(AV.loading&&!force)return AV.loading;
   AV.loading=(async()=>{const {data,error}=await gcClient().from("gc_stylist_avail").select("*").order("effective_from",{ascending:false}).limit(5000);if(error)throw error;AV.rows=data||[];AV.loaded=true;return AV.rows;})();
   return AV.loading.finally(()=>{AV.loading=null;});}
 // the version in effect on a date (latest effective_from <= date)
-function avFor(key,date){let best=null;AV.rows.forEach(r=>{if(r.stylist_key===key&&r.effective_from<=date&&(!best||r.effective_from>best.effective_from))best=r;});return best;}
+function avFor(key,date){let best=null;AV.rows.forEach(r=>{if((r.stylist_key===key||(r.alt_keys||[]).includes(key))&&r.effective_from<=date&&(!best||r.effective_from>best.effective_from))best=r;});return best;}
 function avCurrent(key){return avFor(key,"9999-12-31");}
-// Staff list comes from the salon's Contacts list (Area Managers excluded). Anyone with saved availability who
-// is no longer in Contacts still shows, marked, so nothing saved is hidden.
+// Staff list comes only from the salon's Contacts list (Area Managers excluded). alt_keys on a saved row hold the
+// payroll/schedule spelling of a nickname in Contacts (e.g. "roxanne mccoy" for Roxi McCoy) so schedule checks still match.
 async function avStaff(sid){if(AV.names[sid])return AV.names[sid];const m={};
   const r=await fetch(SUPA_URL+"/rest/v1/salon_contacts?select=name,role&salon_id=eq."+sid+"&limit=1000",{headers:supaHeaders()});
   if(!r.ok)throw new Error("Couldn’t load the Contacts list ("+r.status+")");
   (await r.json()).filter(c=>c.name&&!/^area manager$/i.test(String(c.role||"").trim())).forEach(c=>{const nm=String(c.name).trim().replace(/\s+/g," ");const k=avKey(nm);if(k&&!m[k])m[k]={key:k,name:nm,role:c.role||""};});
-  AV.rows.filter(x=>x.salon_id===sid).forEach(x=>{if(!m[x.stylist_key])m[x.stylist_key]={key:x.stylist_key,name:x.stylist_name,role:"Not in Contacts",gone:true};});
   AV.names[sid]=Object.values(m).sort((a,b)=>((a.gone?1:0)-(b.gone?1:0))||a.name.localeCompare(b.name));return AV.names[sid];}
 async function avInit(){const host=$("#avBody");if(!host)return;const sal=avSalons();if(!sal.length){host.innerHTML='<div class="card">Your login isn’t assigned to a salon yet.</div>';return;}
   if(current&&current!==avInit._hdr&&sal.includes(current))AV.salon=current; // follow the header salon when it changes
@@ -4660,7 +4659,7 @@ function avEdit(person,opts){opts=opts||{};const sid=opts.salon||AV.salon;const 
     const days={};AV_ORDER.forEach(d=>{const x=D[d];if(x.m!=="range"){days[d]={m:x.m};return;}
       const w=x.w.map(v=>({s:v.s.slice(0,5),e:v.e.slice(0,5)})).sort((a,b)=>a.s<b.s?-1:1);days[d]=w.length>1?{m:"range",s:w[0].s,e:w[0].e,w}:{m:"range",s:w[0].s,e:w[0].e};});
     const rec={stylist_key:key,stylist_name:name,salon_id:sid,effective_from:from,max_hours_week:mh,max_days_week:md,days,notes:$("#avNotes").value.trim()||null,
-      prefs:[...document.querySelectorAll("#avPrefs input:checked")].map(c=>c.value),pref_note:$("#avPrefNote").value.trim()||null};
+      prefs:[...document.querySelectorAll("#avPrefs input:checked")].map(c=>c.value),pref_note:$("#avPrefNote").value.trim()||null,alt_keys:(cur&&cur.alt_keys)||[]};
     const btn=$("#avSave");btn.disabled=true;
     const {error}=await gcClient().from("gc_stylist_avail").upsert(rec,{onConflict:"stylist_key,effective_from"});
     if(error){err.textContent=lvErr(error);btn.disabled=false;return;}

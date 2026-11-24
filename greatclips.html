@@ -552,6 +552,15 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .sch-cov{display:flex;flex-wrap:wrap;gap:6px}.sch-sal{display:inline-flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12.5px;background:#f6f8f7;color:var(--muted);min-width:120px}
 .sch-sal b{color:var(--ink)}.sch-sal i{font-style:normal;font-size:11px}.sch-sal.on{background:#ecfdf5;border-color:#a7e3c4;color:#065f46}
 .sch-counts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.sch-filt{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 8px}.sch-fl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;min-width:44px}
+.sch-fc{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:5px 10px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--ink)}.sch-fc b{margin-left:2px}
+.sch-fc.gm-r,.sch-fc.gm-a,.sch-fc.gm-n{border-color:transparent}.sch-fc.on{outline:2px solid var(--blue);outline-offset:1px}
+.sch-sal-g{border:1px solid var(--line);border-radius:10px;margin-top:10px;overflow:hidden}.sch-sal-g>summary{cursor:pointer;padding:10px 14px;background:#f4f7f5;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;list-style:none}
+.sch-sal-g>summary::-webkit-details-marker{display:none}.sch-sal-g>summary::before{content:"▾";color:var(--muted)}.sch-sal-g:not([open])>summary::before{content:"▸"}
+.sch-sal-n{font-size:12px;color:var(--muted)}.sch-p{padding:8px 14px 10px;border-top:1px solid var(--line)}.sch-ph{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px}.sch-ph .sch-avedit{margin-left:auto}
+.sch-pl{display:grid;grid-template-columns:92px 1fr;gap:8px;font-size:13.5px;padding:3px 0 3px 8px;border-left:3px solid #9aa5a2;margin:2px 0}.sch-pl.s-r{border-left-color:var(--red)}.sch-pl.s-a{border-left-color:var(--amber)}
+.sch-pd{color:var(--muted);font-weight:600;white-space:nowrap}.sch-pt i{color:var(--muted);font-style:normal;font-size:12px}
+@media (max-width:640px){.sch-pl{grid-template-columns:1fr;gap:0}}
 .sch-iss{display:flex;gap:10px;padding:10px 12px;border-radius:8px;margin-top:8px;border-left:4px solid #9aa5a2;background:#f6f8f7;font-size:14px;line-height:1.4}
 .sch-iss .ic{font-size:18px;line-height:1.2}.sch-iss .hd{margin-bottom:2px}.sch-iss.s-r{background:#fef2f2;border-left-color:#e4002b}.sch-iss.s-a{background:#fffbeb;border-left-color:#e9a049}
 .sch-grid{table-layout:fixed;min-width:880px;width:100%}.sch-grid th:first-child,.sch-grid td.nm{width:140px}.sch-grid td{overflow-wrap:anywhere}
@@ -4521,12 +4530,32 @@ function schDraw(host){const weeks=schWeeks();if(!SCH.week||!weeks.includes(SCH.
     +(have.size&&have.size<all.length?'<div class="gm-why" style="margin-top:8px">Floaters are only checked against salons that are uploaded. Upload all 15 for a full check.</div>':'')+'</div>';
   if(!rows.length){host.innerHTML=h+'<div class="card"><div class="oos-neutral">No schedules uploaded for this week yet.</div></div>';schWire(host);return;}
   // issues
-  const iss=A.issues;const cnt=t=>iss.filter(i=>i.type===t).length;
-  h+='<div class="card"><h3>Discrepancies <span>· '+(iss.filter(i=>i.sev!=="n").length||"none found")+'</span></h3>';
-  h+='<div class="sch-counts">'+Object.keys(SCH_TYPES).map(t=>'<span class="gm-chip '+(cnt(t)?(t==="double"||t==="off"||t==="avail"||t==="limit"||t==="reqoff"?"gm-r":t==="unverified"?"gm-n":"gm-a"):"gm-g")+'">'+SCH_TYPES[t][1]+' '+SCH_TYPES[t][0]+': '+cnt(t)+'</span>').join(" ")+'</div>';
+  const iss=A.issues;
+  // Discrepancies, grouped by salon → person, with type/salon filters (an issue touching 2 salons shows under both)
+  const AVT=["avail","limit","reqoff","pref"];
+  const real=iss.filter(i=>i.sev!=="n");
+  if(SCH.fType&&!iss.some(i=>i.type===SCH.fType))SCH.fType="";if(SCH.fSalon&&!iss.some(i=>i.salons.includes(SCH.fSalon)))SCH.fSalon="";
+  const shown=iss.filter(i=>(!SCH.fType||i.type===SCH.fType)&&(!SCH.fSalon||i.salons.includes(SCH.fSalon)));
+  const tCnt=t=>iss.filter(i=>i.type===t).length;
+  const tCls=t=>t==="unverified"?"gm-n":["double","off","avail","limit","reqoff"].includes(t)?"gm-r":"gm-a";
+  h+='<div class="card sch-disc"><h3>Discrepancies <span>· '+(real.length?real.length+" to review":"none found")+'</span></h3>';
   if(!iss.length)h+='<div class="oos-ok">✓ No double-bookings, loan mismatches, OFF or availability conflicts found across the '+have.size+' uploaded salon'+(have.size===1?"":"s")+'.</div>';
-  h+=iss.map(i=>'<div class="sch-iss s-'+i.sev+'"><div class="ic">'+SCH_TYPES[i.type][1]+'</div><div><div class="hd"><b>'+esc(i.name)+'</b>'+(i.day?' · '+schDayLbl(i.day):' · week')+' <span class="gm-why" style="margin:0">'+SCH_TYPES[i.type][0]+'</span></div><div>'+esc(i.txt)+'</div><div class="gm-why" style="margin:2px 0 0">Salons: '+i.salons.map(s=>esc(s+" "+nm(s))).join(" · ")+'</div>'+(i.type==="avail"||i.type==="limit"||i.type==="reqoff"||i.type==="pref"?'<button class="gm-link sch-avedit" data-k="'+esc(i.key)+'" data-n="'+esc(i.name)+'" data-s="'+esc(i.salons[0]||"")+'">View / edit availability</button>':'')+'</div></div>').join("");
-  if(iss.length)h+='<div class="gm-actions" style="justify-content:flex-start;margin-top:10px"><button class="gm-cancel" id="schCopy">Copy list for WhatsApp</button></div>';
+  else{
+    h+='<div class="sch-filt"><span class="sch-fl">Type</span><button class="sch-fc'+(!SCH.fType?" on":"")+'" data-ft="">All '+iss.length+'</button>'
+      +Object.keys(SCH_TYPES).filter(t=>tCnt(t)).map(t=>'<button class="sch-fc '+tCls(t)+(SCH.fType===t?" on":"")+'" data-ft="'+t+'">'+SCH_TYPES[t][1]+' '+SCH_TYPES[t][0]+' <b>'+tCnt(t)+'</b></button>').join("")+'</div>';
+    const salCnt={};iss.forEach(i=>[...new Set(i.salons)].forEach(x=>{salCnt[x]=(salCnt[x]||0)+1;}));
+    h+='<div class="sch-filt"><span class="sch-fl">Salon</span><button class="sch-fc'+(!SCH.fSalon?" on":"")+'" data-fs="">All</button>'
+      +Object.keys(salCnt).sort().map(x=>'<button class="sch-fc'+(SCH.fSalon===x?" on":"")+'" data-fs="'+x+'">'+esc(x)+' <b>'+salCnt[x]+'</b></button>').join("")+'</div>';
+    const bySal={};shown.forEach(i=>[...new Set(i.salons)].forEach(x=>{if(SCH.fSalon&&x!==SCH.fSalon)return;(bySal[x]=bySal[x]||[]).push(i);}));
+    Object.keys(bySal).sort().forEach(x=>{const L=bySal[x];const nR=L.filter(i=>i.sev==="r").length;
+      const byP={};L.forEach(i=>{(byP[i.name]=byP[i.name]||[]).push(i);});
+      h+='<details class="sch-sal-g" open><summary><b>'+esc(x)+' '+esc(nm(x))+'</b><span class="sch-sal-n">'+L.length+' issue'+(L.length===1?"":"s")+(nR&&nR<L.length?' · '+nR+' red':'')+' · '+Object.keys(byP).length+' '+(Object.keys(byP).length===1?"person":"people")+'</span></summary>';
+      Object.keys(byP).sort().forEach(n=>{const P=byP[n].slice().sort((a,b)=>String(a.day||"9").localeCompare(String(b.day||"9")));const k=P[0].key;
+        h+='<div class="sch-p"><div class="sch-ph"><b>'+esc(n)+'</b>'+[...new Set(P.map(i=>i.type))].map(t=>'<span class="gm-chip '+tCls(t)+'">'+SCH_TYPES[t][1]+' '+SCH_TYPES[t][0]+'</span>').join("")
+          +(P.some(i=>AVT.includes(i.type))?'<button class="gm-link sch-avedit" data-k="'+esc(k)+'" data-n="'+esc(n)+'" data-s="'+esc(x)+'">Availability</button>':'')+'</div>'
+          +P.map(i=>'<div class="sch-pl s-'+i.sev+'"><span class="sch-pd">'+(i.day?schDayLbl(i.day):"Week")+'</span><span class="sch-pt">'+esc(i.txt)+(i.salons.length>1?' <i>· '+esc(i.salons.filter(y=>y!==x).join(", "))+'</i>':'')+'</span></div>').join("")+'</div>';});
+      h+='</details>';});
+    h+='<div class="gm-actions" style="justify-content:flex-start;margin-top:10px"><button class="gm-cancel" id="schCopy">Copy '+(SCH.fSalon||SCH.fType?"filtered ":"")+'list for WhatsApp</button></div>';}
   h+='</div>';
   // floaters grid: one line per real shift, salon color-coded, problems spelled out in the cell
   const days=[];for(let i=0;i<7;i++)days.push(gmAdd(wk,i));
@@ -4554,13 +4583,17 @@ function schDraw(host){const weeks=schWeeks();if(!SCH.week||!weeks.includes(SCH.
         return '<td class="'+cls+'">'+(c||'<span class="none">—</span>')+'</td>';}).join("")+'</tr>').join("")
       +'</tbody></table></div></div>';}
   host.innerHTML=h;schWire(host,iss,wk);}
-function schWire(host,iss,wk){const s=$("#schWeek");if(s)s.onchange=function(){SCH.week=this.value;SCH.msg="";schRender();};
+function schWire(host,iss,wk){const s=$("#schWeek");if(s)s.onchange=function(){SCH.week=this.value;SCH.msg="";SCH.fType="";SCH.fSalon="";schRender();};
   const inp=$("#schFile"),drop=$("#schDrop");if(inp)inp.onchange=()=>{if(inp.files.length)schFiles([...inp.files]);inp.value="";};
   if(drop){["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over");}));
     ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over");}));
     drop.addEventListener("drop",e=>{const f=[...(e.dataTransfer&&e.dataTransfer.files||[])];if(f.length)schFiles(f);});}
   host.querySelectorAll(".sch-avedit").forEach(b=>b.onclick=()=>{const k=b.dataset.k,r=avCurrent(k);avEdit({key:r?r.stylist_key:k,name:r?r.stylist_name:b.dataset.n},{salon:r?r.salon_id:b.dataset.s});});
-  const c=$("#schCopy");if(c&&iss)c.onclick=()=>{const t="Schedule check · week of "+gmShort(wk)+"–"+gmShort(gmAdd(wk,6))+"\n\n"+iss.filter(i=>i.sev!=="n").map(i=>"• "+i.name+(i.day?" ("+schDayLbl(i.day)+")":"")+": "+i.txt).join("\n");
+  host.querySelectorAll("[data-ft]").forEach(b=>b.onclick=()=>{SCH.fType=b.dataset.ft;schRender();});
+  host.querySelectorAll("[data-fs]").forEach(b=>b.onclick=()=>{SCH.fSalon=b.dataset.fs;schRender();});
+  const c=$("#schCopy");if(c&&iss)c.onclick=()=>{const L=iss.filter(i=>i.sev!=="n"&&(!SCH.fType||i.type===SCH.fType)&&(!SCH.fSalon||i.salons.includes(SCH.fSalon)));const g={};
+    L.forEach(i=>{const x=SCH.fSalon||i.salons[0];(g[x]=g[x]||[]).push(i);});
+    const t="Schedule check · week of "+gmShort(wk)+"–"+gmShort(gmAdd(wk,6))+"\n"+Object.keys(g).sort().map(x=>"\n*"+x+" "+((SALONS&&SALONS[x])||"")+"*\n"+g[x].map(i=>"• "+i.name+(i.day?" ("+schDayLbl(i.day)+")":"")+": "+i.txt).join("\n")).join("\n");
     if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(()=>gmToast("Copied")).catch(()=>svCopyFallback(t));else svCopyFallback(t);};}
 // The Schedules tab holds two views: Schedule check (AMs) and Availability (AMs + salon managers)
 let SCH_VIEW="check";

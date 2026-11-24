@@ -1070,6 +1070,7 @@ body.of-touring { overflow-x: hidden; }
   <button class="tab-btn" data-tab="crm">CRM Pipeline</button>
   <button class="tab-btn" data-tab="standup">Stand-up</button>
   <button class="tab-btn" data-tab="office">Front Office</button>
+  <button class="tab-btn" data-tab="timeoff" style="display:none;">Time Off &amp; Pay<span id="klvBadge" hidden></span></button>
   <button class="tab-btn" data-tab="admin" id="manageUsersTabBtn" style="display:none;">Manage Users</button>
 </nav>
 
@@ -1289,6 +1290,11 @@ body.of-touring { overflow-x: hidden; }
 <!-- TAB: FRONT OFFICE (rendered by renderOffice) -->
 <div class="tab-content" id="tab-office">
   <div class="container-wide" id="officeRoot"></div>
+</div>
+
+<!-- TAB: TIME OFF & PAY (PTO / Sick Leave + crew bonuses / sales commissions; Jacob + Michelle submit, Alejandra processes) -->
+<div class="tab-content" id="tab-timeoff">
+  <div class="container-wide klv" style="max-width:1100px;"><div id="klvBody"></div></div>
 </div>
 
 <!-- TAB: MANAGE USERS (admin only) -->
@@ -7361,6 +7367,610 @@ function officeTourAfterRender() {
     setTimeout(() => { if (officeIsActive() && ofTour.i < 0 && !ofTourSeen()) { window.scrollTo({ top: 0 }); officeStartTour(); } }, 600);
   }
 }
+</script>
+<style>
+/* ===== TIME OFF & PAY (copied from the Great Clips Time Off tab; scoped under .klv, Del Taco tokens, dark mode) ===== */
+.klv{--blue:var(--brand-teal);--on-blue:#fff;--blue-dk:var(--text-primary);--red:var(--status-critical);--red-dk:var(--status-critical);--green:var(--status-good);--amber:#e9a049;
+  --card:var(--surface-card);--line:var(--gridline);--ink:var(--text-primary);--muted:var(--text-secondary);--soft:var(--surface-page);--in:var(--surface-card);
+  --tint:var(--brand-teal-light);--warnbg:var(--status-warn-bg);--warnfg:var(--status-warn);--badbg:var(--status-critical-bg);--goodbg:var(--status-good-bg);
+  --t-sick:#e9a049;--t-sap:#7c6fd6;--t-pto:var(--cat-1);--t-bonus:var(--cat-3);--t-comm:#0e7490;--shadow:var(--shadow-sm);
+  color:var(--ink);font-size:14px;line-height:1.45}
+:root[data-theme="dark"] .klv{--t-comm:#22a3c2;--amber:#f0b25e;--on-blue:#111}
+#klvBadge{display:inline-block;min-width:18px;padding:1px 6px;margin-left:6px;border-radius:999px;background:var(--status-critical);color:#fff;font-size:11px;font-weight:700;line-height:16px;text-align:center;vertical-align:1px}
+#klvBadge[hidden]{display:none}
+.klv [hidden]{display:none!important}
+.klv h3,.klv p{margin-top:0}.klv ul{margin-top:0;margin-bottom:0}
+.klv .lv-emp td,.klv .lv-emp th{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}.klv .lv-emp{width:100%;border-collapse:collapse;margin-top:8px}.klv .lv-emp input{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:13px;background:var(--in);color:var(--ink)}.klv .lv-emp th{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.klv .lv-hire{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}.klv .lv-hire input{width:auto!important;padding:6px 8px!important}
+.klv .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow)}
+.klv .card h3{font-size:15px;font-weight:700;color:var(--blue-dk)}.klv .hint{font-size:12px;color:var(--muted)}
+.klv .btn{background:var(--blue);color:var(--on-blue);border:none;border-radius:8px;padding:9px 18px;font-weight:700;font-size:13.5px;cursor:pointer;font-family:inherit}
+.klv .btn:hover{filter:brightness(.93)}.klv .btn:disabled{opacity:.5;cursor:not-allowed}
+.klv .det-mode{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.klv .det-mode button{background:var(--card);color:var(--muted);border:none;padding:7px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.klv .det-mode button+button{border-left:1px solid var(--line)}
+.klv .det-mode button.active{background:var(--blue);color:var(--on-blue)}
+.klv .gm-chip{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.klv .gm-g{background:var(--status-good-bg);color:var(--delta-up-good)}.klv .gm-a{background:var(--status-warn-bg);color:var(--status-warn)}
+.klv .gm-r{background:var(--status-critical-bg);color:var(--status-critical)}.klv .gm-n{background:var(--soft);color:var(--muted)}
+.klv .gm-why{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:normal}
+.klv .gm-btn2{background:var(--card);color:var(--blue);border:1.5px solid var(--blue);border-radius:8px;padding:7px 14px;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit}
+.klv .gm-btn2:hover{background:var(--blue);color:var(--on-blue)}
+.klv .gm-link{background:none;border:none;color:var(--blue);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:0}
+.klv .gm-banner{padding:10px 13px;border-radius:8px;font-size:13px;margin-bottom:12px;border:1px solid}
+.klv .gm-banner.red{background:var(--badbg);border-color:color-mix(in srgb,var(--red) 30%,transparent);color:var(--red-dk)}
+.klv .gm-banner.green{background:var(--goodbg);border-color:color-mix(in srgb,var(--green) 30%,transparent);color:var(--ink)}
+.klv.gm-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:950;display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 10px}
+.klv .gm-modal{background:var(--card);border-radius:14px;padding:20px 22px;width:640px;max-width:100%;box-shadow:0 8px 40px rgba(0,0,0,.25)}
+.klv .gm-modal h3{font-size:17px;font-weight:800;color:var(--blue-dk);margin-bottom:12px}
+.klv .gm-f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.klv .gm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;align-items:center}
+.klv .gm-cancel{background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+.klv .gm-err{color:var(--red-dk);font-size:12.5px;font-weight:600;margin-right:auto}
+.klv.gm-toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:#2b2a28;color:#fff;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13.5px;box-shadow:0 6px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:990;max-width:92vw}
+.klv.gm-toast.show{opacity:1;transform:translate(-50%,0)}
+.klv .lv-head{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.klv .lv-hbtns{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.klv .lv-new{padding:12px 22px;font-size:15px}
+.klv .lvd p{font-size:14px;line-height:1.5;margin:0 0 10px}.klv .lvd .hint{font-size:12.5px}
+.klv .lvd-mock{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--soft);margin:0 0 10px;pointer-events:none}
+.klv .lvd-ul{margin:0 0 6px 18px;font-size:13.5px;line-height:1.5}.klv .lvd-chip{border:1.5px solid var(--line);background:var(--card);border-radius:999px;padding:6px 11px;font-size:12.5px}.klv .lvd-chip.on{background:var(--blue);border-color:var(--blue);color:var(--on-blue)}
+.klv .lvd-in{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:2px 8px;background:var(--in);color:var(--ink);font-size:12px}
+.klv .lvd-cal{grid-template-columns:repeat(7,minmax(0,1fr))}.klv .lvd-dots{display:flex;gap:6px;justify-content:center;margin-top:12px}.klv .lvd-dots span{width:7px;height:7px;border-radius:50%;background:var(--line)}.klv .lvd-dots span.on{background:var(--blue)}
+.klv .lv-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:12px 0}
+.klv .lv-tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;font:inherit;color:var(--ink)}
+.klv .lv-tile:hover{border-color:var(--blue)}.klv .lv-tile .lbl{font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.klv .lv-tile .val{font-size:26px;font-weight:800;color:var(--ink);line-height:1.1}.klv .lv-tile .sub{font-size:11.5px;color:var(--muted)}
+.klv .lv-tile.red{border-color:color-mix(in srgb,var(--red) 35%,transparent);background:var(--badbg)}.klv .lv-tile.red .val{color:var(--red)}
+.klv .lv-tile.amber{border-color:color-mix(in srgb,var(--warnfg) 35%,transparent);background:var(--warnbg)}.klv .lv-tile.amber .val{color:var(--warnfg)}
+.klv .lv-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.klv .lv-bar select,.klv .lv-bar input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:var(--in);color:var(--ink)}
+.klv .lv-bar input{flex:1 1 180px;min-width:0}
+.klv .lv-empty{text-align:center;color:var(--muted);padding:28px}
+.klv .lv-group{margin-bottom:16px}.klv .lv-gh{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--blue-dk);margin:0 2px 6px}
+.klv .lv-gt{margin-left:auto;font-size:12px;color:var(--muted)}
+.klv .lv-row{display:flex;gap:12px;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:6px;cursor:pointer}
+.klv .lv-row:hover,.klv .lv-row:focus-visible{border-color:var(--blue);outline:none}.klv .lv-row.need{background:var(--warnbg)}
+.klv .lv-row.lv-sick{border-left-color:var(--t-sick)}.klv .lv-row.lv-sap{border-left-color:var(--t-sap)}.klv .lv-row.lv-pto{border-left-color:var(--t-pto)}
+.klv .lv-row.lv-bonus{border-left-color:var(--t-bonus)}.klv .lv-row.lv-comm{border-left-color:var(--t-comm)}
+.klv .lv-main{min-width:0;flex:1}.klv .lv-who{font-weight:700;font-size:14.5px;color:var(--ink)}.klv .lv-sal{font-weight:500;font-size:12px;color:var(--muted)}
+.klv .lv-what{font-size:13px;color:var(--ink);margin-top:2px}.klv .lv-type{font-weight:700}
+.klv .lv-side{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}.klv .lv-warnct{font-size:12px;color:var(--warnfg);font-weight:700}
+.klv .lv-step{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.klv .lv-sn{flex:0 0 26px;height:26px;border-radius:50%;background:var(--blue);color:var(--on-blue);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+.klv .lv-sb{flex:1;min-width:0}.klv .lv-sl{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px}
+.klv .lv-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.klv .lv-form input,.klv .lv-form select,.klv .lv-form textarea,.klv .lv-detail textarea,.klv .lv-detail input[type=number]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;background:var(--in);color:var(--ink)}
+.klv .lv-fixed{padding:10px;border-radius:8px;background:var(--soft);font-weight:600}
+.klv .lv-info{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink);margin-top:8px}.klv .lv-info .ok{color:var(--green)}.klv .lv-info .warn{color:var(--warnfg)}
+.klv .lv-tgl{font-size:11.5px;font-weight:700;color:var(--muted);margin:4px 0 6px}.klv .lv-tgl+.lv-types{margin-bottom:6px}
+.klv .lv-types{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.klv .lv-tbtn{text-align:left;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:12px;cursor:pointer;font:inherit;display:flex;flex-direction:column;gap:4px}
+.klv .lv-tbtn b{font-size:14.5px;color:var(--ink)}.klv .lv-tbtn span{font-size:12px;color:var(--muted);line-height:1.35}.klv .lv-tbtn em{font-style:normal;font-size:12px;font-weight:700;color:var(--red)}
+.klv .lv-tbtn.on{background:var(--soft)}.klv .lv-tbtn.on.lv-sick{border-color:var(--t-sick)}.klv .lv-tbtn.on.lv-sap{border-color:var(--t-sap)}.klv .lv-tbtn.on.lv-pto{border-color:var(--t-pto)}
+.klv .lv-tbtn.on.lv-bonus{border-color:var(--t-bonus)}.klv .lv-tbtn.on.lv-comm{border-color:var(--t-comm)}
+.klv .lv-tbtn.locked{opacity:.55;cursor:not-allowed}
+.klv .lv-chips{display:flex;flex-wrap:wrap;gap:6px}.klv .lv-chips button,.klv .lv-tags button{border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}
+.klv .lv-chips button.on,.klv .lv-tags button.on{border-color:var(--blue);background:var(--blue);color:var(--on-blue)}.klv .lv-tags button small{opacity:.75}
+.klv .lv-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.klv .lv-day{display:flex;flex-direction:column;gap:4px}.klv .lv-dbtn{border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 2px;cursor:pointer;font:inherit;display:flex;flex-direction:column;align-items:center}
+.klv .lv-dbtn span{font-size:11px;color:var(--muted)}.klv .lv-dbtn b{font-size:14px}.klv .lv-day.today .lv-dbtn{box-shadow:inset 0 -3px 0 var(--amber)}
+.klv .lv-day.on .lv-dbtn{background:var(--blue);border-color:var(--blue);color:var(--on-blue)}.klv .lv-day.on .lv-dbtn span{color:var(--on-blue);opacity:.8}
+.klv .lv-hrs{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--muted)}.klv .lv-hrs input{padding:5px 4px!important;text-align:center;font-size:13px!important}
+.klv .lv-money{display:flex;align-items:center;gap:6px}.klv .lv-money b{font-size:18px;color:var(--muted)}.klv .lv-money input{max-width:180px;font-size:16px!important;font-weight:700}
+.klv .lv-drop{display:flex;align-items:center;justify-content:center;border:2px dashed var(--baseline);border-radius:10px;padding:14px;cursor:pointer;color:var(--ink);font-weight:700;font-size:14px;background:var(--soft)}
+.klv .lv-drop:hover{border-color:var(--text-secondary)}
+.klv .lv-drop span{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px}.klv .lv-drop small{font-weight:500;font-size:11.5px;color:var(--muted)}
+@media (hover:none){.klv .lv-dd{display:none}}.klv .lv-dd{font-style:normal}
+.klv .lv-drop.drag{border-color:var(--ink);border-style:solid;background:var(--card)}.klv .lv-drop.req{border-color:var(--red);color:var(--red-dk);background:var(--badbg)}
+.klv .lv-docreq{margin-top:10px;padding:9px 12px;border-radius:8px;background:var(--badbg);color:var(--red-dk);font-size:12.5px}
+.klv .lv-later{border:1.5px solid var(--line);border-radius:999px;padding:7px 10px;font:inherit;font-size:13px;background:var(--card);color:var(--ink);width:auto!important}.klv .lv-later.on{border-color:var(--blue);background:var(--blue);color:var(--on-blue)}
+.klv .lv-drop.sm{display:inline-flex;padding:8px 12px;font-size:13px;border-width:1.5px;margin-top:8px}.klv .lv-drop input{display:none}
+.klv .lv-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.klv .lv-file{background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 10px;font-size:12.5px}
+.klv .lv-file button{border:none;background:none;cursor:pointer;font-size:15px;color:var(--muted)}
+.klv .lv-check{display:flex;gap:8px;align-items:center;font-size:13px;margin-top:8px;cursor:pointer}.klv .lv-check input{width:auto!important;accent-color:var(--blue)}
+.klv .lv-sum{margin-top:14px;padding:12px 14px;border-radius:10px;background:var(--soft);font-size:13.5px}
+.klv .lv-meter{height:8px;border-radius:999px;background:var(--line);overflow:hidden;margin:8px 0 3px}.klv .lv-meter div{height:100%;background:var(--amber)}
+.klv .lv-block{margin:8px 0 0 18px;color:var(--red-dk);font-weight:600;font-size:13px}
+.klv .lv-warn{margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--warnbg);border:1px solid color-mix(in srgb,var(--warnfg) 35%,transparent);font-size:13px}.klv .lv-warn ul{margin:6px 0 0 18px}
+.klv .lv-dh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.klv .lv-kvs{margin-top:12px;border-top:1px solid var(--line)}.klv .lv-kv{display:grid;grid-template-columns:130px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.klv .lv-kv>span{color:var(--muted);font-size:12px;font-weight:600}.klv .lv-dt td{padding:1px 14px 1px 0}.klv .lv-dt tr.tot td{border-top:1px solid var(--line);padding-top:4px}.klv .lv-wl{margin:0 0 0 16px;color:var(--warnfg)}
+.klv .lv-sec{margin-top:14px}.klv .lv-fbtn{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:9px 12px;margin-bottom:6px;cursor:pointer;font:inherit;font-size:13.5px}
+.klv .lv-fbtn:hover{border-color:var(--blue)}.klv .lv-kind{padding:7px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;vertical-align:middle;margin-top:8px;background:var(--in);color:var(--ink)}
+.klv .lv-proc{padding:12px 14px;border-radius:10px;background:var(--goodbg);border:1px solid color-mix(in srgb,var(--green) 30%,transparent)}
+.klv .lv-thread{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}.klv .lv-ev{font-size:12.5px;padding:6px 10px;border-left:3px solid var(--line)}
+.klv .lv-ev.msg{background:var(--soft);border-radius:0 8px 8px 0}.klv .lv-ev.k-question{border-left-color:var(--red)}.klv .lv-ev.k-reply{border-left-color:var(--amber)}.klv .lv-ev.k-completed{border-left-color:var(--green)}
+.klv .lv-evb{white-space:pre-wrap;margin-top:3px;font-size:13.5px;color:var(--ink)}
+.klv .lv-tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}.klv .lv-tags button{padding:5px 10px;font-size:12px}
+.klv .lv-amt{font-variant-numeric:tabular-nums}
+@media (max-width:640px){.klv .gm-modal{padding:16px}.klv .lv-hrs{font-size:0}.klv .lv-hrs input{min-width:0}.klv .lv-cal{grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.klv .lv-dbtn b{font-size:12px}.klv .lv-kv{grid-template-columns:1fr;gap:2px}.klv .lv-row{flex-direction:column;align-items:flex-start}.klv .lv-side{justify-content:flex-start}.klv .lv-new{width:100%}.klv .lv-hbtns{width:100%}}
+</style>
+<script>
+// ===== TIME OFF & PAY (Koala): PTO / Sick Leave requests + crew bonuses / sales commissions (Jacob + Michelle submit, Alejandra processes payroll) =====
+// Copied from the Great Clips Time Off tab (11/2026). Tables koala_leave_requests / koala_leave_events / koala_leave_files /
+// koala_leave_employees (hire dates) / koala_leave_access (who uses it). RLS: Koala admins (owner) + koala_leave_access (hr, manager);
+// no deletes. Private bucket koala-leave-files. Server trigger koala_leave_check enforces: biweekly Sat-Fri pay periods anchored
+// 11/7/2026, PTO only after the 1-year anniversary (employee list), 64 sick hrs per calendar year (sick + sick-as-PTO), 0-12 hrs/day;
+// bonuses/commissions need an amount (max $25,000) and what it's for. Emails go out from the koala-leave-notify edge function.
+(function(){
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const gmIso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const localToday=()=>gmIso(new Date());
+const fmtDate=iso=>{if(!iso)return"";const p=String(iso).split("-");return p.length===3?(+p[1])+"/"+(+p[2])+"/"+p[0]:iso;};
+const gmChip=(cls,txt,title)=>'<span class="gm-chip '+cls+'"'+(title?' title="'+esc(title)+'"':'')+'>'+esc(txt)+'</span>';
+function gmModal(html){gmClose();const bg=document.createElement("div");bg.className="gm-bg klv";bg.id="gmBg";bg.innerHTML='<div class="gm-modal" role="dialog" aria-modal="true">'+html+'</div>';
+  bg.addEventListener("click",e=>{if(e.target===bg)gmClose();});document.body.appendChild(bg);return bg;}
+function gmClose(){const b=$("#gmBg");if(b)b.remove();}
+function gmToast(msg){let t=$("#lvToast");if(!t){t=document.createElement("div");t.id="lvToast";t.className="gm-toast klv";t.setAttribute("role","status");document.body.appendChild(t);}
+  t.textContent=msg;t.classList.add("show");clearTimeout(gmToast._t);gmToast._t=setTimeout(()=>t.classList.remove("show"),2600);}
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#gmBg"))gmClose();});
+const sb=()=>sbClient;
+
+const LV_ANCHOR="2026-11-07",LV_BUCKET="koala-leave-files",LV_SICK_CAP=64,LV_PAY_MAX=25000;
+const LV_TYPES={
+  sick:{lbl:"Sick Leave",short:"Sick",desc:"Employee or a family member is sick or has a medical appointment. Can be used right away.",cls:"lv-sick"},
+  sick_as_pto:{lbl:"Sick Leave used as PTO",short:"Sick as PTO",desc:"Uses sick-leave hours for regular time off (vacation, personal day). Counts toward the 64-hour yearly sick limit.",cls:"lv-sap"},
+  pto:{lbl:"PTO",short:"PTO",desc:"Paid time off. Only after the employee’s 1-year anniversary.",cls:"lv-pto"},
+  crew_bonus:{lbl:"Crew bonus",short:"Crew bonus",desc:"A bonus owed to a crew member (e.g. install crew). HR adds it to their paycheck.",cls:"lv-bonus",pay:1},
+  commission:{lbl:"Commission",short:"Commission",desc:"Commission owed to a salesperson (e.g. jobs sold this period).",cls:"lv-comm",pay:1}};
+const TIME_KEYS=["sick","sick_as_pto","pto"],PAY_KEYS=["crew_bonus","commission"];
+const isPay=t=>!!(LV_TYPES[t]&&LV_TYPES[t].pay);
+const LV_REASONS=["Own illness or injury","Family member’s illness or injury","Medical appointment (own or family)","Preventive care","School meeting about a child’s health","Domestic abuse, sexual assault or stalking"];
+const LV_STATUS={submitted:["Waiting on HR","gm-a"],needs_info:["Question for manager","gm-r"],completed:["Processed","gm-g"],denied:["Not approved","gm-n"],cancelled:["Cancelled","gm-n"]};
+const lvSt=(r,s)=>{s=s||r.status;if(isPay(r.leave_type)){if(s==="completed")return["Paid","gm-g"];if(s==="denied")return["Not paid","gm-n"];}return LV_STATUS[s]||[s,"gm-n"];};
+const ROLE_NAMES={owner:"Owner",hr:"HR",manager:"Manager"};
+const LV_DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const LV={rows:[],loaded:false,loading:null,filter:"open",pp:"",salon:"",kind:"",q:"",contacts:null,openRef:null,me:null};
+window.KLV=LV;
+
+function lvD(s){return new Date(s+"T12:00:00");}
+function lvAdd(s,n){const d=lvD(s);d.setDate(d.getDate()+n);return gmIso(d);}
+function lvDiff(a,b){return Math.round((lvD(b)-lvD(a))/864e5);}
+function lvPP(iso){const k=Math.floor(lvDiff(LV_ANCHOR,iso)/14);return lvAdd(LV_ANCHOR,14*k);}
+function lvMD(s){const p=String(s).split("-");return (+p[1])+"/"+(+p[2]);}
+function lvPPLabel(st){return lvMD(st)+" – "+lvMD(lvAdd(st,13));}
+function lvH(n){n=+n||0;return (Math.round(n*100)/100).toString();}
+function lvMoney(n){return "$"+(+n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function lvRef(r){return (isPay(r.leave_type)?"PAY-":"TO-")+r.ref;}
+function lvRole(){return (LV.me&&LV.me.role)||"";}
+function lvUid(){return (typeof currentUser!=="undefined"&&currentUser&&currentUser.id)||null;}
+function lvIsHR(){return ["hr","owner"].includes(lvRole());}
+function lvCanAsk(){return ["hr","owner"].includes(lvRole());}
+function lvSalons(){return lvRole()?["koala"]:[];} // Koala has one location
+function lvName(n){const p=String(n||"").split(",");return p.length>1?(p[1].trim().split(" ")[0]+" "+p[0].trim()):String(n||"");}
+function lvSalonLbl(s){return "";}
+function lvAgo(ts){if(!ts)return"";const m=Math.round((Date.now()-new Date(ts))/6e4);if(m<1)return"just now";if(m<60)return m+" min ago";const h=Math.round(m/60);if(h<24)return h+" hr ago";
+  const d=new Date(ts);return d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"})+" "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});}
+function lvWhen(ts){const d=new Date(ts);return d.toLocaleDateString("en-US",{month:"numeric",day:"numeric",year:"2-digit"})+" "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});}
+function lvDaysTxt(r){return (r.days||[]).slice().sort((a,b)=>a.date<b.date?-1:1).map(d=>LV_DOW[lvD(d.date).getDay()]+" "+lvMD(d.date)+" ("+lvH(d.hours)+"h)").join(", ");}
+function lvMine(r){return r.submitted_by===lvUid();}
+// what needs this login's attention
+function lvNeedsMe(r){if(lvIsHR())return r.status==="submitted";return r.status==="needs_info";}
+const lvOpenSt=r=>r.status==="submitted"||r.status==="needs_info";
+
+async function lvLoad(force){if(LV.loading&&!force)return LV.loading;
+  LV.loading=(async()=>{const {data,error}=await sb().from("koala_leave_requests").select("*").order("created_at",{ascending:false}).limit(3000);
+    if(error)throw error;LV.rows=data||[];LV.loaded=true;lvBadge();return LV.rows;})();
+  try{return await LV.loading;}finally{LV.loading=null;}}
+function lvBadge(){const b=$("#klvBadge");if(!b)return;const n=LV.rows.filter(lvNeedsMe).length;b.textContent=n;b.hidden=!n;
+  b.title=lvIsHR()?n+" waiting to be processed":n+" with a question for you";}
+
+async function lvInit(){const host=$("#klvBody");if(!host)return;if(!LV.loaded)host.innerHTML='<div class="card">Loading requests…</div>';
+  try{await lvLoad(true);}catch(e){host.innerHTML='<div class="card"><div class="gm-banner red">Couldn’t load requests: '+esc(e.message||e)+'</div></div>';return;}
+  lvRender();
+  if(LV.openRef){const r=LV.rows.find(x=>String(x.ref)===String(LV.openRef));LV.openRef=null;if(r)lvOpen(r.id);}}
+
+function lvFiltered(){const q=LV.q.trim().toLowerCase();return LV.rows.filter(r=>{
+  if(LV.salon&&r.store_id!==LV.salon)return false;if(LV.pp&&r.pay_period_start!==LV.pp)return false;
+  if(LV.kind==="time"&&isPay(r.leave_type))return false;if(LV.kind==="pay"&&!isPay(r.leave_type))return false;
+  if(q&&!(r.employee_name.toLowerCase().includes(q)||lvName(r.employee_name).toLowerCase().includes(q)||lvRef(r).toLowerCase().includes(q)||String(r.ref)===q))return false;
+  const f=LV.filter;if(f==="open")return lvOpenSt(r);if(f==="mine")return lvNeedsMe(r);if(f==="noform")return lvOpenSt(r)&&(r.form_to_follow||r.doc_to_follow);
+  if(f==="done")return r.status==="completed";if(f==="closed")return r.status==="denied"||r.status==="cancelled";return true;});}
+
+function lvRender(){const host=$("#klvBody");if(!host)return;const hr=lvIsHR(),today=localToday(),cur=lvPP(today),prev=lvAdd(cur,-14);
+  const rows=LV.rows.filter(r=>!LV.salon||r.store_id===LV.salon);
+  const nMine=rows.filter(lvNeedsMe).length,nWait=rows.filter(r=>r.status===(hr?"needs_info":"submitted")).length;
+  const nPrev=rows.filter(r=>r.pay_period_start===prev&&lvOpenSt(r)).length;
+  const nNoForm=rows.filter(r=>lvOpenSt(r)&&(r.form_to_follow||r.doc_to_follow)).length;
+  let h='<div class="lv-head card"><div><h3 style="margin:0">Time Off &amp; Pay</h3><div class="hint" style="margin:2px 0 0">'
+    +(hr?'Process each request in Paychex, then mark it complete (or paid). Ask the manager if anything is unclear. Everything stays on record.'
+        :'Submit PTO and Sick Leave for the team with the signed form, plus crew bonuses and sales commissions owed. HR processes them with payroll for that pay period.')+'</div></div>'
+    +'<div class="lv-hbtns"><button class="gm-link" id="lvHow">How it works</button><button class="gm-link" id="lvEmps">Employees &amp; hire dates</button><button class="btn lv-new" id="lvNew">+ New request</button></div></div>';
+  h+='<div class="lv-tiles">'
+    +lvTile("mine",hr?"To process":"Needs your answer",nMine,nMine?(hr?"amber":"red"):"",hr?"Submitted, waiting on you":"HR asked a question")
+    +lvTile("open",hr?"Waiting on managers":"Waiting on HR",nWait,"",hr?"You asked a question":"Submitted, not processed yet")
+    +(hr?lvTile("pp:"+prev,"Last pay period open",nPrev,nPrev?"red":"",lvPPLabel(prev)+" · payroll now"):lvTile("done","Processed",rows.filter(r=>r.status==="completed").length,"","All time"))
+    +(hr?lvTile("noform","Paperwork to follow",nNoForm,nNoForm?"amber":"","Form or doctor’s note not in yet"):lvTile("pp:"+cur,"This pay period",rows.filter(r=>r.pay_period_start===cur&&r.status!=="cancelled").length,"",lvPPLabel(cur)))
+    +'</div>';
+  const pps=[...new Set(LV.rows.map(r=>r.pay_period_start).concat([cur,prev]))].sort().reverse();
+  const sal=lvSalons();
+  h+='<div class="lv-bar"><div class="det-mode" id="lvSeg">'+[["open","Open"],["mine",hr?"To process":"Needs answer"],["done","Processed"],["closed","Denied / cancelled"],["all","All"]].map(([k,l])=>'<button data-f="'+k+'"'+(LV.filter===k?' class="active"':'')+'>'+l+'</button>').join("")+'</div>'
+    +'<select id="lvKind" aria-label="Type"><option value="">Time off and pay</option><option value="time"'+(LV.kind==="time"?" selected":"")+'>Time off only</option><option value="pay"'+(LV.kind==="pay"?" selected":"")+'>Bonuses &amp; commissions</option></select>'
+    +'<select id="lvPP" aria-label="Pay period"><option value="">All pay periods</option>'+pps.map(p=>'<option value="'+p+'"'+(LV.pp===p?" selected":"")+'>'+lvPPLabel(p)+(p===cur?" (current)":p===prev?" (last)":"")+'</option>').join("")+'</select>'
+    +'<input id="lvQ" type="search" placeholder="Search name, TO-# or PAY-#" value="'+esc(LV.q)+'">'
+    +(hr||lvRole()==="area_manager"?'<button class="gm-btn2" id="lvCsv" title="Download the requests shown (by pay period) for payroll">Export CSV</button>':'')+'</div>';
+  const list=lvFiltered();
+  if(!list.length){h+='<div class="card lv-empty">'+(LV.rows.length?'Nothing here with these filters.':(hr?'No requests yet. Managers’ requests will show up here.':'No requests yet. Tap <b>+ New request</b> to submit PTO, Sick Leave, a crew bonus or a commission.'))+'</div>';}
+  else{const groups={};list.forEach(r=>{(groups[r.pay_period_start]=groups[r.pay_period_start]||[]).push(r);});
+    const keys=Object.keys(groups).sort();if(!["open","mine","noform"].includes(LV.filter))keys.reverse();
+    keys.forEach(p=>{const g=groups[p];const tot={sick:0,sick_as_pto:0,pto:0,crew_bonus:0,commission:0};g.forEach(r=>{if(r.status!=="cancelled"&&r.status!=="denied")tot[r.leave_type]+=isPay(r.leave_type)?+r.amount||0:+r.total_hours;});
+      const ended=lvAdd(p,13)<today;
+      h+='<div class="lv-group"><div class="lv-gh"><b>Pay period '+lvPPLabel(p)+'</b>'+(p===cur?' <span class="gm-chip gm-g">current</span>':ended?' <span class="gm-chip gm-n">ended '+lvMD(lvAdd(p,13))+'</span>':' <span class="gm-chip gm-n">upcoming</span>')
+        +'<span class="lv-gt">'+Object.keys(tot).filter(k=>tot[k]).map(k=>LV_TYPES[k].short+' '+(isPay(k)?lvMoney(tot[k]):lvH(tot[k])+'h')).join(' · ')+'</span></div>';
+      g.sort((a,b)=>(lvNeedsMe(b)-lvNeedsMe(a))||(a.created_at<b.created_at?-1:1)).forEach(r=>{h+=lvRow(r);});h+='</div>';});}
+  host.innerHTML=h;
+  $("#lvNew").onclick=()=>lvForm(null);$("#lvHow").onclick=()=>{if(window.klvDemo)window.klvDemo();};$("#lvEmps").onclick=lvEmployees;
+  host.querySelectorAll("#lvSeg button").forEach(b=>b.onclick=()=>{LV.filter=b.dataset.f;lvRender();});
+  host.querySelectorAll(".lv-tile").forEach(t=>t.onclick=()=>{const k=t.dataset.k;if(k.startsWith("pp:")){LV.pp=k.slice(3);LV.filter=hr?"open":"all";}else if(k==="noform"){LV.filter="noform";LV.pp="";}else{LV.filter=k;LV.pp="";}lvRender();});
+  $("#lvPP").onchange=e=>{LV.pp=e.target.value;lvRender();};$("#lvKind").onchange=e=>{LV.kind=e.target.value;lvRender();};if($("#lvSal"))$("#lvSal").onchange=e=>{LV.salon=e.target.value;lvRender();};
+  $("#lvQ").oninput=e=>{LV.q=e.target.value;clearTimeout(lvRender._t);lvRender._t=setTimeout(()=>{lvRender();const q=$("#lvQ");if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},250);};
+  if($("#lvCsv"))$("#lvCsv").onclick=lvCsv;
+  host.querySelectorAll(".lv-row").forEach(el=>{el.onclick=()=>lvOpen(el.dataset.id);el.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();lvOpen(el.dataset.id);}};});
+}
+function lvTile(k,lbl,n,tone,sub){return '<button type="button" class="lv-tile'+(tone?" "+tone:"")+'" data-k="'+k+'"><span class="lbl">'+esc(lbl)+'</span><span class="val">'+n+'</span><span class="sub">'+esc(sub)+'</span></button>';}
+function lvRow(r){const t=LV_TYPES[r.leave_type],st=lvSt(r);const need=lvNeedsMe(r),pay=isPay(r.leave_type);
+  return '<div class="lv-row '+t.cls+(need?" need":"")+'" data-id="'+r.id+'" role="button" tabindex="0">'
+    +'<div class="lv-main"><div class="lv-who">'+esc(lvName(r.employee_name))+'</div>'
+    +'<div class="lv-what"><span class="lv-type">'+esc(t.short)+'</span>'+(pay?' · <b class="lv-amt">'+lvMoney(r.amount)+'</b>'+(r.pay_reason?' · '+esc(r.pay_reason):'')
+      :(r.sick_reason?' · '+esc(r.sick_reason):'')+' · <b>'+lvH(r.total_hours)+' hrs</b> · '+esc(lvDaysTxt(r)))+'</div>'
+    +'<div class="gm-why">'+lvRef(r)+' · by '+esc(r.submitted_by_name||"—")+' · '+esc(lvAgo(r.created_at))+(r.status==="completed"&&r.completed_by_name?' · '+(pay?'paid':'processed')+' by '+esc(r.completed_by_name):'')+'</div></div>'
+    +'<div class="lv-side">'+gmChip(st[1],need&&!lvIsHR()?"Answer needed":st[0])+(r.form_to_follow&&r.status!=="cancelled"?' '+gmChip("gm-a","Form to follow"):'')+(r.doc_to_follow&&r.status!=="cancelled"?' '+gmChip("gm-a","Doctor’s note to follow"):'')+((r.warnings||[]).length?' <span class="lv-warnct" title="Warnings the manager reviewed">⚠ '+(r.warnings||[]).length+'</span>':'')+'</div></div>';}
+
+function lvCsv(){const rows=lvFiltered().filter(r=>r.status!=="cancelled");if(!rows.length){gmToast("Nothing to export with these filters.");return;}
+  const q=v=>{v=v==null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const head=["Request","Pay period start","Pay period end","Employee","Type","Sick reason","Dates","Total hours","Amount","For","Status","Submitted by","Submitted","Form","Doctor’s note","Processed by","Processed","Hours entered in Paychex","Amount entered in Paychex","Entered in Paychex","HR note"];
+  const lines=[head.join(",")].concat(rows.slice().sort((a,b)=>(a.pay_period_start+a.employee_name)<(b.pay_period_start+b.employee_name)?-1:1).map(r=>{const pay=isPay(r.leave_type);return [
+    lvRef(r),r.pay_period_start,r.pay_period_end,r.employee_name,LV_TYPES[r.leave_type].lbl,r.sick_reason||"",(r.days||[]).map(d=>d.date+" "+lvH(d.hours)+"h").join("; "),pay?"":lvH(r.total_hours),pay?(+r.amount).toFixed(2):"",r.pay_reason||"",
+    lvSt(r)[0],r.submitted_by_name||"",lvWhen(r.created_at),pay?"":(r.form_to_follow?"To follow":"Attached"),r.doc_required?(r.doc_to_follow?"To follow":"Required"):"",r.completed_by_name||"",r.completed_at?lvWhen(r.completed_at):"",
+    r.processed_hours!=null?lvH(r.processed_hours):"",r.processed_amount!=null?(+r.processed_amount).toFixed(2):"",r.paychex_entered?"Yes":"",r.hr_note||""].map(q).join(",");}));
+  const blob=new Blob([lines.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+  a.download="time-off-and-pay"+(LV.pp?"-"+LV.pp:"")+".csv";document.body.appendChild(a);a.click();a.remove();}
+
+// ---- employee list (names + hire dates for PTO; kept up to date from this tab) ----
+async function lvContacts(force){if(LV.contacts&&!force)return LV.contacts;
+  const {data,error}=await sb().from("koala_leave_employees").select("*").order("name");LV.contacts=error?(LV.contacts||[]):(data||[]);return LV.contacts;}
+const lvNorm=n=>String(n||"").toLowerCase().replace(/\s+/g," ").trim();
+async function lvStylists(){const c=await lvContacts();return c.filter(x=>x.active).map(x=>x.name).sort((a,b)=>a.localeCompare(b));}
+function lvEmp(name){const nm=lvNorm(name);return (LV.contacts||[]).find(x=>lvNorm(x.name)===nm)||null;}
+// hire date from the employee list (same as the server's koala_leave_a_hire): exact name first, then first + last name
+function lvContactHire(name){const c=LV.contacts||[];const nm=lvNorm(name);if(!nm)return null;const f=nm.split(" ")[0],l=nm.split(" ").pop();const today=localToday();
+  const cand=c.filter(x=>x.hire_date&&x.hire_date<=today).map(x=>({x,cn:lvNorm(x.name)})).filter(o=>o.cn===nm||(f!==l&&o.cn.startsWith(f+" ")&&o.cn.endsWith(" "+l)));
+  cand.sort((a,b)=>(b.cn===nm)-(a.cn===nm));return cand.length?cand[0].x.hire_date:null;}
+async function lvSaveEmp(name,patch){const e=lvEmp(name);
+  const q=e?sb().from("koala_leave_employees").update(patch).eq("id",e.id):sb().from("koala_leave_employees").insert(Object.assign({name},patch));
+  const {error}=await q;if(error)throw error;await lvContacts(true);}
+async function lvEmployees(){await lvContacts(true);const today=localToday();
+  const row=e=>'<tr data-id="'+e.id+'"><td><input data-f="name" value="'+esc(e.name)+'" aria-label="Name"></td><td><input data-f="title" value="'+esc(e.title||"")+'" placeholder="e.g. Installer" aria-label="Job title"></td>'
+    +'<td><input data-f="hire_date" type="date" max="'+today+'" value="'+esc(e.hire_date||"")+'" aria-label="Hire date"></td><td><label class="lv-check" style="margin:0"><input data-f="active" type="checkbox"'+(e.active?" checked":"")+'> Active</label></td></tr>';
+  gmModal('<div class="lv-form"><h3>Employees and hire dates</h3><div class="hint">The names you pick from on a request. The hire date decides when PTO starts (1-year anniversary). Changes save when you leave a box.</div>'
+    +'<div style="overflow-x:auto"><table class="lv-emp"><thead><tr><th>Name</th><th>Job title</th><th>Hire date</th><th></th></tr></thead><tbody id="lvEmpBody">'+((LV.contacts||[]).length?(LV.contacts||[]).map(row).join(""):'<tr><td colspan="4" class="hint">No employees yet. Add them below, or they’re added the first time you submit a request for them.</td></tr>')+'</tbody></table></div>'
+    +'<div class="lv-two" style="margin-top:12px"><input id="lvENew" placeholder="Add an employee (first and last name)" aria-label="New employee name"><div class="lv-hire" style="margin:0"><input id="lvENewHire" type="date" max="'+today+'" aria-label="Hire date"><button class="gm-btn2" id="lvEAdd">+ Add</button></div></div>'
+    +'<div class="gm-actions"><span class="gm-err" id="lvEErr" role="alert"></span><button class="btn" id="lvEClose">Done</button></div></div>');
+  $("#lvEClose").onclick=gmClose;
+  $("#lvEmpBody").addEventListener("change",async e=>{const inp=e.target.closest("input");const tr=e.target.closest("tr");if(!inp||!tr||!tr.dataset.id)return;const f=inp.dataset.f;
+    const v=f==="active"?inp.checked:(inp.value.trim()||null);if(f==="name"&&!v){$("#lvEErr").textContent="A name can’t be blank.";return;}
+    const {error}=await sb().from("koala_leave_employees").update({[f]:v}).eq("id",tr.dataset.id);$("#lvEErr").textContent=error?lvErr(error):"";if(!error){gmToast("Saved");await lvContacts(true);}});
+  $("#lvEAdd").onclick=async()=>{const n=$("#lvENew").value.trim().replace(/\s+/g," ");if(!n.includes(" ")){$("#lvEErr").textContent="Enter the first and last name.";return;}
+    if(lvEmp(n)){$("#lvEErr").textContent=n+" is already on the list.";return;}
+    const {error}=await sb().from("koala_leave_employees").insert({name:n,hire_date:$("#lvENewHire").value||null});if(error){$("#lvEErr").textContent=lvErr(error);return;}
+    gmToast("Added "+n);lvEmployees();};}
+
+// ---- new / edit request ----
+async function lvForm(existing,preset){const sal=lvSalons();if(!sal.length){gmToast("Your login doesn’t have access to Time Off & Pay.");return;}
+  await lvContacts();const today=localToday(),cur=lvPP(today);
+  const S={id:existing?existing.id:null,salon:existing?existing.store_id:(LV.salon&&sal.includes(LV.salon)?LV.salon:sal[0]),name:existing?existing.employee_name:"",type:existing?existing.leave_type:(preset||""),
+    reason:existing?existing.sick_reason||"":"",pp:existing?existing.pay_period_start:cur,days:{},notes:existing?existing.notes||"":"",follow:existing?existing.form_to_follow:false,
+    amount:existing&&existing.amount!=null?String(+existing.amount):"",payReason:existing?existing.pay_reason||"":"",
+    info:null,hire:null,hireSrc:"",ack:false,busy:false,docFollow:existing?!!existing.doc_to_follow:false};
+  if(existing)(existing.days||[]).forEach(d=>S.days[d.date]=+d.hours);
+  const pps=[lvAdd(cur,-14),cur,lvAdd(cur,14),lvAdd(cur,28)];const later=[];for(let i=3;i<=26;i++)later.push(lvAdd(cur,14*i)); // up to ~12 months ahead
+  if(existing&&!pps.includes(existing.pay_period_start)&&!later.includes(existing.pay_period_start))pps.unshift(existing.pay_period_start);
+  const tbtn=k=>'<button type="button" class="lv-tbtn '+LV_TYPES[k].cls+'" data-k="'+k+'"><b>'+LV_TYPES[k].lbl+'</b><span>'+LV_TYPES[k].desc+'</span><em class="lv-tlock"></em></button>';
+  let h='<div class="lv-form"><h3 id="lvFTitle">'+(existing?'Edit request '+lvRef(existing):'New request')+'</h3>'
+    +'<div class="lv-step"><div class="lv-sn">1</div><div class="lv-sb"><div class="lv-sl">Employee</div><div>'
+      +'<div><input id="lvFName" list="lvNames" placeholder="Start typing a name…" autocomplete="off" aria-label="Employee name" value="'+esc(existing?existing.employee_name:"")+'"><datalist id="lvNames"></datalist></div></div>'
+      +'<div class="lv-info" id="lvFInfo"></div></div></div>'
+    +'<div class="lv-step"><div class="lv-sn">2</div><div class="lv-sb"><div class="lv-sl">What is this for?</div><div id="lvFTypes">'
+      +'<div class="lv-tgl">Time off</div><div class="lv-types">'+TIME_KEYS.map(tbtn).join("")+'</div>'
+      +'<div class="lv-tgl">Pay owed (no form needed)</div><div class="lv-types">'+PAY_KEYS.map(tbtn).join("")+'</div></div>'
+      +'<div id="lvFReason" hidden><div class="lv-sl" style="margin-top:10px">Reason (required for sick leave)</div><div class="lv-chips">'+LV_REASONS.map(x=>'<button type="button" data-r="'+esc(x)+'">'+esc(x)+'</button>').join("")+'</div></div></div></div>'
+    +'<div class="lv-step"><div class="lv-sn">3</div><div class="lv-sb"><div class="lv-sl" id="lvFS3">Pay period and days</div><div class="lv-chips" id="lvFPP">'
+      +pps.map(p=>'<button type="button" data-p="'+p+'">'+lvPPLabel(p)+(p===cur?" · current":p<cur?" · last":"")+'</button>').join("")
+      +'<select id="lvFLater" class="lv-later" aria-label="Later pay period"><option value="">Later pay period…</option>'+later.map(p=>'<option value="'+p+'">'+lvPPLabel(p)+' ('+lvD(p).toLocaleDateString("en-US",{month:"short",year:"numeric"})+')</option>').join("")+'</select></div>'
+      +'<div id="lvFDaysWrap"><div class="hint" style="margin:8px 0 6px">Tap each day off, then set the hours (use the hours from the schedule).</div><div class="lv-cal" id="lvFCal"></div></div>'
+      +'<div id="lvFPayWrap" hidden><div class="hint" style="margin:8px 0 6px">The pay period whose paycheck this should be on.</div><div class="lv-two" style="margin-top:6px">'
+        +'<label class="gm-f"><span class="lv-sl" style="margin:0">Amount owed</span><span class="lv-money"><b>$</b><input type="number" id="lvFAmt" min="0.01" max="'+LV_PAY_MAX+'" step="0.01" inputmode="decimal" placeholder="0.00" value="'+esc(S.amount)+'"></span></label>'
+        +'<label class="gm-f"><span class="lv-sl" style="margin:0" id="lvFForLbl">What it’s for</span><input id="lvFFor" maxlength="200" placeholder="e.g. 3 attic jobs sold Nov 1–15" value="'+esc(S.payReason)+'"></label></div></div></div></div>'
+    +'<div class="lv-step"><div class="lv-sn">4</div><div class="lv-sb"><div class="lv-sl" id="lvFS4">Signed request form</div>'
+      +'<div id="lvFFormWrap"><label class="lv-drop"><input type="file" id="lvFForm" accept="image/*,application/pdf" multiple><span>📎 Attach the signed form<small>Tap to take a photo or choose from your photos/files<i class="lv-dd"> · or drag it here</i></small></span></label><div class="lv-files" id="lvFFormList"></div></div>'
+      +'<div id="lvFDocReq" class="lv-docreq" hidden><b>Documentation required.</b> Sick leave of 2 or more consecutive days needs documentation (doctor’s note) under the NM Healthy Workplaces Act.</div>'
+      +'<label class="lv-drop sm" id="lvFDocDrop"><input type="file" id="lvFDoc" accept="image/*,application/pdf" multiple><span id="lvFDocLbl">+ Doctor’s note or other file (optional)</span></label><div class="lv-files" id="lvFDocList"></div>'
+      +'<label class="lv-check" id="lvFDocFollowWrap" hidden><input type="checkbox" id="lvFDocFollow"> The doctor’s note will be added later</label>'
+      +(existing?'<div class="hint">Files already on this request stay attached.</div>':'')
+      +'<label class="lv-check" id="lvFFollowWrap" hidden><input type="checkbox" id="lvFFollow"'+(S.follow?" checked":"")+'> Employee called in sick, so the form will be added later</label></div></div>'
+    +'<div class="lv-step"><div class="lv-sn">5</div><div class="lv-sb"><div class="lv-sl">Notes for HR (optional)</div><textarea id="lvFNotes" rows="2" placeholder="Anything HR should know">'+esc(S.notes)+'</textarea></div></div>'
+    +'<div class="lv-sum" id="lvFSum"></div>'
+    +'<div class="gm-actions"><span class="gm-err" id="lvFErr" role="alert"></span><button class="gm-cancel" id="lvFCancel">Cancel</button><button class="btn" id="lvFSave">'+(existing?"Save changes":"Submit to HR")+'</button></div></div>';
+  gmModal(h);$("#lvFCancel").onclick=gmClose;
+  const files={form:[],doc:[]};
+  const fileList=(k,el)=>{el.innerHTML=files[k].map((f,i)=>'<span class="lv-file">'+esc(f.name)+' <button type="button" data-k="'+k+'" data-i="'+i+'" aria-label="Remove">×</button></span>').join("");
+    el.querySelectorAll("button").forEach(b=>b.onclick=()=>{files[b.dataset.k].splice(+b.dataset.i,1);fileList(k,el);paint();});};
+  $("#lvFForm").onchange=e=>{files.form.push(...e.target.files);e.target.value="";fileList("form",$("#lvFFormList"));paint();};
+  $("#lvFDoc").onchange=e=>{files.doc.push(...e.target.files);e.target.value="";fileList("doc",$("#lvFDocList"));paint();};
+  lvDropZone($("#lvFForm").closest("label"),fs=>{files.form.push(...fs);fileList("form",$("#lvFFormList"));paint();});
+  lvDropZone($("#lvFDocDrop"),fs=>{files.doc.push(...fs);fileList("doc",$("#lvFDocList"));paint();});
+  const loadNames=async()=>{const n=await lvStylists();if(!$("#lvNames"))return;$("#lvNames").innerHTML=n.map(x=>'<option value="'+esc(x)+'">').join("");};
+  loadNames();
+  let infoSeq=0;
+  const lookup=async()=>{const name=S.name;const seq=++infoSeq;S.info=null;
+    const hire=name?lvContactHire(name):null;S.hire=hire;S.hireSrc=hire?"Koala employee list":"";
+    if(existing&&existing.employee_name===name&&existing.hire_date&&!hire){S.hire=existing.hire_date;S.hireSrc=existing.hire_source||"";}
+    paint();if(!name)return;
+    const dates=Object.keys(S.days);
+    try{const {data}=await sb().rpc("koala_leave_employee_info",{p_name:name,p_dates:dates.length?dates:[today],p_exclude:S.id});
+      if(seq!==infoSeq)return;S.info=data||{};}catch(e){}
+    paint();};
+  $("#lvFName").addEventListener("change",()=>{S.name=$("#lvFName").value.trim();lookup();});
+  $("#lvFName").addEventListener("blur",()=>{const v=$("#lvFName").value.trim();if(v!==S.name){S.name=v;lookup();}});
+  $("#lvFTypes").onclick=e=>{const b=e.target.closest(".lv-tbtn");if(!b||b.classList.contains("locked"))return;S.type=b.dataset.k;S.ack=false;paint();};
+  $("#lvFReason").onclick=e=>{const b=e.target.closest("button");if(!b)return;S.reason=b.dataset.r;paint();};
+  $("#lvFPP").onclick=e=>{const b=e.target.closest("button");if(!b)return;if(S.pp!==b.dataset.p){S.pp=b.dataset.p;S.days={};}paint();};
+  $("#lvFLater").onchange=e=>{const v=e.target.value;if(v&&S.pp!==v){S.pp=v;S.days={};}paint();};
+  $("#lvFFollow").onchange=e=>{S.follow=e.target.checked;paint();};$("#lvFDocFollow").checked=S.docFollow;$("#lvFDocFollow").onchange=e=>{S.docFollow=e.target.checked;paint();};
+  $("#lvFNotes").oninput=e=>{S.notes=e.target.value;};
+  $("#lvFAmt").oninput=e=>{S.amount=e.target.value;paint(true);};$("#lvFFor").oninput=e=>{S.payReason=e.target.value;paint(true);};
+  let refetchT=null;
+  const cal=()=>{const el=$("#lvFCal");let c='';for(let i=0;i<14;i++){const d=lvAdd(S.pp,i),on=S.days[d]!=null,dt=lvD(d);
+      c+='<div class="lv-day'+(on?" on":"")+(d===today?" today":"")+'" data-d="'+d+'"><button type="button" class="lv-dbtn" data-d="'+d+'" aria-pressed="'+on+'"><span>'+LV_DOW[dt.getDay()]+'</span><b>'+lvMD(d)+'</b></button>'
+        +(on?'<label class="lv-hrs"><input type="number" min="0.25" max="12" step="0.25" inputmode="decimal" data-h="'+d+'" value="'+S.days[d]+'" aria-label="Hours on '+lvMD(d)+'"> hrs</label>':'')+'</div>';}
+    el.innerHTML=c;
+    el.querySelectorAll(".lv-dbtn").forEach(b=>b.onclick=()=>{const d=b.dataset.d;if(S.days[d]!=null)delete S.days[d];else S.days[d]=8;paint();clearTimeout(refetchT);refetchT=setTimeout(lookup,400);});
+    el.querySelectorAll("input[data-h]").forEach(inp=>inp.oninput=()=>{const v=parseFloat(inp.value);S.days[inp.dataset.h]=isNaN(v)?0:v;paint(true);});};
+  const amt=()=>{const v=parseFloat(S.amount);return isNaN(v)?0:Math.round(v*100)/100;};
+  // checks: hard blocks stop submit; warnings must be acknowledged
+  const checks=()=>{const block=[],warn=[];const pay=isPay(S.type);const days=pay?[]:Object.keys(S.days).sort(),tot=days.reduce((a,d)=>a+(+S.days[d]||0),0);
+    const first=S.name?lvName(S.name).split(" ")[0]:"The employee";
+    if(!S.name)block.push("Pick the employee.");if(!S.type)block.push("Pick what this is for.");
+    if(pay){const a=amt();const lbl=LV_TYPES[S.type].lbl.toLowerCase();
+      if(!(a>0))block.push("Enter the "+lbl+" amount.");else if(a>LV_PAY_MAX)block.push("That amount is over "+lvMoney(LV_PAY_MAX)+". Check it, or ask HR.");else if(a>1000)warn.push(lvMoney(a)+" is a large "+lbl+". Double-check the amount.");
+      if(!S.payReason.trim())block.push(S.type==="commission"?"Add what the commission is for (e.g. the catering order or sales period).":"Add what the bonus is for.");
+      ((S.info||{}).pay_open||[]).filter(o=>o.pp===S.pp&&o.type===S.type).forEach(o=>warn.push(first+" already has a "+LV_TYPES[o.type].lbl.toLowerCase()+" of "+lvMoney(o.amount)+" for this pay period (PAY-"+o.ref+", "+lvSt({leave_type:o.type},o.status)[0]+"). Make sure this isn’t a duplicate."));
+      if(lvAdd(S.pp,13)<today)warn.push("This pay period ended "+lvMD(lvAdd(S.pp,13))+". Payroll may already be done, so HR may add it to the next paycheck.");
+      return {block,warn,days,tot,pay};}
+    if(!days.length)block.push("Tap at least one day.");
+    days.forEach(d=>{const v=+S.days[d];if(!(v>0&&v<=12))block.push(lvMD(d)+": hours must be more than 0 and no more than 12.");else if(v>10)warn.push(lvMD(d)+": "+lvH(v)+" hours is a long day. Double-check the schedule.");});
+    if(S.type==="sick"&&!S.reason)block.push("Pick the reason for sick leave.");
+    const formOk=files.form.length||(existing&&LV_FILES_CT[existing.id])||(S.type==="sick"&&S.follow);
+    if(S.type&&!formOk)block.push(S.type==="sick"?"Attach the signed form, or check that it will be added later.":"Attach the signed time-off request form.");
+    const anniv=S.hire?S.hire.replace(/^(\d{4})/,y=>String(+y+1)):null;
+    if(S.type==="pto"){if(!S.hire)block.push("No hire date on file for "+first+". Add it above, or use Sick Leave as PTO.");
+      else if(days.length&&days[0]<anniv)block.push(first+" isn’t eligible for PTO until "+fmtDate(anniv)+" (1-year anniversary). Use Sick Leave as PTO instead.");}
+    const info=S.info||{};const byYr=info.sick_by_year||{};
+    if(S.type==="sick"||S.type==="sick_as_pto"){const yrs={};days.forEach(d=>{const y=d.slice(0,4);yrs[y]=(yrs[y]||0)+(+S.days[d]||0);});
+      Object.keys(yrs).forEach(y=>{const used=+byYr[y]||0;if(used+yrs[y]>LV_SICK_CAP+1e-9)block.push(first+" has "+lvH(used)+" of 64 sick hours used in "+y+". Only "+lvH(Math.max(0,LV_SICK_CAP-used))+" hrs left.");});}
+    (info.overlaps||[]).filter(o=>S.days[o.date]!=null).forEach(o=>warn.push(first+" already has a request for "+lvMD(o.date)+" (TO-"+o.ref+", "+(LV_STATUS[o.status]||[o.status])[0]+")."));
+    if(lvConsec(S.type,days)&&!files.doc.length&&!(existing&&LV_DOCS_CT[existing.id])&&!S.docFollow)block.push("2 or more sick days in a row: attach the doctor’s note, or check that it will be added later (NM Healthy Workplaces Act).");
+    if(days.length&&lvAdd(S.pp,13)<today)warn.push("This pay period ended "+lvMD(lvAdd(S.pp,13))+". Payroll may already be done, so HR may need to adjust.");
+    return {block,warn,days,tot,pay};};
+  const paint=(soft)=>{if(!$("#lvFCal"))return; // form was closed while a lookup was running
+    const pay=isPay(S.type);
+    if(!soft&&!pay)cal();
+    document.querySelectorAll("#lvFPP button").forEach(b=>b.classList.toggle("on",b.dataset.p===S.pp));{const l=$("#lvFLater");const has=[...l.options].some(o=>o.value===S.pp);l.value=has?S.pp:"";l.classList.toggle("on",has);}
+    $("#lvFDaysWrap").hidden=pay;$("#lvFPayWrap").hidden=!pay;$("#lvFS3").textContent=pay?"Pay period and amount":"Pay period and days";
+    $("#lvFFormWrap").hidden=pay;$("#lvFS4").textContent=pay?"Backup (optional)":"Signed request form";
+    if(pay)$("#lvFForLbl").textContent=S.type==="commission"?"What the commission is for":"What the bonus is for";
+    if(!existing)$("#lvFSave").textContent=pay?"Send to HR":"Submit to HR";
+    const anniv=S.hire?S.hire.replace(/^(\d{4})/,y=>String(+y+1)):null,firstDay=Object.keys(S.days).sort()[0],eligible=S.hire&&anniv<=(firstDay||today),farOff=S.hire&&anniv>lvAdd(today,385);
+    document.querySelectorAll(".lv-tbtn").forEach(b=>{const k=b.dataset.k;b.classList.toggle("on",S.type===k);b.setAttribute("aria-pressed",S.type===k);const lock=k==="pto"&&S.name&&farOff;
+      b.classList.toggle("locked",!!lock);b.querySelector(".lv-tlock").textContent=k!=="pto"||!S.name?"":!S.hire?"No hire date on file":!eligible?(lock?"Not eligible until ":"Only for days on/after ")+fmtDate(anniv):"";});
+    if(S.type==="pto"&&farOff)S.type="";
+    $("#lvFReason").hidden=S.type!=="sick";document.querySelectorAll("#lvFReason button").forEach(b=>b.classList.toggle("on",b.dataset.r===S.reason));
+    $("#lvFFollowWrap").hidden=S.type!=="sick";{const need=lvConsec(S.type,Object.keys(S.days).sort());$("#lvFDocReq").hidden=!need;$("#lvFDocFollowWrap").hidden=!need;
+      $("#lvFDocDrop").classList.toggle("req",need);$("#lvFDocLbl").textContent=pay?"📎 Attach backup, e.g. a commission report (optional)":need?"📎 Attach the doctor’s note (required)":"+ Doctor’s note or other file (optional)";}
+    const info=S.info||{},yr=today.slice(0,4),used=+((info.sick_by_year||{})[yr])||0;
+    if(pay){const po=(info.pay_open||[]);$("#lvFInfo").innerHTML=!S.name?'':(S.info?'<span>'+(po.length?'Bonuses &amp; commissions in the last 4 months: <b>'+po.length+'</b> ('+lvMoney(po.reduce((a,o)=>a+(+o.amount||0),0))+')':'No other bonuses or commissions in the last 4 months')+'</span>':'<span class="hint">Checking history…</span>');}
+    else $("#lvFInfo").innerHTML=!S.name?'':'<span>'+(S.hire?'Hired '+fmtDate(S.hire)+(eligible?' · <b class="ok">PTO eligible</b>':' · PTO eligible '+fmtDate(anniv)):'<b class="warn">No hire date on file</b> (needed for PTO)')+'</span>'
+      +(S.info?'<span>Sick hours used '+yr+': <b>'+lvH(used)+'</b> of 64</span>':'<span class="hint">Checking history…</span>');
+    if(!pay&&S.name&&!S.hire)$("#lvFInfo").innerHTML+='<div class="lv-hire"><span class="hint">Hire date:</span><input type="date" id="lvFHire" max="'+today+'" aria-label="Hire date"><button type="button" class="gm-btn2" id="lvFHireSave">Save to employee list</button></div>';
+    if($("#lvFHireSave"))$("#lvFHireSave").onclick=async()=>{const v=$("#lvFHire").value;if(!v){$("#lvFErr").textContent="Pick the hire date first.";return;}
+      try{await lvSaveEmp(S.name,{hire_date:v});$("#lvFErr").textContent="";gmToast("Hire date saved for "+lvName(S.name));loadNames();lookup();}catch(x){$("#lvFErr").textContent=lvErr(x);}};
+    const c=checks();const t=S.type?LV_TYPES[S.type]:null;
+    let s=pay?'<div class="lv-sumrow"><b>'+t.lbl+'</b> · <b class="lv-amt">'+lvMoney(amt())+'</b>'+(S.payReason.trim()?' · '+esc(S.payReason.trim()):'')+' · pay period '+lvPPLabel(S.pp)+'</div>'
+      :'<div class="lv-sumrow"><b>'+(t?t.lbl:'Pick a type')+'</b>'+(S.reason&&S.type==="sick"?' · '+esc(S.reason):'')+' · '+c.days.length+' day'+(c.days.length===1?'':'s')+' · <b>'+lvH(c.tot)+' hrs</b> · pay period '+lvPPLabel(S.pp)+'</div>';
+    if(!pay&&S.name&&t&&S.type!=="pto"&&S.info){const inYr=c.days.filter(d=>d.startsWith(yr)).reduce((a,d)=>a+(+S.days[d]||0),0);s+='<div class="lv-meter"><div style="width:'+Math.min(100,(used+inYr)/64*100)+'%'+(used+inYr>64?';background:var(--red)':'')+'"></div></div><div class="hint">After this: '+lvH(used+inYr)+' of 64 sick hours used in '+yr+'</div>';}
+    if(c.block.length)s+='<ul class="lv-block">'+c.block.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul>';
+    if(c.warn.length)s+='<div class="lv-warn"><b>Please review</b><ul>'+c.warn.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul><label class="lv-check"><input type="checkbox" id="lvFAck"'+(S.ack?" checked":"")+'> I’ve checked these and want to submit</label></div>';
+    $("#lvFSum").innerHTML=s;if($("#lvFAck"))$("#lvFAck").onchange=e=>{S.ack=e.target.checked;};
+    S._c=c;};
+  paint();if(existing||S.name){S.name=existing?existing.employee_name:S.name;lookup();}
+  $("#lvFSave").onclick=async()=>{const err=$("#lvFErr");err.textContent="";const c=checks();
+    if(c.block.length){err.textContent=c.block[0];$("#lvFSum").scrollIntoView({behavior:"smooth",block:"nearest"});return;}
+    if(c.warn.length&&!($("#lvFAck")&&$("#lvFAck").checked)){err.textContent="Check the box to confirm you reviewed the warnings.";$("#lvFSum").scrollIntoView({behavior:"smooth",block:"nearest"});return;}
+    const btn=$("#lvFSave"),idle=btn.textContent;btn.disabled=true;btn.textContent="Saving…";
+    const rec=c.pay?{employee_name:S.name,leave_type:S.type,sick_reason:null,pay_period_start:S.pp,pay_period_end:lvAdd(S.pp,13),days:[],total_hours:0,amount:amt(),pay_reason:S.payReason.trim(),
+        hire_date:null,hire_source:null,notes:S.notes.trim()||null,form_to_follow:false,doc_to_follow:false,warnings:c.warn}
+      :{employee_name:S.name,leave_type:S.type,sick_reason:S.type==="sick"?S.reason:null,pay_period_start:S.pp,pay_period_end:lvAdd(S.pp,13),amount:null,pay_reason:null,
+        days:c.days.map(d=>({date:d,hours:+S.days[d]})),total_hours:c.tot,hire_date:S.hire||null,hire_source:S.hire?S.hireSrc:null,notes:S.notes.trim()||null,
+        form_to_follow:S.type==="sick"&&S.follow&&!files.form.length,doc_to_follow:lvConsec(S.type,c.days)&&S.docFollow&&!files.doc.length,warnings:c.warn};
+    try{let row;
+      if(existing){if(existing.status==="needs_info"&&!lvIsHR())rec.status="submitted";
+        const {data,error}=await sb().from("koala_leave_requests").update(rec).eq("id",existing.id).select().single();if(error)throw error;row=data;}
+      else{const {data,error}=await sb().from("koala_leave_requests").insert(rec).select().single();if(error)throw error;row=data;}
+      if(!lvEmp(S.name))lvSaveEmp(S.name,{}).catch(()=>{}); // new names join the employee list
+      const up=c.pay?[...files.doc.map(f=>[f,"other"])]:[...files.form.map(f=>[f,"request_form"]),...files.doc.map(f=>[f,"doctor_note"])];
+      for(const [f,kind] of up){btn.textContent="Uploading "+f.name+"…";await lvUpload(row,f,kind);}
+      gmClose();gmToast(existing?"Saved "+lvRef(row)+(rec.status==="submitted"&&existing.status==="needs_info"?" · sent back to HR":""):"Sent to HR · "+lvRef(row));await lvLoad(true);lvRender();}
+    catch(e){err.textContent=lvErr(e);btn.disabled=false;btn.textContent=idle;}};}
+const LV_FILES_CT={},LV_DOCS_CT={};
+function lvConsec(type,days){if(type!=="sick")return false;const d=days.slice().sort();for(let i=1;i<d.length;i++)if(lvDiff(d[i-1],d[i])===1)return true;return false;}
+// drag-and-drop onto the attach boxes (desktop); on phones the same box opens Photo Library / Take Photo / Files
+function lvDropZone(label,onFiles){if(!label)return;["dragenter","dragover"].forEach(ev=>label.addEventListener(ev,e=>{e.preventDefault();label.classList.add("drag");}));
+  ["dragleave","drop"].forEach(ev=>label.addEventListener(ev,e=>{e.preventDefault();label.classList.remove("drag");}));
+  label.addEventListener("drop",e=>{const fs=[...(e.dataTransfer&&e.dataTransfer.files||[])].filter(f=>/^image\/|pdf$/.test(f.type)||/\.(pdf|jpe?g|png|heic|heif|webp)$/i.test(f.name));
+    if(fs.length)onFiles(fs);else gmToast("Drop a photo or PDF.");});}
+function lvErr(e){const m=(e&&(e.message||e.error_description))||String(e);return m.replace(/^.*?ERROR:\s*/,"");}
+async function lvUpload(row,f,kind){if(f.size>15*1024*1024)throw new Error(f.name+" is over 15 MB.");
+  const safe=f.name.replace(/[^\w.\-]+/g,"_").slice(-80);const path=row.id+"/"+Date.now()+"-"+safe;
+  const {error}=await sb().storage.from(LV_BUCKET).upload(path,f,{contentType:f.type||"application/octet-stream",upsert:false});if(error)throw new Error("Upload failed for "+f.name+": "+error.message);
+  const {error:e2}=await sb().from("koala_leave_files").insert({request_id:row.id,kind,storage_path:path,file_name:f.name,size_bytes:f.size,mime:f.type||null});if(e2)throw e2;
+  if(kind==="doctor_note")LV_DOCS_CT[row.id]=(LV_DOCS_CT[row.id]||0)+1;else if(kind==="request_form")LV_FILES_CT[row.id]=(LV_FILES_CT[row.id]||0)+1;}
+
+// ---- request detail: summary, files, HR processing, conversation ----
+async function lvOpen(id){const r=LV.rows.find(x=>x.id===id);if(!r)return;const hr=lvIsHR(),open=lvOpenSt(r),pay=isPay(r.leave_type);
+  gmModal('<div class="lv-detail"><div class="gm-why">Loading '+lvRef(r)+'…</div></div>');
+  let ev=[],fl=[],people=[],info={};
+  try{const [a,b,c,d]=await Promise.all([sb().from("koala_leave_events").select("*").eq("request_id",id).order("created_at"),sb().from("koala_leave_files").select("*").eq("request_id",id).order("created_at"),
+      sb().rpc("koala_leave_people"),sb().rpc("koala_leave_employee_info",{p_name:r.employee_name,p_dates:(r.days||[]).length?(r.days||[]).map(x=>x.date):[r.pay_period_start],p_exclude:r.id})]);
+    ev=a.data||[];fl=b.data||[];people=c.data||[];info=d.data||{};}catch(e){}
+  if(!$("#gmBg"))return; // closed while loading
+  LV_FILES_CT[id]=fl.filter(f=>f.kind==="request_form").length;LV_DOCS_CT[id]=fl.filter(f=>f.kind==="doctor_note").length;const docMissing=r.doc_required&&!LV_DOCS_CT[id];
+  const t=LV_TYPES[r.leave_type],st=lvSt(r),yr=((r.days||[])[0]||{date:localToday()}).date.slice(0,4);
+  const otherSick=+((info.sick_by_year||{})[yr])||0,thisYr=(r.days||[]).filter(d=>d.date.startsWith(yr)).reduce((a,d)=>a+ +d.hours,0);
+  const row=(k,v)=>'<div class="lv-kv"><span>'+k+'</span><div>'+v+'</div></div>';
+  let h='<div class="lv-detail"><div class="lv-dh"><div><div class="gm-why">'+lvRef(r)+'</div><h3 style="margin:2px 0 0">'+esc(lvName(r.employee_name))+'</h3></div>'+gmChip(st[1],st[0])+'</div>';
+  if(r.status==="needs_info"&&!hr)h+='<div class="gm-banner red" style="margin-top:10px">HR has a question. Answer it below so this can be processed.</div>';
+  if(pay){const others=(info.pay_open||[]).filter(o=>o.status!=="cancelled"&&o.status!=="denied");
+    h+='<div class="lv-kvs">'+row("Type",'<span class="lv-type">'+esc(t.lbl)+'</span>')+row("Amount",'<b class="lv-amt" style="font-size:16px">'+lvMoney(r.amount)+'</b>')
+      +row("For",'<div style="white-space:pre-wrap">'+esc(r.pay_reason||"")+'</div>')
+      +row("Pay period",lvPPLabel(r.pay_period_start)+' ('+fmtDate(r.pay_period_start)+' – '+fmtDate(r.pay_period_end)+')')
+      +row("Submitted",esc(r.submitted_by_name||"—")+' · '+lvWhen(r.created_at))
+      +(r.notes?row("Notes",'<div style="white-space:pre-wrap">'+esc(r.notes)+'</div>'):'')
+      +((r.warnings||[]).length?row("Reviewed warnings",'<ul class="lv-wl">'+r.warnings.map(w=>'<li>'+esc(w)+'</li>').join("")+'</ul>'):'')
+      +(others.length?row("Other pay (4 mo)",others.map(o=>'PAY-'+o.ref+' '+esc(LV_TYPES[o.type].short)+' '+lvMoney(o.amount)+' · '+lvPPLabel(o.pp)+' ('+lvSt({leave_type:o.type},o.status)[0]+')').join("<br>")):'')+'</div>';}
+  else h+='<div class="lv-kvs">'+row("Type",'<span class="lv-type '+t.cls+'">'+esc(t.lbl)+'</span>'+(r.sick_reason?' · '+esc(r.sick_reason):''))
+    +row("Pay period",lvPPLabel(r.pay_period_start)+' ('+fmtDate(r.pay_period_start)+' – '+fmtDate(r.pay_period_end)+')')
+    +row("Days",'<table class="lv-dt">'+(r.days||[]).slice().sort((a,b)=>a.date<b.date?-1:1).map(d=>'<tr><td>'+LV_DOW[lvD(d.date).getDay()]+' '+fmtDate(d.date)+'</td><td><b>'+lvH(d.hours)+'</b> hrs</td></tr>').join("")+'<tr class="tot"><td>Total</td><td><b>'+lvH(r.total_hours)+'</b> hrs</td></tr></table>')
+    +(r.leave_type!=="pto"?row("Sick hours "+yr,'<b>'+lvH(otherSick+(r.status==="cancelled"||r.status==="denied"?0:thisYr))+'</b> of 64 used, including this request'):row("PTO used (12 mo)",lvH(+info.pto_12mo||0)+' hrs on other requests'))
+    +row("Hire date",r.hire_date?fmtDate(r.hire_date)+(r.hire_source?' <span class="hint">('+esc(r.hire_source)+')</span>':''):'<span class="hint">Not on file</span>')
+    +row("Submitted",esc(r.submitted_by_name||"—")+' · '+lvWhen(r.created_at))
+    +(r.notes?row("Notes",'<div style="white-space:pre-wrap">'+esc(r.notes)+'</div>'):'')
+    +((r.warnings||[]).length?row("Reviewed warnings",'<ul class="lv-wl">'+r.warnings.map(w=>'<li>'+esc(w)+'</li>').join("")+'</ul>'):'')
+    +((info.overlaps||[]).length?row("Overlaps",(info.overlaps||[]).map(o=>'TO-'+o.ref+' '+lvMD(o.date)+' ('+(LV_STATUS[o.status]||[o.status])[0]+')').join(", ")):'')+'</div>';
+  // files
+  h+='<div class="lv-sec"><div class="lv-sl">Files</div>'+(fl.length?fl.map(f=>'<button type="button" class="lv-fbtn" data-path="'+esc(f.storage_path)+'">'+(f.mime&&f.mime.startsWith("image")?"🖼":"📄")+' '+esc(f.file_name||"file")+' <span class="hint">'+(f.kind==="doctor_note"?"Doctor’s note":f.kind==="other"?(pay?"Backup":"Other"):"Request form")+' · '+esc(f.uploaded_by_name||"")+'</span></button>').join("")
+      :(pay?'<div class="hint">No files attached (not required for bonuses and commissions).</div>':'<div class="gm-banner red" style="margin:0">No form attached'+(r.form_to_follow?' yet (manager said it will be added later)':'')+'.</div>'))
+    +(docMissing&&r.status!=="cancelled"?'<div class="gm-banner red" style="margin:8px 0 0"><b>Doctor’s note required.</b> 2 or more consecutive sick days need documentation (NM Healthy Workplaces Act)'+(r.doc_to_follow?'. The manager said it will be added later':'')+'. Add it below as “Doctor’s note”.</div>':'')
+    +'<label class="lv-drop sm" style="margin-top:8px"><input type="file" id="lvDFile" accept="image/*,application/pdf" multiple><span>+ Add a file</span></label> <select id="lvDKind" class="lv-kind" aria-label="File type">'
+    +(pay?'<option value="other">Backup</option><option value="request_form">Form</option>':'<option value="request_form">Request form</option><option value="doctor_note"'+(docMissing?' selected':'')+'>Doctor’s note</option><option value="other">Other</option>')+'</select></div>';
+  // HR processing
+  if(hr&&open)h+='<div class="lv-sec lv-proc"><div class="lv-sl">'+(pay?'Pay in payroll':'Process in payroll')+'</div><div class="lv-two">'
+      +(pay?'<label class="gm-f"><span class="hint">Amount entered in Paychex</span><input type="number" id="lvPAmt" step="0.01" min="0" value="'+(+r.amount).toFixed(2)+'"></label>'
+          +'<label class="lv-check" style="align-self:end"><input type="checkbox" id="lvPPx" checked> Entered in Paychex as '+(r.leave_type==="commission"?"a commission":"a bonus")+'</label>'
+        :'<label class="gm-f"><span class="hint">Hours entered in Paychex</span><input type="number" id="lvPHrs" step="0.25" min="0" value="'+lvH(r.total_hours)+'"></label>'
+          +'<label class="lv-check" style="align-self:end"><input type="checkbox" id="lvPPx" checked> Entered in Paychex as '+esc(r.leave_type==="pto"?"PTO":"Sick")+'</label>')+'</div>'
+      +'<textarea id="lvPNote" rows="2" placeholder="Note for the record (optional)"></textarea>'
+      +'<div class="gm-actions" style="margin-top:8px"><span class="gm-err" id="lvPErr" role="alert"></span><button class="gm-cancel" id="lvDeny">'+(pay?'Not paid…':'Not approved…')+'</button><button class="btn" id="lvDone">'+(pay?'✓ Mark paid':'✓ Mark complete')+'</button></div></div>';
+  if(r.status==="completed"||r.status==="denied")h+='<div class="lv-sec"><div class="gm-banner '+(r.status==="completed"?"green":"red")+'" style="margin:0">'+st[0]+' by <b>'+esc(r.completed_by_name||"—")+'</b> on '+lvWhen(r.completed_at)
+      +(r.status==="completed"&&!pay&&r.processed_hours!=null?' · '+lvH(r.processed_hours)+' hrs'+(r.paychex_entered?' entered in Paychex':''):'')
+      +(r.status==="completed"&&pay&&r.processed_amount!=null?' · '+lvMoney(r.processed_amount)+(r.paychex_entered?' entered in Paychex':''):'')
+      +(r.hr_note?'<div style="margin-top:4px;white-space:pre-wrap">'+esc(r.hr_note)+'</div>':'')+'</div></div>';
+  // conversation + history
+  h+='<div class="lv-sec"><div class="lv-sl">Conversation and history</div><div class="lv-thread">'+ev.map(e=>lvEv(e,r)).join("")+'</div>';
+  const canQ=lvCanAsk(),answering=!hr&&r.status==="needs_info";
+  h+='<div class="lv-compose"><textarea id="lvMsg" rows="2" aria-label="Message" placeholder="'+(answering?"Answer HR’s question…":canQ?"Ask the manager a question, or add a note…":"Add a note…")+'"></textarea>'
+    +'<div class="lv-tags" id="lvTags"><span class="hint">Tag:</span>'+people.filter(p=>p.id!==lvUid()).map(p=>'<button type="button" data-u="'+p.id+'"'+(canQ&&p.id===r.submitted_by?' class="on"':'')+'>'+esc(p.name)+' <small>'+esc(ROLE_NAMES[p.role]||p.role)+'</small></button>').join("")+'</div>'
+    +'<div class="gm-actions" style="margin-top:6px"><span class="gm-err" id="lvMErr" role="alert"></span>'
+    +(answering?'<button class="btn" id="lvReply">Send answer to HR</button>':(canQ&&open?'<button class="gm-cancel" id="lvNote">Add note</button><button class="btn" id="lvAsk">Ask manager</button>':'<button class="btn" id="lvNote">Add note</button>'))+'</div></div></div>';
+  h+='<div class="gm-actions">'+(open&&(lvMine(r)||!hr||lvRole()==="owner")?'<button class="gm-cancel" id="lvCancelReq">Cancel request</button><button class="gm-btn2" id="lvEdit">Edit</button>':'')
+    +(hr&&!open?'<button class="gm-cancel" id="lvReopen">Reopen</button>':'')+'<button class="btn" id="lvClose">Close</button></div></div>';
+  gmModal(h);$("#lvClose").onclick=gmClose;
+  document.querySelectorAll(".lv-fbtn").forEach(b=>b.onclick=async()=>{const w=window.open("","_blank");const {data,error}=await sb().storage.from(LV_BUCKET).createSignedUrl(b.dataset.path,600);
+    if(error||!data){if(w)w.close();gmToast("Couldn’t open the file.");return;}if(w)w.location=data.signedUrl;else location.href=data.signedUrl;});
+  const addFiles=async fs=>{if(!fs.length)return;try{for(const f of fs){gmToast("Uploading "+f.name+"…");await lvUpload(r,f,$("#lvDKind").value);}await lvLoad(true);lvRender();lvOpen(id);gmToast("File added");}catch(x){gmToast(lvErr(x));}};
+  $("#lvDFile").onchange=e=>addFiles([...e.target.files]);lvDropZone($("#lvDFile").closest("label"),addFiles);
+  const tags=()=>[...document.querySelectorAll("#lvTags button.on")].map(b=>b.dataset.u);
+  document.querySelectorAll("#lvTags button").forEach(b=>b.onclick=()=>b.classList.toggle("on"));
+  const send=async kind=>{const body=$("#lvMsg").value.trim(),err=$("#lvMErr");err.textContent="";if(!body){err.textContent=kind==="question"?"Type your question.":"Type a message.";return;}
+    if(kind==="question"&&!tags().length){err.textContent="Tag who should answer.";return;}
+    const {error}=await sb().from("koala_leave_events").insert({request_id:id,kind,body,mentions:tags()});if(error){err.textContent=lvErr(error);return;}
+    gmToast(kind==="question"?"Question sent":kind==="reply"?"Answer sent to HR":"Note added");await lvLoad(true);lvRender();lvOpen(id);};
+  if($("#lvReply"))$("#lvReply").onclick=()=>send("reply");if($("#lvAsk"))$("#lvAsk").onclick=()=>send("question");if($("#lvNote"))$("#lvNote").onclick=()=>send("note");
+  const setStatus=async(patch,msg)=>{const {error}=await sb().from("koala_leave_requests").update(patch).eq("id",id);if(error){const e=$("#lvPErr")||$("#lvMErr");e.textContent=lvErr(error);return false;}
+    gmToast(msg);await lvLoad(true);lvRender();lvOpen(id);return true;};
+  if($("#lvDone"))$("#lvDone").onclick=()=>{const pe=$("#lvPErr");if(docMissing){pe.textContent="Doctor’s note required first (2+ consecutive sick days). Ask the manager to add it.";return;}
+    if(!$("#lvPPx").checked&&!$("#lvPNote").value.trim()){pe.textContent="Add a note if it wasn’t entered in Paychex.";return;}
+    if(pay){const a=parseFloat($("#lvPAmt").value);if(isNaN(a)||a<0){pe.textContent="Enter the amount entered in Paychex.";return;}
+      setStatus({status:"completed",processed_amount:Math.round(a*100)/100,paychex_entered:$("#lvPPx").checked,hr_note:$("#lvPNote").value.trim()||null},lvRef(r)+" marked paid");return;}
+    const hrs=parseFloat($("#lvPHrs").value);if(isNaN(hrs)||hrs<0){pe.textContent="Enter the hours entered in Paychex.";return;}
+    setStatus({status:"completed",processed_hours:hrs,paychex_entered:$("#lvPPx").checked,hr_note:$("#lvPNote").value.trim()||null},lvRef(r)+" marked complete");};
+  if($("#lvDeny"))$("#lvDeny").onclick=()=>{const n=$("#lvPNote").value.trim();if(!n){$("#lvPErr").textContent="Type the reason in the note box first.";$("#lvPNote").focus();return;}
+    setStatus({status:"denied",hr_note:n},lvRef(r)+" marked "+(pay?"not paid":"not approved"));};
+  if($("#lvReopen"))$("#lvReopen").onclick=()=>setStatus({status:"submitted"},"Reopened "+lvRef(r));
+  if($("#lvCancelReq"))$("#lvCancelReq").onclick=async()=>{const b=$("#lvCancelReq");if(!b.dataset.sure){b.dataset.sure="1";b.textContent="Tap again to cancel it";return;}
+    setStatus({status:"cancelled"},lvRef(r)+" cancelled");};
+  if($("#lvEdit"))$("#lvEdit").onclick=()=>lvForm(r);}
+function lvEv(e,r){const pay=r&&isPay(r.leave_type);const lbl={submitted:"Submitted",question:"Question",reply:"Answer",note:"Note",file:"File added",edited:"Edited",completed:pay?"Paid":"Processed",denied:pay?"Not paid":"Not approved",cancelled:"Cancelled",reopened:"Reopened"}[e.kind]||e.kind;
+  const msg=e.kind==="question"||e.kind==="reply"||e.kind==="note";
+  return '<div class="lv-ev k-'+e.kind+(msg?" msg":"")+'"><div class="lv-evh"><b>'+esc(e.author_name||"System")+'</b> <span class="gm-chip '+(e.kind==="question"?"gm-r":e.kind==="completed"?"gm-g":e.kind==="reply"?"gm-a":"gm-n")+'">'+lbl+'</span> <span class="hint">'+lvWhen(e.created_at)+'</span></div>'
+    +(e.body?'<div class="lv-evb">'+esc(e.body)+'</div>':'')+'</div>';}
+
+// ---- "How it works" walkthrough: shows once per login on this device for managers who submit ----
+(function(){
+const KEY="koala_lvdemo_seen:";
+const uid=()=>lvUid()||"anon";
+const seen=()=>{try{return localStorage.getItem(KEY+uid())==="1";}catch(e){return true;}};
+const mark=()=>{try{localStorage.setItem(KEY+uid(),"1");}catch(e){}};
+const cal=(sel)=>{let c='<div class="lv-cal lvd-cal">';const d0=["Sat","Sun","Mon","Tue","Wed","Thu","Fri"];for(let i=0;i<7;i++){const on=sel.includes(i);
+  c+='<div class="lv-day'+(on?" on":"")+'"><span class="lv-dbtn"><span>'+d0[i]+'</span><b>12/'+(5+i)+'</b></span>'+(on?'<span class="lv-hrs"><span class="lvd-in">8</span> hrs</span>':'')+'</div>';}return c+'</div>';};
+const STEPS=[
+  {t:"New: Time Off & Pay",b:'<p>You now submit <b>PTO</b> and <b>Sick Leave</b> for the team, plus <b>crew bonuses</b> and <b>sales commissions</b> owed, right here on the <b>Time Off &amp; Pay</b> tab. HR (Alejandra) processes each one with payroll for that pay period, and everything stays on record.</p>'
+    +'<div class="lvd-mock"><div class="lv-head" style="padding:0"><div><b>Time Off &amp; Pay</b><div class="hint" style="margin:0">Submit time off with the signed form, plus bonuses and commissions owed.</div></div><span class="btn lv-new" style="pointer-events:none">+ New request</span></div></div>'
+    +'<p class="hint">It takes about a minute. Here’s how it works.</p>'},
+  {t:"1 · Pick the employee and the type",b:'<p>Start typing the employee’s name, then pick the type of time off:</p>'
+    +'<div class="lv-types lvd-mock"><div class="lv-tbtn lv-sick on"><b>Sick Leave</b><span>Sick or a medical appointment. Can be used right away.</span></div><div class="lv-tbtn lv-sap"><b>Sick Leave used as PTO</b><span>Sick hours used for regular time off.</span></div><div class="lv-tbtn lv-pto locked"><b>PTO</b><span>Only after the 1-year anniversary.</span><em>Not eligible until 3/1/2027</em></div></div>'
+    +'<ul class="lvd-ul"><li><b>PTO</b> unlocks on the employee’s 1-year anniversary. Hire dates live in <b>Employees &amp; hire dates</b> on the tab.</li><li>Sick Leave (including Sick as PTO) is capped at <b>64 hours per calendar year</b>. You’ll see how many hours they’ve used.</li><li>Sick Leave needs a reason.</li></ul>'},
+  {t:"2 · Pick the pay period and tap the days",b:'<p>Pick the pay period, tap each day off, and enter the hours from the schedule. Time off months ahead? Use <b>Later pay period…</b></p>'
+    +'<div class="lvd-mock"><div class="lv-chips" style="margin-bottom:8px"><span class="lvd-chip">11/21 – 12/4 · current</span><span class="lvd-chip on">12/5 – 12/18</span><span class="lvd-chip">Later pay period…</span></div>'+cal([2,3])+'</div>'
+    +'<p class="hint">One request per pay period. If the time off spans two pay periods, submit two requests.</p>'},
+  {t:"3 · Attach the signed form",b:'<p>Tap the box to <b>take a photo</b> of the signed form or pick it from your photos. On a computer you can drag the file onto it.</p>'
+    +'<div class="lvd-mock"><div class="lv-drop" style="cursor:default"><span>📎 Attach the signed form<small>Tap to take a photo or choose from your photos/files</small></span></div></div>'
+    +'<div class="lv-docreq" style="margin-top:10px"><b>2 or more sick days in a row?</b> A doctor’s note is required (NM Healthy Workplaces Act). Attach it, or check that it will be added later.</div>'
+    +'<p class="hint">Employee called in sick? Check “the form will be added later” and add it from the request when you have it.</p>'},
+  {t:"4 · Crew bonuses and commissions",b:'<p>Owe someone a <b>crew bonus</b> or a <b>commission</b>? Tap <b>+ New request</b>, pick the employee, then pick the type under <b>Pay owed</b>.</p>'
+    +'<div class="lv-types lvd-mock"><div class="lv-tbtn lv-bonus on"><b>Crew bonus</b><span>A bonus owed to a crew member.</span></div><div class="lv-tbtn lv-comm"><b>Commission</b><span>Commission owed to a salesperson.</span></div></div>'
+    +'<p>Pick the pay period it should be paid on, enter the <b>amount</b> and <b>what it’s for</b>. No form needed (you can attach backup like a commission report). HR adds it in Paychex and marks it <span class="gm-chip gm-g">Paid</span>.</p>'},
+  {t:"5 · Review and submit",b:'<p>The summary at the bottom shows the total hours (or the amount) and the sick hours used this year. Anything that needs a second look is listed. Check it, then tap <b>Submit to HR</b>.</p>'
+    +'<div class="lv-sum lvd-mock" style="margin-top:0"><div class="lv-sumrow"><b>Sick Leave</b> · Own illness · 2 days · <b>16 hrs</b> · pay period 12/5 – 12/18</div><div class="lv-meter"><div style="width:44%"></div></div><div class="hint">After this: 28 of 64 sick hours used in 2026</div>'
+    +'<div class="lv-warn"><b>Please review</b><ul><li>Ana already has a request for 12/7 (TO-1012, Waiting on HR).</li></ul></div></div>'},
+  {t:"6 · If HR has a question",b:'<p>If something isn’t clear, HR will ask you right on the request. You’ll get an email, and the Time Off &amp; Pay tab shows a red count until you answer.</p>'
+    +'<div class="lvd-mock"><div style="font-weight:700;margin-bottom:6px">Time Off &amp; Pay <span class="gm-chip gm-r">1</span></div>'
+    +'<div class="lv-ev k-question msg"><div class="lv-evh"><b>Alejandra</b> <span class="gm-chip gm-r">Question</span></div><div class="lv-evb">Was 12/7 a full shift or a half day?</div></div></div>'
+    +'<p>Open it, type your answer and tap <b>Send answer to HR</b>. When HR processes it in payroll, you’ll get an email, and it shows as <span class="gm-chip gm-g">Processed</span> (or <span class="gm-chip gm-g">Paid</span>).</p>'}];
+let i=0;
+function show(){const s=STEPS[i],last=i===STEPS.length-1;
+  gmModal('<div class="lvd"><div class="gm-why">Time Off &amp; Pay · '+(i+1)+' of '+STEPS.length+'</div><h3 style="margin:4px 0 10px">'+esc(s.t)+'</h3>'+s.b
+    +'<div class="lvd-dots">'+STEPS.map((x,j)=>'<span'+(j===i?' class="on"':'')+'></span>').join("")+'</div>'
+    +'<div class="gm-actions"><button class="gm-link" id="lvdSkip" style="margin-right:auto">'+(last?"":"Skip")+'</button>'+(i?'<button class="gm-cancel" id="lvdBack">Back</button>':'')
+    +(last?'<button class="gm-btn2" id="lvdDone">Done</button><button class="btn" id="lvdTry">Try it now</button>':'<button class="btn" id="lvdNext">Next</button>')+'</div></div>');
+  const bg=$("#gmBg");if(bg)bg.addEventListener("click",e=>{if(e.target===bg)mark();});
+  if($("#lvdSkip"))$("#lvdSkip").onclick=()=>{mark();gmClose();};if($("#lvdBack"))$("#lvdBack").onclick=()=>{i--;show();};
+  if($("#lvdNext"))$("#lvdNext").onclick=()=>{i++;show();};if($("#lvdDone"))$("#lvdDone").onclick=()=>{mark();gmClose();};
+  if($("#lvdTry"))$("#lvdTry").onclick=()=>{mark();gmClose();if(window.klvShowTab)window.klvShowTab();setTimeout(()=>{const n=$("#lvNew");if(n)n.click();},700);};}
+function start(){i=0;show();}
+window.klvDemo=start;
+// auto-start once for managers (Michelle), when nothing else is open
+let n=0;const iv=setInterval(()=>{n++;if(n>360){clearInterval(iv);return;}
+  if(!LV.me)return;if(LV.me.role!=="manager"){clearInterval(iv);return;}
+  if(seen()){clearInterval(iv);return;}
+  const app=document.getElementById("appRoot");if(app&&app.style.display==="none")return;
+  if(document.querySelector(".gm-bg,#ofLightbox,.modal-overlay.open,.of-tour,[data-tour-open]"))return;
+  clearInterval(iv);setTimeout(()=>{if(!seen()&&!document.querySelector(".gm-bg"))start();},1500);},1000);
+})();
+
+// tab wiring: the tab shows only for people with Time Off access (Koala admins + koala_leave_access); badge; ?leave=1001 deep link
+const tabBtn=document.querySelector('.tab-btn[data-tab="timeoff"]');if(tabBtn)tabBtn.addEventListener("click",lvInit);
+try{const m=location.search.match(/[?&]leave=(\d+)/);if(m)LV.openRef=m[1];}catch(e){}
+const wantTab=LV.openRef||location.hash==="#timeoff";
+function lvShowTab(){if(tabBtn&&tabBtn.style.display!=="none")tabBtn.click();}
+window.klvShowTab=lvShowTab;
+const w=setInterval(async()=>{if(typeof currentUser==="undefined"||!currentUser)return;clearInterval(w);
+  try{const {data,error}=await sb().rpc("koala_leave_me");if(error||!data)return;LV.me=data;}catch(e){return;}
+  if(tabBtn)tabBtn.style.display="";
+  if(wantTab){lvShowTab();return;}
+  lvLoad().catch(()=>{});},400);
+})();
 </script>
 </body>
 </html>

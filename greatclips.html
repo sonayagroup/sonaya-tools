@@ -600,6 +600,26 @@ body.gc-locked header,body.gc-locked nav.tabs,body.gc-locked .wrap{display:none!
 .inv-n{font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
 .inv-mgr{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#fff5e6;color:#8a5a00;font-size:11px;font-weight:600;vertical-align:1px}
 .inv-hint,.inv-last{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+/* ===== Supply orders (salon-first) ===== */
+.io-prog{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 8px}.io-pc{padding:5px 12px;border-radius:999px;font-size:13px}.io-pc b{font-size:15px;margin-right:2px}
+.io-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}.io-pill{border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:4px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.io-pill span{font-weight:500;color:var(--muted)}.io-pill.io-ready{border-color:#e9a049;background:#fff8ec}.io-pill.io-ordered{border-color:#8fd1a6;background:#effaf3}.io-pill.io-none{border-color:#f3c9c9;background:#fff6f6}
+.io-h{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin:16px 2px 8px}.io-h span{background:#e6eeeb;border-radius:999px;padding:1px 8px;margin-left:4px;color:var(--ink)}
+.io-card{background:var(--card);border:1px solid var(--line);border-left:5px solid #e9a049;border-radius:12px;margin-bottom:10px;overflow:hidden}.io-card.io-ordered{border-left-color:var(--green)}
+.io-card>summary{cursor:pointer;list-style:none;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 14px}.io-card>summary::-webkit-details-marker{display:none}
+.io-card>summary::before{content:"▸";color:var(--muted)}.io-card[open]>summary::before{content:"▾"}.io-ttl{font-size:15px}.io-meta{font-size:12.5px;color:var(--muted);margin-left:auto}
+.io-body{padding:0 14px 12px}.io-note{background:#eef6ff;border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:8px}
+.io-v{border:1px solid var(--line);border-radius:10px;margin-top:10px;overflow:hidden}.io-vh{display:flex;gap:8px;align-items:center;padding:8px 12px;background:#f4f7f5}.io-vh span{font-size:12px;color:var(--muted)}.io-vh .gm-link{margin-left:auto}
+.io-sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#7a8b87;padding:8px 12px 2px}
+.io-l{display:grid;grid-template-columns:34px 1fr auto auto;gap:10px;align-items:center;padding:5px 12px;font-size:14px;border-top:1px solid #f0f4f2}.io-l.flag{background:#fff8e6}.io-l.oos .io-n{color:#8a8f8e;text-decoration:line-through}
+.io-q{font-weight:700;color:var(--blue-dk);text-align:right}.io-n em{display:block;font-style:normal;font-size:11.5px;color:#a3530a;text-decoration:none}.io-l.oos .io-n em{color:#9b1c1c}
+.io-id{font-size:12px;color:var(--muted)}.io-id a{color:var(--blue);text-decoration:none}
+.io-x{border:none;background:none;font:inherit;font-size:11.5px;color:#a7b4b1;cursor:pointer;padding:2px 4px}.io-x:hover{color:var(--red-dk)}.io-x.on{color:var(--blue);font-weight:700}
+.io-oosv .io-vh{background:#fbeeee}.io-mgr{margin-top:10px;font-size:13px}.io-mgr summary{cursor:pointer;color:var(--muted);font-weight:600}.io-mgr summary span{font-weight:400}
+.io-act{display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin-top:12px}.io-act .gm-link{margin-right:auto}
+.io-empty{padding:12px;color:var(--muted);font-size:13px}.io-wait{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.io-wr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--line);font-size:13.5px}.io-wr:first-child{border-top:none}.io-wr .gm-link{margin-left:auto}.io-by{font-size:12px;color:var(--muted)}
+@media (max-width:640px){.io-l{grid-template-columns:28px 1fr auto}.io-l .io-id{grid-column:2;grid-row:2}.io-meta{margin-left:0;width:100%}}
 .inv-status{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:12px}
 .inv-st{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:12.5px}.inv-st div{margin-top:4px}
 .inv-oblock{border-top:1px solid var(--line);padding:10px 14px}
@@ -6824,22 +6844,40 @@ function invOrders(host){if(!INV.omonth)INV.omonth=invMonth();const m=INV.omonth
   const mine=Object.keys(SALONS).sort().filter(s=>typeof gcCanSalon!=="function"||gcCanSalon(s));
   const by={};INV.all.rows.forEach(r=>by[r.salon_id]=r);
   const months=[];let x=invMonth();for(let i=0;i<6;i++){months.push(x);x=invPrevMonth(x);}
-  let h='<div class="inv-top"><div><div class="inv-t">Supply orders</div><div class="inv-sub">What each salon submitted, grouped by store. Salon Innovations and backbar are ordered by the managers and shown for reference.</div></div>'
-    +'<select id="invOMonth">'+months.map(mm=>'<option value="'+mm+'"'+(mm===m?" selected":"")+'>'+invMonthLbl(mm)+'</option>').join("")+'</select></div>';
-  const st=s=>{const r=by[s];if(!r)return '<span class="gm-chip gm-r">Not started</span>';if(r.ordered_at)return '<span class="gm-chip gm-g">Ordered</span>';if(r.status==="submitted")return '<span class="gm-chip gm-a">Submitted '+new Date(r.submitted_at).toLocaleDateString([], {month:"numeric",day:"numeric"})+'</span>';return '<span class="gm-chip gm-n">Draft</span>';};
-  const subd=mine.filter(s=>by[s]&&by[s].status==="submitted");
-  h+='<div class="inv-status">'+mine.map(s=>'<div class="inv-st"><b>'+s+'</b> '+esc(pnameShort(s))+'<div>'+st(s)+'</div>'+(by[s]?'<button class="gm-link inv-fvb" data-fullinv="'+by[s].id+'">View inventory</button>':'')+'</div>').join("")+'</div>'
-    +'<div class="inv-sub" style="margin:-4px 0 12px">Tap <b>View inventory</b> to see everything a salon counted. Pick an earlier month above for history.</div>';
-  if(!subd.length){h+='<div class="gm-banner info">No submitted inventories for '+esc(invMonthLbl(m))+' yet.</div>';host.innerHTML=h;invOWire(host);return;}
-  ["sams","staples","amazon","other","mgr"].forEach(v=>{const blocks=subd.map(s=>({s,r:by[s],h:invHistMap(((INV.all.raw||{})[s]||[]).filter(x=>x.ref!==by[s].id)),lines:invNeeded(by[s]).filter(l=>l.v===v)})).filter(b=>b.lines.length);if(!blocks.length)return;
-    const n=blocks.reduce((a,b)=>a+b.lines.length,0);
-    h+='<details class="inv-sec inv-ord"'+(v==="mgr"?"":" open")+'><summary><span>'+esc(INV_VEND[v])+'</span><span class="inv-n">'+n+' line'+(n>1?"s":"")+' · '+blocks.length+' salon'+(blocks.length>1?"s":"")+'</span></summary>';
-    blocks.forEach(b=>{h+='<div class="inv-oblock"><div class="inv-oh"><b>'+b.s+' — '+esc(SALONS[b.s]||"")+'</b>'+(b.r.completed_by?' <span class="inv-hint">by '+esc(b.r.completed_by)+'</span>':'')+(b.r.ordered_at?' <span class="gm-chip gm-g">✓ Ordered '+esc(invFull(gmIso(new Date(b.r.ordered_at))))+'</span>':'')
-        +(v!=="mgr"?'<button class="gm-link" data-copy="'+b.s+'|'+v+'">Copy all</button>':'')+'</div><table class="inv-otbl"><tbody>'
-        +invOSecs(b.lines).map(g=>'<tr class="inv-osec"><td colspan="4"><span>'+esc(g.t)+' <i>· '+g.lines.length+' line'+(g.lines.length>1?'s':'')+'</i></span>'+(v!=="mgr"?'<button class="gm-link" data-copy="'+b.s+'|'+v+'|'+g.k+'">Copy</button>':'')+'</td></tr>'+g.lines.map(l=>{const oos=invOOS(b.r,l.ok);const rc=!oos&&l.k&&l.k!=="other"?invRecent(b.h,l.k,invRef(m)):null;return '<tr'+(oos?' class="inv-oos"':rc&&rc.recent?' class="inv-flag"':'')+'><td class="q">'+l.qty+'</td><td><span class="inv-ol">'+esc(l.label)+'</span>'+(oos?'<span class="inv-oost">⛔ Out of stock'+(oos.d?' · marked '+esc(gmShort(oos.d)):'')+(oos.by?' by '+esc(oos.by):'')+'</span>':rc&&rc.recent?'<span class="inv-flagt">⚠ already ordered '+esc(invFull(rc.last))+'</span>':'')+'</td><td class="id">'+(l.v==="sams"&&l.id?'<a href="'+INV_SAMS+l.id+'" target="_blank" rel="noopener">'+l.id+'</a>':esc(l.num||""))+'</td><td class="oo">'+(l.v!=="mgr"?'<button class="gm-link inv-oosb'+(oos?' on':'')+'" data-oos="'+b.r.id+'|'+l.ok+'">'+(oos?'Undo':'Out of stock')+'</button>':'')+'</td></tr>';}).join("")).join("")+'</tbody></table></div>';});
-    h+='</details>';});
-  h+='<div class="sec-title" style="margin-top:14px">Mark ordered</div><div class="inv-status">'+subd.map(s=>{const r=by[s];return '<div class="inv-st"><b>'+s+'</b> '+esc(pnameShort(s))+'<div>'+(r.ordered_at?'<span class="gm-chip gm-g">Ordered '+esc(invFull(gmIso(new Date(r.ordered_at))))+'</span> <button class="gm-link" data-unorder="'+r.id+'">Undo</button>':'<button class="btn sec" data-order="'+r.id+'">Mark ordered</button>')+'</div></div>';}).join("")+'</div>';
-  const notes=subd.filter(s=>by[s].extras&&by[s].extras.notes);if(notes.length)h+='<div class="card" style="margin-top:12px"><h3>Notes from managers</h3>'+notes.map(s=>'<p><b>'+s+':</b> '+esc(by[s].extras.notes)+'</p>').join("")+'</div>';
+  // Salon-first layout: progress strip → Ready to order (one card per salon, stores inside) → Ordered (collapsed) → Not submitted
+  const counted=invPrevMonth(m);
+  let h='<div class="inv-top"><div><div class="inv-t">Supply orders</div><div class="inv-sub">Orders for <b>'+esc(invMonthLbl(m).split(" ")[0])+'</b> · counted in '+esc(invMonthLbl(counted).split(" ")[0])+'. Each salon is one card; order its stores, then tap <b>Mark ordered</b>.</div></div>'
+    +'<select id="invOMonth" aria-label="Order month">'+months.map(mm=>'<option value="'+mm+'"'+(mm===m?" selected":"")+'>'+invMonthLbl(mm)+'</option>').join("")+'</select></div>';
+  const stOf=s=>{const r=by[s];if(!r)return"none";if(r.ordered_at)return"ordered";if(r.status==="submitted")return"ready";return"draft";};
+  const G={ready:[],ordered:[],draft:[],none:[]};mine.forEach(s=>G[stOf(s)].push(s));
+  const SL={ready:["Ready to order","gm-a"],ordered:["Ordered","gm-g"],draft:["Draft","gm-n"],none:["Not started","gm-r"]};
+  h+='<div class="io-prog">'+["ready","ordered","draft","none"].map(k=>'<span class="io-pc '+SL[k][1]+'"><b>'+G[k].length+'</b> '+SL[k][0].toLowerCase()+'</span>').join("")+'</div>'
+    +'<div class="io-pills">'+mine.map(s=>'<button class="io-pill io-'+stOf(s)+'" data-jump="'+s+'" title="'+esc(SL[stOf(s)][0])+'">'+s+' <span>'+esc(pnameShort(s))+'</span></button>').join("")+'</div>';
+  const card=(s,open)=>{const r=by[s];const all=invNeeded(r);const live=all.filter(l=>!invOOS(r,l.ok));const oos=all.filter(l=>invOOS(r,l.ok));
+    const hh=invHistMap(((INV.all.raw||{})[s]||[]).filter(x=>x.ref!==r.id));
+    const ordered=!!r.ordered_at;const shop=live.filter(l=>l.v!=="mgr");const mgr=live.filter(l=>l.v==="mgr");
+    const line=l=>{const rc=l.k&&l.k!=="other"?invRecent(hh,l.k,invRef(m)):null;
+      return '<div class="io-l'+(rc&&rc.recent?' flag':'')+'"><span class="io-q">'+l.qty+'</span><span class="io-n">'+esc(l.label)+(rc&&rc.recent?'<em>⚠ already ordered '+esc(invFull(rc.last))+'</em>':'')+'</span>'
+        +'<span class="io-id">'+(l.v==="sams"&&l.id?'<a href="'+INV_SAMS+l.id+'" target="_blank" rel="noopener">Sam’s #'+l.id+'</a>':l.num?'#'+esc(l.num):'')+'</span>'
+        +(l.v!=="mgr"?'<button class="io-x" data-oos="'+r.id+'|'+l.ok+'" title="Mark out of stock (moves it to the bottom)">Out of stock</button>':'<span></span>')+'</div>';};
+    let c='<details class="io-card io-'+stOf(s)+'" id="io-'+s+'"'+(open?" open":"")+'><summary><span class="io-ttl"><b>'+s+'</b> '+esc(SALONS[s]||"")+'</span>'
+      +'<span class="io-meta">'+(ordered?'<span class="gm-chip gm-g">✓ Ordered '+esc(invFull(gmIso(new Date(r.ordered_at))))+(r.ordered_by?' · '+esc(r.ordered_by):'')+'</span>':'<span class="gm-chip gm-a">Submitted '+(r.submitted_at?esc(gmShort(gmIso(new Date(r.submitted_at)))):"")+'</span>')
+      +' '+shop.length+' item'+(shop.length===1?"":"s")+(r.completed_by?' · by '+esc(r.completed_by):'')+(oos.length?' · '+oos.length+' out of stock':'')+'</span></summary><div class="io-body">';
+    if(r.extras&&r.extras.notes)c+='<div class="io-note"><b>Note from manager:</b> '+esc(r.extras.notes)+'</div>';
+    ["sams","amazon","staples","other"].forEach(v=>{const L=shop.filter(l=>l.v===v);if(!L.length)return;
+      c+='<div class="io-v"><div class="io-vh"><b>'+esc(INV_VEND[v])+'</b><span>'+L.length+' item'+(L.length===1?"":"s")+'</span><button class="gm-link" data-copy="'+s+'|'+v+'">Copy '+esc(INV_VEND[v].split(" (")[0])+' list</button></div>'
+        +invOSecs(L).map(g=>'<div class="io-sec">'+esc(g.t)+'</div>'+g.lines.map(line).join("")).join("")+'</div>';});
+    if(!shop.length)c+='<div class="io-empty">Nothing to order from the stores'+(oos.length?' (everything left is marked out of stock)':'')+'.</div>';
+    if(oos.length)c+='<div class="io-v io-oosv"><div class="io-vh"><b>Out of stock</b><span>try again next month</span></div>'+oos.map(l=>{const o=invOOS(r,l.ok);return '<div class="io-l oos"><span class="io-q">'+l.qty+'</span><span class="io-n">'+esc(l.label)+'<em>'+esc(INV_VEND[l.v]||"")+(o.d?' · marked '+esc(gmShort(o.d)):'')+(o.by?' by '+esc(o.by):'')+'</em></span><span class="io-id"></span><button class="io-x on" data-oos="'+r.id+'|'+l.ok+'">Undo</button></div>';}).join("")+'</div>';
+    if(mgr.length)c+='<details class="io-mgr"><summary>Salon Innovations &amp; backbar · '+mgr.length+' item'+(mgr.length===1?"":"s")+' <span>(the manager orders these; for reference)</span></summary>'+mgr.map(line).join("")+'</details>';
+    c+='<div class="io-act"><button class="gm-link" data-fullinv="'+r.id+'">View full inventory</button>'+(shop.length?'<button class="gm-cancel" data-copyall="'+s+'">Copy whole order</button>':'')
+      +(ordered?'<button class="gm-cancel" data-unorder="'+r.id+'">Undo ordered</button>':'<button class="btn" data-order="'+r.id+'">✓ Mark ordered</button>')+'</div></div></details>';
+    return c;};
+  h+='<div class="io-h">Ready to order <span>'+G.ready.length+'</span></div>'+(G.ready.length?G.ready.map(s=>card(s,true)).join(""):'<div class="io-empty card">Nothing waiting. '+(G.ordered.length?'Everything submitted has been ordered.':'No salon has submitted yet.')+'</div>');
+  if(G.ordered.length)h+='<div class="io-h">Ordered <span>'+G.ordered.length+'</span></div>'+G.ordered.map(s=>card(s,false)).join("");
+  if(G.draft.length||G.none.length)h+='<div class="io-h">Not submitted yet <span>'+(G.draft.length+G.none.length)+'</span></div><div class="io-wait">'
+    +G.draft.map(s=>'<div class="io-wr"><b>'+s+'</b> '+esc(SALONS[s]||"")+' <span class="gm-chip gm-n">Draft</span>'+(by[s].completed_by?' <span class="io-by">'+esc(by[s].completed_by)+' started it</span>':'')+'<button class="gm-link" data-fullinv="'+by[s].id+'">View</button></div>').join("")
+    +G.none.map(s=>'<div class="io-wr"><b>'+s+'</b> '+esc(SALONS[s]||"")+' <span class="gm-chip gm-r">Not started</span></div>').join("")+'</div>';
   host.innerHTML='<div id="invOWrap">'+h+'</div>';invOWire($("#invOWrap"));}
 // Supply type sub-groups inside each store — ordered and coded separately in accounting
 const INV_OSECS=[["office","Office Supplies"],["cleaning","Cleaning Supplies"],["misc","Misc Supplies"],["snacks","Snacks"],["si","Salon Innovations"],["backbar","Backbar"],["other","Other"]];
@@ -6862,6 +6900,11 @@ function invOWire(host){const sel=$("#invOMonth");if(sel)sel.onchange=function()
     const ln=l=>l.qty+" × "+l.label+(l.id?" (#"+l.id+")":"");const gs=invOSecs(invNeeded(r).filter(l=>l.v===v&&!invOOS(r,l.ok))).filter(g=>!sk||g.k===sk);if(!gs.length){gmToast("Nothing to copy — every line here is marked out of stock.");return;}
     const txt=s+" "+(SALONS[s]||"")+" — "+INV_VEND[v]+(sk&&gs[0]?" · "+gs[0].t:"")+"\n"+(sk?gs.map(g=>g.lines.map(ln).join("\n")).join(""):gs.map(g=>"\n"+g.t.toUpperCase()+"\n"+g.lines.map(ln).join("\n")).join("\n"));
     (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>gmToast("Copied")).catch(()=>gmModal('<h3>Copy</h3><textarea style="width:100%;height:200px">'+esc(txt)+'</textarea><div class="gm-actions"><button class="btn" data-act="close">Close</button></div>'));});
+  host.querySelectorAll("[data-jump]").forEach(b=>b.onclick=()=>{const el=document.getElementById("io-"+b.dataset.jump);if(el){el.open=true;el.scrollIntoView({behavior:"smooth",block:"start"});}else gmToast("Not submitted yet.");});
+  host.querySelectorAll("[data-copyall]").forEach(b=>b.onclick=()=>{const s=b.dataset.copyall;const r=INV.all.rows.find(x=>x.salon_id===s);const ln=l=>l.qty+" × "+l.label+(l.id?" (#"+l.id+")":"");
+    const txt=s+" "+(SALONS[s]||"")+" — supply order\n"+["sams","amazon","staples","other"].map(v=>{const gs=invOSecs(invNeeded(r).filter(l=>l.v===v&&!invOOS(r,l.ok)));if(!gs.length)return"";
+      return "\n"+INV_VEND[v].toUpperCase()+"\n"+gs.map(g=>g.t+":\n"+g.lines.map(ln).join("\n")).join("\n");}).filter(Boolean).join("\n");
+    (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>gmToast("Copied")).catch(()=>gmModal('<h3>Copy</h3><textarea style="width:100%;height:240px">'+esc(txt)+'</textarea><div class="gm-actions"><button class="btn" data-act="close">Close</button></div>'));});
   host.querySelectorAll("[data-fullinv]").forEach(b=>b.onclick=()=>{const r=INV.all.rows.find(x=>x.id===b.dataset.fullinv);if(!r)return;
     gmModal(invFullView(r)+'<div class="gm-actions"><button class="btn sec" data-act="close">Close</button></div>');const md=document.querySelector(".gm-modal");if(md)md.classList.add("inv-fv-wide");});
   host.querySelectorAll("[data-oos]").forEach(b=>b.onclick=async()=>{const [id,ok]=b.dataset.oos.split("|");const i=INV.all.rows.findIndex(x=>x.id===id);if(i<0)return;

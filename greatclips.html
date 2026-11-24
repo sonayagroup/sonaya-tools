@@ -4680,7 +4680,7 @@ function avConflicts(A){const out=[];if(!AV.loaded)return out;
     days.forEach(day=>{const v=avFor(key,day);if(!v)return;const dw=gmD(day).getDay(),rule=(v.days||{})[dw];if(!rule)return;
       const sh=list.filter(e=>e.day===day);const salons=[...new Set(sh.flatMap(e=>[e.src,e.loc]))];
       if(rule.m==="off")out.push({sev:"r",type:"avail",key,name,day,txt:"Scheduled "+sh.map(e=>schRange(e)+(e.loc!==e.src?" at "+e.loc:"")).join(", ")+" but unavailable on "+AV_DOWL[dw]+"s"+(v.notes?" ("+v.notes+")":""),salons});
-      else if(rule.m==="range"){const ws=avWins(rule).map(w=>({s:avMin(w.s),e:avMin(w.e)}));const bad=sh.filter(x=>{const st=x.s+(/\bSU\b/i.test(x.lbl||"")?SCH_TOL:0); // "SU" = 15-min setup before the floor shift
+      else if(rule.m==="range"){const ws=avWins(rule).map(w=>({s:avMin(w.s),e:avMin(w.e)}));const bad=sh.filter(x=>{const st=x.s+SCH_TOL; // shifts start up to 15 min before the floor time for setup (e.g. 7:45a for an 8a availability)
           return !ws.some(w=>st>=w.s&&x.e<=w.e);});
         if(bad.length)out.push({sev:"r",type:"avail",key,name,day,txt:"Scheduled "+bad.map(x=>schRange(x)).join(", ")+" but only available "+ws.map(w=>schFmt(w.s)+"–"+schFmt(w.e)).join(" and ")+" on "+AV_DOWL[dw]+"s"+(v.notes?" ("+v.notes+")":""),salons});}});
     // weekly limits (version in effect at the start of the week)

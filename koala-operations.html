@@ -7994,12 +7994,24 @@ const w=setInterval(async()=>{if(typeof currentUser==="undefined"||!currentUser)
 .klv .ct-f .hint{margin-top:3px}
 .klv .ct-del{background:var(--red);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;margin-right:auto}
 .klv .gm-modal.ct-narrow{width:460px}
+.klv .ct-seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.klv .ct-seg button{background:var(--card,transparent);color:var(--ink);border:none;border-right:1px solid var(--line);padding:7px 13px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.klv .ct-seg button:last-child{border-right:none}
+.klv .ct-seg button[aria-pressed="true"]{background:var(--blue);color:var(--on-blue)}
+.klv .ct-tbl td.ph{white-space:nowrap}
+.klv .ct-loc{display:inline-block;font-size:11px;font-weight:700;border:1px solid var(--line);border-radius:10px;padding:0 7px;margin:0 3px 2px 0;white-space:nowrap;color:var(--muted)}
+.klv .ct-desc{font-size:12px;color:var(--muted);margin-top:2px}
+.klv .ct-tbl tr.ct-grp td{background:var(--soft);font-weight:800;font-size:12px;color:var(--blue-dk);text-transform:uppercase;letter-spacing:.3px;padding:6px 10px}
+.klv .ct-f .ct-chk{display:flex;gap:18px}
+.klv .ct-f .ct-chk label{display:flex;align-items:center;gap:6px;margin:0;text-transform:none;font-size:14px;font-weight:600;color:var(--ink);letter-spacing:0}
+.klv .ct-f .ct-chk input{width:auto}
 @media (max-width:640px){.klv .ct-tbl{font-size:12.5px}}
 </style>
 <script>
 // ===== CONTACTS (Koala): copied from the Great Clips Contacts tab (11/24/2026) =====
 // Staff contacts (name, role, phone, email, birthday, work anniversary), vendors, company-wide contacts, print.
-// Koala has one location, so there's no salon picker. Tables koala_contacts_staff / koala_contacts_orgs:
+// Staff carry locations (Albuquerque / Las Cruces) with an All / ABQ / Las Cruces switch; vendors are grouped by category.
+// Imported from the Koala Contact List (Google Drive) 11/24/2026. Tables koala_contacts_staff / koala_contacts_orgs:
 // every active Koala login can view; owners (admins) + koala_leave_access (Alejandra, Michelle) can add/edit/delete.
 // The work anniversary is what Time Off & Pay uses for PTO eligibility (1-year anniversary), same as Great Clips.
 (function(){
@@ -8007,7 +8019,17 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const sb=()=>sbClient;
 const CT={staff:[],orgs:[],loaded:false,canEdit:false};window.KCT=CT;
-const ROLES=["General Manager","Office Manager","Sales & Operations Manager","Field Supervisor","Crew Lead","Installer","Sales Rep / Estimator","Office / CSR","Other"];
+const ROLES=["Owner","General Manager","Director of Finance & Administration","Operations/Sales Manager","Office Manager","Sales Estimator","Field Supervisor","Crew Lead","Installer","Office / CSR","Other"];
+const LOCS={abq:"Albuquerque",lc:"Las Cruces"},LOC_SHORT={abq:"ABQ",lc:"Las Cruces"};
+const CAT_ORDER=["Material Vendors","Supply Vendors","Service Providers","Vehicle Maintenance","Insurance","Lead Sources","Misc"];
+const catPri=c=>{if(!c)return 999;const i=CAT_ORDER.indexOf(c);return i<0?500:i;};
+try{const v=localStorage.getItem("kct.loc");if(v==="abq"||v==="lc")CT.loc=v;}catch(e){}
+if(!CT.loc)CT.loc="all";
+const locsOf=c=>Array.isArray(c.locations)&&c.locations.length?c.locations:["abq","lc"];
+const inLoc=c=>CT.loc==="all"||locsOf(c).includes(CT.loc);
+const locLabel=c=>{const l=locsOf(c);return l.length>1?"Both":LOCS[l[0]]||l[0];};
+const locChips=c=>locsOf(c).map(k=>'<span class="ct-loc">'+esc(LOC_SHORT[k]||k)+'</span>').join('');
+function staffSorted(){return CT.staff.filter(inLoc).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));}
 const rolePri=r=>{r=(r||"").toLowerCase();const i=ROLES.findIndex(x=>x.toLowerCase()===r);return i<0?50:i;};
 const DOB_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DOB_ABBR={jan:'January',feb:'February',mar:'March',apr:'April',may:'May',jun:'June',jul:'July',aug:'August',sep:'September',oct:'October',nov:'November',dec:'December'};
@@ -8049,26 +8071,32 @@ async function load(){const host=$("#kctBody");if(!host)return;if(!CT.loaded)hos
 window.kctReload=()=>{if(CT.loaded)load();};
 const changed=()=>{if(window.klvContactsChanged)window.klvContactsChanged();};
 
-function orgRows(list,kind){const ed=CT.canEdit;return list.length?list.map(v=>`<tr>
-    <td><b>${esc(v.company)}</b></td><td>${esc(v.contact_name||'')}</td><td>${esc(v.role||'')}</td>
-    <td>${esc(v.phone||'')}</td><td>${esc(v.mobile||'')}</td>
+function orgRow(v){const ed=CT.canEdit;return `<tr>
+    <td><b>${esc(v.company)}</b>${v.description?'<div class="ct-desc">'+esc(v.description)+'</div>':''}</td><td>${esc(v.contact_name||'')}</td><td>${esc(v.role||'')}</td>
+    <td class="ph">${esc(v.phone||'')}</td><td class="ph">${esc(v.mobile||'')}</td>
     <td>${v.email?'<a href="mailto:'+esc(v.email)+'">'+esc(v.email)+'</a>':''}</td>
     <td>${esc(v.account_num||'')}</td>${ed?`<td class="act-col"><button class="ct-act" title="Edit" aria-label="Edit ${esc(v.company)}" data-edit-org="${v.id}">✏️</button></td>`:''}
-  </tr>`).join(''):`<tr><td colspan="${ed?8:7}" class="ct-empty">${kind==="vendor"?'No vendors yet'+(ed?' — click + Add Vendor':''):'No company-wide contacts yet'+(ed?' — click + Add':'')}</td></tr>`;}
+  </tr>`;}
+function orgRows(list,kind){const ed=CT.canEdit;
+  if(list.length&&kind==="vendor"){const cats=[...new Set(list.map(v=>v.category||""))].sort((a,b)=>catPri(a)-catPri(b)||a.localeCompare(b));
+    return cats.map(cat=>{const rows=list.filter(v=>(v.category||"")===cat).sort((a,b)=>(a.company||'').localeCompare(b.company||'')||(a.contact_name||'').localeCompare(b.contact_name||''));
+      return '<tr class="ct-grp"><td colspan="'+(ed?8:7)+'">'+esc(cat||"Other vendors")+' <span style="font-weight:600;text-transform:none">('+rows.length+')</span></td></tr>'+rows.map(orgRow).join('');}).join('');}
+  return list.length?list.map(orgRow).join(''):`<tr><td colspan="${ed?8:7}" class="ct-empty">${kind==="vendor"?'No vendors yet'+(ed?' — click + Add Vendor':''):'No company-wide contacts yet'+(ed?' — click + Add':'')}</td></tr>`;}
 function render(){const host=$("#kctBody");if(!host)return;const ed=CT.canEdit;
-  const staff=CT.staff.slice().sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
+  const staff=staffSorted();
   const vendors=CT.orgs.filter(o=>o.kind==="vendor"),comp=CT.orgs.filter(o=>o.kind==="company");
   const noAnniv=staff.filter(c=>!annivIso(c.anniversary)).length;
   let h='<div class="ct-bar">'+(ed?'<button class="btn" id="ctAddStaff">+ Add Staff</button><button class="gm-btn2" id="ctAddVendor">+ Add Vendor</button>':'')
+    +'<div class="ct-seg" role="group" aria-label="Location">'+[["all","All"],["abq","Albuquerque"],["lc","Las Cruces"]].map(([k,l])=>'<button type="button" data-loc="'+k+'" aria-pressed="'+(CT.loc===k)+'">'+l+'</button>').join('')+'</div>'
     +'<button class="gm-btn2" id="ctPrint">🖨️ Print PDF</button><span class="savemsg" id="ctMsg" role="status"></span></div>';
   if(noAnniv&&ed)h+='<div class="gm-banner red" style="margin-bottom:14px">'+noAnniv+' staff contact'+(noAnniv===1?' has':'s have')+' no work anniversary. Time Off &amp; Pay needs it to know when PTO starts.</div>';
-  h+='<div class="ct-sec"><h3>Staff Contacts <span class="badge">'+staff.length+'</span></h3><div class="card"><table class="ct-tbl"><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th><th>Anniversary</th>'+(ed?'<th class="act-col"></th>':'')+'</tr></thead><tbody>'
+  h+='<div class="ct-sec"><h3>Staff Contacts'+(CT.loc==="all"?'':' — '+LOCS[CT.loc])+' <span class="badge">'+staff.length+'</span></h3><div class="card"><table class="ct-tbl"><thead><tr><th>Name</th><th>Role</th><th>Location</th><th>Mobile</th><th>Koala Mobile</th><th>Email</th><th>Birthday</th><th>Anniversary</th>'+(ed?'<th class="act-col"></th>':'')+'</tr></thead><tbody>'
     +(staff.length?staff.map(c=>`<tr>
-      <td><b>${esc(c.name)}</b></td><td>${esc(c.role||'')}</td><td>${esc(c.phone||'')}</td>
+      <td><b>${esc(c.name)}</b></td><td>${esc(c.role||'')}</td><td>${locChips(c)}</td><td class="ph">${esc(c.phone||'')}</td><td class="ph">${esc(c.koala_mobile||'')}</td>
       <td>${c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':''}</td>
       <td>${esc(fmtDob(c.dob))}</td><td>${esc(c.anniversary||'')}${ptoChip(c)}</td>
       ${ed?`<td class="act-col"><button class="ct-act" title="Edit" aria-label="Edit ${esc(c.name)}" data-edit-staff="${c.id}">✏️</button></td>`:''}</tr>`).join('')
-      :`<tr><td colspan="${ed?7:6}" class="ct-empty">No staff contacts yet${ed?' — click + Add Staff':''}</td></tr>`)+'</tbody></table></div></div>';
+      :`<tr><td colspan="${ed?9:8}" class="ct-empty">${CT.staff.length?'No staff at this location':'No staff contacts yet'+(ed?' — click + Add Staff':'')}</td></tr>`)+'</tbody></table></div></div>';
   h+='<div class="ct-sec"><h3>Vendor Contacts <span class="badge">'+vendors.length+'</span></h3><div class="card"><table class="ct-tbl"><thead><tr><th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th>'+(ed?'<th class="act-col"></th>':'')+'</tr></thead><tbody>'+orgRows(vendors,"vendor")+'</tbody></table></div></div>';
   h+='<div class="ct-sec" style="margin-top:24px;border-top:2px solid var(--line);padding-top:18px"><h3>Company-Wide Contacts <span class="badge">'+comp.length+'</span>'+(ed?' <button class="gm-btn2" id="ctAddCompany" style="padding:4px 10px;font-size:11.5px">+ Add</button>':'')+'</h3><div class="card"><table class="ct-tbl"><thead><tr><th>Company</th><th>Contact</th><th>Role</th><th>Phone</th><th>Mobile</th><th>Email</th><th>Account #</th>'+(ed?'<th class="act-col"></th>':'')+'</tr></thead><tbody>'+orgRows(comp,"company")+'</tbody></table></div></div>';
   host.innerHTML=h;
@@ -8076,6 +8104,7 @@ function render(){const host=$("#kctBody");if(!host)return;const ed=CT.canEdit;
   if($("#ctAddVendor"))$("#ctAddVendor").onclick=()=>orgForm(null,"vendor");
   if($("#ctAddCompany"))$("#ctAddCompany").onclick=()=>orgForm(null,"company");
   $("#ctPrint").onclick=print;
+  host.querySelectorAll("[data-loc]").forEach(b=>b.onclick=()=>{CT.loc=b.dataset.loc;try{localStorage.setItem("kct.loc",CT.loc);}catch(e){}render();});
   host.querySelectorAll("[data-edit-staff]").forEach(b=>b.onclick=()=>staffForm(CT.staff.find(x=>String(x.id)===b.dataset.editStaff)));
   host.querySelectorAll("[data-edit-org]").forEach(b=>b.onclick=()=>{const o=CT.orgs.find(x=>String(x.id)===b.dataset.editOrg);orgForm(o,o.kind);});}
 
@@ -8084,7 +8113,9 @@ function staffForm(c){const roles=ROLES.slice();if(c&&c.role&&!roles.includes(c.
   modal(`<div class="ct-f"><h3>${c?'Edit':'Add'} Staff Contact</h3>
     <label for="ctfName">Name</label><input id="ctfName" value="${esc(c?c.name:'')}">
     <label for="ctfRole">Role</label><select id="ctfRole"><option value="">— Select —</option>${roles.map(r=>`<option${c&&(c.role||'')===r?' selected':''}>${esc(r)}</option>`).join('')}</select>
-    <label for="ctfPhone">Phone</label><input id="ctfPhone" value="${esc(c?c.phone||'':'')}" inputmode="tel">
+    <label>Location</label><div class="ct-chk" role="group" aria-label="Location">${Object.keys(LOCS).map(k=>`<label><input type="checkbox" class="ctfLoc" value="${k}"${(c?locsOf(c):(CT.loc==="all"?["abq","lc"]:[CT.loc])).includes(k)?' checked':''}> ${LOCS[k]}</label>`).join('')}</div>
+    <label for="ctfPhone">Mobile</label><input id="ctfPhone" value="${esc(c?c.phone||'':'')}" inputmode="tel">
+    <label for="ctfKMobile">Koala Mobile</label><input id="ctfKMobile" value="${esc(c?c.koala_mobile||'':'')}" inputmode="tel">
     <label for="ctfEmail">Email</label><input id="ctfEmail" value="${esc(c?c.email||'':'')}" type="email">
     <label for="ctfDob">Birthday</label><input id="ctfDob" value="${esc(c?c.dob||'':'')}" placeholder="e.g. June 1 or 6/1">
     <label for="ctfAnniv">Work Anniversary</label><input id="ctfAnniv" value="${esc(c?c.anniversary||'':'')}" placeholder="e.g. March 15, 2020 or 3/15/2020">
@@ -8092,8 +8123,10 @@ function staffForm(c){const roles=ROLES.slice();if(c&&c.role&&!roles.includes(c.
     <div class="gm-actions">${c?'<button class="ct-del" id="ctfDel">Delete</button>':''}<span class="gm-err" id="ctfErr" role="alert"></span><button class="gm-cancel" id="ctfCancel">Cancel</button><button class="btn" id="ctfSave">Save</button></div></div>`);
   $("#ctfCancel").onclick=close;
   $("#ctfSave").onclick=async()=>{const b=$("#ctfSave"),e=$("#ctfErr");e.textContent="";
-    const body={name:$("#ctfName").value.trim(),role:$("#ctfRole").value||null,phone:normalizePhone($("#ctfPhone").value.trim())||null,email:$("#ctfEmail").value.trim()||null,dob:normDob($("#ctfDob").value.trim())||null,anniversary:normAnniv($("#ctfAnniv").value.trim())||null};
+    const locations=[...document.querySelectorAll("#ctBg .ctfLoc:checked")].map(x=>x.value);
+    const body={name:$("#ctfName").value.trim(),role:$("#ctfRole").value||null,locations,phone:normalizePhone($("#ctfPhone").value.trim())||null,koala_mobile:normalizePhone($("#ctfKMobile").value.trim())||null,email:$("#ctfEmail").value.trim()||null,dob:normDob($("#ctfDob").value.trim())||null,anniversary:normAnniv($("#ctfAnniv").value.trim())||null};
     if(!body.name){e.textContent="Name is required.";return;}
+    if(!locations.length){e.textContent="Pick at least one location.";return;}
     if(body.anniversary&&!annivIso(body.anniversary)){e.textContent="Enter the work anniversary like March 15, 2020 or 3/15/2020.";return;}
     if(!c&&CT.staff.some(x=>x.name.toLowerCase().replace(/\s+/g," ")===body.name.toLowerCase().replace(/\s+/g," "))){e.textContent=body.name+" is already in Contacts.";return;}
     b.disabled=true;b.textContent="Saving…";
@@ -8107,7 +8140,9 @@ function staffForm(c){const roles=ROLES.slice();if(c&&c.role&&!roles.includes(c.
 // --- Vendors + company-wide ---
 function orgForm(v,kind){const what=kind==="vendor"?"Vendor":"Company-Wide Contact";
   modal(`<div class="ct-f"><h3>${v?'Edit':'Add'} ${what}</h3>
+    ${kind==="vendor"?`<label for="ctfVCat">Category</label><input id="ctfVCat" list="ctfVCatList" value="${esc(v?v.category||'':'')}" placeholder="e.g. Material Vendors"><datalist id="ctfVCatList">${[...new Set(CAT_ORDER.concat(CT.orgs.map(o=>o.category).filter(Boolean)))].map(x=>'<option value="'+esc(x)+'">').join('')}</datalist>`:''}
     <label for="ctfCompany">Company</label><input id="ctfCompany" value="${esc(v?v.company:'')}">
+    <label for="ctfVDesc">Description</label><input id="ctfVDesc" value="${esc(v?v.description||'':'')}" placeholder="What they do for us">
     <label for="ctfVContact">Contact Name</label><input id="ctfVContact" value="${esc(v?v.contact_name||'':'')}">
     <label for="ctfVRole">Role / Service</label><input id="ctfVRole" value="${esc(v?v.role||'':'')}">
     <label for="ctfVPhone">Phone</label><input id="ctfVPhone" value="${esc(v?v.phone||'':'')}" inputmode="tel">
@@ -8118,7 +8153,8 @@ function orgForm(v,kind){const what=kind==="vendor"?"Vendor":"Company-Wide Conta
   $("#ctfCancel").onclick=close;
   $("#ctfSave").onclick=async()=>{const b=$("#ctfSave"),e=$("#ctfErr");e.textContent="";
     const body={kind,company:$("#ctfCompany").value.trim(),contact_name:$("#ctfVContact").value.trim()||null,role:$("#ctfVRole").value.trim()||null,phone:normalizePhone($("#ctfVPhone").value.trim())||null,
-      mobile:normalizePhone($("#ctfVMobile").value.trim())||null,email:$("#ctfVEmail").value.trim()||null,account_num:$("#ctfVAcct").value.trim()||null};
+      mobile:normalizePhone($("#ctfVMobile").value.trim())||null,email:$("#ctfVEmail").value.trim()||null,account_num:$("#ctfVAcct").value.trim()||null,description:$("#ctfVDesc").value.trim()||null};
+    if(kind==="vendor")body.category=$("#ctfVCat").value.trim()||null;
     if(!body.company){e.textContent="Company name is required.";return;}
     b.disabled=true;b.textContent="Saving…";
     const {error}=v?await sb().from("koala_contacts_orgs").update(body).eq("id",v.id):await sb().from("koala_contacts_orgs").insert(body);
@@ -8129,10 +8165,10 @@ function orgForm(v,kind){const what=kind==="vendor"?"Vendor":"Company-Wide Conta
     close();await load();flash(what+" deleted");};}
 
 // --- Print to PDF (staff directory, same as Great Clips) ---
-function print(){const staff=CT.staff.slice().sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));
+function print(){const staff=staffSorted();const where=CT.loc==="all"?"Albuquerque &amp; Las Cruces":LOCS[CT.loc];
   const today=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
   const w=window.open('','_blank');if(!w){flash("Allow pop-ups to print");return;}
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contacts — Koala Insulation</title>
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Contacts — Koala Insulation${CT.loc==="all"?"":" — "+LOCS[CT.loc]}</title>
 <style>
 *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;margin:0;padding:32px 40px;color:#222;font-size:12px;line-height:1.4}
@@ -8154,11 +8190,11 @@ a{color:#043968;text-decoration:none}
 </style></head><body>
 <div class="no-print"><button onclick="window.print()">🖨️ Print / Save as PDF</button></div>
 <div class="hdr"><svg viewBox="0 0 260 40"><rect width="260" height="40" rx="6" fill="#043968"/><text x="130" y="27" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-weight="800" font-size="19">KOALA INSULATION</text></svg>
-  <div><h1>Koala Insulation of New Mexico</h1><div class="sub">Contact Directory · Printed ${esc(today)}</div></div></div>
+  <div><h1>Koala Insulation of New Mexico</h1><div class="sub">Contact Directory · ${where} · Printed ${esc(today)}</div></div></div>
 <div class="disclaimer">***Under no situation are employee phone numbers to be given to non Koala Insulation employees.***</div>
-<h2>Staff Contacts<span>(${staff.length})</span></h2>
-<table><thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Email</th><th>Birthday</th><th>Anniversary</th></tr></thead><tbody>
-${staff.map(c=>'<tr><td><b>'+esc(c.name)+'</b></td><td>'+esc(c.role||'')+'</td><td>'+esc(c.phone||'')+'</td><td>'+(c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'')+'</td><td>'+esc(fmtDob(c.dob))+'</td><td>'+esc(c.anniversary||'')+'</td></tr>').join('')}
+<h2>Staff Contacts — ${where}<span>(${staff.length})</span></h2>
+<table><thead><tr><th>Name</th><th>Role</th><th>Location</th><th>Mobile</th><th>Koala Mobile</th><th>Email</th><th>Birthday</th><th>Anniversary</th></tr></thead><tbody>
+${staff.map(c=>'<tr><td><b>'+esc(c.name)+'</b></td><td>'+esc(c.role||'')+'</td><td>'+esc(locLabel(c))+'</td><td style="white-space:nowrap">'+esc(c.phone||'')+'</td><td style="white-space:nowrap">'+esc(c.koala_mobile||'')+'</td><td>'+(c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'')+'</td><td>'+esc(fmtDob(c.dob))+'</td><td>'+esc(c.anniversary||'')+'</td></tr>').join('')}
 </tbody></table>
 </body></html>`);
   w.document.close();}

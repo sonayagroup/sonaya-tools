@@ -320,6 +320,7 @@ details[open]>.dkn-toggle::before{transform:rotate(90deg)}
 #avPrefNote{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
 .av-prefs{display:flex;flex-wrap:wrap;gap:6px}.gm-f label.av-pchip,.av-pchip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12.5px;cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)}
 .av-pchip input{width:auto!important;margin:0}.av-pchip:has(input:checked){border-color:var(--blue);background:#effaf6}
+.av-pchip[hidden]{display:none!important}.gm-f label.av-req{border-color:#f3c9c9;background:#fff8f8;margin-top:2px}.gm-f label.av-req:has(input:checked){border-color:var(--red);background:#fdecec;color:var(--red-dk);font-weight:600}
 .av-pref{display:inline-block;background:#f3f0ff;color:#4b3fb0;border-radius:999px;padding:2px 8px;font-size:11.5px;margin:1px 2px;white-space:nowrap}.av-prefcell{min-width:140px;text-align:left!important}
 .av-times input{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px}
 .av-form textarea,.av-form input[type=number],.av-form input[type=date],.av-form select,#avName{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
@@ -4480,7 +4481,7 @@ async function schFiles(files){const msg=$("#schMsg");const got=[],bad=[];
   catch(e){if(msg)msg.innerHTML='<span style="color:'+RED+'">Could not save: '+esc(e.message)+'</span>';}}
 
 // ---- view ----
-const SCH_TYPES={double:["Double-booked","⛔"],off:["OFF conflict","🚫"],avail:["Outside availability","🕒"],limit:["Over max hours/days","⏱"],pref:["Preference not met","💬"],mismatch:["Loan mismatch","↔️"],unverified:["Other salon not uploaded","❔"]};
+const SCH_TYPES={double:["Double-booked","⛔"],off:["OFF conflict","🚫"],avail:["Outside availability","🕒"],limit:["Over max hours/days","⏱"],reqoff:["2 days off in a row missing","📅"],pref:["Preference not met","💬"],mismatch:["Loan mismatch","↔️"],unverified:["Other salon not uploaded","❔"]};
 function schDayLbl(d){return d?gmD(d).toLocaleDateString("en-US",{weekday:"short"})+" "+gmShort(d):"";}
 function schDraw(host){const weeks=schWeeks();if(!SCH.week||!weeks.includes(SCH.week)){const up=SCH.rows.map(r=>r.week_start).sort();const nextSat=gmAdd(gmWeekEnd(gmToday()),1);SCH.week=up.filter(w=>w>=gmAdd(nextSat,-7)).sort()[0]||up[up.length-1]||nextSat;}
   const wk=SCH.week;const rows=SCH.rows.filter(r=>r.week_start===wk);const A=schAnalyze(rows);
@@ -4497,9 +4498,9 @@ function schDraw(host){const weeks=schWeeks();if(!SCH.week||!weeks.includes(SCH.
   // issues
   const iss=A.issues;const cnt=t=>iss.filter(i=>i.type===t).length;
   h+='<div class="card"><h3>Discrepancies <span>· '+(iss.filter(i=>i.sev!=="n").length||"none found")+'</span></h3>';
-  h+='<div class="sch-counts">'+Object.keys(SCH_TYPES).map(t=>'<span class="gm-chip '+(cnt(t)?(t==="double"||t==="off"||t==="avail"||t==="limit"?"gm-r":t==="unverified"?"gm-n":"gm-a"):"gm-g")+'">'+SCH_TYPES[t][1]+' '+SCH_TYPES[t][0]+': '+cnt(t)+'</span>').join(" ")+'</div>';
+  h+='<div class="sch-counts">'+Object.keys(SCH_TYPES).map(t=>'<span class="gm-chip '+(cnt(t)?(t==="double"||t==="off"||t==="avail"||t==="limit"||t==="reqoff"?"gm-r":t==="unverified"?"gm-n":"gm-a"):"gm-g")+'">'+SCH_TYPES[t][1]+' '+SCH_TYPES[t][0]+': '+cnt(t)+'</span>').join(" ")+'</div>';
   if(!iss.length)h+='<div class="oos-ok">✓ No double-bookings, loan mismatches, OFF or availability conflicts found across the '+have.size+' uploaded salon'+(have.size===1?"":"s")+'.</div>';
-  h+=iss.map(i=>'<div class="sch-iss s-'+i.sev+'"><div class="ic">'+SCH_TYPES[i.type][1]+'</div><div><div class="hd"><b>'+esc(i.name)+'</b>'+(i.day?' · '+schDayLbl(i.day):' · week')+' <span class="gm-why" style="margin:0">'+SCH_TYPES[i.type][0]+'</span></div><div>'+esc(i.txt)+'</div><div class="gm-why" style="margin:2px 0 0">Salons: '+i.salons.map(s=>esc(s+" "+nm(s))).join(" · ")+'</div>'+(i.type==="avail"||i.type==="limit"||i.type==="pref"?'<button class="gm-link sch-avedit" data-k="'+esc(i.key)+'" data-n="'+esc(i.name)+'" data-s="'+esc(i.salons[0]||"")+'">View / edit availability</button>':'')+'</div></div>').join("");
+  h+=iss.map(i=>'<div class="sch-iss s-'+i.sev+'"><div class="ic">'+SCH_TYPES[i.type][1]+'</div><div><div class="hd"><b>'+esc(i.name)+'</b>'+(i.day?' · '+schDayLbl(i.day):' · week')+' <span class="gm-why" style="margin:0">'+SCH_TYPES[i.type][0]+'</span></div><div>'+esc(i.txt)+'</div><div class="gm-why" style="margin:2px 0 0">Salons: '+i.salons.map(s=>esc(s+" "+nm(s))).join(" · ")+'</div>'+(i.type==="avail"||i.type==="limit"||i.type==="reqoff"||i.type==="pref"?'<button class="gm-link sch-avedit" data-k="'+esc(i.key)+'" data-n="'+esc(i.name)+'" data-s="'+esc(i.salons[0]||"")+'">View / edit availability</button>':'')+'</div></div>').join("");
   if(iss.length)h+='<div class="gm-actions" style="justify-content:flex-start;margin-top:10px"><button class="gm-cancel" id="schCopy">Copy list for WhatsApp</button></div>';
   h+='</div>';
   // floaters grid: one line per real shift, salon color-coded, problems spelled out in the cell
@@ -4586,8 +4587,8 @@ async function avInit(){const host=$("#avBody");if(!host)return;const sal=avSalo
 const AV_PREFS=[["off2","Two days off in a row",1],["morn","Mornings only (done by 2p)",1],["eve","Evenings only (start 2p or later)",1],["wkend","Weekends off",1],
   ["open","Prefers opening shifts",0],["close","Prefers closing shifts",0],["same","Same schedule each week",0],["more","Wants more hours",0],["fewer","Wants fewer hours",0]];
 const AV_PREF_LBL=Object.fromEntries(AV_PREFS.map(p=>[p[0],p[1]]));
-function avPrefTxt(r){const a=(r&&r.prefs||[]).map(k=>AV_PREF_LBL[k]||k);if(r&&r.pref_note)a.push(r.pref_note);return a;}
-function avSummary(r){if(!r)return "";const b=[];if(r.max_hours_week)b.push("max "+lvH(r.max_hours_week)+" hrs/wk");if(r.max_days_week)b.push("max "+r.max_days_week+" days/wk");return b.join(" · ");}
+function avPrefTxt(r){const a=(r&&r.prefs||[]).filter(k=>k!=="off2req").map(k=>AV_PREF_LBL[k]||k);if(r&&r.pref_note)a.push(r.pref_note);return a;}
+function avSummary(r){if(!r)return "";const b=[];if((r.prefs||[]).includes("off2req"))b.push("2 days off in a row (required)");if(r.max_hours_week)b.push("max "+lvH(r.max_hours_week)+" hrs/wk");if(r.max_days_week)b.push("max "+r.max_days_week+" days/wk");return b.join(" · ");}
 function avRender(){const host=$("#avBody");if(!host)return;const sal=avSalons();const list=(AV.names[AV.salon]||[]).filter(s=>!AV.q||s.name.toLowerCase().includes(AV.q.toLowerCase()));
   const edit=avCanEdit(AV.salon);const set=list.filter(s=>avCurrent(s.key)).length;
   let h='<div class="card av-head"><div><h3 style="margin:0">Stylist availability &amp; restrictions</h3><div class="hint" style="margin:2px 0 0">When each person can work, and any max hours or days per week. Area Managers see conflicts on the Schedules tab when schedules are uploaded.</div></div>'
@@ -4619,6 +4620,7 @@ function avEdit(person,opts){opts=opts||{};const sid=opts.salon||AV.salon;const 
       +'<div class="av-times"></div></div>').join("")+'</div>'
     +'<div class="lv-two" style="margin-top:12px"><div class="gm-f"><label>Max hours per week</label><input id="avMaxH" type="number" min="1" max="80" step="0.5" inputmode="decimal" placeholder="No limit" value="'+(cur&&cur.max_hours_week?lvH(cur.max_hours_week):"")+'"></div>'
       +'<div class="gm-f"><label>Max days per week</label><select id="avMaxD"><option value="">No limit</option>'+[1,2,3,4,5,6].map(n=>'<option'+(cur&&cur.max_days_week===n?" selected":"")+'>'+n+'</option>').join("")+'</select></div>'
+      +'<div class="gm-f"><label>Days off</label><label class="av-pchip av-req"><input type="checkbox" id="avOff2Req"'+((cur&&cur.prefs||[]).includes("off2req")?" checked":"")+'><span>Must have 2 days off in a row (required)</span></label></div>'
       +'<div class="gm-f"><label>Starts</label><input id="avFrom" type="date" value="'+gmToday()+'"><span class="hint">Schedules before this date are checked against the old availability.</span></div></div>'
     +'<div class="gm-f" style="margin-top:12px"><label>Preferences <span class="hint">(nice to have, not a restriction)</span></label><div class="av-prefs" id="avPrefs">'
       +AV_PREFS.map(p=>'<label class="av-pchip"><input type="checkbox" value="'+p[0]+'"'+((cur&&cur.prefs||[]).includes(p[0])?" checked":"")+'><span>'+esc(p[1])+'</span></label>').join("")+'</div>'
@@ -4643,6 +4645,7 @@ function avEdit(person,opts){opts=opts||{};const sid=opts.salon||AV.salon;const 
   document.querySelectorAll(".av-presets button").forEach(b=>b.onclick=()=>{if(!edit)return;const p=b.dataset.p;AV_ORDER.forEach(d=>{const wk=d>=1&&d<=5;D[d]={m:p==="all"||(p==="wkday"&&wk)||(p==="wkend"&&!wk)?"all":"off",w:[]};});paint();});
   if(!edit)document.querySelectorAll(".av-form input,.av-form select,.av-form textarea").forEach(i=>i.disabled=true);
   paint();
+  {const rq=$("#avOff2Req"),soft=document.querySelector('#avPrefs input[value="off2"]');const sync=()=>{if(soft){soft.closest("label").hidden=rq.checked;if(rq.checked)soft.checked=false;}};rq.onchange=sync;sync();}
   if($("#avSave"))$("#avSave").onclick=async()=>{const err=$("#avErr");err.textContent="";
     const name=person?person.name:($("#avName").value||"").trim().replace(/\s+/g," ");const key=person?person.key:avKey(name);
     if(!name||!key||!name.includes(" ")){err.textContent="Enter the person’s first and last name.";return;}
@@ -4659,7 +4662,7 @@ function avEdit(person,opts){opts=opts||{};const sid=opts.salon||AV.salon;const 
     const days={};AV_ORDER.forEach(d=>{const x=D[d];if(x.m!=="range"){days[d]={m:x.m};return;}
       const w=x.w.map(v=>({s:v.s.slice(0,5),e:v.e.slice(0,5)})).sort((a,b)=>a.s<b.s?-1:1);days[d]=w.length>1?{m:"range",s:w[0].s,e:w[0].e,w}:{m:"range",s:w[0].s,e:w[0].e};});
     const rec={stylist_key:key,stylist_name:name,salon_id:sid,effective_from:from,max_hours_week:mh,max_days_week:md,days,notes:$("#avNotes").value.trim()||null,
-      prefs:[...document.querySelectorAll("#avPrefs input:checked")].map(c=>c.value),pref_note:$("#avPrefNote").value.trim()||null,alt_keys:(cur&&cur.alt_keys)||[]};
+      prefs:[...document.querySelectorAll("#avPrefs input:checked")].map(c=>c.value).filter(k=>!($("#avOff2Req").checked&&k==="off2")).concat($("#avOff2Req").checked?["off2req"]:[]),pref_note:$("#avPrefNote").value.trim()||null,alt_keys:(cur&&cur.alt_keys)||[]};
     const btn=$("#avSave");btn.disabled=true;
     const {error}=await gcClient().from("gc_stylist_avail").upsert(rec,{onConflict:"stylist_key,effective_from"});
     if(error){err.textContent=lvErr(error);btn.disabled=false;return;}
@@ -4682,8 +4685,9 @@ function avConflicts(A){const out=[];if(!AV.loaded)return out;
     const salons=[...new Set(list.flatMap(e=>[e.src,e.loc]))];
     if(v.max_hours_week&&mins/60>+v.max_hours_week+0.01)out.push({sev:"r",type:"limit",key,name,day:null,txt:"Scheduled "+lvH(mins/60)+" hrs this week, over their max of "+lvH(v.max_hours_week)+" hrs"+(v.notes?" ("+v.notes+")":""),salons});
     if(v.max_days_week&&days.length>v.max_days_week)out.push({sev:"r",type:"limit",key,name,day:null,txt:"Scheduled "+days.length+" days this week, over their max of "+v.max_days_week+" days"+(v.notes?" ("+v.notes+")":""),salons});
-    // preferences (soft): flagged amber
+    // preferences (soft): flagged amber; "off2req" is a requirement: flagged red
     const pr=v.prefs||[];if(!pr.length)return;const wk=(typeof SCH!=="undefined"&&SCH.week)||days[0];const all7=[];for(let i=0;i<7;i++)all7.push(gmAdd(wk,i));
+    if(pr.includes("off2req")){const off=all7.map(d=>!days.includes(d));if(!off.some((x,i)=>x&&off[i+1]))out.push({sev:"r",type:"reqoff",key,name,day:null,txt:"Must have 2 days off in a row, but this week’s days off ("+(all7.filter(d=>!days.includes(d)).map(d=>AV_DOW[gmD(d).getDay()]).join(", ")||"none")+") aren’t back to back"+(v.notes?" ("+v.notes+")":""),salons});}
     if(pr.includes("off2")){const off=all7.map(d=>!days.includes(d));if(!off.some((x,i)=>x&&off[i+1]))out.push({sev:"a",type:"pref",key,name,day:null,txt:"Prefers two days off in a row, but this week’s days off aren’t back to back",salons});}
     if(pr.includes("wkend")){const we=days.filter(d=>[0,6].includes(gmD(d).getDay()));if(we.length)out.push({sev:"a",type:"pref",key,name,day:we[0],txt:"Prefers weekends off, but is scheduled "+we.map(d=>AV_DOW[gmD(d).getDay()]).join(" and "),salons});}
     if(pr.includes("morn")){const b=list.filter(e=>e.e>14*60);if(b.length)out.push({sev:"a",type:"pref",key,name,day:b[0].day,txt:"Prefers mornings only, but is scheduled "+b.map(e=>AV_DOW[gmD(e.day).getDay()]+" "+schRange(e)).join(", "),salons});}

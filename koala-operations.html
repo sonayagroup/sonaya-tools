@@ -8053,7 +8053,9 @@ const pad=n=>String(n).padStart(2,"0");
 const todayIso=()=>{const d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());};
 function annivIso(t){const m=String(t||"").trim().replace(/,/g,"").match(/^([a-z]+)\s+(\d{1,2})\s+(\d{4})$/i);if(!m)return null;const mi=DOB_MONTHS.findIndex(x=>x.toLowerCase()===m[1].toLowerCase());return mi<0?null:m[3]+"-"+pad(mi+1)+"-"+pad(+m[2]);}
 // PTO eligibility from the work anniversary (1-year anniversary, same rule as Time Off & Pay)
-function ptoChip(c){const iso=annivIso(c.anniversary);if(!iso)return '<span class="gm-chip gm-n ct-pto" title="Add the work anniversary to track PTO eligibility">No anniversary on file</span>';
+// Owners don't use PTO, so no chip and they're left out of the missing-anniversary banner (11/25/2026, per Pranav).
+const isOwner=c=>String(c.role||"").trim().toLowerCase()==="owner";
+function ptoChip(c){if(isOwner(c))return '';const iso=annivIso(c.anniversary);if(!iso)return '<span class="gm-chip gm-n ct-pto" title="Add the work anniversary to track PTO eligibility">No anniversary on file</span>';
   const one=(+iso.slice(0,4)+1)+iso.slice(4);const p=one.split("-");
   return one<=todayIso()?'<span class="gm-chip gm-g ct-pto">PTO eligible</span>':'<span class="gm-chip gm-a ct-pto" title="1-year anniversary">PTO eligible '+(+p[1])+'/'+(+p[2])+'/'+p[0]+'</span>';}
 function err(e){const m=(e&&(e.message||e.error_description))||String(e);return m.replace(/^.*?ERROR:\s*/,"");}
@@ -8085,7 +8087,7 @@ function orgRows(list,kind){const ed=CT.canEdit;
 function render(){const host=$("#kctBody");if(!host)return;const ed=CT.canEdit;
   const staff=staffSorted();
   const vendors=CT.orgs.filter(o=>o.kind==="vendor"),comp=CT.orgs.filter(o=>o.kind==="company");
-  const noAnniv=staff.filter(c=>!annivIso(c.anniversary)).length;
+  const noAnniv=CT.staff.filter(c=>!isOwner(c)&&!annivIso(c.anniversary)).length;
   let h='<div class="ct-bar">'+(ed?'<button class="btn" id="ctAddStaff">+ Add Staff</button><button class="gm-btn2" id="ctAddVendor">+ Add Vendor</button>':'')
     +'<div class="ct-seg" role="group" aria-label="Location">'+[["all","All"],["abq","Albuquerque"],["lc","Las Cruces"]].map(([k,l])=>'<button type="button" data-loc="'+k+'" aria-pressed="'+(CT.loc===k)+'">'+l+'</button>').join('')+'</div>'
     +'<button class="gm-btn2" id="ctPrint">🖨️ Print PDF</button><span class="savemsg" id="ctMsg" role="status"></span></div>';

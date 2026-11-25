@@ -62,6 +62,7 @@ async function start(me) {
   S.propId = (S.properties.find((p) => p.id === saved.propId) || S.properties.find((p) => p.status === 'active') || S.properties[0] || {}).id;
   if (saved.year) S.year = saved.year;
   fillSelectors(); await loadProperty(); wireDrop(); $('loading').classList.add('hidden'); go(saved.tab || 'overview');
+  if (!tourSeen()) setTimeout(() => startTour(true), 600);
 }
 function saveUi() { try { localStorage.setItem('cam.ui', JSON.stringify({ propId: S.propId, year: S.year, tab: S.tab })); } catch (e) {} }
 function fillSelectors() {
@@ -516,4 +517,78 @@ function setPasswordPrompt() {
   $('npwSave').onclick = async () => { const { error } = await sb.auth.updateUser({ password: $('npw').value }); if (error) return toast(error.message, 5000); closeModal(); toast('Password saved'); boot(); };
 }
 if (/type=(invite|recovery)/.test(location.hash)) setTimeout(setPasswordPrompt, 800);
+/* ---------- guided tour ---------- */
+const tourKey = () => 'cam.tour.v1.' + ((S.me && S.me.email) || 'anon');
+function tourSeen() { try { return !!localStorage.getItem(tourKey()); } catch (e) { return true; } }
+function markTourSeen() { try { localStorage.setItem(tourKey(), new Date().toISOString()); } catch (e) {} }
+function tourSteps() {
+  const w = canWrite();
+  const firstCard = (tab, re) => [...document.querySelectorAll(`#tab-${tab} .card`)].find((c) => !re || re.test((c.querySelector('h2') || {}).textContent || ''));
+  const steps = [
+    { title: `Welcome${S.me && S.me.name ? ', ' + S.me.name.split(' ')[0] : ''}!`, body: 'This tool tracks the shared building costs (CAM) for each property and works out what each tenant owes at year end. This tour takes about 2 minutes. You can stop any time and restart it from the “Take the tour” button.' },
+    { tab: 'overview', el: () => $('pickers'), pad: 6, title: 'Pick the property and year', body: 'Everything on every page is for the property and year chosen here. Switch the year to look back at 2025 or ahead to next year.' },
+    { tab: 'overview', el: () => document.querySelector('#tab-overview .steps'), title: 'The whole job in 3 steps', body: 'Add invoices → check them → send each tenant a year-end statement. Click any of these boxes to jump straight to that step. Step 2 turns red when invoices are waiting for you.' },
+    { tab: 'overview', el: () => document.querySelector('#tab-overview .kpis'), title: 'The numbers at a glance', body: 'How much has been spent this year, the budget, how many invoices are waiting, and what each tenant owes (red) or is owed (green) so far.' },
+    { tab: 'overview', el: () => firstCard('overview', /Where the money went/), title: 'Running totals by category', body: 'Building-wide spending for each line of the statement, compared with the budget. Red means that line is over budget.' },
+    { tab: 'overview', el: () => firstCard('overview', /What each tenant owes/), title: 'What each tenant owes', body: 'Each tenant’s share of the actual costs, minus the CAM they already paid during the year. “Open statement” takes you to their printable year-end statement.' },
+  ];
+  if (w) steps.push(
+    { tab: 'add', el: () => $('drop'), title: 'Add an invoice: drag and drop', body: 'Drag PDFs or photos of invoices here (or click to pick files). Each file is saved, read, and sorted into a category automatically. It then waits under “To review” — nothing counts until someone confirms it.' },
+    { tab: 'add', el: () => firstCard('add', /type one in/), title: 'Or type one in', body: 'For a bill without a file. Start typing the vendor — known vendors fill in the category for you. These count right away.' },
+    { tab: 'add', el: () => firstCard('add', /Google Drive/), title: 'Invoices saved in Google Drive', body: 'If an invoice is saved in the property’s Google Drive invoice folders, Claude finds it every weekday evening and puts it in “To review”. No need to upload it again.' });
+  steps.push(
+    { tab: 'review', el: () => document.querySelector('#tab-review .rcard') || firstCard('review'), title: 'Check new invoices', body: w ? 'Every new invoice lands here. Check the date, amount and category against the file, then click the green Confirm button. Use “Not CAM” for bills tenants shouldn’t share (like internet or the owner’s own costs). The red number on this tab tells you how many are waiting.' : 'New invoices wait here until someone on the finance team confirms them. The red number on this tab shows how many are waiting.' },
+    { tab: 'invoices', el: () => firstCard('invoices'), title: 'Every invoice for the year', body: 'Search or filter by category and status. Click Edit to fix a mistake, “File” or “Drive” to see the original, and “Download for Excel” for a spreadsheet copy.' },
+    { tab: 'report', el: () => document.querySelector('#tab-report .card.noprint') || firstCard('report'), title: 'Year-end tenant statements', body: 'Choose the tenant, then click “Print / Save as PDF” to make the statement you send them. Leave “How to split costs” on “How we’ve always billed” unless Pranav says otherwise. If the year isn’t over, it’s marked as a draft.' },
+    { tab: 'settings', el: () => firstCard('settings', /budget/i), title: 'Setup: budgets and leases', body: w ? 'Enter each year’s building budget here, and under Leases the CAM each tenant paid during the year — the statement subtracts it. Most of the rest of Setup rarely changes.' : 'This is where the property, spaces, budgets and leases are set up. You have view-only access, so you can look but not change anything.' },
+    { el: () => $('btnTour'), pad: 4, title: 'That’s it!', body: 'If you get stuck, click “Take the tour” to see this again. Questions about whether a bill is CAM? Mark it for review and ask Pranav.' });
+  return steps;
+}
+let TOUR = null;
+function startTour(auto) {
+  endTour(true);
+  TOUR = { i: 0, steps: tourSteps(), startTab: S.tab, auto };
+  const shade = document.createElement('div'); shade.id = 'tourShade';
+  const spot = document.createElement('div'); spot.id = 'tourSpot';
+  const pop = document.createElement('div'); pop.id = 'tourPop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-live', 'polite');
+  document.body.append(shade, spot, pop);
+  shade.onclick = (e) => e.stopPropagation();
+  document.addEventListener('keydown', tourKeys); window.addEventListener('resize', placeTour); window.addEventListener('scroll', placeTour, true);
+  showTourStep();
+}
+function tourKeys(e) { if (!TOUR) return; if (e.key === 'Escape') endTour(); else if (e.key === 'ArrowRight' || e.key === 'Enter') tourNext(1); else if (e.key === 'ArrowLeft') tourNext(-1); }
+function tourNext(d) { if (!TOUR) return; const n = TOUR.i + d; if (n < 0) return; if (n >= TOUR.steps.length) return endTour(); TOUR.i = n; showTourStep(); }
+function showTourStep() {
+  const st = TOUR.steps[TOUR.i], last = TOUR.i === TOUR.steps.length - 1;
+  if (st.tab && S.tab !== st.tab) go(st.tab);
+  const pop = $('tourPop');
+  pop.innerHTML = `<div class="tstep">Step ${TOUR.i + 1} of ${TOUR.steps.length}</div><h3>${esc(st.title)}</h3><p>${esc(st.body)}</p>
+    <div class="tdots">${TOUR.steps.map((_, k) => `<i class="${k <= TOUR.i ? 'on' : ''}"></i>`).join('')}</div>
+    <div class="tbtns">${last ? '' : '<button class="linkbtn" id="tSkip">Skip tour</button>'}<span class="grow"></span>${TOUR.i ? '<button class="btn sm" id="tBack">Back</button>' : ''}<button class="btn sm primary" id="tNext">${last ? 'Finish' : TOUR.i ? 'Next' : 'Start the tour'}</button></div>`;
+  $('tNext').onclick = () => tourNext(1); if ($('tBack')) $('tBack').onclick = () => tourNext(-1); if ($('tSkip')) $('tSkip').onclick = () => endTour();
+  const el = st.el && st.el();
+  if (el) { const r = el.getBoundingClientRect(); if (r.top < 120 || r.bottom > innerHeight - 20) el.scrollIntoView({ block: r.height > innerHeight - 200 ? 'start' : 'center' }); if (r.height > innerHeight - 200) window.scrollBy(0, -130); }
+  else window.scrollTo(0, 0);
+  setTimeout(placeTour, 60); $('tNext').focus();
+}
+function placeTour() {
+  if (!TOUR) return; const st = TOUR.steps[TOUR.i]; const spot = $('tourSpot'), pop = $('tourPop'); const el = st.el && st.el();
+  const vw = innerWidth, vh = innerHeight, pw = pop.offsetWidth, ph = pop.offsetHeight, m = 12;
+  if (!el || !el.offsetParent) { spot.className = 'center'; spot.style.left = vw / 2 + 'px'; spot.style.top = vh / 2 + 'px'; pop.style.left = Math.max(m, (vw - pw) / 2) + 'px'; pop.style.top = Math.max(m, (vh - ph) / 2) + 'px'; return; }
+  const pad = st.pad ?? 8; const r = el.getBoundingClientRect();
+  const top = Math.max(4, r.top - pad), left = Math.max(4, r.left - pad), bottom = Math.min(vh - 4, r.bottom + pad), right = Math.min(vw - 4, r.right + pad);
+  spot.className = ''; Object.assign(spot.style, { top: top + 'px', left: left + 'px', width: right - left + 'px', height: Math.max(0, bottom - top) + 'px' });
+  let pt, pl;
+  if (vh - bottom >= ph + m) pt = bottom + m; else if (top >= ph + m) pt = top - ph - m; else if (vw - right >= pw + m) { pl = right + m; pt = Math.min(Math.max(m, top), vh - ph - m); } else if (left >= pw + m) { pl = left - pw - m; pt = Math.min(Math.max(m, top), vh - ph - m); } else pt = vh - ph - m;
+  if (pl == null) pl = Math.min(Math.max(m, left), vw - pw - m);
+  pop.style.top = pt + 'px'; pop.style.left = pl + 'px';
+}
+function endTour(silent) {
+  ['tourShade', 'tourSpot', 'tourPop'].forEach((id) => { const n = $(id); if (n) n.remove(); });
+  document.removeEventListener('keydown', tourKeys); window.removeEventListener('resize', placeTour); window.removeEventListener('scroll', placeTour, true);
+  if (!TOUR) return; const back = TOUR.startTab; TOUR = null;
+  if (!silent) { markTourSeen(); go(back === 'overview' ? 'overview' : back); window.scrollTo(0, 0); toast('Tour finished — click “Take the tour” any time to see it again.', 3500); }
+}
+$('btnTour').onclick = () => startTour(false);
+
 boot();

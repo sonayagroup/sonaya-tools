@@ -937,7 +937,7 @@ body.inv-lock{overflow:hidden}
 .amr-seg button{border:0;background:#fff;padding:6px 10px;font:inherit;font-size:12.5px;cursor:pointer;border-right:1px solid var(--line)}
 .amr-seg button:last-child{border-right:0}
 .amr-seg button.on{background:var(--blue-dk,#14664f);color:#fff}
-.amr-note,.amr-c input,#amrNeeds,#amrComment{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px}
+.amr-note,.amr-c input,.amr-c textarea,#amrNeeds,#amrComment{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:inherit;font-size:13px}
 .amr-c{display:grid;grid-template-columns:1fr 140px 150px;gap:6px;margin-bottom:6px}
 .amr-yn{display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:12px;font-size:13px}
 .amr-yn label{display:flex;gap:8px;align-items:center}
@@ -949,7 +949,7 @@ body.inv-lock{overflow:hidden}
 .amr-brow{display:flex;flex-wrap:wrap;gap:10px}
 .amr-bcell{flex:1;min-width:180px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;cursor:pointer;display:flex;flex-direction:column;gap:4px}
 .amr-bcell:hover{border-color:var(--blue-dk)}
-@media(max-width:640px){.amr-c{grid-template-columns:1fr 1fr}.amr-c input[data-cf="what"]{grid-column:1/-1}.amr-ex,.amr-prev{grid-template-columns:1fr}}
+@media(max-width:640px){.amr-c{grid-template-columns:1fr 1fr}.amr-c [data-cf="what"]{grid-column:1/-1}.amr-ex,.amr-prev{grid-template-columns:1fr}}
 #recap.amr-on #recapStatusTbl th:nth-child(2),#recap.amr-on #recapStatusTbl tbody tr:not(.am-group-hdr) td:nth-child(2){display:none}
 #recap.amr-on .am-row .am-val .gm-chip{font-size:11px}
 
@@ -994,7 +994,8 @@ body.inv-lock{overflow:hidden}
 .amr-seg button.on[data-v=ok]{background:#64748b;color:#fff}
 .amr-seg button.on[data-v=notdone],.amr-seg button.on[data-v=no]{background:#c0392b;color:#fff}
 .amr-seg button.on[data-v=carry]{background:#d97706;color:#fff}
-.amr-c input{background:#fbfcfd}
+.amr-c input,.amr-c textarea{background:#fbfcfd}.amr-c{align-items:start}.amr-ex{align-items:start}
+.amr-grow{resize:none;overflow:hidden;line-height:1.4;min-height:34px;display:block;white-space:pre-wrap;overflow-wrap:anywhere}.amr-review #amrComment{align-self:stretch}
 .amr-c.ok input{border-color:#9fd8b6;background:#f6fcf8}
 .amr-yn{background:#f7f9fa;border-radius:9px;padding:10px 12px;margin-top:6px}
 .amr-sticky{position:sticky;bottom:0;z-index:5;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-top:12px;box-shadow:0 -4px 14px rgba(16,24,40,.08)}
@@ -6102,26 +6103,28 @@ function amrRender(){const host=$("#amrWrap");if(!host)return;const ams=amrAms()
     if(ex.length){h+='<div class="amr-sub">🚩 Flagged this week</div>';ex.forEach(e=>{const a=((s.ex||{})[e.k])||{};
       h+='<div class="amr-ex sev-'+(e.cat==="Salon"?"r":"y")+'" data-k="'+esc(e.k)+'"><div><span class="amr-cat c-'+e.cat.toLowerCase()+'">'+e.cat+'</span> <b>'+esc(e.label)+'</b><div class="hint">'+esc(e.detail)+'</div></div>'
         +'<div class="amr-seg" data-ex="'+esc(e.k)+'">'+AMR_RESP.map(o=>'<button type="button" data-v="'+o[0]+'"'+(a.r===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join("")+'</div>'
-        +'<input class="amr-note" data-exnote="'+esc(e.k)+'" placeholder="'+(a.r==="ok"?"Why it’s not an issue (required)":"Short note (optional)")+'" value="'+esc(a.note||"")+'"></div>';});}
+        +'<textarea class="amr-note amr-grow" rows="1" data-exnote="'+esc(e.k)+'" placeholder="'+(a.r==="ok"?"Why it’s not an issue (required)":"Short note (optional)")+'">'+esc(a.note||"")+'</textarea></div>';});}
     const C=(s.commit&&s.commit.length?s.commit:[]).slice(0,3);
     // carried-over items fill empty slots
     prevC.forEach((c,i)=>{if(((s.prev||{})[i]||{}).st==="carry"&&!C.some(x=>x&&x.what===c.what)&&C.filter(x=>x&&x.what).length<3)C.push({what:c.what,who:c.who,due:""});});
     while(C.length<3)C.push({});
     h+='<div class="amr-sub">🎯 This week’s commitments <span class="hint">(at least 1, up to 3 — what, who, by when)</span></div>';
-    C.forEach((c,i)=>{h+='<div class="amr-c" data-ci="'+i+'"><input data-cf="what" placeholder="What will get done" value="'+esc(c.what||"")+'"><input data-cf="who" placeholder="Who" value="'+esc(c.who||"")+'"><input data-cf="due" type="date" value="'+esc(c.due||"")+'"></div>';});
+    C.forEach((c,i)=>{h+='<div class="amr-c" data-ci="'+i+'"><textarea data-cf="what" class="amr-grow" rows="1" placeholder="What will get done">'+esc(c.what||"")+'</textarea><input data-cf="who" placeholder="Who" value="'+esc(c.who||"")+'"><input data-cf="due" type="date" value="'+esc(c.due||"")+'"></div>';});
     h+='<div class="amr-sub">✅ Quick checks</div><div class="amr-yn"><label>Licenses posted &amp; current <span class="amr-seg" data-yn="lic">'+[["yes","Yes"],["no","No"]].map(o=>'<button type="button" data-v="'+o[0]+'"'+(s.lic===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join("")+'</span></label>'
       +'<label>Schedules up to date (3 weeks out) <span class="amr-seg" data-yn="sched">'+[["yes","Yes"],["no","No"]].map(o=>'<button type="button" data-v="'+o[0]+'"'+(s.sched===o[0]?' class="on"':'')+'>'+o[1]+'</button>').join("")+'</span></label></div>';
     h+='</div>';});
   h+='<div class="card"><div class="amr-sub" style="margin-top:0">Anything you need from Pranav?</div><textarea id="amrNeeds" rows="2" placeholder="Optional">'+esc(D.needs||"")+'</textarea></div>'
     +'<div class="amr-actions amr-sticky"><span id="amrProgTxt2" class="amr-ptxt"></span><span class="savemsg" id="amrMsg"></span><span style="flex:1"></span><button class="btn amr-btn-sec" id="amrDraft">Save draft</button><button class="btn" id="amrFinal">Submit recap</button></div>';
-  if(owner&&row&&row.status==="final")h+='<div class="card amr-review"><div class="amr-sub" style="margin-top:0">Your review</div><input id="amrComment" placeholder="Comment for '+esc(am.name.split(" ")[0])+' (optional)" value="'+esc(row.owner_comment||"")+'"><button class="btn" id="amrAck">'+(row.owner_ack_at?"Update review":"Mark reviewed ✔")+'</button><span class="savemsg" id="amrAckMsg"></span></div>';
+  if(owner&&row&&row.status==="final")h+='<div class="card amr-review"><div class="amr-sub" style="margin-top:0">Your review</div><textarea id="amrComment" class="amr-grow" rows="1" placeholder="Comment for '+esc(am.name.split(" ")[0])+' (optional)">'+esc(row.owner_comment||"")+'</textarea><button class="btn" id="amrAck">'+(row.owner_ack_at?"Update review":"Mark reviewed ✔")+'</button><span class="savemsg" id="amrAckMsg"></span></div>';
   host.innerHTML=h;AMR.dirty=false;amrWire(am,wk,row);amrProgress();try{amrDecorateCards();}catch(e){}}
 function amrWire(am,wk,row){const host=$("#amrWrap");
   const sel=$("#amrAmSel");if(sel)sel.onchange=()=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?")){sel.value=AMR.am;return;}AMR.am=sel.value;amrRender();};
   $("#amrWkSel").onchange=e=>{if(AMR.dirty&&!confirm("You have unsaved changes. Switch anyway?")){e.target.value=AMR.wk;return;}AMR.wk=e.target.value;amrRender();amrSyncOverview();};
   host.querySelectorAll(".amr-seg button").forEach(b=>b.onclick=()=>{const seg=b.parentElement,on=b.classList.contains("on");seg.querySelectorAll("button").forEach(x=>x.classList.remove("on"));if(!on)b.classList.add("on");AMR.dirty=true;
     if(seg.dataset.ex){const n=seg.parentElement.querySelector(".amr-note");if(n)n.placeholder=(!on&&b.dataset.v==="ok")?"Why it’s not an issue (required)":"Short note (optional)";}
-    if(seg.dataset.prev!=null&&b.dataset.v==="carry"&&!on){const card=seg.closest(".amr-salon"),what=seg.parentElement.querySelector(".amr-what").firstChild.textContent;const ins=[...card.querySelectorAll('.amr-c input[data-cf="what"]')];if(!ins.some(i=>i.value.trim()===what)){const empty=ins.find(i=>!i.value.trim());if(empty)empty.value=what;}}});
+    if(seg.dataset.prev!=null&&b.dataset.v==="carry"&&!on){const card=seg.closest(".amr-salon"),what=seg.parentElement.querySelector(".amr-what").firstChild.textContent;const ins=[...card.querySelectorAll('.amr-c [data-cf="what"]')];if(!ins.some(i=>i.value.trim()===what)){const empty=ins.find(i=>!i.value.trim());if(empty)empty.value=what;}}});
+  const grow=t=>{t.style.height="auto";t.style.height=(t.scrollHeight+2)+"px";};host.querySelectorAll(".amr-grow").forEach(t=>{grow(t);t.addEventListener("input",()=>grow(t));t.addEventListener("focus",()=>grow(t));});
+  requestAnimationFrame(()=>host.querySelectorAll(".amr-grow").forEach(grow));
   host.querySelectorAll("input,textarea").forEach(i=>i.addEventListener("input",()=>{AMR.dirty=true;amrProgress();}));
   host.querySelectorAll(".amr-seg button").forEach(b=>b.addEventListener("click",()=>setTimeout(amrProgress,0)));
   $("#amrDraft").onclick=()=>amrSave(am,wk,false);$("#amrFinal").onclick=()=>amrSave(am,wk,true);

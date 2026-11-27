@@ -763,6 +763,11 @@ body.inv-lock{overflow:hidden}
 .inv-step .inv-q{flex:1;min-width:0;height:auto;border:0;border-radius:0;background:transparent;font-size:24px}
 .inv-step .inv-q:focus{outline:none;background:#fffbe6}
 .inv-step:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(4,134,103,.2)}
+.inv-snk .inv-model{margin-top:6px}.inv-snk-how{font-size:13px;color:var(--muted);background:#f4f7f5;border-radius:8px;padding:8px 10px;margin:4px 0 6px}.inv-snk-ok{display:flex;align-items:center;gap:10px;font-size:14px}.inv-snk-ok a{color:var(--blue);font-weight:700;text-decoration:none}
+.inv-snk-x{border:none;background:none;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:4px}.inv-snk-err{font-size:12.5px;color:#b42318;margin-top:4px}.inv-snk-err:empty{display:none}
+.inv-snk-help{font-size:12.5px;color:#a3530a;margin-top:4px}.inv-snk-saved{font-size:12.5px;color:#7a5a00;background:#fff7dd;border-radius:6px;padding:5px 8px;margin-bottom:6px}
+.inv-snk-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--muted)}.inv-snk-foot label{display:flex;align-items:center;gap:6px}
+.io2-req{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#6b4bd1;background:#f0ebff;border-radius:4px;padding:1px 5px;vertical-align:middle}.io2-nolink{color:#b42318;font-size:12px}
 .inv-oth{display:flex;gap:8px}.inv-oth .inv-model{margin-top:0}.inv-oth .inv-onum{flex:0 0 110px}
 .inv-item .inv-size{display:flex;gap:8px;margin-top:10px}.inv-item .inv-size button{flex:1;height:46px;font-size:16px}
 .inv-add{width:100%;margin:2px 0 6px}
@@ -6763,7 +6768,7 @@ function invNeeded(row){const out=[];const it=(row&&row.items)||{};const ex=(row
   Object.keys(it).forEach(k=>{const d=INV_ITEM[k];const n=it[k]&&it[k].need;if(!d||!(n>0))return;
     let label=d.n;if(d.model)label+=" — "+(ex[d.model+"_model"]||"model ?");if(d.free&&it[k].txt)label+=" — "+it[k].txt;if(d.size)label+=" — size "+(ex.glove_size||"?");
     out.push({k,ok:k,v:d.v,label,qty:n,oh:it[k].oh,id:d.id||"",num:d.num||"",sec:d.sec});});
-  (ex.other||[]).forEach((o,i)=>{if(o&&(o.txt||o.num)&&o.need>0)out.push({k:"other",ok:"o"+i,v:o.v||((o.sec==="si"||o.sec==="backbar")?"mgr":"amazon"),label:o.txt||("Item #"+o.num),qty:o.need,oh:o.oh,id:o.id||"",num:o.num||"",sec:o.sec||"other"});});
+  (ex.other||[]).forEach((o,i)=>{if(o&&(o.txt||o.num)&&o.need>0)out.push({k:"other",ok:"o"+i,v:o.v||((o.sec==="si"||o.sec==="backbar")?"mgr":"amazon"),label:o.txt||("Item #"+o.num),qty:o.need,oh:o.oh,req:o.sec==="snacks",url:o.url||"",id:o.id||"",num:o.num||"",sec:o.sec||"other"});});
   return out;}
 
 async function invLoad(sid){const m=invMonth();INV.month=m;INV.salon=sid;
@@ -6776,7 +6781,9 @@ async function invLoad(sid){const m=invMonth();INV.month=m;INV.salon=sid;
   INV.row=rows[0]||{salon_id:sid,month:m,status:"draft",items:{},extras:{}};INV.prev=prev[0]||null;
   const md=mod[0]||{};const ex=INV.row.extras||(INV.row.extras={});
   if(ex.toner_model==null&&md.toner_model)ex.toner_model=md.toner_model;if(ex.drum_model==null&&md.drum_model)ex.drum_model=md.drum_model;
-  if(!ex.glove_size&&INV.prev&&INV.prev.extras&&INV.prev.extras.glove_size)ex.glove_size=INV.prev.extras.glove_size;}
+  if(!ex.glove_size&&INV.prev&&INV.prev.extras&&INV.prev.extras.glove_size)ex.glove_size=INV.prev.extras.glove_size;
+  if(!ex.snack_seed&&INV.row.status!=="submitted"&&INV.prev){((INV.prev.extras||{}).other||[]).filter(o=>o&&o.sec==="snacks"&&o.id&&o.keep!==false).forEach(o=>{
+      if(!(ex.other||[]).some(x=>x.id===o.id))(ex.other=ex.other||[]).push({sec:"snacks",v:"sams",id:o.id,url:o.url||"",txt:o.txt||"",need:null,keep:true,saved:true});});ex.snack_seed=true;}}
 
 // Manager tab view: big launcher card (the form itself opens full screen — easier on a phone)
 function invView(host){const sid=current;
@@ -6847,22 +6854,49 @@ function invRender(){const o=$("#invFull");if(!o)return;
         +(due?'<div class="inv-due">Due for a reorder — this usually runs out by now. Double-check how many you have and enter what you need.</div>':'')
         +(p&&(p.oh!=null||p.need>0)?'<div class="inv-last">Last month: '+(p.oh!=null?p.oh+' on hand':'')+(p.need>0?(p.oh!=null?', ':'')+'needed '+p.need:'')+'</div>':'')+'</div></div>';});
     (ex.other||[]).forEach((o2,i)=>{if(o2.sec!==s.k)return;
+      if(s.k==="snacks"){h+=invSnackRow(o2,i,stepper);return;}
       h+='<div class="inv-item has"><div class="inv-oth">'+(mg?'<input class="inv-model inv-onum" data-oth="'+i+'" data-of="num" value="'+esc(o2.num||"")+'" placeholder="Item #" inputmode="numeric">':'')+'<input class="inv-model" data-oth="'+i+'" data-of="txt" value="'+esc(o2.txt||"")+'" placeholder="'+(s.k==="snacks"?"Snack + Sam’s item # (shippable)":"Item name")+'"></div>'
         +'<div class="inv-pair one">'+stepper(null,"need",o2.need,"Need",i)+'</div></div>';});
-    h+='<button type="button" class="inv-add" data-addoth="'+s.k+'">+ Add '+(s.k==="snacks"?"another snack":mg?"another "+(s.k==="si"?"supply":"backbar")+" item":"another item")+'</button>';
+    if(s.k==="snacks")h+='<div class="inv-snk-how">Want a snack that isn’t listed? Find it on <b>samsclub.com</b> (make sure it says <b>Shipping</b>), copy the page link, and paste it below. It stays on your list each month until you remove it.</div>';
+    h+='<button type="button" class="inv-add" data-addoth="'+s.k+'">+ Add '+(s.k==="snacks"?"a snack from Sam’s Club (paste the link)":mg?"another "+(s.k==="si"?"supply":"backbar")+" item":"another item")+'</button>';
     if(s.k==="backbar")h+='<div class="inv-si"><button type="button" class="inv-sicopy" data-sicopy="1">📋 Copy Salon Innovations order</button><p>Copies your supplies and backbar orders (item # and quantity) to paste into an email to Salon Innovations.</p></div>';
     h+='</section>';});
   h+='<label class="inv-by">Completed by<input id="invBy" value="'+esc(r.completed_by||gmWho().n||"")+'" placeholder="Your name" autocomplete="name"></label>';
   h+='<label class="inv-by">Notes for the office<textarea id="invNotes" rows="3" placeholder="Anything else we should know">'+esc(ex.notes||"")+'</textarea></label><div style="height:90px"></div></div>';
   h+='<div class="inv-f-bar"><span class="inv-save" id="invSave">'+invCounted(r)+' counted</span><button type="button" class="inv-submit" id="invSubmit">'+(sub?"Resubmit":"Submit")+'</button></div>';
   o.innerHTML=h;invWire(o);}
+// Manager-requested snacks: paste a Sam's Club product link -> item # is the number at the end of the address
+function invSamsParse(v){v=String(v||"").trim();if(!v)return null;if(/^\d{6,14}$/.test(v))return {id:v,url:INV_SAMS+v,name:""};
+  let u;try{u=new URL(/^https?:/i.test(v)?v:"https://"+v);}catch(e){return null;}if(!/(^|\.)samsclub\.com$/i.test(u.hostname))return null;
+  const seg=u.pathname.split("/").filter(Boolean);let id=null,slug="";
+  const ip=seg.indexOf("ip");if(ip>=0){id=(seg.slice(ip+1).reverse().find(x=>/^\d{6,14}$/.test(x)))||null;slug=seg[ip+1]&&!/^\d+$/.test(seg[ip+1])?seg[ip+1]:"";}
+  if(!id){const pr=seg.find(x=>/^prod\d+$/i.test(x));if(pr){id=pr;slug=seg[seg.indexOf(pr)-1]||"";}}
+  if(!id){const n=seg.slice().reverse().find(x=>/^\d{6,14}$/.test(x));if(n)id=n;}
+  if(!id)return null;const name=slug&&slug.length>6&&/-/.test(slug)?slug.replace(/-/g," ").replace(/\b\w/g,c=>c.toUpperCase()):"";
+  return {id,url:/^prod/i.test(id)?"https://www.samsclub.com"+u.pathname:INV_SAMS+id,name};}
+function invSamsUrl(o){return o.url||(o.id?(/^prod/i.test(o.id)?"https://www.samsclub.com/p/x/"+o.id:INV_SAMS+o.id):"");}
+function invSnackRow(o,i,stepper){
+  const link=o.id?'<div class="inv-snk-ok"><a href="'+esc(invSamsUrl(o))+'" target="_blank" rel="noopener">Sam’s #'+esc(o.id)+' ↗</a><button type="button" class="inv-snk-x" data-snkrelink="'+i+'">Change link</button></div>'
+    :'<input class="inv-model inv-snk-url" data-oth="'+i+'" data-of="url" placeholder="Paste the Sam’s Club link" inputmode="url" autocomplete="off"><div class="inv-snk-err"></div>'
+     +(o.txt&&!o.id?'<div class="inv-snk-help">Paste the Sam’s link for “'+esc(o.txt)+'” so the office can order the exact item.</div>':'');
+  return '<div class="inv-item has inv-snk'+(o.need>0?' needmore':'')+'">'
+    +(o.saved?'<div class="inv-snk-saved">⭐ On your snack list from last month — set Need, or Remove if you don’t want it.</div>':'')
+    +link+'<input class="inv-model" data-oth="'+i+'" data-of="txt" value="'+esc(o.txt||"")+'" placeholder="What is it? (e.g. Cheez-It, 40 ct)">'
+    +'<div class="inv-pair one">'+stepper(null,"need",o.need,"Need",i)+'</div>'
+    +'<div class="inv-snk-foot"><label><input type="checkbox" data-snkkeep="'+i+'"'+(o.keep!==false?' checked':'')+'> Keep on our list for next month</label><button type="button" class="inv-snk-x" data-othrm="'+i+'">Remove</button></div></div>';}
 function invWire(host){if(host._invWired)return;host._invWired=true;
   host.onkeydown=e=>{if(e.key!=="Enter"||!e.target.classList.contains("inv-q"))return;e.preventDefault();const all=[...host.querySelectorAll(".inv-q")];const n=all[all.indexOf(e.target)+1];if(n)n.focus();else e.target.blur();};
+  host.addEventListener("change",e=>{const t=e.target;if(t.dataset&&t.dataset.of==="url"&&/^\s*\d+\s*$/.test(t.value)){t._chg=true;t.dispatchEvent(new Event("input",{bubbles:true}));}});
   host.addEventListener("focusin",e=>{if(e.target.classList.contains("inv-q"))setTimeout(()=>{try{e.target.select();}catch(x){}},0);});
   host.addEventListener("input",e=>{const t=e.target,r=INV.row;r.items=r.items||{};r.extras=r.extras||{};
     if(t.dataset.k&&t.dataset.f){const o=r.items[t.dataset.k]||(r.items[t.dataset.k]={});o[t.dataset.f]=invQ(t.value);if(o.oh==null&&o.need==null&&!o.txt)delete r.items[t.dataset.k];}
     else if(t.dataset.txt){const o=r.items[t.dataset.txt]||(r.items[t.dataset.txt]={});o.txt=t.value;}
     else if(t.dataset.mk)r.extras[t.dataset.mk]=t.value;
+    else if(t.dataset.oth!=null&&t.dataset.of==="url"){const o=r.extras.other[+t.dataset.oth];if(/^\s*\d+\s*$/.test(t.value)&&!t._chg)return;t._chg=false;const p=invSamsParse(t.value);const msg=t.parentNode.querySelector(".inv-snk-err");
+      if(!p){if(msg)msg.textContent=t.value.trim()?"That doesn’t look like a Sam’s Club product link — open the item on samsclub.com and copy the address.":"";return;}
+      o.id=p.id;o.url=p.url;if(!o.txt&&p.name)o.txt=p.name;if(o.need==null)o.need=1;invDirty();const body=$("#invBody"),y=body?body.scrollTop:0;invRender();const b2=$("#invBody");if(b2)b2.scrollTop=y;
+      const nm=document.querySelector('[data-oth="'+t.dataset.oth+'"][data-of="txt"]');if(nm&&!nm.value)nm.focus();return;}
+    else if(t.dataset.snkkeep!=null){r.extras.other[+t.dataset.snkkeep].keep=t.checked;}
     else if(t.dataset.oth!=null){const o=r.extras.other[+t.dataset.oth];o[t.dataset.of]=t.dataset.of==="need"?invQ(t.value):t.value;}
     else if(t.id==="invNotes")r.extras.notes=t.value;
     else if(t.id==="invBy")r.completed_by=t.value;
@@ -6874,7 +6908,9 @@ function invWire(host){if(host._invWired)return;host._invWired=true;
     if(b.dataset.step){const inp=b.parentNode.querySelector("input");const cur=inp.value===""?null:+inp.value;let nv=(cur==null?0:cur)+(+b.dataset.step);if(cur==null&&+b.dataset.step<0)nv=0;inp.value=Math.max(0,nv);inp.dispatchEvent(new Event("input",{bubbles:true}));return;}
     if(b.dataset.jump){const t=$("#invS_"+b.dataset.jump),body=$("#invBody");if(t&&body)body.scrollTo({top:body.scrollTop+t.getBoundingClientRect().top-body.getBoundingClientRect().top-8,behavior:"auto"});return;}
     if(b.dataset.size){r.extras.glove_size=r.extras.glove_size===b.dataset.size?null:b.dataset.size;b.parentNode.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b&&!!r.extras.glove_size));invDirty();}
-    else if(b.dataset.addoth){const s=b.dataset.addoth;(r.extras.other=r.extras.other||[]).push({sec:s,txt:"",need:null,v:s==="snacks"?"sams":(s==="si"||s==="backbar")?"mgr":"amazon"});const body=$("#invBody"),y=body?body.scrollTop:0;invRender();const b2=$("#invBody");if(b2)b2.scrollTop=y;const ins=document.querySelectorAll('[data-of="txt"]');if(ins.length)ins[ins.length-1].focus();}
+    else if(b.dataset.addoth){const s=b.dataset.addoth;(r.extras.other=r.extras.other||[]).push(Object.assign({sec:s,txt:"",need:null,v:s==="snacks"?"sams":(s==="si"||s==="backbar")?"mgr":"amazon"},s==="snacks"?{keep:true}:{}));const body=$("#invBody"),y=body?body.scrollTop:0;invRender();const b2=$("#invBody");if(b2)b2.scrollTop=y;const ins=document.querySelectorAll(s==="snacks"?'[data-of="url"]':'[data-of="txt"]');if(ins.length)ins[ins.length-1].focus();}
+    else if(b.dataset.othrm!=null){r.extras.other.splice(+b.dataset.othrm,1);invDirty();const body=$("#invBody"),y=body?body.scrollTop:0;invRender();const b2=$("#invBody");if(b2)b2.scrollTop=y;}
+    else if(b.dataset.snkrelink!=null){const o=r.extras.other[+b.dataset.snkrelink];delete o.id;delete o.url;invDirty();const body=$("#invBody"),y=body?body.scrollTop:0;invRender();const b2=$("#invBody");if(b2)b2.scrollTop=y;const inp=document.querySelector('[data-oth="'+b.dataset.snkrelink+'"][data-of="url"]');if(inp)inp.focus();}
     else if(b.id==="invSubmit")invSubmit();});}
 function invSIText(row){const it=(row&&row.items)||{},ex=(row&&row.extras)||{};
   const part=sec=>{const L=[];INV_SECS.find(x=>x.k===sec).items.forEach(d=>{const n=it[d.k]&&it[d.k].need;if(n>0)L.push((d.num?"#"+d.num+" — ":"")+d.n.replace(/^GC Solutions · /,"Great Clips Solutions ")+" — Qty "+n);});
@@ -6947,9 +6983,9 @@ function invOrders(host){if(!INV.omonth)INV.omonth=invMonth();const m=INV.omonth
       return '<tr class="'+(inC?'in':'')+(rc&&rc.recent?' flag':'')+'">'
         +(ro?'<td></td>':'<td class="io2-c"><input type="checkbox" data-cart="'+r.id+'|'+l.ok+'"'+(inC?' checked':'')+' aria-label="In cart: '+esc(l.label)+'"></td>')
         +'<td class="io2-q"><b>'+esc(l.qty)+'</b>'+(w?'<i>'+esc(w[1])+'</i>':'')+'</td>'
-        +'<td class="io2-it">'+esc(l.label)+(w&&w[2]?'<span class="io2-pk">'+esc(w[2])+'</span>':'')+(rc&&rc.recent?'<span class="io2-warn">⚠ already ordered '+esc(invFull(rc.last))+'</span>':'')+'</td>'
+        +'<td class="io2-it">'+esc(l.label)+(l.req?'<span class="io2-req">Manager request</span>':'')+(w&&w[2]?'<span class="io2-pk">'+esc(w[2])+'</span>':'')+(rc&&rc.recent?'<span class="io2-warn">⚠ already ordered '+esc(invFull(rc.last))+'</span>':'')+'</td>'
         +'<td>'+oh(l)+'</td>'
-        +'<td class="io2-id">'+(l.v==="sams"&&l.id?'<a href="'+INV_SAMS+l.id+'" target="_blank" rel="noopener">'+esc(l.id)+' ↗</a>':l.num?'#'+esc(l.num):'')+'</td>'
+        +'<td class="io2-id">'+(l.v==="sams"&&l.id?'<a href="'+esc(l.url||(INV_SAMS+l.id))+'" target="_blank" rel="noopener">'+esc(l.id)+' ↗</a>':l.num?'#'+esc(l.num):(l.req?'<span class="io2-nolink">no link</span>':''))+'</td>'
         +'<td class="io2-x">'+(ro?'':'<button class="io-x" data-oos="'+r.id+'|'+l.ok+'" title="Couldn’t get it — move to Out of stock">Out of stock</button>')+'</td></tr>';};
     const thead='<thead><tr><th></th><th>Order</th><th>Item</th><th>On hand</th><th>Item #</th><th></th></tr></thead>';
     if(r.extras&&r.extras.notes)h+='<div class="io-note"><b>Note from manager:</b> '+esc(r.extras.notes)+'</div>';

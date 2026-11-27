@@ -994,7 +994,11 @@ body.inv-lock{overflow:hidden}
 .amr-seg button.on[data-v=ok]{background:#64748b;color:#fff}
 .amr-seg button.on[data-v=notdone],.amr-seg button.on[data-v=no]{background:#c0392b;color:#fff}
 .amr-seg button.on[data-v=carry]{background:#d97706;color:#fff}
-.amr-c input,.amr-c textarea{background:#fbfcfd}.amr-c{align-items:start}.amr-ex{align-items:start}
+.amr-c input,.amr-c textarea{background:#fbfcfd}
+.ct-pos-card{padding:14px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}.ct-pos-card>div{display:flex;align-items:center;gap:8px}.ct-pos-card span{font-size:13px;color:var(--muted)}
+.ct-pos-card code{font-size:15px;font-weight:700;letter-spacing:.5px;background:#f1f6f4;padding:6px 14px;border-radius:6px;user-select:all}.ct-pos-card code.ct-pos-hide{user-select:none;color:var(--muted)}
+.ct-pos-note{flex-basis:100%;font-size:12px;color:var(--muted)}
+#ctPosBox[hidden]{display:none!important}@media print{#ctPosBox{display:none!important}}.amr-c{align-items:start}.amr-ex{align-items:start}
 .amr-grow{resize:none;overflow:hidden;line-height:1.4;min-height:34px;display:block;white-space:pre-wrap;overflow-wrap:anywhere}.amr-review #amrComment{align-self:stretch}
 .amr-c.ok input{border-color:#9fd8b6;background:#f6fcf8}
 .amr-yn{background:#f7f9fa;border-radius:9px;padding:10px 12px;margin-top:6px}
@@ -1306,6 +1310,17 @@ body.gc-linksonly section.panel,body.gc-linksonly #gcTourBtn,body.gc-linksonly .
     <button class="btn-outline btn-sm" onclick="ctAddVendor()">+ Add Vendor</button>
     <button class="btn-outline btn-sm" onclick="ctPrint()">🖨️ Print PDF</button>
     <span class="savemsg" id="ctMsg"></span>
+  </div>
+  <div id="ctPosBox" class="ct-sec ct-pos" hidden>
+    <h3>🔑 Salon X iPad POS login</h3>
+    <div class="card ct-pos-card">
+      <div><span>Username</span><code id="ctPosUser">—</code></div>
+      <div><span>Password</span><code id="ctPosVal" class="ct-pos-hide">••••••••</code>
+        <button type="button" class="btn-outline btn-sm" id="ctPosShow">Show</button>
+        <button type="button" class="btn-outline btn-sm" id="ctPosCopy" title="Copy password">📋 Copy</button></div>
+      <span class="savemsg" id="ctPosMsg"></span>
+      <div class="ct-pos-note">Only this salon’s managers, its Area Manager and Pranav can see this. Don’t share it outside the salon team.</div>
+    </div>
   </div>
   <div class="ct-sec">
     <h3>Staff Contacts <span class="badge" id="ctStaffCount">0</span></h3>
@@ -3132,6 +3147,15 @@ $("#recapSave").onclick=()=>doRecapSave('final');
 
 // ===== CONTACTS TAB =====
 let CT_STAFF=[],CT_VENDORS=[],CT_JUNCTIONS=[],CT_COMPANY=[];
+// Salon X iPad POS passwords — only from the gc_pos_passwords() RPC, which returns just the salons this signed-in user can see (owner: all; AM / manager / asst: their salons)
+let CT_POS=null,CT_POS_SHOW=false;
+async function ctPosLoad(){try{const {data,error}=await gcClient().rpc("gc_pos_passwords");if(error)throw error;CT_POS={};(data||[]).forEach(r=>{if(r.pos_password)CT_POS[String(r.salon_id)]=r.pos_password;});}catch(e){console.warn("POS passwords",e);CT_POS={};}ctPosRender();}
+function ctPosRender(){const box=document.getElementById("ctPosBox");if(!box)return;const sid=String(current||"");const pw=CT_POS&&CT_POS[sid];
+  box.hidden=!pw;if(!pw)return;document.getElementById("ctPosUser").textContent=sid;const v=document.getElementById("ctPosVal");
+  v.textContent=CT_POS_SHOW?pw:"••••••••";v.classList.toggle("ct-pos-hide",!CT_POS_SHOW);document.getElementById("ctPosShow").textContent=CT_POS_SHOW?"Hide":"Show";}
+document.addEventListener("click",e=>{if(e.target.closest("#ctPosShow")){CT_POS_SHOW=!CT_POS_SHOW;ctPosRender();}
+  else if(e.target.closest("#ctPosCopy")){const pw=CT_POS&&CT_POS[String(current)];if(!pw)return;const m=document.getElementById("ctPosMsg");
+    (navigator.clipboard?navigator.clipboard.writeText(pw):Promise.reject()).then(()=>{m.textContent="Copied";m.style.color="var(--good)";}).catch(()=>{m.textContent="Couldn’t copy — tap Show and copy it by hand";m.style.color="";}).finally(()=>setTimeout(()=>m.textContent="",2000));}});
 const CT_SALON_NAMES={'0200':'Nob Hill','0646':'Espanola','0933':'Four Hills','2092':'North Towne','2850':'Southern & 528','3781':'Golf Course','3999':'Carlsbad','5809':'Juan Tabo','6101':'Star Plaza','6110':'Towne Park','6116':'DeVargas','6117':'Coronado','7700':'Entrada','7741':'Las Estancias','8914':'San Isidro'};
 
 async function ctLoad(){
@@ -3147,7 +3171,7 @@ async function ctLoad(){
 }
 
 function ctRender(){
-  const sid=current;
+  const sid=current;if(CT_POS===null)ctPosLoad();else ctPosRender();
   // Staff — sort Area Manager, Manager, Asst Manager to top
   const rolePri=n=>{const r=(n||'').toLowerCase();if(r.includes('floater'))return 99;/* floaters always last */if(r.includes('area manager'))return 0;if(r.includes('salon manager')||r==='manager')return 1;if(r.includes('assistant manager')||r.includes('asst manager'))return 2;if(r.includes('lead stylist'))return 3;return 9;};
   const staff=CT_STAFF.filter(c=>String(c.salon_id)===sid).sort((a,b)=>rolePri(a.role)-rolePri(b.role)||(a.name||'').localeCompare(b.name||''));

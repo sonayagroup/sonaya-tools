@@ -767,6 +767,13 @@ body.inv-lock{overflow:hidden}
 .inv-snk-x{border:none;background:none;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:4px}.inv-snk-err{font-size:12.5px;color:#b42318;margin-top:4px}.inv-snk-err:empty{display:none}
 .inv-snk-help{font-size:12.5px;color:#a3530a;margin-top:4px}.inv-snk-saved{font-size:12.5px;color:#7a5a00;background:#fff7dd;border-radius:6px;padding:5px 8px;margin-bottom:6px}
 .inv-snk-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:var(--muted)}.inv-snk-foot label{display:flex;align-items:center;gap:6px}
+.io2-add{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#0b6b8a;background:#e3f4fa;border-radius:4px;padding:1px 5px;vertical-align:middle}
+.io2-unadd{border:none;background:none;color:var(--muted);font:inherit;font-size:11.5px;text-decoration:underline;cursor:pointer;padding:0 4px}
+.io2-addbtn{display:block;width:100%;margin:0 0 12px;padding:11px;border:1.5px dashed #9fd3bf;border-radius:10px;background:#f7fcfa;color:var(--blue);font:inherit;font-weight:700;cursor:pointer}
+.io2-note{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:10px}.io2-note label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}.io2-note label span{font-weight:400;color:var(--muted)}
+.io2-note textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:14px;resize:vertical}.io2-note.sent{font-size:13.5px;background:#f4f7f5}
+.io2-ml{display:block;font-size:13px;font-weight:600;margin:10px 0 0}.io2-ml select,.io2-ml input{display:block;width:100%;box-sizing:border-box;margin-top:4px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px}
+.io2-merr{color:#b42318;font-size:13px;margin-top:8px}.io2-merr:empty{display:none}
 .io2-req{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#6b4bd1;background:#f0ebff;border-radius:4px;padding:1px 5px;vertical-align:middle}.io2-nolink{color:#b42318;font-size:12px}
 .inv-oth{display:flex;gap:8px}.inv-oth .inv-model{margin-top:0}.inv-oth .inv-onum{flex:0 0 110px}
 .inv-item .inv-size{display:flex;gap:8px;margin-top:10px}.inv-item .inv-size button{flex:1;height:46px;font-size:16px}
@@ -6768,8 +6775,8 @@ function invOOSList(row,title){const L=invOOSLines(row);if(!L.length)return "";
 function invNeeded(row){const out=[];const it=(row&&row.items)||{};const ex=(row&&row.extras)||{};
   Object.keys(it).forEach(k=>{const d=INV_ITEM[k];const n=it[k]&&it[k].need;if(!d||!(n>0))return;
     let label=d.n;if(d.model)label+=" — "+(ex[d.model+"_model"]||"model ?");if(d.free&&it[k].txt)label+=" — "+it[k].txt;if(d.size)label+=" — size "+(ex.glove_size||"?");
-    out.push({k,ok:k,v:d.v,label,qty:n,oh:it[k].oh,id:d.id||"",num:d.num||"",sec:d.sec});});
-  (ex.other||[]).forEach((o,i)=>{if(o&&(o.txt||o.num)&&o.need>0)out.push({k:"other",ok:"o"+i,v:o.v||((o.sec==="si"||o.sec==="backbar")?"mgr":"amazon"),label:o.txt||("Item #"+o.num),qty:o.need,oh:o.oh,req:o.sec==="snacks",url:o.url||"",id:o.id||"",num:o.num||"",sec:o.sec||"other"});});
+    out.push({k,ok:k,v:d.v,label,qty:n,oh:it[k].oh,add:!!it[k].added,id:d.id||"",num:d.num||"",sec:d.sec});});
+  (ex.other||[]).forEach((o,i)=>{if(o&&(o.txt||o.num)&&o.need>0)out.push({k:"other",ok:"o"+i,v:o.v||((o.sec==="si"||o.sec==="backbar")?"mgr":"amazon"),label:o.txt||("Item #"+o.num),qty:o.need,oh:o.oh,req:o.sec==="snacks"&&!o.added_by,add:!!o.added_by,url:o.url||"",id:o.id||"",num:o.num||"",sec:o.sec||"other"});});
   return out;}
 
 async function invLoad(sid){const m=invMonth();INV.month=m;INV.salon=sid;
@@ -6984,7 +6991,7 @@ function invOrders(host){if(!INV.omonth)INV.omonth=invMonth();const m=INV.omonth
       return '<tr class="'+(inC?'in':'')+(rc&&rc.recent?' flag':'')+'">'
         +(ro?'<td></td>':'<td class="io2-c"><input type="checkbox" data-cart="'+r.id+'|'+l.ok+'"'+(inC?' checked':'')+' aria-label="In cart: '+esc(l.label)+'"></td>')
         +'<td class="io2-q"><b>'+esc(l.qty)+'</b>'+(w?'<i>'+esc(w[1])+'</i>':'')+'</td>'
-        +'<td class="io2-it">'+esc(l.label)+(l.req?'<span class="io2-req">Manager request</span>':'')+(w&&w[2]?'<span class="io2-pk">'+esc(w[2])+'</span>':'')+(rc&&rc.recent?'<span class="io2-warn">⚠ already ordered '+esc(invFull(rc.last))+'</span>':'')+'</td>'
+        +'<td class="io2-it">'+esc(l.label)+(l.req?'<span class="io2-req">Manager request</span>':'')+(l.add?'<span class="io2-add">Added by you</span>'+(!ro&&!r.ordered_at?'<button class="io2-unadd" data-unadd="'+r.id+'|'+l.ok+'">undo</button>':''):'')+(w&&w[2]?'<span class="io2-pk">'+esc(w[2])+'</span>':'')+(rc&&rc.recent?'<span class="io2-warn">⚠ already ordered '+esc(invFull(rc.last))+'</span>':'')+'</td>'
         +'<td>'+oh(l)+'</td>'
         +'<td class="io2-id">'+(l.v==="sams"&&l.id?'<a href="'+esc(l.url||(INV_SAMS+l.id))+'" target="_blank" rel="noopener">'+esc(l.id)+' ↗</a>':l.num?'#'+esc(l.num):(l.req?'<span class="io2-nolink">no link</span>':''))+'</td>'
         +'<td class="io2-x">'+(ro?'':'<button class="io-x" data-oos="'+r.id+'|'+l.ok+'" title="Couldn’t get it — move to Out of stock">Out of stock</button>')+'</td></tr>';};
@@ -6996,11 +7003,15 @@ function invOrders(host){if(!INV.omonth)INV.omonth=invMonth();const m=INV.omonth
     ["sams","amazon","staples","other"].forEach(v=>{const L=shop.filter(l=>l.v===v);if(!L.length)return;const d=L.filter(l=>cart.includes(l.ok)).length;
       h+='<section class="io2-v'+(d===L.length?' done':'')+'"><div class="io2-vh"><b>'+esc(INV_VEND[v])+'</b><span>'+(d===L.length?'✓ all '+L.length+' in cart':d+' / '+L.length+' in cart')+'</span><button class="gm-link" data-copy="'+sel+'|'+v+'">Copy list</button></div>'
         +'<table class="io2-t">'+thead+'<tbody>'+invOSecs(L).map(g=>'<tr class="io2-sec"><td colspan="6">'+esc(g.t)+'</td></tr>'+g.lines.map(l=>row(l,false)).join("")).join("")+'</tbody></table></section>';});
+    if(st==="ready")h+='<button type="button" class="io2-addbtn" data-additem="'+r.id+'">+ Add an item they didn’t ask for</button>';
     if(!shop.length)h+='<div class="io-empty card">Nothing to order from the stores'+(oos.length?' — everything left is marked out of stock':'')+'.</div>';
     if(oos.length)h+='<section class="io2-v io2-oos"><div class="io2-vh"><b>Out of stock</b><span>try again next month</span></div><table class="io2-t"><tbody>'+oos.map(l=>{const o=invOOS(r,l.ok);
       return '<tr><td></td><td class="io2-q"><b>'+esc(l.qty)+'</b></td><td class="io2-it">'+esc(l.label)+'<span class="io2-pk">'+esc(INV_VEND[l.v]||"")+(o.d?' · marked '+esc(gmShort(o.d)):'')+(o.by?' by '+esc(o.by):'')+'</span></td><td>'+oh(l)+'</td><td></td><td class="io2-x"><button class="io-x on" data-oos="'+r.id+'|'+l.ok+'">Undo</button></td></tr>';}).join("")+'</tbody></table></section>';
     if(mgr.length)h+='<details class="io2-v io2-mgr"><summary><b>Salon Innovations &amp; backbar</b><span>'+mgr.length+' item'+(mgr.length===1?"":"s")+' · the manager orders these</span></summary><table class="io2-t">'+thead+'<tbody>'+mgr.map(l=>row(l,true)).join("")+'</tbody></table></details>';
     const moreReady=G.ready.filter(x=>x!==sel).length;
+    const sent=r.order_summary&&r.order_summary.note;
+    if(st==="ready")h+='<div class="io2-note"><label for="io2Note">Note to the manager <span>(goes in the “ordered” email — optional)</span></label><textarea id="io2Note" data-onote="'+r.id+'" rows="2" placeholder="e.g. I added bath tissue and glass cleaner since you were running low.">'+esc((INV.onote||{})[r.id]||"")+'</textarea></div>';
+    else if(st==="ordered"&&sent)h+='<div class="io2-note sent"><b>Your note in the email:</b> '+esc(sent)+'</div>';
     h+='<div class="io2-act"><button class="gm-link" data-fullinv="'+r.id+'">Full inventory</button>'+(shop.length?'<button class="gm-cancel" data-copyall="'+sel+'">Copy whole order</button>':'')
       +(st==="ordered"?'<button class="gm-cancel" data-unorder="'+r.id+'">Undo ordered</button>':st==="ready"?'<button class="btn" data-order="'+r.id+'">✓ Mark ordered'+(moreReady?' &amp; next ›':'')+'</button>':'')+'</div>';}
   h+='</div></div>';
@@ -7044,8 +7055,34 @@ function invTab(){const body=$("#invTabBody"),bar=$("#invViewBar");if(!body)retu
 (function(){const t=document.querySelector('.tab[data-t="inv"]');if(t)t.addEventListener("click",invTab);})();
 // Snapshot sent with "Mark ordered" — the gc-inv-notify email to the salon manager is built from it
 function invOrderSummary(r){if(!r)return null;const L=invNeeded(r).filter(l=>l.v!=="mgr");const u=l=>{const w=INV_HOW[l.k];return w?w[1]:"";};
-  const m=l=>({v:l.v,label:l.label,qty:l.qty,unit:u(l)});
-  return {ordered:L.filter(l=>!invOOS(r,l.ok)).map(m),oos:L.filter(l=>invOOS(r,l.ok)).map(m)};}
+  const m=l=>Object.assign({v:l.v,label:l.label,qty:l.qty,unit:u(l)},l.add?{added:true}:{});
+  const note=String((INV.onote||{})[r.id]||"").trim();
+  return Object.assign({ordered:L.filter(l=>!invOOS(r,l.ok)).map(m),oos:L.filter(l=>invOOS(r,l.ok)).map(m)},note?{note}:{});}
+// Office adds an item the manager didn't ask for (tracked: items[k].added / extras.other[].added_by — shows "Added by you", goes to order history, flagged in the email)
+async function invPatchRow(id,body){const r=await fetch(SUPA_URL+"/rest/v1/gc_inv_submissions?id=eq."+id,{method:"PATCH",headers:gmHdr({Prefer:"return=representation"}),body:JSON.stringify(body)});if(!r.ok)throw new Error("HTTP "+r.status);
+  const j=await r.json();const i=INV.all.rows.findIndex(x=>x.id===id);if(i>=0&&j[0])INV.all.rows[i]=j[0];return j[0];}
+function invAddModal(id){const r=INV.all.rows.find(x=>x.id===id);if(!r)return;const have=new Set(invNeeded(r).map(l=>l.k));
+  const opts=INV_SECS.filter(sc=>sc.items.some(d=>d.v!=="mgr")).map(sc=>'<optgroup label="'+esc(sc.t)+'">'+sc.items.filter(d=>d.v!=="mgr"&&!have.has(d.k)).map(d=>{const v=(r.items||{})[d.k];return '<option value="'+d.k+'">'+esc(d.n)+(v&&v.oh!=null?' — '+v.oh+' on hand':'')+'</option>';}).join("")+'</optgroup>').join("");
+  gmModal('<h3>Add an item to '+esc(r.salon_id)+' '+esc(pnameShort(r.salon_id))+'</h3><p class="hint" style="margin-top:0">It’s added to this order, marked “Added by you”, and listed in the manager’s email.</p>'
+    +'<label class="io2-ml">Item<select id="iaItem"><option value="">Choose an item…</option>'+opts+'<option value="__other">Something else (type it / paste a Sam’s link)…</option></select></label>'
+    +'<div id="iaOther" hidden><label class="io2-ml">What is it?<input id="iaTxt" placeholder="Item name"></label><label class="io2-ml">Sam’s Club link (optional)<input id="iaUrl" placeholder="Paste the samsclub.com link"></label>'
+    +'<label class="io2-ml">Store<select id="iaV"><option value="sams">Sam’s Club</option><option value="amazon">Amazon</option><option value="staples">Staples</option><option value="other">Other</option></select></label>'
+    +'<label class="io2-ml">Category<select id="iaSec">'+INV_OSECS.filter(([k])=>k!=="si"&&k!=="backbar").map(([k,t])=>'<option value="'+k+'"'+(k==="misc"?' selected':'')+'>'+esc(t)+'</option>').join("")+'</select></label></div>'
+    +'<div id="iaOh" class="hint"></div><label class="io2-ml">Quantity<input id="iaQty" type="number" min="1" value="1" inputmode="numeric"></label><div id="iaErr" class="io2-merr"></div>'
+    +'<div class="gm-actions"><button class="btn sec" data-act="close">Cancel</button><button class="btn" id="iaSave">Add to order</button></div>');
+  const sel=$("#iaItem");sel.onchange=()=>{$("#iaOther").hidden=sel.value!=="__other";const v=(r.items||{})[sel.value],w=INV_HOW[sel.value];$("#iaOh").textContent=v&&v.oh!=null?"They counted "+v.oh+(w?" "+w[0]:"")+" on hand."+(w?" Order in "+w[1]+(w[2]?" ("+w[2]+")":"")+".":""):(w?"Order in "+w[1]+(w[2]?" ("+w[2]+")":"")+".":"");};
+  $("#iaUrl").oninput=function(){const pp=invSamsParse(this.value);if(pp){$("#iaV").value="sams";if(!$("#iaTxt").value&&pp.name)$("#iaTxt").value=pp.name;}};
+  $("#iaSave").onclick=async function(){const k=sel.value,q=Math.max(1,parseInt($("#iaQty").value,10)||0),err=$("#iaErr");if(!k){err.textContent="Choose an item.";return;}
+    const who=gmWho().n||"Office",at=new Date().toISOString();let body;
+    if(k==="__other"){const txt=$("#iaTxt").value.trim(),pp=invSamsParse($("#iaUrl").value);if(!txt&&!pp){err.textContent="Type what it is or paste a Sam’s link.";return;}
+      if($("#iaUrl").value.trim()&&!pp){err.textContent="That link isn’t a Sam’s Club product link.";return;}
+      const ex=JSON.parse(JSON.stringify(r.extras||{}));(ex.other=ex.other||[]).push(Object.assign({sec:$("#iaSec").value,v:pp?"sams":$("#iaV").value,txt:txt||("Sam’s item #"+pp.id),need:q,added_by:who,added_at:at},pp?{id:pp.id,url:pp.url}:{}));body={extras:ex};}
+    else{const it=JSON.parse(JSON.stringify(r.items||{}));const cur=it[k]||{};it[k]=Object.assign({},cur,{need:q,added:{by:who,at,prev:cur.need==null?null:cur.need}});body={items:it};}
+    this.disabled=true;try{await invPatchRow(id,body);gmClose();gmToast("Added to "+r.salon_id+"’s order");invRefresh();}catch(e){err.textContent="Couldn’t save: "+e.message;this.disabled=false;}};}
+async function invUnadd(id,ok){const r=INV.all.rows.find(x=>x.id===id);if(!r)return;let body;
+  if(/^o\d+$/.test(ok)){const ex=JSON.parse(JSON.stringify(r.extras||{}));const i=+ok.slice(1);if(!(ex.other||[])[i]||!ex.other[i].added_by)return;ex.other.splice(i,1);body={extras:ex};}
+  else{const it=JSON.parse(JSON.stringify(r.items||{}));const cur=it[ok];if(!cur||!cur.added)return;const prev=cur.added.prev;delete cur.added;if(prev==null){delete cur.need;if(cur.oh==null&&!cur.txt)delete it[ok];}else cur.need=prev;body={items:it};}
+  try{await invPatchRow(id,body);gmToast("Removed");invRefresh();}catch(e){gmToast("Couldn’t update: "+e.message);}}
 function invCart(id){try{return JSON.parse(localStorage.getItem("gc_inv_cart_"+id)||"[]");}catch(e){return [];}}
 function invNextReady(sid){const by={};(INV.all&&INV.all.rows||[]).forEach(r=>by[r.salon_id]=r);const L=invSalons().filter(s=>by[s]&&by[s].status==="submitted"&&!by[s].ordered_at);
   if(!L.length)return null;const after=L.find(s=>s>sid&&s!==sid);return after||L.find(s=>s!==sid)||null;}
@@ -7058,6 +7095,9 @@ function invOWire(host){const sel=$("#invOMonth");if(sel)sel.onchange=function()
     const txt=s+" "+(SALONS[s]||"")+" — "+INV_VEND[v]+(sk&&gs[0]?" · "+gs[0].t:"")+"\n"+(sk?gs.map(g=>g.lines.map(ln).join("\n")).join(""):gs.map(g=>"\n"+g.t.toUpperCase()+"\n"+g.lines.map(ln).join("\n")).join("\n"));
     (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>gmToast("Copied")).catch(()=>gmModal('<h3>Copy</h3><textarea style="width:100%;height:200px">'+esc(txt)+'</textarea><div class="gm-actions"><button class="btn" data-act="close">Close</button></div>'));});
   host.querySelectorAll("[data-osel],[data-onav]").forEach(b=>b.onclick=()=>{INV.osel=b.dataset.osel||b.dataset.onav;invRefresh();const m=$(".io2-main");if(m&&m.getBoundingClientRect().top<0)m.scrollIntoView({block:"start"});});
+  host.querySelectorAll("[data-additem]").forEach(b=>b.onclick=()=>invAddModal(b.dataset.additem));
+  host.querySelectorAll("[data-unadd]").forEach(b=>b.onclick=()=>{const [id,ok]=b.dataset.unadd.split("|");b.disabled=true;invUnadd(id,ok);});
+  host.querySelectorAll("[data-onote]").forEach(t=>t.oninput=()=>{(INV.onote=INV.onote||{})[t.dataset.onote]=t.value;});
   host.querySelectorAll("[data-cart]").forEach(c=>c.onchange=()=>{const [id,ok]=c.dataset.cart.split("|");let L=invCart(id);L=c.checked?L.concat([ok]):L.filter(x=>x!==ok);try{localStorage.setItem("gc_inv_cart_"+id,JSON.stringify(L));}catch(e){}invRefresh();});
   host.querySelectorAll("[data-jump]").forEach(b=>b.onclick=()=>{const el=document.getElementById("io-"+b.dataset.jump);if(el){el.open=true;el.scrollIntoView({behavior:"smooth",block:"start"});}else gmToast("Not submitted yet.");});
   host.querySelectorAll("[data-copyall]").forEach(b=>b.onclick=()=>{const s=b.dataset.copyall;const r=INV.all.rows.find(x=>x.salon_id===s);const ln=l=>l.qty+" × "+l.label+(l.id?" (#"+l.id+")":"");
@@ -7078,7 +7118,7 @@ function invOWire(host){const sel=$("#invOMonth");if(sel)sel.onchange=function()
           if(lines.length)await gmPost("gc_inv_order_hist",lines.map(l=>({salon_id:row.salon_id,item_key:l.k,ordered_on:day,qty:l.qty,item_name:l.label,source:"dashboard",ref:id})),"?on_conflict=salon_id,item_key,ordered_on,ref","resolution=ignore-duplicates,return=minimal");
           INV.all=null;}
         else{await fetch(SUPA_URL+"/rest/v1/gc_inv_order_hist?source=eq.dashboard&ref=eq."+id,{method:"DELETE",headers:gmHdr({})});INV.all=null;}}catch(e){console.error(e);}
-      if(on){gmToast("✓ "+me+" marked ordered"+(nxt?" — next: "+nxt:""));if(nxt)INV.osel=nxt;}invRefresh();}catch(e){gmToast("Could not update: "+e.message);b.disabled=false;}});}
+      if(on){if(INV.onote)delete INV.onote[id];gmToast("✓ "+me+" marked ordered"+(nxt?" — next: "+nxt:""));if(nxt)INV.osel=nxt;}invRefresh();}catch(e){gmToast("Could not update: "+e.message);b.disabled=false;}});}
 
 document.addEventListener("click",e=>{if(e.target.closest("[data-invopen]")){e.preventDefault();invOpen();}
   else if(e.target.closest("[data-sicopy-out]")){e.preventDefault();invSICopy();}

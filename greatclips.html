@@ -6743,7 +6743,8 @@ const INV_FIXED={sanitizer:1}; // set by Pranav: always use this length, not the
 function invItemCycle(h,k){const base=invCycle(k);if(!base)return null;if(INV_FIXED[k])return base;const d=(h&&h[k])||[];if(d.length<2)return base;
   const gaps=[];for(let i=1;i<d.length;i++)gaps.push(invDays(d[i],d[i-1]));gaps.sort((a,b)=>a-b);const med=gaps[Math.floor(gaps.length/2)];return Math.round((base+Math.min(Math.max(med,20),240))/2);}
 // {last, days, cycle, recent, next} for an item at a salon; recent = still inside ~80% of how long it usually lasts
-function invRecent(h,k,today){const d=(h&&h[k])||[];if(!d.length)return null;const cyc=invItemCycle(h,k);const last=d[0],days=invDays(last,today||gmToday());
+function invRecent(h,k,today){if(INV_ITEM[k]&&INV_ITEM[k].sec==="snacks")return null; // snacks are reordered every month — no "already ordered" / "due" warnings
+  const d=(h&&h[k])||[];if(!d.length)return null;const cyc=invItemCycle(h,k);const last=d[0],days=invDays(last,today||gmToday());
   return {last,days,cycle:cyc,recent:cyc?days<Math.round(cyc*0.8):false,next:cyc?gmAdd(last,cyc):null};}
 function invHistMap(rows){const m={};(rows||[]).forEach(r=>{const a=(m[r.item_key]=m[r.item_key]||[]);if(a[0]!==r.ordered_on&&!a.includes(r.ordered_on))a.push(r.ordered_on);});Object.values(m).forEach(a=>a.sort().reverse());return m;}
 // judge "recent" as of the day the order is placed (the inventory due date), not the day the manager opens the form
